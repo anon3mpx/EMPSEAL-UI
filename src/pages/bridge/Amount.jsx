@@ -5,7 +5,12 @@ import Refresh from "../../assets/images/refresh.svg";
 import Info from "../../assets/images/info.svg";
 import { formatUnits } from "viem";
 import Transcation from "./Transcation";
-import {readContract, waitForTransactionReceipt, writeContract, sendTransaction} from "@wagmi/core";
+import {
+  readContract,
+  waitForTransactionReceipt,
+  writeContract,
+  sendTransaction,
+} from "@wagmi/core";
 import { erc20Abi } from "viem";
 import { bridgeConfig } from "../../Wagmi/bridgeConfig";
 import { toast } from "react-toastify";
@@ -28,17 +33,19 @@ const Amount = ({
   const [transactionHash, setTransactionHash] = useState("");
   const [destinationTx, setDestinationTx] = useState({});
   const modalRef = useRef(null);
-  const rangoApiKey = import.meta.env.VITE_RANGO_API_KEY || import.meta.env.RANGO_API_KEY || "";
-  
+  const rangoApiKey =
+    import.meta.env.VITE_RANGO_API_KEY || import.meta.env.RANGO_API_KEY || "";
+
   //route detection logic
   const symbiosisRoute = selectedRoute?.type === "evm";
-  const rangoRoute = typeof selectedRoute?.requestId === 'string';
-  const rubicRoute = selectedRoute?.swapType === "cross-chain" || selectedRoute?.swapType === "on-chain";
+  const rangoRoute = typeof selectedRoute?.requestId === "string";
+  const rubicRoute =
+    selectedRoute?.swapType === "cross-chain" ||
+    selectedRoute?.swapType === "on-chain";
 
   // console.log("selected Rango route:", selectedRoute);
   // console.log("selected Rango address:", fromAddress);
   // console.log("selected Rango to address:", toAddress);
-
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -72,19 +79,25 @@ const Amount = ({
       if (rubicRoute) {
         const tokenAmount = quoteData?.rubic?.quote?.srcTokenAmount;
         if (!tokenAmount) return BigInt(0);
-        
-        const calculatedAmount = Math.floor(parseFloat(tokenAmount) * Math.pow(10, decimals));
+
+        const calculatedAmount = Math.floor(
+          parseFloat(tokenAmount) * Math.pow(10, decimals)
+        );
         return BigInt(calculatedAmount.toString());
       } else if (rangoRoute) {
         if (!amountIn) return BigInt(0);
-        
-        const calculatedAmount = Math.floor(parseFloat(amountIn) * Math.pow(10, decimals));
+
+        const calculatedAmount = Math.floor(
+          parseFloat(amountIn) * Math.pow(10, decimals)
+        );
         return BigInt(calculatedAmount.toString());
       } else if (symbiosisRoute) {
         if (!amountIn) return BigInt(0);
-        
+
         // Convert decimal to integer
-        const calculatedAmount = Math.floor(parseFloat(amountIn) * Math.pow(10, decimals));
+        const calculatedAmount = Math.floor(
+          parseFloat(amountIn) * Math.pow(10, decimals)
+        );
         return BigInt(calculatedAmount.toString());
       }
       return BigInt(0);
@@ -95,13 +108,13 @@ const Amount = ({
   };
 
   const scaledAmount = getScaledAmount();
-  
-  const approveToken = async (tokenAddress, approvalAddress, amount) => {
 
+  const approveToken = async (tokenAddress, approvalAddress, amount) => {
     try {
       // Check if the token is the native token
-      const isNativeToken = tokenAddress === "0x0000000000000000000000000000000000000000";
-  
+      const isNativeToken =
+        tokenAddress === "0x0000000000000000000000000000000000000000";
+
       if (isNativeToken) {
         // Native tokens don't need approval
         await swapTokens();
@@ -111,7 +124,7 @@ const Amount = ({
         };
       }
       // await executeSwap(swapDetails, swapDetails.quote.fromAddress);
-  
+
       // If not a native token, proceed
       let result = await writeContract(bridgeConfig, {
         abi: erc20Abi,
@@ -120,15 +133,14 @@ const Amount = ({
         args: [approvalAddress, amount],
       });
       await waitForTransaction(result);
-      
+
       // await executeSwap(swapDetails, swapDetails.quote.fromAddress);
       return {
         success: true,
         data: result,
       };
-      
     } catch (error) {
-      toast.error("Token approval failed!!")
+      toast.error("Token approval failed!!");
       throw error;
     }
   };
@@ -156,38 +168,41 @@ const Amount = ({
       let response;
       let payload;
 
-      if(rubicRoute) {
+      if (rubicRoute) {
         // Rubic implementation
         payload = {
-          dstTokenAddress: quoteData.rubic.quote.dstTokenAddress, 
-            dstTokenBlockchain: quoteData.rubic.quote.dstTokenBlockchain, 
-            referrer: quoteData.rubic.quote.referrer, 
-            srcTokenAddress: quoteData.rubic.quote.srcTokenAddress, 
-            srcTokenAmount: quoteData.rubic.quote.srcTokenAmount, 
-            srcTokenBlockchain: quoteData.rubic.quote.srcTokenBlockchain , 
-            fromAddress: quoteData.rubic.quote.fromAddress, 
-            receiver: quoteData.rubic.quote.receiver, 
-            integratorAddress: quoteData.rubic.quote.integratorAddress, 
-            id: selectedRoute.id, 
-            slippage: selectedRoute.estimate.slippage,
-        } 
-        response = await fetch('https://api-v2.rubic.exchange/api/routes/swap',
+          dstTokenAddress: quoteData.rubic.quote.dstTokenAddress,
+          dstTokenBlockchain: quoteData.rubic.quote.dstTokenBlockchain,
+          referrer: quoteData.rubic.quote.referrer,
+          srcTokenAddress: quoteData.rubic.quote.srcTokenAddress,
+          srcTokenAmount: quoteData.rubic.quote.srcTokenAmount,
+          srcTokenBlockchain: quoteData.rubic.quote.srcTokenBlockchain,
+          fromAddress: quoteData.rubic.quote.fromAddress,
+          receiver: quoteData.rubic.quote.receiver,
+          integratorAddress: quoteData.rubic.quote.integratorAddress,
+          id: selectedRoute.id,
+          slippage: selectedRoute.estimate.slippage,
+        };
+        response = await fetch(
+          "https://api-v2.rubic.exchange/api/routes/swap",
           {
-            method: 'POST',
+            method: "POST",
             headers: {
-              'Content-Type': 'application/json',
+              "Content-Type": "application/json",
             },
             body: JSON.stringify(payload),
-          });
-      } else if(typeof selectedRoute?.requestId === "string"){
+          }
+        );
+      } else if (typeof selectedRoute?.requestId === "string") {
         // Get source and destination chains from the selectedRoute
         const fromChain = selectedRoute.swaps[0].from.blockchain;
-        const toChain = selectedRoute.swaps[selectedRoute.swaps.length - 1].to.blockchain;
-        
+        const toChain =
+          selectedRoute.swaps[selectedRoute.swaps.length - 1].to.blockchain;
+
         // Create selectedWallets object with the user's address for both chains
         const selectedWallets = {
           [fromChain]: fromAddress,
-          [toChain]: toAddress
+          [toChain]: toAddress,
         };
 
         // rango payload with updated data
@@ -195,20 +210,20 @@ const Amount = ({
           requestId: selectedRoute.requestId,
           destination: toAddress,
           checkPrerequisites: false,
-          selectedWallets: selectedWallets  // Add the selectedWallets object
+          selectedWallets: selectedWallets, // Add the selectedWallets object
         };
-         
+
         const confirmResponse = await fetch(
           `https://api.rango.exchange/routing/confirm?apiKey=${rangoApiKey}`,
           {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
           }
         );
 
         if (!confirmResponse.ok) {
-          throw new Error('Rango route confirmation failed');
+          throw new Error("Rango route confirmation failed");
         }
 
         const confirmData = await confirmResponse.json();
@@ -218,32 +233,31 @@ const Amount = ({
           userSettings: { slippage: selectedRoute?.estimate?.slippage || 1 },
           validations: { balance: true, fee: true, approve: true },
           step: 1,
-          requestId: selectedRoute.requestId
+          requestId: selectedRoute.requestId,
         };
 
         response = await fetch(
           `https://api.rango.exchange/tx/create?apiKey=${rangoApiKey}`,
           {
-            method: 'POST',
+            method: "POST",
             headers: {
-              accept: '*/*',
-              'Content-Type': 'application/json',
+              accept: "*/*",
+              "Content-Type": "application/json",
             },
-            body: JSON.stringify(createTxPayload)
+            body: JSON.stringify(createTxPayload),
           }
         );
-      }
-      else if(symbiosisRoute) {
+      } else if (symbiosisRoute) {
         // Symbiosis implementation
         return {
           transaction: quoteData.symbiosis.tx,
           quote: {
-            fromAddress: fromAddress
-          }
+            fromAddress: fromAddress,
+          },
         };
       }
 
-      if(!response?.ok) {
+      if (!response?.ok) {
         throw new Error(`HTTP error! Status: ${response.status}`);
       }
 
@@ -269,16 +283,15 @@ const Amount = ({
       await waitForTransaction(txHash);
       setTransactionHash(txHash);
       const status = await getTransactionStatus(txHash);
-      
+
       if (status) {
         return { success: true, txHash };
       } else {
         return { success: false, message: "Transaction failed." };
       }
-      
     } catch (error) {
       console.error("Error executing swap:", error);
-      return {success: false, message: error.message};
+      return { success: false, message: error.message };
     }
   };
 
@@ -292,10 +305,12 @@ const Amount = ({
   const getTransactionStatus = async (hash) => {
     try {
       if (rubicRoute) {
-        const response = await fetch(`https://api-v2.rubic.exchange/api/info/status?srcTxHash=${hash}`);
+        const response = await fetch(
+          `https://api-v2.rubic.exchange/api/info/status?srcTxHash=${hash}`
+        );
         const data = await response.json();
         const { status, destinationTxHash } = data;
-        
+
         if (data.status === "NOT_FOUND") {
           setConfirm(true);
         } else if (data.status === "SUCCESS") {
@@ -305,25 +320,24 @@ const Amount = ({
           clearState();
         }
         return status;
-      } 
-      else if (rangoRoute) {
+      } else if (rangoRoute) {
         const response = await fetch(
           `https://api.rango.exchange/tx/check-status?apiKey=${rangoApiKey}`,
           {
-            method: 'POST',
+            method: "POST",
             headers: {
-              'content-type': 'application/json'
+              "content-type": "application/json",
             },
             body: JSON.stringify({
               requestId: selectedRoute.requestId,
               txId: hash,
-              step: 1
-            })
+              step: 1,
+            }),
           }
         );
 
         const data = await response.json();
-        
+
         // Handle Rango specific status
         if (data.status === "success") {
           setDestinationTx(data);
@@ -334,10 +348,9 @@ const Amount = ({
           toast.error("Rango transaction failed");
           setConfirm(true);
         }
-        
+
         return data.status;
-      }
-      else if (symbiosisRoute) {
+      } else if (symbiosisRoute) {
         // Add Symbiosis status check if needed
         setConfirm(true);
         clearState();
@@ -352,7 +365,7 @@ const Amount = ({
 
   const handleClick = async () => {
     if (disabled || isLoading) return;
-  
+
     setIsLoading(true);
     try {
       let approvalResult = null;
@@ -374,7 +387,7 @@ const Amount = ({
         // First get the swap data which includes approval info
         swapData = await swapTokens();
         // console.log("rango swap data: ", swapData);
-        
+
         if (swapData?.approve) {
           approvalResult = await approveToken(
             swapData.approve.token,
@@ -386,38 +399,46 @@ const Amount = ({
         }
       }
 
-      if(approvalResult && approvalResult.success) {
+      if (approvalResult && approvalResult.success) {
         toast.success("Token Approved!");
-        
+
         if (!swapData) {
           swapData = await swapTokens();
         }
 
         let swapResult;
         if (rangoRoute) {
-          swapResult = await executeSwap({
-            transaction: {
-              to: swapData.transaction.to,
-              data: swapData.transaction.data,
-              value: swapData.transaction.value,
-              from: fromAddress
-            }
-          }, fromAddress);
+          swapResult = await executeSwap(
+            {
+              transaction: {
+                to: swapData.transaction.to,
+                data: swapData.transaction.data,
+                value: swapData.transaction.value,
+                from: fromAddress,
+              },
+            },
+            fromAddress
+          );
         } else {
-          swapResult = await executeSwap(swapData, swapData?.quote?.fromAddress);
+          swapResult = await executeSwap(
+            swapData,
+            swapData?.quote?.fromAddress
+          );
         }
-        
+
         if (swapResult.success) {
           if (rangoRoute || rubicRoute) {
             // Show initial message
-            toast.info("Transaction is being processed. This may take a few minutes...");
-            
+            toast.info(
+              "Transaction is being processed. This may take a few minutes..."
+            );
+
             let lastToastTime = Date.now();
             const statusCheckInterval = setInterval(async () => {
               try {
                 const status = await getTransactionStatus(swapResult.txHash);
                 const normalizedStatus = status?.toUpperCase();
-                
+
                 if (normalizedStatus === "SUCCESS") {
                   clearInterval(statusCheckInterval);
                   toast.success("Transaction completed successfully! 🎉");
@@ -428,11 +449,12 @@ const Amount = ({
                 } else if (normalizedStatus === "RUNNING") {
                   // Show processing message only once per minute
                   const currentTime = Date.now();
-                  if (currentTime - lastToastTime >= 60000) { // 60000ms = 1 minute
+                  if (currentTime - lastToastTime >= 60000) {
+                    // 60000ms = 1 minute
                     toast.info("Still processing... Please wait.");
                     lastToastTime = currentTime;
                   }
-                } 
+                }
               } catch (error) {
                 clearInterval(statusCheckInterval);
                 console.error("Status check failed:", error);
@@ -445,7 +467,9 @@ const Amount = ({
             clearState();
           }
         } else {
-          throw new Error("API returned an error: " + (swapResult.message || "Unknown error"));
+          throw new Error(
+            "API returned an error: " + (swapResult.message || "Unknown error")
+          );
         }
       }
     } catch (error) {
@@ -455,7 +479,7 @@ const Amount = ({
       setIsLoading(false);
     }
   };
-  
+
   const formatNumber = (value) => {
     if (!value) return ""; // Handle empty input
 
@@ -468,16 +492,19 @@ const Amount = ({
       ? `${formattedInteger}.${decimalPart.replace(/\D/g, "")}` // Remove non-numeric from decimal
       : formattedInteger;
   };
-  
+
   const getDisplayValues = () => {
-    
     if (rubicRoute && selectedRoute?.estimate) {
       return {
-        outputAmount: parseFloat(selectedRoute.estimate.destinationTokenAmount || 0).toFixed(6),
-        minReceived: parseFloat(selectedRoute.estimate.destinationTokenMinAmount || 0).toFixed(6),
+        outputAmount: parseFloat(
+          selectedRoute.estimate.destinationTokenAmount || 0
+        ).toFixed(6),
+        minReceived: parseFloat(
+          selectedRoute.estimate.destinationTokenMinAmount || 0
+        ).toFixed(6),
         priceImpact: selectedRoute.estimate.priceImpact || "0",
         slippage: selectedRoute.estimate.slippage || "0",
-        usdAmount: selectedRoute.estimate.destinationUsdAmount || "0"
+        usdAmount: selectedRoute.estimate.destinationUsdAmount || "0",
       };
     } else if (rangoRoute && selectedRoute?.swaps?.length > 0) {
       const lastSwap = selectedRoute.swaps[selectedRoute.swaps.length - 1];
@@ -486,23 +513,34 @@ const Amount = ({
         minReceived: parseFloat(lastSwap?.toAmount || 0).toFixed(6),
         priceImpact: selectedRoute.priceImpactUsdPercent || "0",
         slippage: lastSwap?.recommendedSlippage?.slippage || "1",
-        usdAmount: (parseFloat(selectedRoute.outputAmount || 0) * 
-                    parseFloat(lastSwap?.to?.usdPrice || 0)).toFixed(2)
+        usdAmount: (
+          parseFloat(selectedRoute.outputAmount || 0) *
+          parseFloat(lastSwap?.to?.usdPrice || 0)
+        ).toFixed(2),
       };
     } else if (symbiosisRoute && quoteData?.symbiosis) {
       const symData = quoteData.symbiosis;
       const tokenOutDecimals = symData?.tokenAmountOut?.decimals || 18;
       const tokenOutAmount = symData?.tokenAmountOut?.amount || "0";
       const tokenOutMinAmount = symData?.tokenAmountOutMin?.amount || "0";
-      
+
       return {
-        outputAmount: parseFloat(formatUnits(tokenOutAmount, tokenOutDecimals)).toFixed(6),
-        minReceived: parseFloat(formatUnits(tokenOutMinAmount, tokenOutDecimals)).toFixed(6),
+        outputAmount: parseFloat(
+          formatUnits(tokenOutAmount, tokenOutDecimals)
+        ).toFixed(6),
+        minReceived: parseFloat(
+          formatUnits(tokenOutMinAmount, tokenOutDecimals)
+        ).toFixed(6),
         priceImpact: symData.priceImpact || "0",
         slippage: "0.5",
-        usdAmount: symData.amountInUsd?.amount 
-          ? parseFloat(formatUnits(symData.amountInUsd.amount, symData.amountInUsd.decimals || 18)).toFixed(2)
-          : "0"
+        usdAmount: symData.amountInUsd?.amount
+          ? parseFloat(
+              formatUnits(
+                symData.amountInUsd.amount,
+                symData.amountInUsd.decimals || 18
+              )
+            ).toFixed(2)
+          : "0",
       };
     }
     return {
@@ -510,24 +548,19 @@ const Amount = ({
       minReceived: "0",
       priceImpact: "0",
       slippage: "0",
-      usdAmount: "0"
+      usdAmount: "0",
     };
   };
-  
-  const {
-    outputAmount,
-    minReceived,
-    priceImpact,
-    slippage,
-    usdAmount
-  } = getDisplayValues();
+
+  const { outputAmount, minReceived, priceImpact, slippage, usdAmount } =
+    getDisplayValues();
   return (
     <>
       <div className="bg-black bg-opacity-40 py-10 flex justify-center items-center overflow-y-auto h-full my-auto fixed top-0 px-4 left-0 right-0 bottom-0 z-[9999] fade-in-out fade-out">
         <div className="w-full flex justify-center my-auto items-center">
           <div
             ref={modalRef}
-            className="md:max-w-[390px] w-full bg-black border border-white rounded-3xl relative py-6 px-6 mx-auto"
+            className="md:max-w-[600px] w-full bg-black clip-bg rounded-3xl relative py-6 px-6 mx-auto"
           >
             <svg
               onClick={onClose}
@@ -546,8 +579,8 @@ const Amount = ({
                 strokeLinejoin="round"
               />
             </svg>
-            <div className="flex gap-3 items-center">
-              <svg
+            <div className="flex gap-3 items-center justify-center">
+              {/* <svg
                 className="cursor-pointer"
                 onClick={onClose}
                 width={14}
@@ -568,47 +601,47 @@ const Amount = ({
                   d="M5.56689 1.14652C5.85978 1.43941 5.85978 1.91429 5.56689 2.20718L1.81065 5.96342L5.56689 9.71966C5.85978 10.0126 5.85978 10.4874 5.56689 10.7803C5.274 11.0732 4.79912 11.0732 4.50623 10.7803L0.219658 6.49375C-0.0732348 6.20086 -0.0732348 5.72598 0.219658 5.43309L4.50623 1.14652C4.79912 0.853626 5.274 0.853626 5.56689 1.14652Z"
                   fill="white"
                 />
-              </svg>
+              </svg> */}
               <div className="text-white text-lg font-bold roboto leading-7">
                 Select Amount
               </div>
             </div>
             <div className="mt-6">
-              <div className="text-amber-600 text-sm font-normal roboto leading-normal">
+              <div className="text-white mb-2 text-sm font-normal roboto leading-normal">
                 You Pay
               </div>
-              <div className="text-white text-2xl font-bold roboto leading-9 flex gap-3 items-center">
+              <div className="text-white text-2xl font-bold roboto leading-9 -ml-6 flex gap-3 w-auto-search items-center bg-search bg-search-padd">
                 {formatNumber(amountIn)} {tokenA.symbol}
                 <img src={tokenA.image} alt="Token A" className="w-4 h-4" />
               </div>
             </div>
             <div className="mt-6">
-              <div className="text-amber-600 text-sm font-normal roboto leading-normal">
+              <div className="text-white text-sm font-normal roboto leading-normal mb-2">
                 You Receive
               </div>
-              <div className="text-white text-2xl font-bold roboto leading-9 flex gap-3 items-center">
+              <div className="text-white text-2xl font-bold roboto leading-9 flex gap-3 items-center -ml-6 w-auto-search bg-search bg-search-padd">
                 {formatNumber(outputAmount)} {tokenB.symbol}
                 <img src={tokenB.image} alt="Token B" className="w-4 h-4" />
               </div>
             </div>
-            <div className="mt-6 text-gray-40 text-white text-sm font-normal robotoleading-normal">
+            <div className="mt-6 text-[#9A5500] text-sm font-normal robotoleading-normal">
               Output is estimated. You will receive at least{" "}
-              {formatNumber(minReceived)} {tokenB.symbol} or the transaction will
-              revert
+              {formatNumber(minReceived)} {tokenB.symbol} or the transaction
+              will revert
             </div>
             <div className="flex justify-between gap-3 items-center w-full mt-6">
-              <div className="text-gray-400 text-sm font-normal roboto leading-normal">
-               Price in $
+              <div className="text-white text-sm font-normal roboto leading-normal">
+                Price in $
               </div>
               <div className="flex gap-2 items-center">
                 <div className="text-right text-white text-sm font-normal roboto leading-normal">
-                  {usdAmount}{"$"}
+                  {usdAmount} {"$"}
                 </div>
               </div>
             </div>
             <div className="flex justify-between gap-3 items-center w-full mt-2">
               <div className="flex gap-2 items-center">
-                <div className="text-gray-400 text-sm font-normal roboto leading-normal">
+                <div className="text-white text-sm font-normal roboto leading-normal">
                   Minimum received
                 </div>
                 <img src={Info} alt="Info" />
@@ -619,7 +652,7 @@ const Amount = ({
             </div>
             <div className="flex justify-between gap-3 items-center w-full mt-2">
               <div className="flex gap-2 items-center">
-                <div className="text-gray-400 text-sm font-normal roboto leading-normal">
+                <div className="text-white text-sm font-normal roboto leading-normal">
                   Price Impact
                 </div>
                 <img src={Info} alt="Info" />
@@ -630,7 +663,7 @@ const Amount = ({
             </div>
             <div className="flex justify-between gap-3 items-center w-full mt-2">
               <div className="flex gap-2 items-center">
-                <div className="text-gray-400 text-sm font-normal roboto leading-normal">
+                <div className="text-white text-sm font-normal roboto leading-normal">
                   Slippage
                 </div>
                 <img src={Info} alt="Info" />
@@ -639,29 +672,37 @@ const Amount = ({
                 {slippage} %
               </div>
             </div>
-            <button
-              onClick={handleClick}
-              disabled={disabled || isLoading}
-              className="w-full rounded-xl px-4 py-4 bg-[#FF9900] flex gap-4 items-center mt-6 justify-center hover:bg-transparent border border-[#FF9900] hover:text-[#FF9900] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
-            >
-              {isLoading ? (
-                <div className="flex items-center gap-2">
-                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  <span className="text-white text-base font-bold roboto">
-                    Processing...
-                  </span>
-                </div>
-              ) : (
-                <div className="text-white text-base font-bold roboto text-center leading-normal">
-                  Proceed
-                </div>
-              )}
-            </button>
+            <div className="bridge-button">
+              <button
+                onClick={handleClick}
+                disabled={disabled || isLoading}
+                className="gtw relative w-full rounded-xl w-pro bg-search-padd py-4 bg-[#FF9900] flex gap-4 items-center mt-6 justify-center border border-[#FF9900] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+              >
+                <div className="group-hover:opacity-80 w-full absolute md:top-2 top-2 md:-left-3 -left-3 z-[1] bg-transparent border-2 border-[#FF9900] rounded-xl h-[58px]"></div>
+                {isLoading ? (
+                  <div className="flex items-center gap-2">
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span className="md:text-xl text-base font-black font-orbitron">
+                      Processing...
+                    </span>
+                  </div>
+                ) : (
+                  <div className="md:text-xl text-base font-black text-center leading-normal uppercase font-orbitron">
+                    Proceed
+                  </div>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       </div>
       <div aria-label="Modal">
-        {isConfirm && <Transcation onClose={() => setConfirm(false)} destinationTx={destinationTx}/>}
+        {isConfirm && (
+          <Transcation
+            onClose={() => setConfirm(false)}
+            destinationTx={destinationTx}
+          />
+        )}
       </div>
     </>
   );

@@ -256,15 +256,25 @@ export const Graph = ({ padding }) => {
 
   const { chain: currentChain, tokenList } = useChainConfig();
 
+  if (!path || path.length < 2) {
+    return (
+      <div
+        className={`border-[2px] border-[#FF9900] rounded-xl pt-4 bg-black ${padding}`}
+      >
+        <div className="text-white roboto text-center">Select tokens to see chart</div>
+      </div>
+    );
+  }
+
   const finalTokenInfo = path[0] === EMPTY_ADDRESS ? path[1] : path[0];
   const chainName = currentChain?.name?.toLowerCase() || "";
   const geckoNetwork = CHAIN_TO_GECKO[chainName] || "";
   // const isPulsechain = chainName === 'pulsechain'; // No longer needed
 
   // Get token info from tokenList
-  const tokenInfo = tokenList.find(
-    (token) => token.address.toLowerCase() === finalTokenInfo.toLowerCase()
-  );
+  const tokenInfo = finalTokenInfo ? tokenList.find(
+    (token) => token.address && token.address.toLowerCase() === finalTokenInfo.toLowerCase()
+  ) : undefined;
 
   return (
     <div

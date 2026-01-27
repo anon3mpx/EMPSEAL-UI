@@ -92,6 +92,22 @@ export function getTokenInfoByAddress(address: string):
   return undefined;
 }
 
+export const formatErrorMessage = (error: any, defaultMessage: string) => {
+  if (error && typeof error.message === 'string') {
+    // Check for common user-rejected error
+    if (error.message.includes("User rejected the request")) {
+      return "Transaction rejected by user.";
+    }
+    // Truncate long messages
+    const maxLength = 100; // Max length for the displayed message
+    if (error.message.length > maxLength) {
+      return `${error.message.substring(0, maxLength)}...`;
+    }
+    return error.message;
+  }
+  return defaultMessage;
+};
+
 // export function getTokenInfoByAdapters(
 //   address: string
 // ): { name: string; icon: string } | undefined {

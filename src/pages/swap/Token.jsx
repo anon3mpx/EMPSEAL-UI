@@ -1,11 +1,17 @@
-import React, { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import Arrow from "../../assets/icons/downarrow.svg";
+import Sbg from "../../assets/images/sbg.png";
+import Clip from "../../assets/images/bg-clip.png";
 import { ERC20_ABI } from "./tokenFetch";
 import { useBalance } from "wagmi";
 import { useChainConfig } from "../../hooks/useChainConfig";
 import Web3 from "web3";
 
-const TokenListItem = ({ token, walletAddress, onClick }) => {
+const TokenListItem = ({
+  token,
+  walletAddress,
+  onClick,
+}) => {
   const { data: tokenBalance, isLoading: balanceLoading } = useBalance({
     address: walletAddress,
     token:
@@ -21,29 +27,33 @@ const TokenListItem = ({ token, walletAddress, onClick }) => {
 
   return (
     <div
-      className="flex justify-between items-center mt-4 cursor-pointer hover:bg-gray-800 p-2 rounded"
+      className="flex justify-between items-center mt-2 cursor-pointer hoverclip md:p-2 p-1 rounded-xl"
       onClick={() => onClick(token)}
     >
       <div className="flex items-center gap-2">
-        <img
-          src={token.logoURI || token.image}
-          className="w-4 h-4"
-          alt={token.name}
-          onError={(e) => {
-            e.target.src = "path/to/fallback/image.png";
-          }}
-        />
+        <div className="flex justify-center items-center rounded-full p-1">
+          <img
+            src={token.logoURI || token.image}
+            className="w-6 h-6 object-contain"
+            alt={token.name}
+            onError={(e) => {
+              e.target.src = "path/to/fallback/image.png";
+            }}
+          />
+        </div>
         <div>
-          <div className="text-white text-base roboto leading-relaxed tracking-wide">
+          <div className="text-white font-orbitron font-black md:text-lg text-sm roboto leading-relaxed tracking-wide">
             {token.name}
+          </div>
+          <div className="text-white text-xs roboto">
+            {token.symbol || token.ticker}
           </div>
         </div>
       </div>
       <div className="text-right">
-        <div className="text-white text-sm font-normal roboto tracking-wide">
+        <div className="text-[#FF9900] md:text-lg text-sm font-bold roboto tracking-wide">
           {balanceLoading ? "Loading..." : formattedBalance}
         </div>
-        <div className="text-gray-400 text-xs roboto mt-2">{token.symbol || token.ticker}</div>
       </div>
     </div>
   );
@@ -60,10 +70,14 @@ const Token = ({ onClose, onSelect }) => {
 
   const getRpcUrl = () => {
     switch (chainId) {
-      case 369: return "https://rpc.pulsechain.com";
-      case 10001: return "https://mainnet.ethereumpow.org";
-      case 146: return "https://rpc.soniclabs.com";
-      default: return null;
+      case 369:
+        return "https://rpc.pulsechain.com";
+      case 10001:
+        return "https://mainnet.ethereumpow.org";
+      case 146:
+        return "https://rpc.soniclabs.com";
+      default:
+        return null;
     }
   };
 
@@ -85,15 +99,23 @@ const Token = ({ onClose, onSelect }) => {
     getAddress();
   }, []);
 
-  const filteredTokens = tokenList.filter(
-    (token) =>
-      (token.name && token.name.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (token.symbol && token.symbol.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (token.ticker && token.ticker.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (token.address && token.address.toLowerCase().includes(searchQuery.toLowerCase()))
-  ).sort((a, b) => a.name.localeCompare(b.name));
+  const filteredTokens = tokenList
+    .filter(
+      (token) =>
+        (token.name &&
+          token.name.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (token.symbol &&
+          token.symbol.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (token.ticker &&
+          token.ticker.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (token.address &&
+          token.address.toLowerCase().includes(searchQuery.toLowerCase()))
+    )
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   const SortedTokenList = () => {
+    // const { symbol, wethAddress } = useChainConfig();
+
     const tokenPromises = filteredTokens.map((token) => ({
       token,
       balancePromise: useBalance({
@@ -123,7 +145,7 @@ const Token = ({ onClose, onSelect }) => {
     });
 
     return (
-      <div className="max-h-[400px] overflow-y-auto">
+      <div className="max-h-[400px] overflow-y-auto px-3">
         {sortedTokens.map(({ token }, index) => (
           <TokenListItem
             key={index}
@@ -156,10 +178,10 @@ const Token = ({ onClose, onSelect }) => {
         name,
         symbol,
         decimal,
-        logoURI: null,
+        logoURI: `https://tokens.app.pulsex.com/images/tokens/${address}.png`,
+        image: `https://raw.githubusercontent.com/piteasio/app-tokens/main/token-logo/${address}.png`,
         ticker: symbol,
       };
-
     } catch (error) {
       console.error("Error fetching token details:", error);
       return null;
@@ -174,7 +196,7 @@ const Token = ({ onClose, onSelect }) => {
     try {
       // First check if token exists in tokenList
       const existingToken = tokenList.find(
-        token => token.address.toLowerCase() === address.toLowerCase()
+        (token) => token.address.toLowerCase() === address.toLowerCase()
       );
 
       if (existingToken) {
@@ -203,7 +225,7 @@ const Token = ({ onClose, onSelect }) => {
     if (web3.utils.isAddress(searchQuery)) {
       // First check if token exists in tokenList
       const existingToken = tokenList.find(
-        token => token.address.toLowerCase() === searchQuery.toLowerCase()
+        (token) => token.address.toLowerCase() === searchQuery.toLowerCase()
       );
 
       if (existingToken) {
@@ -258,11 +280,12 @@ const Token = ({ onClose, onSelect }) => {
       <div className="w-full flex justify-center my-auto items-center">
         <div
           ref={modalRef}
-          className="md:max-w-[564px] w-full bg-black border border-white rounded-3xl relative py-6 px-5 mx-auto"
+          className="md:max-w-[618px] w-full rounded-3xl relative py-4 md:px-10 px-4 mx-auto clip-bg"
         >
+          {/* <img src={Clip} /> */}
           <svg
             onClick={onClose}
-            className="absolute cursor-pointer right-8 top-9"
+            className="absolute cursor-pointer md:right-14 right-7 top-12 tilt"
             width={18}
             height={19}
             viewBox="0 0 18 19"
@@ -278,21 +301,55 @@ const Token = ({ onClose, onSelect }) => {
             />
           </svg>
 
-          <div className="flex gap-4 items-center justify-center cursor-pointer mt-2">
-            <p className="md:text-2xl text-lg font-medium text-white roboto text-center tracking-widest">
+          <div className="flex gap-4 items-center justify-center cursor-pointer mt-2 py-3">
+            <p className="md:text-2xl capitalize text-lg font-bold text-white roboto text-center tracking-widest">
               Select a token
             </p>
           </div>
-
-          <div className="mt-6 relative h-[43px] w-full flex gap-2 items-center">
+          <div className="grid md:grid-cols-5 grid-cols-3 gap-2 mt-4 md:px-[24px] px-1">
+            {featureTokens.map((token, index) => (
+              <div
+                key={index}
+                className="flex flex-row items-center cursor-pointer roboto md:rounded-2xl rounded-lg border border-[#FF9900] md:p-[14px] p-2"
+                onClick={() => handleFeaturedTokenClick(token)}
+              >
+                {/* bg-rec */}
+                <span className="flex items-center">
+                  <div className="relative flex justify-center items-center">
+                    <img
+                      src={token.logoURI || token.image}
+                      alt={token.name}
+                      className="w-4 h-4 rounded-full relative z-10 p-[1px] object-contain"
+                      onError={(e) =>
+                        (e.target.src = "path/to/fallback/image.png")
+                      }
+                    />
+                  </div>
+                  <p className="text-white font-black text-xs mt-0 ms-2 font-orbitron">
+                    {token.symbol || token.ticker}
+                  </p>
+                </span>
+              </div>
+            ))}
+          </div>
+          <div className="flex gap-4 items-center justify-center cursor-pointer mt-1 py-3">
+            <p className="md:text-2xl capitalize text-lg font-bold text-white roboto text-center tracking-widest">
+              Search token
+            </p>
+          </div>
+          {/* bg-search */}
+          <div className="mt-3 relative px-[10px] h-[54px] w-full flex gap-2 items-center border border-[#FF9900] rounded-xl">
             <input
               type="text"
               placeholder="Search token name or paste address"
-              className="bg-neutral-950 rounded-[4.83px] h-[43px] text-white md:max-w-[490px] w-full px-5 outline-none border-none text-white/opacity-70 text-sm font-normal roboto leading-tight tracking-wide"
+              className="bg-transparent rounded-[4.83px] h-[43px] text-white md:max-w-[490px] w-full px-5 outline-none border-none text-white/opacity-70 text-sm font-normal roboto leading-tight tracking-wide"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
-            <button onClick={() => handleTokenLookup(searchQuery)}>
+            <button
+              className="ms-4"
+              onClick={() => handleTokenLookup(searchQuery)}
+            >
               <svg
                 className="flex flex-shrink-0 cursor-pointer"
                 width={24}
@@ -303,36 +360,19 @@ const Token = ({ onClose, onSelect }) => {
               >
                 <path
                   d="M18.8632 19.0535L13.3482 13.5375C10.8947 15.2818 7.51414 14.8552 5.57102 12.556C3.62792 10.257 3.7706 6.85254 5.89925 4.72413C8.02735 2.59479 11.4322 2.45149 13.7317 4.3945C16.0311 6.3375 16.458 9.71849 14.7137 12.1721L20.2287 17.688L18.8642 19.0526L18.8632 19.0535ZM9.99282 4.95765C8.16287 4.95724 6.58411 6.24178 6.21237 8.03356C5.84064 9.82534 6.7781 11.6319 8.45718 12.3596C10.1363 13.0871 12.0955 12.5358 13.1486 11.0392C14.2018 9.54268 14.0594 7.51235 12.8078 6.17743L13.3916 6.75644L12.7335 6.10023L12.7219 6.08865C11.9999 5.36217 11.0171 4.95489 9.99282 4.95765Z"
-                  fill="white"
+                  fill="#5C5C5C"
                 />
               </svg>
             </button>
           </div>
-          <div className="flex flex-wrap gap-4 mt-6">
-            {featureTokens.map((token, index) => (
-              <div
-                key={index}
-                className="flex flex-row items-center cursor-pointer roboto p-2 rounded-2xl border border-[#3b3c4e]"
-                onClick={() => handleFeaturedTokenClick(token)}
-              >
-                <img
-                  src={token.logoURI || token.image}
-                  alt={token.name}
-                  className="w-6 h-6 rounded-full"
-                  onError={(e) => (e.target.src = "path/to/fallback/image.png")}
-                />
-                <p className="text-white text-xs mt-0 ms-2">{token.symbol || token.ticker}</p>
-              </div>
-            ))}
-          </div>
-          <hr className="h-px my-8 bg-gray-200 border-[#3b3c4e] d" />
 
-          <div className="mt-6">
-            <div className="flex justify-between gap-4 items-center">
-              <p className="text-white text-xl font-medium roboto leading-relaxed tracking-wide">
+          {/* <hr className="h-px my-8 bg-gray-200 border-[#3b3c4e] h-hr" /> */}
+          <div className="mt-4 px-[2px]">
+            {/* <div className="flex justify-between gap-4 items-center">
+              <p className="text-white text-sm font-medium roboto leading-relaxed tracking-wide">
                 Token Name
               </p>
-            </div>
+            </div> */}
 
             <SortedTokenList />
 

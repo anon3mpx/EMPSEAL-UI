@@ -80,9 +80,9 @@ const getRouterFunctionName = (chainId: number, functionType: keyof RouterFuncti
          ROUTER_FUNCTION_NAMES[369][functionType]; // Default to Pulsechain if chain not found
 };
 
-const EMPTY_ADDRESS: Address = "0x0000000000000000000000000000000000000000";
+export const EMPTY_ADDRESS: Address = "0x0000000000000000000000000000000000000000";
 
-const checkAllowance = async (chainId: number, tokenInAddress: string, userAddress: Address) => {
+export const checkAllowance = async (chainId: number, tokenInAddress: string, userAddress: Address) => {
   try {
     const {routerAddress} = getCurrentChainConfig(chainId);
     let result = await readContract(config, {
@@ -100,7 +100,7 @@ const checkAllowance = async (chainId: number, tokenInAddress: string, userAddre
   }
 };
 
-const callApprove = async (chainId: number, tokenInAddress: string, amountIn: bigint) => {
+export const callApprove = async (chainId: number, tokenInAddress: string, amountIn: bigint) => {
   try {
     const {routerAddress} = getCurrentChainConfig(chainId);
     let result = await writeContract(config, {

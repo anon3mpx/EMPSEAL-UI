@@ -1,0 +1,21 @@
+export const TOKENS = {
+  "0x15D38573d2feeb82e7ad5187aB8c1D52810B1f07": { symbol: "USDC", decimals: 6 },
+  "0x0Cb6F5a34ad42ec934882A05265A7d5F59b51A2f": { symbol: "USDT", decimals: 6 },
+  "0xefD766cCb38EaF1dfd701853BFCe31359239F305": { symbol: "DAI", decimals: 18 },
+  "0xA1077a294dDE1B09bB078844df40758a5D0f9a27": {
+    symbol: "WPLS",
+    decimals: 18,
+  },
+  "0x2b591e99afE9f32eAA6214f7B7629768c40Eeb39": { symbol: "HEX", decimals: 8 },
+  "0x2fa878Ab3F87CC1C9737Fc071108F904c0B0C95d": { symbol: "INC", decimals: 18 },
+  "0x02DcdD04e3F455D838cd1249292C58f3B79e3C3C": {
+    symbol: "WETH",
+    decimals: 18,
+  },
+};
+
+export type TokenAddress = keyof typeof TOKENS;
+
+export const getTokenInfo = (address: string) => {
+  return TOKENS[address as TokenAddress] || null;
+};

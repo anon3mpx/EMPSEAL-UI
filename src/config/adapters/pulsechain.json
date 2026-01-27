@@ -38,5 +38,9 @@
     {
         "name": "EmpXStable",
         "address": "0xf586000c24e2b640a0478dcf51de856df5e3328a"
+    },
+    {
+        "name": "PhuxV2",
+        "address": "0x5fdd3f245ae060953dcC3C89Da8Dd4c6c26629c0"
     }
 ]

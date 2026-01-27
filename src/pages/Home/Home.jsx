@@ -259,7 +259,7 @@ const Home = () => {
                 </div>
               </div>
             </div>
-            <Link to={'/native-bridge'}>
+            <Link to={'/via-bridge'}>
               <div className='w-full rounded-3xl border border-[#c6b2c9] 2xl:py-[67px] lg:py-4 py-8 relative mt-4 h_grid5 px-9 pt-8 pb-10 z-10'>
                 <img
                   src={Stone}

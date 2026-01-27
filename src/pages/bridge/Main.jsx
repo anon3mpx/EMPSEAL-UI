@@ -1,11 +1,28 @@
-import React from "react";
+import { useEffect } from "react";
 import Normal from "./Normal";
 import { Helmet } from "react-helmet";
+import bgPattern from "@/assets/images/bg-pattern.svg";
 
 const Main = () => {
+  useEffect(() => {
+    // document.body.style.backgroundImage = `url(${bgPattern})`;
+    document.body.style.backgroundSize = "cover";
+    document.body.style.backgroundRepeat = "no-repeat";
+    document.body.style.backgroundPosition = "center";
+    document.body.style.height = "100vh";
+    document.body.style.backgroundColor = "Black";
+
+    // Cleanup: Remove background when leaving this page
+    return () => {
+      document.body.style.backgroundImage = "";
+      document.body.style.backgroundSize = "";
+      document.body.style.backgroundRepeat = "";
+      document.body.style.backgroundPosition = "";
+    };
+  }, []);
+
   return (
-    <>
-      {/* For SEO */}
+    <div>
       <Helmet>
         <title>
           Decentralized On chain Aggregation, Trading & Swapping with EMPSEAL:
@@ -21,7 +38,7 @@ const Main = () => {
         />
       </Helmet>
       <Normal />
-    </>
+    </div>
   );
 };
 

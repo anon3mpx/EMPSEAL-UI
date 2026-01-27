@@ -1,8 +1,8 @@
-import React, { useEffect, useState } from 'react';
-import { useStore } from '../../redux/store/routeStore';
-import ProvidersListCard from '../../components/ProviderList/ProviderListCard';
-import LoadingSpinner from '../../components/LoadingSpinner';
-import SpinnerImage from '../../assets/images/spinner_middle.svg';
+import { useEffect, useState } from "react";
+import { useStore } from "../../redux/store/routeStore";
+import ProvidersListCard from "../../components/ProviderList/ProviderListCard";
+import LoadingSpinner from "../../components/LoadingSpinner";
+import SpinnerImage from "../../assets/images/spinner_middle.svg";
 const ProvidersList = ({
   padding,
   quoteData,
@@ -21,7 +21,7 @@ const ProvidersList = ({
       setRubicRoutes(quoteData.rubic?.routes || []);
       setRangoRoutes(quoteData.rango?.results || []);
       // setSymbiosisRoutes(quoteData.symbiosis || null);
-      
+
       // console.log("rubicQuoteData", quoteData.rubic?.routes || 'No Rubic routes available');
       // console.log("rangoRoutesData:", quoteData.rango?.results || 'No Rango routes available');
       // console.log("rangoRoutesData:", quoteData.rango || 'No Rango data available');
@@ -50,49 +50,62 @@ const ProvidersList = ({
       rango: rangoRoutes?.length > 0,
       // symbiosis: !!symbiosisRoutes
     };
-    
+
     if (!available.rubic && !available.rango && !available.symbiosis) {
       return {
         rubic: false,
         rango: false,
         // symbiosis: false,
-        allUnavailable: true
+        allUnavailable: true,
       };
     }
-    
+
     return { ...available, allUnavailable: false };
   };
-  
+
   return (
-    <div
-      className={`border-[2px] border-[#FF9900] rounded-xl bg-black ${padding}`}
-    >
-      <div className='w-full flex justify-center p-5'>
-        <p className="w-[100px] h-[35px] flex justify-center items-center rounded-md bg-black roboto text-[#FF9900] text-[12px] font-bold border border-[#FF9900]">
-          Providers
-        </p>
-      </div>
+    <div className="relative sctable">
       {/* Toggle Buttons */}
-      <div className="flex justify-center gap-4 mb-4">
+      <div className="flex justify-center absolute top-[-71px] z-20">
         <button
-          className={`w-[100px] h-[35px] flex justify-center items-center rounded-md bg-black roboto text-[12px] font-bold border
-            ${selectedProvider === "rubic" ? "border-[#FF9900] text-[#FF9900]" : "border-[#3b3c4e] text-white"}
-            ${!getProviderAvailability().rubic ? "opacity-50 cursor-not-allowed" : "hover:border-[#FF9900] hover:text-[#FF9900]"}`}
-          onClick={() => getProviderAvailability().rubic && setSelectedProvider("rubic")}
+          className={`px-6 py-2 md:text-base text-sm font-extrabold border border-[#FF9900] rounded-t-[10px] font-orbitron transition-all duration-200
+            ${
+              selectedProvider === "rubic"
+                ? "bg-[#FF9900] text-black md:w-[220px] h-[70px]"
+                : "text-orange-400 md:w-[160px] h-[70px]  "
+            }
+            ${
+              !getProviderAvailability().rubic
+                ? "opacity-50 cursor-not-allowed"
+                : "hover:border-[#FF9900]"
+            }`}
+          onClick={() =>
+            getProviderAvailability().rubic && setSelectedProvider("rubic")
+          }
           disabled={!getProviderAvailability().rubic}
         >
           Rubic
         </button>
         <button
-          className={`w-[100px] h-[35px] flex justify-center items-center rounded-md bg-black roboto text-[12px] font-bold border
-            ${selectedProvider === "rango" ? "border-[#FF9900] text-[#FF9900]" : "border-[#3b3c4e] text-white"}
-            ${!getProviderAvailability().rango ? "opacity-50 cursor-not-allowed" : "hover:border-[#FF9900] hover:text-[#FF9900]"}`}
-          onClick={() => getProviderAvailability().rango && setSelectedProvider("rango")}
+          className={`px-6 py-2 md:text-base text-sm font-extrabold border border-[#FF9900] rounded-t-[10px] font-orbitron transition-all duration-200
+            ${
+              selectedProvider === "rango"
+                ? "bg-[#FF9900] text-black md:w-[220px] h-[70px]"
+                : "text-orange-400 md:w-[160px] h-[70px]  "
+            }
+            ${
+              !getProviderAvailability().rango
+                ? "opacity-50 cursor-not-allowed"
+                : "hover:border-[#FF9900]"
+            }`}
+          onClick={() =>
+            getProviderAvailability().rango && setSelectedProvider("rango")
+          }
           disabled={!getProviderAvailability().rango}
         >
           Rango
         </button>
-       {/*  <button
+        {/*  <button
           className={`w-[100px] h-[35px] flex justify-center items-center rounded-md bg-black roboto text-[12px] font-bold border
             ${selectedProvider === "symbiosis" ? "border-[#FF9900] text-[#FF9900]" : "border-[#3b3c4e] text-white"}
             ${!getProviderAvailability().symbiosis ? "opacity-50 cursor-not-allowed" : "hover:border-[#FF9900] hover:text-[#FF9900]"}`}
@@ -102,80 +115,115 @@ const ProvidersList = ({
           Symbiosis
         </button> */}
       </div>
+      <div
+        className={`clip-bg1 border-[2px] border-[#FF9900] rounded-b-xl rounded-tr-xl bg-black ${padding}`}
+      >
+        <div className="w-full flex justify-center p-5">
+          <p className="w-[100px] h-[35px] flex justify-center items-center rounded-md bg-black roboto text-[#FF9900] text-[12px] font-bold border border-[#FF9900]">
+            Providers
+          </p>
+        </div>
 
-      <div className="p-4">
-        {loading ? (
-          <LoadingSpinner SpinnerImage={SpinnerImage} />
-        ) : getProviderAvailability().allUnavailable ? (
-          <div className="text-center">
-            <p className="text-gray-400 mb-2">No providers are currently available.</p>
-            <p className="text-gray-500 text-sm">Please try again later or adjust your swap parameters.</p>
-          </div>
-        ) : selectedProvider === "rubic" ? (
-          rubicRoutes?.length > 0 ? (
-            <div className="max-h-[535px] overflow-y-auto flex flex-col gap-4">
-              {rubicRoutes.map((route, index) => (
-                <ProvidersListCard
-                  key={index}
-                  tokenAmount={parseFloat(route.estimate.destinationTokenAmount).toFixed(6)}
-                  tokenSymbol={route.tokens.to.symbol}
-                  tokenRouter={route.providerType}
-                  tokenAmountUsd={parseFloat(route.estimate.destinationUsdAmount).toFixed(2)}
-                  protocolFee={route.fees.gasTokenFees.protocol.fixedUsdAmount}
-                  providerFee={route.fees.gasTokenFees.provider?.fixedUsdAmount}
-                  percentFee={route.fees.percentFees.percent}
-                  fees={(
-                    parseFloat(route.fees.gasTokenFees.protocol.fixedUsdAmount) +
-                    parseFloat(route.fees.gasTokenFees.provider?.fixedUsdAmount || 0)
-                  ).toFixed(2)}
-                  timeDuration={route.estimate.durationInMinutes}
-                  onSelect={() => setSelectedRoute(route)}
-                  isSelected={selectedRoute === route}
-                />
-              ))}
+        <div className="p-4">
+          {loading ? (
+            <LoadingSpinner SpinnerImage={SpinnerImage} />
+          ) : getProviderAvailability().allUnavailable ? (
+            <div className="text-center">
+              <p className="text-gray-400 mb-2">
+                No providers are currently available.
+              </p>
+              <p className="text-gray-500 text-sm">
+                Please try again later or adjust your swap parameters.
+              </p>
             </div>
-          ) : (
-            <p className="text-gray-400 text-center">No providers available.</p>
-          )
-        ) : selectedProvider === "rango" ? (
-          rangoRoutes?.length > 0 ? (
-            <div className="max-h-[535px] overflow-y-auto flex flex-col gap-4">
-              {rangoRoutes.map((route, index) => {
-                const lastSwap = route.swaps[route.swaps.length - 1];
-                
-                const totalTime = route.swaps.reduce((total, swap) => 
-                  total + (swap.estimatedTimeInSeconds || 0), 0);
-                
-                const totalFees = route.swaps.reduce((total, swap) => {
-                  const swapFees = swap.fee?.reduce((acc, fee) => 
-                    acc + (parseFloat(fee.amount) || 0), 0) || 0;
-                  return total + swapFees;
-                }, 0);
-
-                return (
+          ) : selectedProvider === "rubic" ? (
+            rubicRoutes?.length > 0 ? (
+              <div className="max-h-[535px] overflow-y-auto flex flex-col gap-4">
+                {rubicRoutes.map((route, index) => (
                   <ProvidersListCard
                     key={index}
-                    tokenAmount={parseFloat(route.outputAmount).toFixed(6)}
-                    tokenSymbol={lastSwap.to.symbol}
-                    tokenRouter={route.swaps[0]?.swapperId || "Unknown"}
-                    tokenAmountUsd={(parseFloat(route.outputAmount) * 
-                                    parseFloat(lastSwap.to.usdPrice || 0)).toFixed(2)}
-                    protocolFee={totalFees.toFixed(5)}
-                    providerFee="0"
-                    percentFee={"0"}
-                    fees={totalFees.toFixed(2)}
-                    timeDuration={Math.ceil(totalTime / 60)}
+                    tokenAmount={parseFloat(
+                      route.estimate.destinationTokenAmount
+                    ).toFixed(6)}
+                    tokenSymbol={route.tokens.to.symbol}
+                    tokenRouter={route.providerType}
+                    tokenAmountUsd={parseFloat(
+                      route.estimate.destinationUsdAmount
+                    ).toFixed(2)}
+                    protocolFee={
+                      route.fees.gasTokenFees.protocol.fixedUsdAmount
+                    }
+                    providerFee={
+                      route.fees.gasTokenFees.provider?.fixedUsdAmount
+                    }
+                    percentFee={route.fees.percentFees.percent}
+                    fees={(
+                      parseFloat(
+                        route.fees.gasTokenFees.protocol.fixedUsdAmount
+                      ) +
+                      parseFloat(
+                        route.fees.gasTokenFees.provider?.fixedUsdAmount || 0
+                      )
+                    ).toFixed(2)}
+                    timeDuration={route.estimate.durationInMinutes}
                     onSelect={() => setSelectedRoute(route)}
                     isSelected={selectedRoute === route}
                   />
-                );
-              })}
-            </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-gray-400 text-center">
+                No providers available.
+              </p>
+            )
+          ) : selectedProvider === "rango" ? (
+            rangoRoutes?.length > 0 ? (
+              <div className="max-h-[535px] overflow-y-auto flex flex-col gap-4">
+                {rangoRoutes.map((route, index) => {
+                  const lastSwap = route.swaps[route.swaps.length - 1];
+
+                  const totalTime = route.swaps.reduce(
+                    (total, swap) => total + (swap.estimatedTimeInSeconds || 0),
+                    0
+                  );
+
+                  const totalFees = route.swaps.reduce((total, swap) => {
+                    const swapFees =
+                      swap.fee?.reduce(
+                        (acc, fee) => acc + (parseFloat(fee.amount) || 0),
+                        0
+                      ) || 0;
+                    return total + swapFees;
+                  }, 0);
+
+                  return (
+                    <ProvidersListCard
+                      key={index}
+                      tokenAmount={parseFloat(route.outputAmount).toFixed(6)}
+                      tokenSymbol={lastSwap.to.symbol}
+                      tokenRouter={route.swaps[0]?.swapperId || "Unknown"}
+                      tokenAmountUsd={(
+                        parseFloat(route.outputAmount) *
+                        parseFloat(lastSwap.to.usdPrice || 0)
+                      ).toFixed(2)}
+                      protocolFee={totalFees.toFixed(5)}
+                      providerFee="0"
+                      percentFee={"0"}
+                      fees={totalFees.toFixed(2)}
+                      timeDuration={Math.ceil(totalTime / 60)}
+                      onSelect={() => setSelectedRoute(route)}
+                      isSelected={selectedRoute === route}
+                    />
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-gray-400 text-center">
+                No providers available.
+              </p>
+            )
           ) : (
-            <p className="text-gray-400 text-center">No providers available.</p>
-          )
-        ) : (
-          /* symbiosisRoutes ? (
+            /* symbiosisRoutes ? (
             <div className="max-h-[535px] overflow-y-auto flex flex-col gap-4">
               <ProvidersListCard
                 key="symbiosis"
@@ -198,8 +246,9 @@ const ProvidersList = ({
           ) : (
             <p className="text-gray-400 text-center">No providers available.</p>
           ) */
-          <p className="text-gray-400 text-center">No providers available.</p>
-        )}
+            <p className="text-gray-400 text-center">No providers available.</p>
+          )}
+        </div>
       </div>
     </div>
   );

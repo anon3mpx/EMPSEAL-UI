@@ -50,7 +50,9 @@ const swapConnectors = connectorsForWallets(
 export const config = getDefaultConfig({
   appName: 'Empseal Swap',
   projectId: 'YOUR_PROJECT_ID',
-  chains: [pulsechain, ethw, sonic],
+  // Note: ethw and sonic are temporarily disabled (not up to date)
+  // To re-enable, change to: chains: [pulsechain, ethw, sonic],
+  chains: [pulsechain],
   ssr: true,
-  swapConnectors,
+  connectors: swapConnectors,
 });

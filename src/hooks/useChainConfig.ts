@@ -32,9 +32,9 @@ export function useChainConfig() {
     // Load chain-specific configurations
     setTokenList(CHAIN_TOKENS[chainId] || []);
     setAdapters(CHAIN_ADAPTERS[chainId] || []);
-    
+
     // Load feature tokens
-    const featureTokensForChain = CHAIN_TOKENS[chainId]?.filter(token => 
+    const featureTokensForChain = CHAIN_TOKENS[chainId]?.filter(token =>
       token.featured === true
     ) || [];
     setfeatureTokens(featureTokensForChain);
@@ -54,5 +54,7 @@ export function useChainConfig() {
     blockExplorerName: currentChain?.blockExplorerName,
     isSupported: !!currentChain,
     maxHops: currentChain?.maxHops || 2,
+    stableTokens: currentChain?.stableTokens || [],
+    blockTime: currentChain?.blockTime || 10, // default to 15 seconds if not defined
   };
 }
