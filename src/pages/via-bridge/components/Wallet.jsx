@@ -59,11 +59,11 @@ const Wallet = () => {
           icon={<img src={WalletImg} alt="Wallet Icon" />}
           onChainChange={handleChainChange}
         />
-        <Link to="/">
+        <a href="https://empx.io/dapp">
           <button className="flex items-center justify-center bg-[#FF9900] gtw transition-all text-sm py-2 px-6 rounded-md font-extrabold w-full font-orbitron">
-            <span className="ps-3">Home Page</span>
+            <span>Home</span>
           </button>
-        </Link>
+        </a>
       </div>
     </>
   );

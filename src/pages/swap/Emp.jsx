@@ -1120,7 +1120,7 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange }) => {
           }`}
       >
         <div
-          className={`scales8 ${order ? "scales-top scales-top_limit" : "top70"
+          className={`scales8 ${order ? `scales-top ${address ? "scales-top_limit" : ""}` : "top70"
             }`}
         >
           <div className="md:max-w-[1100px] mx-auto w-full flex flex-col justify-center items-center md:flex-nowrap flex-wrap lg:mt-1 mt-6 px-3 pb-4">

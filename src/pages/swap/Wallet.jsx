@@ -28,10 +28,10 @@ const Wallet = () => {
   const formattedBalance = isLoading
     ? "Loading..."
     : isError
-    ? "Error fetching balance"
-    : balance
-    ? `${parseFloat(balance).toFixed(2)}`
-    : "0.00";
+      ? "Error fetching balance"
+      : balance
+        ? `${parseFloat(balance).toFixed(2)}`
+        : "0.00";
 
   const formatNumber = (value) => {
     if (!value) return ""; // Handle empty input
@@ -109,11 +109,11 @@ const Wallet = () => {
           icon={<img src={WalletImg} alt="Wallet Icon" />}
           onChainChange={handleChainChange}
         />
-        <Link to="/">
+        <a href="https://empx.io/dapp">
           <button className="flex items-center justify-center bg-[#FF9900] gtw transition-all text-sm py-2 px-6 rounded-md font-extrabold w-full font-orbitron">
             <span>Home</span>
           </button>
-        </Link>
+        </a>
       </div>
     </>
   );
