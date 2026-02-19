@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import Logo from "../../assets/images/swap-emp.png";
+import Logo from "../../assets/images/empx-new.svg";
 import Sett from "../../assets/images/setting.png";
 import UpDownAr from "../../assets/images/reverse.svg";
 import Usdc from "../../assets/images/usdc.svg";
@@ -863,7 +863,7 @@ const Emp = ({
                 </div>
               </div> */}
               <div className="md:max-w-1/2 w-full">
-                <div className="text-zinc-200 text-[10px] font-normal roboto leading-normal flex md:gap-2 gap-1 justify-end">
+                <div className="text-zinc-200 text-[10px] font-normal font-orbitron leading-normal flex md:gap-2 gap-1 justify-end">
                   <span></span>
                   {[25, 50, 75, 100].map((value) => (
                     <button

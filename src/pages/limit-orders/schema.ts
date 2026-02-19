@@ -3,6 +3,14 @@ import { z } from "zod";
 export enum OrderStrategy {
   BUY = "BUY",
   SELL = "SELL",
+  BRACKET = "BRACKET",
+}
+
+export enum GroupType {
+  None = 0,
+  Entry = 1,
+  StopLoss = 2,
+  TakeProfit = 3,
 }
 
 // Order data structure matching the smart contract
@@ -24,6 +32,21 @@ export interface Order {
   txHash?: string;
   strategy: OrderStrategy;
   tokenOutDecimals?: number;
+  fundsDeposited?: boolean;
+  groupId?: string;
+  groupRole?: GroupType;
+}
+
+export interface OrderGroup {
+  id: string;
+  user: string;
+  entryOrderId: string;
+  stopLossOrderId: string;
+  takeProfitOrderId: string;
+  isActive: boolean;
+  entryFilled: boolean;
+  escrowToken: string;
+  escrowAmount: string;
 }
 
 // Form data for creating a new order

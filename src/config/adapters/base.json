@@ -1,0 +1,82 @@
+[
+    {
+        "name": "UniV3",
+        "address": "0xBfC918572B5a819194875568dAF67aeF7ADA8437"
+    },
+    {
+        "name": "UniV2",
+        "address": "0xb0345e6AA593961fBD3C7194E5dBF79ca7e42C43"
+    },
+    {
+        "name": "AerodromeV2",
+        "address": "0x82064ec0119E776dc1751E104Cc603A347861e22"
+    },
+    {
+        "name": "Aerodrome",
+        "address": "0xca9b4b3a861ebb3475263c8cd5943c8ab7403ba1"
+    },
+    {
+        "name": "PancakeV2",
+        "address": "0x9e0f316d883CB71c63865A3DD8D1566E15eaBAeB"
+    },
+    {
+        "name": "PancakeV3",
+        "address": "0x2E8E19b402460c859B6E07a71b29b01c8C5A420F"
+    },
+    {
+        "name": "SushiV2",
+        "address": "0x24B4d249eb21fbD224E881be98334a21855914dA"
+    },
+    {
+        "name": "SushiV3",
+        "address": "0x19BBE0f501251aC16Fcc72cc9AF8678Fc6AAC594"
+    },
+    {
+        "name": "AlienBaseV2",
+        "address": "0xe7416340942F1DaD79f193a10794A2deA219E833"
+    },
+    {
+        "name": "AlienBaseV3",
+        "address": "0xAe0A08182A8b9652695804e8F92f4D4b8A1FD798"
+    },
+    {
+        "name": "BaseSwapV2",
+        "address": "0x43A13238F6f1610d249947aec3E051B7dD378Dbb"
+    },
+    {
+        "name": "BaseSwapV3",
+        "address": "0x7A6Fc08501B413106e30822a8716A51e1cCE5487"
+    },
+    {
+        "name": "SwapBasedV2",
+        "address": "0x9c23860d40e22e694f0CE68E022db0F1f919A19d"
+    },
+    {
+        "name": "SwapBasedV3",
+        "address": "0xa14Cc33814ba6A5F7a9bc69452302DdF7C4513AC"
+    },
+    {
+        "name": "9MMV2",
+        "address": "0xB49536173f268e1d27d2Cc50ADa973527308729D"
+    },
+    {
+        "name": "9MMV3",
+        "address": "0x43FBC0d0F6392689801168b08A7444550647caae"
+    },
+    {
+        "name": "DackieSwapV3",
+        "address": "0xB8169A3c71D49433D2d9650E1E180519042390f5"
+    },
+    {
+        "name": "CurveFourPool",
+        "address": "0x8e94D6Afb1A40090a2e7C5870F7A6a06b4740069"
+    },
+    {
+        "name": "HydrexIntegral",
+        "address": "0xbEE48badaEB4E5fd71818796603fe063C3cA233D"
+    },
+    {
+        "name": "BalancerV2",
+        "address": "0x57f1AFFbc2d8b8445857D7813cD826ec71Ff86d9"
+    }
+]

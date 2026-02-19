@@ -2,20 +2,31 @@ const RecentTransactions = ({ transactions, clearTransactions }) => {
   if (transactions.length === 0) return null;
 
   return (
-    <div className="lg:mt-20 mt-10 text-white">
-      <div className="flex justify-between items-center">
-        <button className="font-orbitron px-6 py-2 bg-[#FF9900] text-black md:w-[260px] h-[70px] md:text-base text-sm font-extrabold border border-[#FF9900] rounded-t-[10px] font-orbitron transition-all duration-200">
-          Recent Transactions
-        </button>
-        <button
-          onClick={clearTransactions}
-          className="text-sm text-[#FF4C4C] hover:text-red-300 font-orbitron"
-        >
-          Clear recent txs
-        </button>
-      </div>
+    <div className="lg:mt-4 mt-4 text-white">
+      {/* <div className="flex justify-between items-center">
+            <button className="font-orbitron px-6 py-2 bg-[#FF9900] text-black md:w-[260px] h-[70px] md:text-base text-sm font-extrabold border border-[#FF9900] rounded-t-[10px] font-orbitron transition-all duration-200">
+              Recent Transactions
+            </button>
+            <button
+              onClick={clearTransactions}
+              className="text-sm text-[#FF4C4C] hover:text-red-300 font-orbitron"
+            >
+              Clear recent txs
+            </button>
+          </div> */}
 
-      <div className="clip-bg1 w-full rounded-tr-2xl rounded-b-2xl lg:py-8 lg:px-8 md:px-6 px-4 md:py-6 py-6 space-y-3">
+      <div className="bg_swap_box_chain w-full rounded-tr-2xl rounded-2xl lg:py-8 lg:px-8 md:px-6 px-4 md:py-6 py-6 space-y-3">
+        <div className="flex justify-between items-center flex-wrap gap-4 mb-5">
+          <div className="font-orbitron md:text-4xl text-2xl font-extrabold text-[#FF9900]">
+            Recent Transactions
+          </div>
+          <button
+            onClick={clearTransactions}
+            className="text-sm text-[#FF4C4C] hover:text-red-300 font-orbitron"
+          >
+            Clear recent txs
+          </button>
+        </div>
         {transactions.map((tx, idx) => (
           <div
             key={tx.hash}

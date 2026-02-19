@@ -21,7 +21,7 @@ export default function TermsModal({ onClose }) {
     >
       <svg
         onClick={onClose}
-        className="absolute cursor-pointer md:right-10 right-4 md:top-12 top-4 tilt"
+        className="absolute cursor-pointer md:right-10 right-4 md:top-10 top-4 tilt"
         width={18}
         height={19}
         viewBox="0 0 18 19"
@@ -30,7 +30,7 @@ export default function TermsModal({ onClose }) {
       >
         <path
           d="M17 1.44824L1 17.6321M1 1.44824L17 17.6321"
-          stroke="#ffffff"
+          stroke="#fff"
           strokeWidth={2}
           strokeLinecap="round"
           strokeLinejoin="round"

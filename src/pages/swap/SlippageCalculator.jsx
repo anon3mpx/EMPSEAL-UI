@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import BG1 from "../../assets/images/bg.png";
+import EL from "../../assets/images/emp-logo.png";
 
 // Helper function to calculate slippage
 const calculateSlippage = (amountOut, slippagePercent) => {
@@ -52,7 +53,7 @@ const SlippageCalculator = ({ inputAmount, onSlippageCalculated, onClose }) => {
         // Always calculate based on original amount
         const adjustedAmount = calculateSlippage(
           originalAmountRef.current,
-          slippage
+          slippage,
         );
         onSlippageCalculated(adjustedAmount);
         setSlippageApplied(true);
@@ -100,7 +101,7 @@ const SlippageCalculator = ({ inputAmount, onSlippageCalculated, onClose }) => {
         const defaultSlippage = 0;
         const adjustedAmount = calculateSlippage(
           originalAmountRef.current,
-          defaultSlippage
+          defaultSlippage,
         );
         onSlippageCalculated(adjustedAmount);
         setSlippage(defaultSlippage);
@@ -148,24 +149,25 @@ const SlippageCalculator = ({ inputAmount, onSlippageCalculated, onClose }) => {
           className="absolute md:top-10 top-7 md:right-10 right-7 text-white hover:opacity-80 flex flex-shrink-0 tilt"
         >
           <svg
-            // className=""
-            width={18}
-            height={19}
+            className="text-white hover:text-[#FF9900]"
+            width="18"
+            height="19"
             viewBox="0 0 18 19"
             fill="none"
             xmlns="http://www.w3.org/2000/svg"
           >
+            {" "}
             <path
               d="M17 1.44824L1 17.6321M1 1.44824L17 17.6321"
-              stroke="#ffff"
-              strokeWidth={2}
+              stroke="currentColor"
+              strokeWidth="2"
               strokeLinecap="round"
               strokeLinejoin="round"
-            />
-          </svg>
+            ></path>{" "}
+          </svg>{" "}
         </button>
-
-        <h2 className="text-white text-xl font-bold mb-4 roboto text-center">
+        <h2 className="mb-4 md:text-2xl capitalize text-lg font-medium text-white font-orbitron text-center tracking-widest flex gap-1 items-center justify-center">
+          <img src={EL} alt="EL" className="w-10 object-contain" />
           Slippage Settings
         </h2>
 
@@ -175,21 +177,17 @@ const SlippageCalculator = ({ inputAmount, onSlippageCalculated, onClose }) => {
           </div>
         )}
         <div className="flex gap-4 items-center justify-center flex-wrap">
-          {/* <div class="w-[168px] h-[40px] bg-black text-white flex items-center justify-center font-bold text-sm"
-     style="clip-path: polygon(0 0, 90% 0, 100% 20%, 100% 100%, 10% 100%, 0 80%); border: 1px solid #FF9900;">
-  0%
-</div> */}
           {slippageOptions.map((option, index) => (
             <button
               key={index}
               onClick={() => handleSlippageSelect(option)}
-              className={`px-4 py-1.5 justify-center md:w-[100px] w-20 relative md:text-base text-sm border border-[#ff9900] rounded-xl ${slippage === option
+              className={`px-4 py-1.5 justify-center md:w-[100px] w-20 relative md:text-base text-sm border border-[#ff9900] rounded-xl ${
+                slippage === option
                   ? "bg- text-white"
                   : "bg-transparent text-white"
-                } ${error ? "opacity-50 cursor-not-allowed" : ""}`}
+              } ${error ? "opacity-50 cursor-not-allowed" : ""}`}
               disabled={!!error}
             >
-              {/* <img src={BG1} alt="BG1" className="absolute top-0 left-0" /> */}
               {option}%
             </button>
           ))}
@@ -201,11 +199,6 @@ const SlippageCalculator = ({ inputAmount, onSlippageCalculated, onClose }) => {
             onChange={handleCustomSlippageChange}
             className={`md:w-[120px] w-20 md:h-9 h-9 text-center font-bold text-sm text-white focus:outline-none bg-[#382B19] border border-[#ff9900] rounded-xl
       ${error ? "opacity-50 cursor-not-allowed" : ""}`}
-            // style={{
-            //   background: "#382B19",
-            //   clipPath:
-            //     "polygon(0 0, 90% 0, 100% 20%, 100% 100%, 12% 100%, 0 65%)",
-            // }}
             placeholder="%"
             disabled={!!error}
           />
@@ -214,17 +207,14 @@ const SlippageCalculator = ({ inputAmount, onSlippageCalculated, onClose }) => {
         <div className="flex justify-center items-center mt-20 flex-col">
           <button
             onClick={handleResetSlippage}
-            className={`gtw relative w-full md:h-16 rounded-xl h-12 flex items-center justify-center font-roboto font-black md:text-2xl text-xl transition-all font-orbitron
+            className={`gtw relative w-full md:h-16 rounded-xl h-12 flex items-center justify-center font-roboto font-bold md:text-2xl text-xl transition-all font-orbitron
     ${error ? "opacity-100 cursor-not-allowed" : ""}`}
             style={{
-              background: "#FF9900",
-              border: "2px solid #FF9900",
-              // clipPath:
-              //   "polygon(0 0, 95% 0, 100% 30%, 100% 100%, 6% 100%, 0 60%)",
+              background: "#F59216",
+              border: "2px solid #F59216",
             }}
             disabled={!!error}
           >
-            <div className="w-full absolute md:top-4 top-1 md:-left-4 -left-3 z-[1] bg-transparent border-2 border-[#FF9900] rounded-xl md:h-[58px] h-[50px]"></div>
             Reset Slippage
           </button>
 

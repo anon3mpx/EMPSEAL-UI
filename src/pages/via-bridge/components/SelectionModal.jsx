@@ -2,7 +2,14 @@ import { X } from "lucide-react";
 import { LogoService } from "../../../services/LogoService";
 import { TokenLogo } from "../../../components/TokenLogo";
 
-const SelectionModal = ({ isOpen, onClose, items, onSelect, title, chainId }) => {
+const SelectionModal = ({
+  isOpen,
+  onClose,
+  items,
+  onSelect,
+  title,
+  chainId,
+}) => {
   if (!isOpen) return null;
 
   // Determine if items are tokens (have 'address' property) or chains
@@ -15,17 +22,17 @@ const SelectionModal = ({ isOpen, onClose, items, onSelect, title, chainId }) =>
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="relative text-white md:p-8 p-6 rounded-2xl md:max-w-[618px] w-full clip-bg roboto"
+        className="relative text-white md:p-8 p-6 rounded-2xl md:max-w-[618px] w-full clip-bg font-orbitron"
       >
         {/* Header */}
         <div className="flex justify-center items-center mb-4">
-          <h3 className="md:text-2xl text-lg font-medium text-white text-center tracking-widest md:mt-10 mt-5">
+          <h3 className="md:text-2xl text-lg font-medium text-white text-center tracking-widest md:mt-5 mt-2">
             {title}
           </h3>
 
           <button
             onClick={onClose}
-            className="absolute md:right-10 right-7 top-14 cursor-pointer"
+            className="absolute md:right-10 right-7 top-11 cursor-pointer tilt hover:text-[#FF9900]"
           >
             <X size={30} />
           </button>

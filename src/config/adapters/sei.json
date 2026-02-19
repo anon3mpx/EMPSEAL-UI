@@ -1,0 +1,22 @@
+[
+    {
+        "name": "DragonSwapV1",
+        "address": "0x93ae3552B154431316F6160d07C3f7204b44f1cF"
+    },
+    {
+        "name": "DragonSwapV2",
+        "address": "0x1E965F231380986e11E989beEbe864Ae41881D69"
+    },
+    {
+        "name": "OkuTradeV3",
+        "address": "0xee4AB587A566675Afad2D5Cd7703096982cC1FE5"
+    },
+    {
+        "name": "Sailor",
+        "address": "0xEab30C23A015942BDc8204bD8dcA2780a5957a8c"
+    },
+    {
+        "name": "YakaFinance",
+        "address": "0xA285098184932DA9AAa8F8B4895B93FdeeeC07a2"
+    }
+]

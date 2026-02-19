@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import Logo from "../../assets/images/swap-emp.png";
+import Logo from "../../assets/images/empx-new.svg";
 import Sett from "../../assets/images/setting.png";
 import UpDownAr from "../../assets/images/reverse.svg";
 import Usdc from "../../assets/images/usdc.svg";

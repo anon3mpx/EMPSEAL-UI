@@ -10,7 +10,7 @@ const Main = () => {
     document.body.style.backgroundRepeat = "no-repeat";
     document.body.style.backgroundPosition = "center";
     document.body.style.height = "100vh";
-    document.body.style.backgroundColor = "black";
+    // document.body.style.backgroundColor = "black";
 
     // Cleanup
     return () => {

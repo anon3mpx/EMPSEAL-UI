@@ -6,8 +6,8 @@ import {
   useWaitForTransactionReceipt,
   useSwitchChain,
 } from "wagmi";
-import { parseEther, formatEther, formatUnits } from "viem";
-import { toast } from "react-toastify";
+import { parseUnits, formatEther, formatUnits } from "viem";
+import { toast } from "../../utils/toastHelper";
 import {
   ArrowDownUp,
   Loader2,
@@ -22,7 +22,13 @@ import TokenSelector from "./components/TokenSelector";
 import SelectionModal from "./components/SelectionModal";
 import RecentTransactions from "../../components/RecentTransactions";
 import { useRecentTransactions } from "../../hooks/useRecentTransactions";
-import { BRIDGE_CONFIG, getTokensArray, getTokenById, getDefaultToken, hasToken } from "./config/bridgeConfig";
+import {
+  BRIDGE_CONFIG,
+  getTokensArray,
+  getTokenById,
+  getDefaultToken,
+  hasToken,
+} from "./config/bridgeConfig";
 import UpDownAr from "../../assets/images/reverse.svg";
 import Sellbox from "../../assets/images/sell-box.png";
 import Buybox from "../../assets/images/buy-bg.png";
@@ -32,6 +38,10 @@ import CPatch from "../../assets/images/rec-token.svg";
 
 // Import ABIs
 import { ERC20_ABI } from "../../utils/via-bridge-abis/index";
+import { useApprovalFlow } from "./hooks/useApprovalFlow";
+
+// PulseChain network symbol for GeckoTerminal API
+const PULSECHAIN_SYMBOL = "pulsechain";
 
 const BridgeInterface = () => {
   const { address, chain } = useAccount();
@@ -53,6 +63,11 @@ const BridgeInterface = () => {
   const [amount, setAmount] = useState("1");
   const [recipient, setRecipient] = useState("");
 
+  // Token price states
+  const [tokenPrice, setTokenPrice] = useState(null);
+  const [usdValue, setUsdValue] = useState("0.00");
+  const [isPriceLoading, setIsPriceLoading] = useState(false);
+
   const sourceChain = fromChainId ? BRIDGE_CONFIG[fromChainId] : null;
   const destChain = toChainId ? BRIDGE_CONFIG[toChainId] : null;
   const isCorrectChain = chain?.id === fromChainId;
@@ -60,6 +75,7 @@ const BridgeInterface = () => {
   // Add copy functionality states
   const [copySuccess, setCopySuccess] = useState(false);
   const [activeTokenAddress, setActiveTokenAddress] = useState(null);
+
   // ----------------------------------------------------------------
   // COPY ADDRESS HANDLER
   // ----------------------------------------------------------------
@@ -117,6 +133,75 @@ const BridgeInterface = () => {
     }
   }, [selectedToken]);
 
+  // ----------------------------------------------------------------
+  // TOKEN PRICE FETCHING
+  // ----------------------------------------------------------------
+  useEffect(() => {
+    const fetchTokenPrice = async () => {
+      if (!selectedToken) {
+        setTokenPrice(null);
+        setUsdValue("0.00");
+        return;
+      }
+
+      setIsPriceLoading(true);
+
+      try {
+        // Get the collateral token address from PulseChain
+        // If current token is collateral (on PulseChain), use its address
+        // If current token is synthetic (on other chains), get the corresponding collateral token
+        let collateralTokenAddress;
+        
+        if (selectedToken.abiType === "collateral") {
+          // Token is on PulseChain, use its address directly
+          collateralTokenAddress = selectedToken.address.toLowerCase();
+        } else {
+          // Token is synthetic on another chain, find the collateral token on PulseChain
+          const pulseChainConfig = BRIDGE_CONFIG[369];
+          if (pulseChainConfig && pulseChainConfig.tokens[selectedToken.id]) {
+            collateralTokenAddress = pulseChainConfig.tokens[selectedToken.id].address.toLowerCase();
+          } else {
+            console.error("Could not find collateral token for:", selectedToken.id);
+            setTokenPrice(null);
+            setIsPriceLoading(false);
+            return;
+          }
+        }
+
+        // Fetch price from GeckoTerminal using PulseChain network
+        const response = await fetch(
+          `https://api.geckoterminal.com/api/v2/simple/networks/${PULSECHAIN_SYMBOL}/token_price/${collateralTokenAddress}`
+        );
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! Status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        const tokenPrices = data?.data?.attributes?.token_prices;
+        
+        if (tokenPrices && tokenPrices[collateralTokenAddress]) {
+          const price = tokenPrices[collateralTokenAddress];
+          setTokenPrice(price);
+          
+          // Calculate USD value
+          const amountNum = parseFloat(amount) || 0;
+          const priceNum = parseFloat(price) || 0;
+          setUsdValue((amountNum * priceNum).toFixed(2));
+        } else {
+          setTokenPrice(null);
+        }
+      } catch (error) {
+        console.error("Error fetching token price:", error.message);
+        setTokenPrice(null);
+      } finally {
+        setIsPriceLoading(false);
+      }
+    };
+
+    fetchTokenPrice();
+  }, [selectedToken, amount]);
+
   // --- USDC DATA ---
   // Allowance
   const { data: usdcAllowance, refetch: refetchUsdcAllowance } =
@@ -126,7 +211,13 @@ const BridgeInterface = () => {
       functionName: "allowance",
       args: [address, selectedToken?.bridge],
       chainId: fromChainId,
-      query: { enabled: !!address && !!sourceChain && !!sourceChain.usdcAddress && !!selectedToken?.bridge },
+      query: {
+        enabled:
+          !!address &&
+          !!sourceChain &&
+          !!sourceChain.usdcAddress &&
+          !!selectedToken?.bridge,
+      },
     });
   // Balance
   const { data: usdcBalance, refetch: refetchUsdcBalance } = useReadContract({
@@ -149,7 +240,13 @@ const BridgeInterface = () => {
     functionName: "allowance",
     args: [address, selectedToken?.bridge],
     chainId: fromChainId,
-    query: { enabled: !!address && !!sourceChain && !!sourceChain.wrappedGasTokenAddress && !!selectedToken?.bridge },
+    query: {
+      enabled:
+        !!address &&
+        !!sourceChain &&
+        !!sourceChain.wrappedGasTokenAddress &&
+        !!selectedToken?.bridge,
+    },
   });
   // Balance
   const {
@@ -161,7 +258,10 @@ const BridgeInterface = () => {
     functionName: "balanceOf",
     args: [address],
     chainId: fromChainId,
-    query: { enabled: !!address && !!sourceChain && !!sourceChain.wrappedGasTokenAddress },
+    query: {
+      enabled:
+        !!address && !!sourceChain && !!sourceChain.wrappedGasTokenAddress,
+    },
   });
 
   // --- SOURCE TOKEN DATA ---
@@ -173,6 +273,13 @@ const BridgeInterface = () => {
     chainId: fromChainId,
     query: { enabled: !!address && !!selectedToken?.address && !!fromChainId },
   });
+  const { data: tokenDecimals } = useReadContract({
+    address: selectedToken?.address,
+    abi: ERC20_ABI,
+    functionName: "decimals",
+    chainId: fromChainId,
+    query: { enabled: !!selectedToken?.address && !!fromChainId },
+  });
   // Allowance
   const { data: tokenAllowance, refetch: refetchTokenAllowance } =
     useReadContract({
@@ -181,14 +288,33 @@ const BridgeInterface = () => {
       functionName: "allowance",
       args: [address, selectedToken?.bridge],
       chainId: fromChainId,
-      query: { enabled: !!address && !!selectedToken?.address && !!selectedToken?.bridge && !!fromChainId },
+      query: {
+        enabled:
+          !!address &&
+          !!selectedToken?.address &&
+          !!selectedToken?.bridge &&
+          !!fromChainId,
+      },
     });
 
   // ----------------------------------------------------------------
   // 3. DERIVED STATE & VALIDATION
   // ----------------------------------------------------------------
 
-  const amountBigInt = amount ? parseEther(amount) : 0n;
+  const selectedTokenDecimals = Number(tokenDecimals ?? 18);
+  const parseTokenAmount = useCallback(
+    (value) => {
+      if (!value) return 0n;
+      try {
+        return parseUnits(value, selectedTokenDecimals);
+      } catch {
+        return 0n;
+      }
+    },
+    [selectedTokenDecimals],
+  );
+
+  const amountBigInt = parseTokenAmount(amount);
 
   // Allowances (Default to 0n)
   const currentTokenAllowance = tokenAllowance ?? 0n;
@@ -205,17 +331,37 @@ const BridgeInterface = () => {
   const requiredGasToken = bridgeFees ? bridgeFees[2] : 0n;
 
   // --- Validation Flags ---
-  // 1. Check Insufficient Balances
-  const hasInsufficientTokenBalance = currentTokenBalance < amountBigInt;
-  const hasInsufficientUsdcBalance = currentUsdcBalance < requiredUsdc;
-  const hasInsufficientGasTokenBalance =
-    currentWrappedGasBalance < requiredGasToken;
+  // Check if selected token IS the wrapped gas token (WPLS case)
+  const isWrappingGasToken = selectedToken?.address?.toLowerCase() ===
+    sourceChain?.wrappedGasTokenAddress?.toLowerCase();
 
-  // 2. Check Approval Needs
-  const needsTokenApproval = currentTokenAllowance < amountBigInt;
+  // When token IS wrapped gas token, combine balance and allowance checks
+  let needsTokenApproval, needsWrappedGasTokenApproval, totalTokenAmount;
+
+  if (isWrappingGasToken) {
+    // Combined: need (bridge amount + gas fees) in WPLS
+    totalTokenAmount = amountBigInt + requiredGasToken;
+    needsTokenApproval = currentTokenAllowance < totalTokenAmount;
+    needsWrappedGasTokenApproval = false; // Same token, handled above
+  } else {
+    // Normal: separate checks
+    totalTokenAmount = amountBigInt;
+    needsTokenApproval = currentTokenAllowance < amountBigInt;
+    needsWrappedGasTokenApproval = currentWrappedGasAllowance < requiredGasToken;
+  }
+
+  // 1. Check Insufficient Balances
+  const hasInsufficientTokenBalance = isWrappingGasToken
+    ? currentTokenBalance < totalTokenAmount  // Need combined balance
+    : currentTokenBalance < amountBigInt;     // Just bridge amount
+
+  const hasInsufficientUsdcBalance = currentUsdcBalance < requiredUsdc;
+  const hasInsufficientGasTokenBalance = isWrappingGasToken
+    ? false // Already checked in token balance
+    : currentWrappedGasBalance < requiredGasToken;
+
+  // 2. Check Approval Needs (already set above)
   const needsUsdcApproval = currentUsdcAllowance < requiredUsdc;
-  const needsWrappedGasTokenApproval =
-    currentWrappedGasAllowance < requiredGasToken;
 
   // --- Determine Current Step ---
   // Step 1: Input / Connect
@@ -246,29 +392,30 @@ const BridgeInterface = () => {
   // 4. CONTRACT WRITES
   // ----------------------------------------------------------------
 
-  const { writeContract: approveToken, data: tokenHash } = useWriteContract();
-  const { writeContract: approveUsdc, data: usdcApprovalHash } =
-    useWriteContract();
-  const {
-    writeContract: approveWrappedGasToken,
-    data: wrappedGasTokenApprovalHash,
-  } = useWriteContract();
-  const { writeContract: executeBridge, data: bridgeHash } = useWriteContract();
+  const { writeContractAsync: executeBridge } = useWriteContract();
+  const [bridgeHash, setBridgeHash] = useState(null);
+  const [displayBridgeHash, setDisplayBridgeHash] = useState(null);
+  const [bridgeUiStatus, setBridgeUiStatus] = useState("idle");
+  const [lastHandledBridgeHash, setLastHandledBridgeHash] = useState(null);
 
-  const { isLoading: isTokenApproving, isSuccess: isTokenApproved } =
-    useWaitForTransactionReceipt({ hash: tokenHash });
-  const { isLoading: isUsdcApproving, isSuccess: isUsdcApproved } =
-    useWaitForTransactionReceipt({ hash: usdcApprovalHash });
   const {
-    isLoading: isWrappedGasTokenApproving,
-    isSuccess: isWrappedGasTokenApproved,
-  } = useWaitForTransactionReceipt({ hash: wrappedGasTokenApprovalHash });
+    startApprovals,
+    clearFlow,
+    status: approvalFlowStatus,
+    flowError,
+    isApproving,
+    remainingCount,
+    currentApproval,
+    isDone,
+    isCancelled,
+    isFailed,
+  } = useApprovalFlow();
+
   const { isLoading: isBridging, isSuccess: isBridged } =
-    useWaitForTransactionReceipt({ hash: bridgeHash });
-
-  // ----------------------------------------------------------------
-  // 5. EFFECT HANDLERS
-  // ----------------------------------------------------------------
+    useWaitForTransactionReceipt({
+      hash: bridgeHash,
+      query: { enabled: !!bridgeHash },
+    });
 
   useEffect(() => {
     if (address) setRecipient(address);
@@ -284,29 +431,81 @@ const BridgeInterface = () => {
     refetchWrappedGasTokenBalance();
   };
 
-  useEffect(() => {
-    if (isTokenApproved) {
-      toast.success("Tokens approved!");
-      refetchAll();
+  // ----------------------------------------------------------------
+  // 6. ACTION HANDLERS
+  // ----------------------------------------------------------------
+
+  // Helper function to get pending approvals queue (must be before useEffects that use it)
+  const getApprovalQueue = useCallback(() => {
+    const approvals = [];
+
+    // 1. Main token approval
+    if (needsTokenApproval) {
+      const amount = isWrappingGasToken
+        ? amountBigInt + requiredGasToken  // Combined for WPLS
+        : amountBigInt;
+
+      approvals.push({
+        type: 'token',
+        tokenAddress: selectedToken.address,
+        spender: selectedToken.bridge,
+        amount,
+        symbol: selectedToken.symbol,
+        chainId: fromChainId,
+      });
     }
-  }, [isTokenApproved]);
+
+    // 2. USDC approval
+    if (needsUsdcApproval) {
+      approvals.push({
+        type: 'usdc',
+        tokenAddress: sourceChain.usdcAddress,
+        spender: selectedToken.bridge,
+        amount: requiredUsdc,
+        symbol: 'USDC',
+        chainId: fromChainId,
+      });
+    }
+
+    // 3. Gas token approval (only if NOT wrapping gas token)
+    if (needsWrappedGasTokenApproval && !isWrappingGasToken) {
+      approvals.push({
+        type: 'gasToken',
+        tokenAddress: sourceChain.wrappedGasTokenAddress,
+        spender: selectedToken.bridge,
+        amount: requiredGasToken,
+        symbol: fromChainId === 369 ? 'WPLS' : 'WETH',
+        chainId: fromChainId,
+      });
+    }
+
+    return approvals;
+  }, [needsTokenApproval, isWrappingGasToken, amountBigInt, requiredGasToken, selectedToken, needsUsdcApproval, sourceChain, needsWrappedGasTokenApproval, fromChainId]);
+
+  const handleApprove = useCallback(async () => {
+    if (!bridgeFees) {
+      toast.error("Bridge fees not loaded yet.");
+      return;
+    }
+
+    const queue = getApprovalQueue();
+
+    if (queue.length === 0) {
+      toast.info("All tokens already approved!");
+      return;
+    }
+
+    await startApprovals(queue, fromChainId);
+  }, [bridgeFees, getApprovalQueue, startApprovals, fromChainId]);
+
+  // ----------------------------------------------------------------
+  // 5. EFFECT HANDLERS (must be after action handlers)
+  // ----------------------------------------------------------------
 
   useEffect(() => {
-    if (isUsdcApproved) {
-      toast.success("USDC approved!");
-      refetchAll();
-    }
-  }, [isUsdcApproved]);
-
-  useEffect(() => {
-    if (isWrappedGasTokenApproved) {
-      toast.success("Wrapped Gas Token approved!");
-      refetchAll();
-    }
-  }, [isWrappedGasTokenApproved]);
-
-  useEffect(() => {
-    if (isBridged) {
+    if (isBridged && bridgeHash && bridgeHash !== lastHandledBridgeHash) {
+      setLastHandledBridgeHash(bridgeHash);
+      setBridgeUiStatus("success");
       toast.success("Bridge transaction submitted!");
       addTransaction({
         hash: bridgeHash,
@@ -318,68 +517,56 @@ const BridgeInterface = () => {
       setAmount("");
       refetchAll();
     }
-  }, [isBridged, bridgeHash]);
+  }, [isBridged, bridgeHash, lastHandledBridgeHash]);
 
-  // ----------------------------------------------------------------
-  // 6. ACTION HANDLERS
-  // ----------------------------------------------------------------
+  useEffect(() => {
+    if (bridgeUiStatus !== "success") return;
 
-  const handleApproveToken = async () => {
-    if (!bridgeFees) {
-      toast.error("Bridge fees not loaded yet.");
-      return;
+    const resetTimer = setTimeout(() => {
+      setBridgeUiStatus("idle");
+      setBridgeHash(null);
+    }, 2500);
+
+    return () => clearTimeout(resetTimer);
+  }, [bridgeUiStatus]);
+
+  // Approval flow status handlers
+  useEffect(() => {
+    if (approvalFlowStatus === "submitting" && currentApproval) {
+      toast.info(`Approving ${currentApproval.symbol}...`);
     }
+  }, [approvalFlowStatus, currentApproval]);
 
-    try {
-      const amountBigInt = parseEther(amount);
-
-      // 1. Approve Main Token
-      if (needsTokenApproval) {
-        approveToken({
-          address: selectedToken.address,
-          abi: ERC20_ABI,
-          functionName: "approve",
-          args: [selectedToken.bridge, amountBigInt],
-          chainId: fromChainId,
-        });
-        toast.info(`Approving ${selectedToken.symbol}...`);
-        return;
-      }
-
-      // 2. Approve USDC
-      if (needsUsdcApproval) {
-        approveUsdc({
-          address: sourceChain.usdcAddress,
-          abi: ERC20_ABI,
-          functionName: "approve",
-          args: [selectedToken.bridge, bridgeFees[3]],
-          chainId: fromChainId,
-        });
-        toast.info("Approving USDC...");
-        return;
-      }
-
-      // 3. Approve Wrapped Gas Token
-      if (needsWrappedGasTokenApproval) {
-        approveWrappedGasToken({
-          address: sourceChain.wrappedGasTokenAddress,
-          abi: ERC20_ABI,
-          functionName: "approve",
-          args: [selectedToken.bridge, bridgeFees[2]],
-          chainId: fromChainId,
-        });
-        toast.info("Approving Wrapped Gas Token...");
-        return;
-      }
-    } catch (error) {
-      toast.error("Approval failed");
-      console.error(error);
+  useEffect(() => {
+    if (isDone) {
+      toast.success("All required approvals completed!");
+      refetchAll();
+      clearFlow();
     }
-  };
+  }, [isDone, clearFlow]);
+
+  useEffect(() => {
+    if (isCancelled) {
+      toast.warning("Transaction cancelled");
+      clearFlow();
+    }
+  }, [isCancelled, clearFlow]);
+
+  useEffect(() => {
+    if (isFailed) {
+      if (flowError?.cancelled) {
+        toast.warning("Transaction cancelled");
+      } else {
+        toast.error("Approval failed. Please try again.");
+        console.error("Approval flow error:", flowError);
+      }
+      clearFlow();
+    }
+  }, [isFailed, flowError, clearFlow]);
 
   const handleBridge = useCallback(async () => {
     try {
-      const amountBigInt = parseEther(amount);
+      const amountBigInt = parseTokenAmount(amount);
       const abiToUse = selectedToken?.abi;
 
       if (!abiToUse) {
@@ -387,7 +574,12 @@ const BridgeInterface = () => {
         return;
       }
 
-      executeBridge({
+      if (amountBigInt <= 0n) {
+        toast.error("Enter a valid amount");
+        return;
+      }
+
+      const hash = await executeBridge({
         address: selectedToken.bridge,
         abi: abiToUse,
         functionName: "bridge",
@@ -395,12 +587,16 @@ const BridgeInterface = () => {
         chainId: fromChainId,
       });
 
+      setBridgeHash(hash);
+      setDisplayBridgeHash(hash);
+      setBridgeUiStatus("pending");
       toast.info("Initiating bridge...");
     } catch (error) {
+      setBridgeUiStatus("idle");
       toast.error("Bridge failed");
       console.error(error);
     }
-  }, [amount, selectedToken, toChainId, recipient, fromChainId, executeBridge]);
+  }, [amount, selectedToken, toChainId, recipient, fromChainId, executeBridge, parseTokenAmount]);
 
   const handleSwapDirection = () => {
     const newFromChainId = toChainId;
@@ -419,7 +615,7 @@ const BridgeInterface = () => {
     // Note: tokenBalance from useReadContract is BigInt
     if (tokenBalance === undefined) return;
     setSelectedPercentage(value);
-    const bal = Number(formatEther(tokenBalance));
+    const bal = Number(formatUnits(tokenBalance, selectedTokenDecimals));
     const calculatedAmount = (bal * value) / 100;
     setAmount(calculatedAmount.toString());
   };
@@ -439,9 +635,9 @@ const BridgeInterface = () => {
           Switch to {sourceChain?.name}
         </button>
       );
-    if (isBridged)
+    if (bridgeUiStatus === "success")
       return (
-        <button disabled>
+        <button disabled className="flex gap-2 items-center justify-center">
           <CheckCircle2 className="w-5 h-5" /> Bridged
         </button>
       );
@@ -457,14 +653,14 @@ const BridgeInterface = () => {
 
     // Step 2: Approvals (with Balance Checks)
     if (currentStep === 2) {
-      const isAnyApproving =
-        isTokenApproving || isUsdcApproving || isWrappedGasTokenApproving;
+      const queue = getApprovalQueue();
+      const queueCount = isApproving ? remainingCount : queue.length;
 
       // PRIORITY: Check Balances First
       if (hasInsufficientTokenBalance)
         return (
           <button disabled className="w-full cursor-not-allowed opacity-50">
-            Insufficient {selectedToken.symbol}
+            Insufficient {isWrappingGasToken ? `${selectedToken.symbol} (incl. gas)` : selectedToken.symbol}
           </button>
         );
       if (hasInsufficientUsdcBalance)
@@ -480,30 +676,24 @@ const BridgeInterface = () => {
           </button>
         );
 
-      // If balances are OK, show Approval Buttons
-      let buttonText = "Approve Tokens";
-      if (isTokenApproving) buttonText = `Approving ${selectedToken.symbol}...`;
-      else if (isUsdcApproving) buttonText = "Approving USDC...";
-      else if (isWrappedGasTokenApproving)
-        buttonText = "Approving Gas Token...";
-      else if (needsTokenApproval)
-        buttonText = `Approve ${selectedToken.symbol}`;
-      else if (needsUsdcApproval) buttonText = "Approve USDC";
-      else if (needsWrappedGasTokenApproval) buttonText = "Approve Gas Token";
+      // Show approval button
+      if (isApproving) {
+        return (
+          <button disabled className="w-full flex justify-center items-center">
+            <Loader2 className="w-5 h-5 animate-spin" />
+            {`Approving ${currentApproval?.symbol ?? queue[0]?.symbol ?? "token"}...`}
+          </button>
+        );
+      }
 
+      // Single "Approve" button
       return (
         <button
-          onClick={handleApproveToken}
-          disabled={isAnyApproving || !amount || !bridgeFees}
-          className="w-full"
+          onClick={handleApprove}
+          disabled={!amount || !bridgeFees}
+          className="w-full flex justify-center items-center"
         >
-          {isAnyApproving ? (
-            <>
-              <Loader2 className="w-5 h-5 animate-spin" /> {buttonText}
-            </>
-          ) : (
-            buttonText
-          )}
+          Approve{queueCount > 1 ? ` (${queueCount} tokens)` : ""}
         </button>
       );
     }
@@ -516,7 +706,7 @@ const BridgeInterface = () => {
           disabled={isBridging || !amount || !recipient}
           className="w-full"
         >
-          {isBridging ? (
+          {isBridging || bridgeUiStatus === "pending" ? (
             <>
               <Loader2 className="w-5 h-5 animate-spin" /> Bridging...
             </>
@@ -533,11 +723,9 @@ const BridgeInterface = () => {
     amount,
     address,
     isCorrectChain,
-    isBridged,
+    bridgeUiStatus,
     currentStep,
-    isTokenApproving,
-    isUsdcApproving,
-    isWrappedGasTokenApproving,
+    isApproving,
     isBridging,
     bridgeFees,
     needsTokenApproval,
@@ -546,12 +734,17 @@ const BridgeInterface = () => {
     hasInsufficientTokenBalance,
     hasInsufficientUsdcBalance,
     hasInsufficientGasTokenBalance,
+    isWrappingGasToken,
     selectedToken,
     recipient,
-    handleApproveToken,
+    handleApprove,
     handleBridge,
+    getApprovalQueue,
+    remainingCount,
+    currentApproval,
   ]);
 
+  const maxInputDecimals = Math.min(6, selectedTokenDecimals);
   // Function to format the number with commas
   const formatNumber = (value) => {
     if (!value) return ""; // Handle empty input
@@ -562,9 +755,8 @@ const BridgeInterface = () => {
       .replace(/\B(?=(\d{3})+(?!\d))/g, ""); // Add commas to integer part
 
     // If there's a decimal part, return formatted integer + decimal
-    return decimalPart !== undefined
-      ? `${formattedInteger}.${decimalPart.replace(/\D/g, "").slice(0, 6)}` // Remove non-numeric from decimal
-      : formattedInteger;
+    if (decimalPart === undefined || maxInputDecimals === 0) return formattedInteger;
+    return `${formattedInteger}.${decimalPart.replace(/\D/g, "").slice(0, maxInputDecimals)}`;
   };
   const getDynamicFontSize = (value, desktop = 48, mobile = 32) => {
     const length = value?.replace(/\D/g, "").length || 0;
@@ -575,10 +767,10 @@ const BridgeInterface = () => {
 
   return (
     <>
-      <div className="md:max-w-[710px] mx-auto w-full md:px-1 px-4 justify-center xl:gap-4 gap-4 items-start 2xl:pt-2 py-2 mt-4 scales-b scales-top scales-top_via">
+      <div className="md:max-w-[800px] mx-auto w-full md:px-1 px-4 justify-center xl:gap-4 gap-4 items-start 2xl:pt-2 py-2 md:mt-4 mt-1 scales-b scales-top scales-top_via">
         {!isCorrectChain && address && sourceChain && (
           <div
-            className="mb-10 p-4 bg-yellow-900/20 border border-yellow-800 rounded-lg flex items-start gap-3 cursor-pointer hover:bg-yellow-900/30 transition-all"
+            className="mb-10 flex items-start gap-3 cursor-pointer bg_swap_box_chain"
             onClick={() => switchChain({ chainId: fromChainId })}
           >
             <AlertCircle className="w-5 h-5 text-[#FF9900] mt-0.5 flex-shrink-0" />
@@ -592,118 +784,69 @@ const BridgeInterface = () => {
             </div>
           </div>
         )}
-        <div className="w-full">
-          {/* FROM SECTION */}
-          <div className="relative bg_swap_box">
-            {/* <img className="bg-sell w-full" src={Sellbox} alt="sellbox" /> */}
-            <div className="flex justify-between gap-3 items-center">
-              <div className="font-orbitron text-dark-400 md:text-2xl text-xs font-semibold leading-normal">
-                From
-              </div>
-              <div className="text-center absolute -top-8 md:right-0 right-5 gap-3 2xl:px-6 lg:px-4 lg:py-3 rounded-lg mt-2 border border-white bg-[#FFE6C0] md:text-sm text-[10px] px-2 py-2">
-                <span className="font-extrabold font-orbitron leading-normal">
-                  BAL
-                </span>
-                <span className="font-bold font-orbitron leading-normal">
-                  {" "}
-                  :{" "}
-                </span>
-
-                <span className="rigamesh leading-normal">
-                  {tokenBalance
-                    ? parseFloat(formatEther(tokenBalance)).toFixed(6)
-                    : "0.00"}{" "}
-                  {/* {selectedToken.symbol} */}
-                </span>
-              </div>
+        <div className="lg:max-w-[800px] md:max-w-[800px] mx-auto w-full">
+          <div className="flex gap-3 md:flex-nowrap flex-wrap">
+            <div className="relative bg_swap_box_chain flex justify-center items-center wfu">
+              <ChainSelector
+                chain={sourceChain}
+                onClick={() => setIsFromChainModalOpen(true)}
+              />
             </div>
-            <div className="flex w-full">
-              <div className="flex md:w-1/2 w-[40%] justify-between rounded-2xl py-4 md:mt-0 mt-3">
-                <div className="flex relative z-20 md:gap-2 gap-1 md:h-20 h-12 items-center bg-black !text-[#FF9900] md:border-2 border border-white md:rounded-xl rounded-lg md:px-3 px-1 md:py-[18px] py-2.5 margin_left_1 lg:w-[280px] md:w-[220px] w-[110px] justify-center">
-                  <TokenSelector
-                    token={selectedToken}
-                    chainId={fromChainId}
-                    onClick={() => {
-                      if (!fromChainId) {
-                        toast.error("Please select chain first");
-                        return;
-                      }
-                      setIsTokenModalOpen(true);
-                    }}
-                    className="text-[#FF9900]"
-                  />
-                  <button
-                    onClick={() => handleCopyAddress(selectedToken.address)}
-                    className="rounded-md transition-colors ml-2"
-                    title="Copy token address"
-                  >
-                    {copySuccess &&
-                      activeTokenAddress === selectedToken.address ? (
-                      <Check className="md:w-4 md:h-4 w-3 h-3 text-green-500" />
-                    ) : (
-                      <Copy className="md:w-4 md:h-4 w-3 h-3 text-white hover:text-[#FF9900]" />
-                    )}
-                  </button>
-                  <div className="absolute bg-black border-2 border-white md:w-[75px] w-[44px] md:h-20 h-12 flex justify-center items-center rounded-lg md:right-[-83px] right-[-47px]">
-                    <ChainSelector
-                      chain={sourceChain}
-                      onClick={() => setIsFromChainModalOpen(true)}
+            <div className="relative bg_swap_box w-full">
+              <div className="flex justify-between gap-3 items-center">
+                <div className="font-orbitron md:text-2xl text-xs font-extrabold leading-normal text-[#FF9900]">
+                  From
+                </div>
+                <div className="md:text-xl text-[10px] font-orbitron">
+                  <span className="font-normal leading-normal text-[#FF9900]">
+                    BAL
+                  </span>
+                  <span className="font-normal leading-normal text-[#FF9900]">
+                    {" "}
+                    :{" "}
+                  </span>
+                  <span className="text-white leading-normal">
+                    {tokenBalance
+                      ? parseFloat(
+                          formatUnits(tokenBalance, selectedTokenDecimals),
+                        ).toFixed(6)
+                      : "0.00"}{" "}
+                  </span>
+                </div>
+              </div>
+              <div className="flex w-full mt-6 md:gap-10 gap-2">
+                <div className="lg:md:max-w-[210px] w-full">
+                  <div className="relative flex md:gap-2 gap-1 items-center bg-black border border-[#FF9900] md:rounded-[10px] rounded-lg md:px-5 px-3 md:py-[10px] py-2 justify-center w-full">
+                    <TokenSelector
+                      token={selectedToken}
+                      chainId={fromChainId}
+                      onClick={() => {
+                        if (!fromChainId) {
+                          toast.error("Please select chain first");
+                          return;
+                        }
+                        setIsTokenModalOpen(true);
+                      }}
+                      className="text-[#FF9900]"
                     />
+                    <button
+                      onClick={() => handleCopyAddress(selectedToken.address)}
+                      className="rounded-md transition-colors absolute right-2"
+                      title="Copy token address"
+                    >
+                      {copySuccess &&
+                      activeTokenAddress === selectedToken.address ? (
+                        <Check className="md:w-4 md:h-4 w-3 h-3 text-green-500" />
+                      ) : (
+                        <Copy className="md:w-4 md:h-4 w-3 h-3 text-white hover:text-[#FF9900]" />
+                      )}
+                    </button>
                   </div>
                 </div>
-              </div>
-
-              <div className="md:w-[75%] w-[60%]">
-                <div className="text-zinc-200 text-[10px] font-normal roboto leading-normal flex md:gap-2 gap-1 md:ml-0 ml-[-40px] justify-end">
-                  <span></span>
-                  {[25, 50, 75, 100].map((value) => (
-                    <button
-                      key={value}
-                      type="button"
-                      className={`py-1 border border-[#FF9900] flex justify-center items-center rounded-xl md:text-[12px] text-[7px] font-extrabold font-orbitron md:w-[70px] w-11 px-2
-                ${selectedPercentage === value
-                          ? " text-white bg-black"
-                          : "bg-black text-white hover:border-black hover:bg-[#FF9900] hover:text-black"
-                        }`}
-                      onClick={() => handlePercentageChange(value)}
-                      disabled={isLoading}
-                    >
-                      {value}%
-                    </button>
-                  ))}
-                </div>
-                <div className="relative flex-flex-col justify-end items-end">
-                  {/* {(() => {
-                    const inputLength =
-                      amount?.toString().replace(/\D/g, "").length || 0;
-                    const fontSizeClass =
-                      inputLength > 12
-                        ? "md:text-[24px] text-xl !text-[#000000]"
-                        : inputLength > 8
-                        ? "md:text-[32px] text-2xl !text-[#000000]"
-                        : "md:text-[40px] text-2xl !text-[#000000]";
-                    return (
-                      <>
-                        <input
-                          type="text"
-                          value={amount}
-                          onChange={(e) => setAmount(e.target.value)}
-                          placeholder={
-                            tokenBalance?.formatted === "0.000000"
-                              ? "0"
-                              : "0.00"
-                          }
-                          className={`text-[#000000] py-2 text-sh text-end w-full leading-7 outline-none border-none bg-transparent token_input px-1 rigamesh placeholder-black transition-all duration-200 ease-in-out ${fontSizeClass}`}
-                          style={{
-                            fontSize: `${Math.max(
-                              12,
-                              40 - amount.toString().length * 1.5
-                            )}px`,
-                          }}
-                        /> */}
+                <div className="w-full md:h-[53px] h-9">
                   {(() => {
                     const formattedValue = formatNumber(
-                      amount?.toString() || ""
+                      amount?.toString() || "",
                     );
 
                     const outputLength =
@@ -711,22 +854,22 @@ const BridgeInterface = () => {
 
                     const defaultFontSize =
                       window.innerWidth >= 1024
-                        ? 48
+                        ? 40
                         : window.innerWidth >= 768
-                          ? 40
-                          : 32;
+                          ? 30
+                          : 20;
                     const FREE_DIGITS = window.innerWidth >= 768 ? 7 : 6;
                     // const FREE_DIGITS = 7; // no shrink up to 10 digits
                     const SHRINK_RATE = 3; // slow shrink rate
 
                     const excessDigits = Math.max(
                       0,
-                      outputLength - FREE_DIGITS
+                      outputLength - FREE_DIGITS,
                     );
 
                     const dynamicFontSize = Math.max(
                       10,
-                      defaultFontSize - excessDigits * SHRINK_RATE
+                      defaultFontSize - excessDigits * SHRINK_RATE,
                     );
 
                     return (
@@ -742,7 +885,7 @@ const BridgeInterface = () => {
                               ? "0"
                               : "0.00"
                           }
-                          className="text-[#000000] py-2 text-sh text-end w-full leading-7 outline-none border-none bg-transparent token_input px-1 rigamesh placeholder-black transition-all duration-200 ease-in-out"
+                          className="font-orbitron font-extrabold text-white  rounded-[10px] px-1 py-3 text-end w-full h-full outline-none border-none transition-all duration-200 ease-in-out bg-black"
                           style={{
                             fontSize: `${dynamicFontSize}px`,
                           }}
@@ -751,17 +894,60 @@ const BridgeInterface = () => {
                         <button
                           onClick={() => {
                             if (tokenBalance !== undefined) {
-                              setAmount(formatEther(tokenBalance));
+                              setAmount(
+                                formatUnits(tokenBalance, selectedTokenDecimals),
+                              );
                               setSelectedPercentage(100);
                             }
                           }}
-                          className="ml-auto py-1 border border-[#FF9900] flex justify-center items-center rounded-xl md:text-[10px] text-[8px] font-medium font-orbitron md:w-[100px] w-[100px] px-2 bg-[#FFE7C3] text-[#040404] hover:border-black hover:bg-[#FF9900] hover:text-black"
+                          className="mt-2 ml-auto py-1 border border-[#FF9900] flex justify-center items-center rounded-xl md:text-[10px] text-[8px] font-medium font-orbitron md:w-[100px] w-[100px] px-2 bg-[#FFE7C3] text-[#040404] hover:border-black hover:bg-[#FF9900] hover:text-black"
                         >
                           MAX AMOUNT
                         </button>
+                        {/* USD Value Display */}
+                        <div className="text-right text-white md:text-sm text-xs mt-2 font-orbitron">
+                          {isPriceLoading ? (
+                            <span className="animate-pulse">Fetching...</span>
+                          ) : tokenPrice ? (
+                            <span>${usdValue}</span>
+                          ) : (
+                            <span>--</span>
+                          )}
+                        </div>
                       </>
                     );
                   })()}
+                </div>
+              </div>
+              <div className="flex justify-between gap-2 items-center md:mt-10 mt-7">
+               <div className="text-[#FF9900] font-orbitron md:text-xl text-sm flex flex-col">
+                 {isPriceLoading ? (
+                   <span className="animate-pulse">Loading...</span>
+                 ) : tokenPrice ? (
+                   `$${parseFloat(tokenPrice).toFixed(6)}`
+                 ) : (
+                   "--"
+                 )}
+                  <span className="font-bold">Market Price</span>
+                </div>
+                <div className="text-zinc-200 text-[10px] font-normal font-orbitron leading-normal flex md:gap-2 gap-1 justify-end">
+                  <span></span>
+                  {[25, 50, 75, 100].map((value) => (
+                    <button
+                      key={value}
+                      type="button"
+                      className={`py-1 border border-[#EEC485] flex justify-center items-center rounded-xl md:text-[10px] text-[7px] font-extrabold font-orbitron md:w-[70px] w-11 px-2
+                ${
+                  selectedPercentage === value
+                    ? "!text-black !bg-[#FF9900] border-[#FF9900]"
+                    : "bg-[#EEC485] text-[#040404] border-black hover:border-black hover:bg-[#FF9900] hover:text-black"
+                }`}
+                      onClick={() => handlePercentageChange(value)}
+                      disabled={isLoading}
+                    >
+                      {value}%
+                    </button>
+                  ))}
                 </div>
               </div>
             </div>
@@ -776,120 +962,47 @@ const BridgeInterface = () => {
               className="hoverswap transition-all rounded-xl"
             />
           </div>
-
           {/* TO SECTION */}
-          <div className="relative text-white bg_swap_box_black">
-            {/* <img className="bg-sell w-full" src={Buybox} alt="Buybox" /> */}
-            <div className="flex justify-between gap-3 items-center">
-              <div className="font-orbitron text-white md:text-2xl text-xs font-semibold leading-normal">
-                To
-              </div>
+          <div className="flex gap-3 md:flex-nowrap flex-wrap">
+            <div className="relative bg_swap_box_chain flex justify-center items-center wfu">
+              <ChainSelector
+                chain={destChain}
+                onClick={() => setIsToChainModalOpen(true)}
+              />
             </div>
-            <div className="flex w-full">
-              <div className="flex md:w-1/2 w-[40%] justify-between rounded-2xl py-4 md:mt-0 mt-3">
-                <div className="flex relative z-20 md:gap-2 gap-1 md:h-20 h-12 items-center justify-center bg-[#FFE6C0] text-black md:border-2 border border-white rounded-lg md:px-3 px-1 md:py-2 py-2.5 lg:w-[280px] md:w-[220px] w-[110px] margin_left_1">
-                  <TokenSelector
-                    token={selectedToken}
-                    chainId={fromChainId}
-                    onClick={() => setIsTokenModalOpen(true)}
-                    className="!text-[#000000]"
-                  />
-                  <button
-                    onClick={() => handleCopyAddress(selectedToken.address)}
-                    className="rounded-md transition-colors ml-2"
-                    title="Copy token address"
-                  >
-                    {copySuccess &&
-                      activeTokenAddress === selectedToken.address ? (
-                      <Check className="md:w-4 md:h-4 w-3 h-3 text-green-500" />
-                    ) : (
-                      <Copy className="md:w-4 md:h-4 w-3 h-3 text-black hover:text-[#FF9900]" />
-                    )}
-                  </button>
-                  <div className="absolute bg-black border-2 border-white md:w-[75px] w-[44px] md:h-20 h-12 flex justify-center items-center rounded-lg md:right-[-85px] right-[-50px]">
-                    <ChainSelector
-                      chain={destChain}
-                      onClick={() => setIsToChainModalOpen(true)}
+            <div className="relative text-white bg_swap_box_black w-full">
+              <div className="flex justify-between gap-3 items-center">
+                <div className="font-orbitron md:text-2xl text-xs font-extrabold leading-normal text-[#FF9900]">
+                  To
+                </div>
+              </div>
+              <div className="flex w-full mt-6 md:gap-10 gap-2">
+                <div className="lg:md:max-w-[210px] w-full">
+                  <div className="relative flex md:gap-2 gap-1 items-center bg-black border border-[#FF9900] md:rounded-[10px] rounded-lg md:px-5 px-3 md:py-[10px] py-2 justify-center w-full">
+                    <TokenSelector
+                      token={selectedToken}
+                      chainId={fromChainId}
+                      onClick={() => setIsTokenModalOpen(true)}
+                      className="!text-white"
                     />
+                    <button
+                      onClick={() => handleCopyAddress(selectedToken.address)}
+                      className="rounded-md transition-colors absolute right-2"
+                      title="Copy token address"
+                    >
+                      {copySuccess &&
+                      activeTokenAddress === selectedToken.address ? (
+                        <Check className="md:w-4 md:h-4 w-3 h-3 text-green-500" />
+                      ) : (
+                        <Copy className="md:w-4 md:h-4 w-3 h-3 text-white hover:text-[#FF9900]" />
+                      )}
+                    </button>
                   </div>
                 </div>
-              </div>
-              <div className="md:w-[75%] w-[60%]">
-                <div className="text-zinc-200 text-[10px] font-normal roboto leading-normal flex md:gap-2 gap-1 md:ml-0 ml-[-40px] justify-end">
-                  <span></span>
-                  {[25, 50, 75, 100].map((value) => (
-                    <button
-                      key={value}
-                      type="button"
-                      className={`py-1 border border-[#FF9900] flex justify-center items-center rounded-xl md:text-[12px] text-[7px] font-extrabold font-orbitron md:w-[70px] w-11 px-2
-                ${selectedPercentage === value
-                          ? " text-white bg-black"
-                          : "bg-[#FF9900] text-[#040404] hover:border-[#FF9900] hover:bg-transparent hover:text-[#FF9900]"
-                        }`}
-                      onClick={() => handlePercentageChange(value)}
-                      disabled={isLoading}
-                    >
-                      {value}%
-                    </button>
-                  ))}
-                </div>
-                <div className="relative flex-flex-col justify-end items-end">
-                  {/* {(() => {
-                    const inputLength =
-                      amount?.toString().replace(/\D/g, "").length || 0;
-
-                    const fontSizeClass =
-                      inputLength > 12
-                        ? "md:text-[24px] text-xl !text-[#fff]"
-                        : inputLength > 8
-                        ? "md:text-[32px] text-2xl !text-[#fff]"
-                        : "md:text-[40px] text-2xl !text-[#fff]";
-
-                    return (
-                      <>
-                        <input
-                          type="text"
-                          value={amount}
-                          onChange={(e) => setAmount(e.target.value)}
-                          placeholder={
-                            tokenBalance?.formatted === "0.000000"
-                              ? "0"
-                              : "0.00"
-                          }
-                          className={`text-[#fff] py-2 font-bold text-end w-full leading-7 outline-none border-none bg-transparent token_input px-1 font-orbitron placeholder-black transition-all duration-200 ease-in-out ${fontSizeClass}`}
-                          style={{
-                            fontSize: `${Math.max(
-                              12,
-                              40 - amount.toString().length * 1.5
-                            )}px`,
-                          }}
-                        />
-                      </>
-                    );
-                  })()} */}
+                <div className="w-full md:h-[53px] h-9">
                   {(() => {
-                    // const formattedValue = formatNumber(
-                    //   amount?.toString() || ""
-                    // );
-
-                    // const defaultFontSize = 48;
-                    // const minFontSize = 32;
-
-                    // const FREE_DIGITS = 7;
-                    // const SHRINK_RATE = 3;
-                    // const inputLength = formattedValue.replace(
-                    //   /\D/g,
-                    //   ""
-                    // ).length;
-
-                    // const excessDigits = Math.max(0, inputLength - FREE_DIGITS);
-
-                    // const dynamicFontSize = Math.max(
-                    //   minFontSize,
-                    //   defaultFontSize - excessDigits * SHRINK_RATE
-                    // );
                     const formattedValue = formatNumber(
-                      amount?.toString() || ""
+                      amount?.toString() || "",
                     );
 
                     const inputLength =
@@ -897,10 +1010,10 @@ const BridgeInterface = () => {
 
                     const defaultFontSize =
                       window.innerWidth >= 1024
-                        ? 48
+                        ? 40
                         : window.innerWidth >= 768
-                          ? 40
-                          : 32;
+                          ? 30
+                          : 20;
 
                     const FREE_DIGITS = window.innerWidth >= 768 ? 7 : 6;
                     const SHRINK_RATE = 3; // slow shrink rate
@@ -909,7 +1022,7 @@ const BridgeInterface = () => {
 
                     const dynamicFontSize = Math.max(
                       10,
-                      defaultFontSize - excessDigits * SHRINK_RATE
+                      defaultFontSize - excessDigits * SHRINK_RATE,
                     );
 
                     return (
@@ -925,37 +1038,72 @@ const BridgeInterface = () => {
                               ? "0"
                               : "0.00"
                           }
-                          className="text-[#fff] py-2 text-sh text-end w-full leading-7 outline-none border-none bg-transparent px-1 rigamesh placeholder-white transition-all duration-200 ease-in-out"
+                          className="font-orbitron font-extrabold text-white  rounded-[10px] px-1 py-3 text-end w-full h-full outline-none border-none transition-all duration-200 ease-in-out bg-black"
                           style={{
                             fontSize: `${dynamicFontSize}px`,
                           }}
                         />
+                        {/* USD Value Display for expected amount (same price since it's the same token) */}
+                        <div className="text-right text-white md:text-sm text-xs mt-2 font-orbitron">
+                          {isPriceLoading ? (
+                            <span className="animate-pulse">Fetching...</span>
+                          ) : tokenPrice ? (
+                            <span>${usdValue}</span>
+                          ) : (
+                            <span>--</span>
+                          )}
+                        </div>
                       </>
                     );
                   })()}
                 </div>
               </div>
+              <div className="flex justify-between gap-2 items-center md:mt-8 mt-5">
+                 <div className="text-[#FF9900] font-orbitron md:text-xl text-sm flex flex-col">
+                  {isPriceLoading ? (
+                    <span className="animate-pulse">Loading...</span>
+                  ) : tokenPrice ? (
+                    `$${parseFloat(tokenPrice).toFixed(6)}`
+                  ) : (
+                    "--"
+                  )}
+                  <span className="font-bold">Market Price</span>
+                </div>
+                <div className="text-zinc-200 text-[10px] font-normal font-orbitron leading-normal flex md:gap-2 gap-1 justify-end">
+                  <span></span>
+                  {[25, 50, 75, 100].map((value) => (
+                    <button
+                      key={value}
+                      type="button"
+                      className={`py-1 border border-[#EEC485] flex justify-center items-center rounded-xl md:text-[10px] text-[7px] font-extrabold font-orbitron md:w-[70px] w-11 px-2
+                ${
+                  selectedPercentage === value
+                    ? "!text-black !bg-[#FF9900] border-[#FF9900]"
+                    : "bg-[#EEC485] text-[#040404] border-black hover:border-black hover:bg-[#FF9900] hover:text-black"
+                }`}
+                      onClick={() => handlePercentageChange(value)}
+                      disabled={isLoading}
+                    >
+                      {value}%
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
         </div>
-
-        {/* Recipient Address */}
-        <div className="my-8 relative">
-          <label className="block md:text-4xl text-xl font-medium text-white mb-6 font-orbitron text-center">
-            Recipient Address
-          </label>
-          <div className="relative w-full border border-[#FF9900] py-10 rounded-[40px]">
-            {/* <img className="bg-rb" src={Rbox} alt="Rbox" /> */}
+        <div className="my-5 relative ">
+          <div className="relative w-full bg_swap_box_chain !py-9">
             <input
               type="text"
               value={recipient}
               onChange={(e) => setRecipient(e.target.value)}
               placeholder="0x..."
-              className="absolute inset-0 top-0 bottom-0 my-auto w-full h-full md:pl-10 pl-4 pr-32 py-12 text-center bg-transparent text-white roboto md:text-xl text-sm truncate outline-none"
+              className="absolute inset-0 top-0 bottom-0 my-auto w-full h-full md:pl-4 pl-4 pr-36 py-12 text-center bg-transparent text-white font-orbitron md:text-xl text-sm truncate outline-none"
             />
             <button
-              className={`!absolute !bg-transparent w-[100px] h-12 hover:opacity-70 bg-black !border !border-white top-4 right-4 flex justify-center items-center rounded-xl px-2 roboto !text-[#FF9900] text-base font-bold`}
-            // onClick={handleSelfButtonClick}
+              className={`!absolute !bg-transparent md:w-[100px] w-20 md:h-12 h-12 hover:opacity-70 bg-black !border !border-[#FF9900] top-3 right-3 flex justify-center items-center rounded-xl px-2 roboto !text-[#FF9900] text-base font-bold`}
+              // onClick={handleSelfButtonClick}
             >
               Self
             </button>
@@ -963,41 +1111,31 @@ const BridgeInterface = () => {
         </div>
         {/* Fees Display */}
         {bridgeFees && (
-          <div className="mb-10">
-            <label className="block md:text-4xl text-xl font-medium text-white mb-6 font-orbitron text-center">
+          <div className="mb-5 flex justify-between gap-2 items-center bg_swap_box_chain">
+            <div className="block md:text-lg text-base font-medium text-white font-orbitron text-center">
               Estimated Fees:
-            </label>
-            <div className="grid grid-cols-2 gap-2 p-4 border border-[#FF9900] text-center rounded-[40px] text-white text-xs md:text-sm font-orbitron">
-              {/* <div>Protocol Fee:</div>
-              <div>{formatUnits(bridgeFees[0] ?? 0n, 6)} USDC</div> */}
-
-              {/* <div>VIA Source Fee:</div>
-              <div>{formatUnits(bridgeFees[1] ?? 0n, 6)} USDC</div> */}
-
-              <div>Gas Token Req:</div>
+            </div>
+            <div className="grid grid-cols-2 gap-1 text-center text-[#FF9900] text-xs md:text-base font-orbitron">
+              <div className="font-bold">Gas Token</div>
               <div>
-                {formatEther(bridgeFees[2] ?? 0n)}{" "}
+                <span className="rigamesh">
+                  {formatEther(bridgeFees[2] ?? 0n)}{" "}
+                </span>
                 {fromChainId === 369 ? "WPLS" : "ETH"}
               </div>
 
-              <div>Messaging Fees:</div>
-              <div>{formatUnits(bridgeFees[3] ?? 0n, 6)} USDC</div>
+              <div className="font-bold">Messaging Fees:</div>
+              <div className="rigamesh">
+                {formatUnits(bridgeFees[3] ?? 0n, 6)} USDC
+              </div>
             </div>
           </div>
         )}
-
-        {/* Main Action Button */}
-        <div className="md:px-1 px-4 2xl:pb-20">
+        <div className="md:px-1 px-4 2xl:pb-4">
           <button
             type="button"
-            className="gtw relative md:w-[360px] w-[200px] md:h-[68px] h-11 bg-[#FF9900] md:rounded-[10px] rounded-md mx-auto button-trans text-center mt-7 h- flex justify-center items-center gap-2 transition-all font-orbitron lg:text-2xl text-sm font-extrabold"
+            className="gtw relative w-full md:h-[68px] h-11 bg-[#F59216] md:rounded-[10px] rounded-md mx-auto button-trans text-center mt-4 flex justify-center items-center gap-2 transition-all font-orbitron lg:text-2xl text-sm font-extrabold"
           >
-            <div className="w-full absolute md:top-4 top-2 md:-left-5 -left-3 z-[-1] bg-transparent border-2 border-[#FF9900] md:rounded-[10px] rounded-md md:h-[68px] h-11"></div>
-            {/* <img
-              className="absolute swap-button1"
-              src={Swapbutton}
-              alt="Swap"
-            /> */}
             {renderButton()}
           </button>
         </div>
@@ -1009,9 +1147,8 @@ const BridgeInterface = () => {
         onClose={() => setIsFromChainModalOpen(false)}
         items={Object.values(BRIDGE_CONFIG).filter((c) => c.id !== toChainId)}
         onSelect={(chain) => {
-          const chainId = typeof chain.id === 'string' ? parseInt(chain.id) : chain.id;
-          // Try to keep the same token if it exists on the new chain
-          // const sameToken = getTokenById(chainId, selectedToken?.id);
+          const chainId =
+            typeof chain.id === "string" ? parseInt(chain.id) : chain.id;
           setFromChainId(chainId);
           setSelectedToken(null);
           setToChainId(null);
@@ -1023,14 +1160,17 @@ const BridgeInterface = () => {
         isOpen={isToChainModalOpen}
         onClose={() => setIsToChainModalOpen(false)}
         items={Object.values(BRIDGE_CONFIG).filter((c) => {
-          const chainId = typeof c.id === 'string' ? parseInt(c.id) : c.id;
+          const chainId = typeof c.id === "string" ? parseInt(c.id) : c.id;
           // If no token selected, show all chains except from
           if (!selectedToken) return chainId !== fromChainId;
           // Only show chains that have the currently selected token
-          return chainId !== fromChainId && hasToken(chainId, selectedToken?.id);
+          return (
+            chainId !== fromChainId && hasToken(chainId, selectedToken?.id)
+          );
         })}
         onSelect={(chain) => {
-          const chainId = typeof chain.id === 'string' ? parseInt(chain.id) : chain.id;
+          const chainId =
+            typeof chain.id === "string" ? parseInt(chain.id) : chain.id;
           setToChainId(chainId);
           setIsToChainModalOpen(false);
         }}
@@ -1047,22 +1187,21 @@ const BridgeInterface = () => {
         title="Select Token"
         chainId={fromChainId}
       />
-
       {/* Info / Logs */}
-      <div className="md:max-w-[1300px] w-full mx-auto px-4 md:mt-0 mt-20 scales-b scales-top">
-        {bridgeHash && (
-          <div className="clip-bg1 rounded-lg p-4 w-full">
-            <p className="text-lg text-[#FBB025] font-medium  mb-2 v">
+      <div className="lg:max-w-[800px] md:max-w-[800px] mx-auto w-full px-4 scales-b scales-top">
+        {displayBridgeHash && (
+          <div className="bg_swap_box_chain p-4 w-full font-orbitron">
+            <p className="text-lg text-[#FBB025] font-bold  mb-2 v">
               Bridge transaction submitted!
             </p>
-            <p className="text-xs text-[#FBB025] mb-2 roboto">
+            <p className="text-sm text-[#FBB025] mb-2">
               Your tokens will arrive in 2-10 minutes
             </p>
             <a
-              href={`https://scan.vialabs.io/transaction/${bridgeHash}`}
+              href={`https://scan.vialabs.io/transaction/${displayBridgeHash}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-xs text-white hover:underline"
+              className="text-xs font-bold text-white hover:underline"
             >
               Track on VIA Scanner →
             </a>
@@ -1072,11 +1211,10 @@ const BridgeInterface = () => {
           transactions={transactions}
           clearTransactions={clearTransactions}
         />
-        <hr className="mt-10" />
-
+        <hr className="mt-4" />
         {/* Instructions */}
-        <div className="w-full md:px-0 px-4 md:pb-20 pb-10">
-          <div className="mt-16 md:max-w-[1300px] w-full mx-auto bg-[#100C06] border border-[#100C06] rounded-xl lg:px-12 px-6 lg:py-12 py-10">
+        <div className="w-full md:px-0 px-4 md:pb-10 pb-6">
+          <div className="mt-5 md:max-w-[1300px] w-full mx-auto bg-[#100C06] border border-[#100C06] rounded-xl lg:px-12 px-6 lg:py-10 py-10">
             <h2 className="md:text-[40px] text-[32px] font-extrabold text-white mb-10 font-orbitron">
               How It Works
             </h2>

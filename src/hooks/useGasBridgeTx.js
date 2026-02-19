@@ -1,5 +1,5 @@
 import { useSendTransaction, useWaitForTransactionReceipt, useAccount, useSwitchChain, useWalletClient } from 'wagmi';
-import { toast } from 'react-toastify';
+import { toast } from '../utils/toastHelper';
 import { useSearchTransaction, useGetChains } from './useGasBridgeAPI';
 import { useEffect, useState } from 'react';
 import { useGasBridgeStore } from '../redux/store/gasBridgeStore';

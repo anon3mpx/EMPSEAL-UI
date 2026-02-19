@@ -13,6 +13,7 @@
         "ticker": "wS",
         "decimal": 18,
         "featured": true,
+        "whitelisted": true,
         "image": "https://raw.githubusercontent.com/Shadow-Exchange/shadow-assets/main/blockchains/sonic/assets/0x039e2fB66102314Ce7b64Ce5Ce3E5183bc94aD38/logo.png"
     },
     {
@@ -21,6 +22,7 @@
         "ticker": "SHADOW",
         "decimal": 18,
         "featured": true,
+        "whitelisted": true,
         "image": "https://raw.githubusercontent.com/Shadow-Exchange/shadow-assets/main/blockchains/sonic/assets/0x0D71aE6AdbF3e83124e71104AB8d4465185FC9b8/logo.png"
     },
     {
@@ -29,6 +31,7 @@
         "ticker": "USDC.e",
         "decimal": 6,
         "featured":true,
+        "whitelisted": true,
         "image": "https://raw.githubusercontent.com/Shadow-Exchange/shadow-assets/main/blockchains/sonic/assets/0x29219dd400f2Bf60E5a23d13Be72B486D4038894/logo.png"
     },
     {
@@ -78,6 +81,8 @@
         "address": "0xE5DA20F15420aD15DE0fa650600aFc998bbE3955",
         "ticker": "stS",
         "decimal": 18,
+        "featured":true,
+        "whitelisted": true,
         "image": "https://raw.githubusercontent.com/Shadow-Exchange/shadow-assets/main/blockchains/sonic/assets/0xE5DA20F15420aD15DE0fa650600aFc998bbE3955/logo.png"
     },
     {
@@ -86,6 +91,7 @@
         "ticker": "scUSD",
         "decimal": 6,
         "featured": true,
+        "whitelisted": true,
         "image": "https://raw.githubusercontent.com/Shadow-Exchange/shadow-assets/main/blockchains/sonic/assets/0xd3DCe716f3eF535C5Ff8d041c1A41C3bd89b97aE/logo.png"
     },
     {
@@ -108,6 +114,7 @@
         "ticker": "Anon",
         "decimal": 18,
         "featured":true,
+        "whitelisted": true,
         "image": "https://raw.githubusercontent.com/Shadow-Exchange/shadow-assets/main/blockchains/sonic/assets/0x79bbF4508B1391af3A0F4B30bb5FC4aa9ab0E07C/logo.png"
     },
     {
@@ -137,6 +144,7 @@
         "ticker": "scETH",
         "decimal": 18,
         "featured":true,
+        "whitelisted": true,
         "image": "https://raw.githubusercontent.com/Shadow-Exchange/shadow-assets/main/blockchains/sonic/assets/0x3bcE5CB273F0F148010BbEa2470e7b5df84C7812/logo.png"
     },
     {
@@ -565,6 +573,7 @@
         "ticker": "USDT",
         "decimal": 6,
         "featured":true,
+        "whitelisted": true,
         "image": "https://raw.githubusercontent.com/Shadow-Exchange/shadow-assets/main/blockchains/sonic/assets/0x6047828dc181963ba44974801FF68e538dA5eaF9/logo.png"
     },
     {
@@ -629,6 +638,7 @@
         "ticker": "frxUSD",
         "decimal": 18,
         "featured": true,
+        "whitelisted": true,
         "image": "https://raw.githubusercontent.com/Shadow-Exchange/shadow-assets/main/blockchains/sonic/assets/0x80Eede496655FB9047dd39d9f418d5483ED600df/logo.png"
     },
     {
@@ -637,6 +647,7 @@
         "ticker": "frxETH",
         "decimal": 18,
         "featured":true,
+        "whitelisted": true,
         "image": "https://raw.githubusercontent.com/Shadow-Exchange/shadow-assets/main/blockchains/sonic/assets/0x43eDD7f3831b08FE70B7555ddD373C8bF65a9050/logo.png"
     },
     {
@@ -792,6 +803,7 @@
         "ticker": "WBTC",
         "decimal": 8,
         "featured":true,
+        "whitelisted": true,
         "image": "https://raw.githubusercontent.com/Shadow-Exchange/shadow-assets/main/blockchains/sonic/assets/0x0555E30da8f98308EdB960aa94C0Db47230d2B9c/logo.png"
     },
     {
@@ -1164,6 +1176,7 @@
         "ticker": "aSonUSDC",
         "decimal": 6,
         "featured":true,
+        "whitelisted": true,
         "image": "https://raw.githubusercontent.com/Shadow-Exchange/shadow-assets/main/blockchains/sonic/assets/0x578Ee1ca3a8E1b54554Da1Bf7C583506C4CD11c6/logo.png"
     },
     {

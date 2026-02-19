@@ -1,0 +1,22 @@
+[
+    {
+        "name": "KodiakV3",
+        "address": "0xcD05Ae7369e14D0Fd232F0D3C025D9703B779d80"
+    },
+    {
+        "name": "KodiakV2",
+        "address": "0x2F21FF788e14A531847E6658aFBD725555757da5"
+    },
+    {
+        "name": "Bulla",
+        "address": "0xc1Bb27E7AE8af9164Cb6B5D3A465478415EdEbB7"
+    },
+    {
+        "name": "BeraSwap",
+        "address": "0x6cE282F748514Df878C396d3d1a024BD5Bb26871"
+    },
+    {
+        "name": "WinnieSwap",
+        "address": "0xce032ac88ad11E6f8374B3760F5a98a77c6584f0"
+    }
+]

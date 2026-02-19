@@ -1,48 +1,38 @@
 import React, { useEffect, useState } from "react";
-import Arrow from "../../assets/images/arrow-2.svg";
+// import Arrow from "../../assets/images/arrow-2.svg";
+import LoadingIcon from "../../assets/icons/loading.svg";
 import { useChainConfig } from "../../hooks/useChainConfig";
 import { useStore } from "../../redux/store/routeStore";
+import { ArrowRight, Check, ChevronRight } from "lucide-react";
 
-const Routing = ({ routing }) => {
+const Routing = ({ routing, isLoading }) => {
   const [tokenImages, setTokenImages] = useState({});
   const [isHovered, setIsHovered] = useState(false);
 
   const route = useStore((state) => state.route);
   const adapter = useStore((state) => state.adapter);
-  const {
-    chainId,
-    tokenList,
-    adapters,
-    isSupported,
-    wethAddress, // Assuming this is the wrapped token address
-  } = useChainConfig();
+  const { chainId, tokenList, adapters, isSupported, wethAddress } =
+    useChainConfig();
 
-  // Function to get token image from tokenList.json
   const getLocalTokenImage = (address) => {
     const token = tokenList.find(
-      (token) => token?.address?.toLowerCase() === address?.toLowerCase()
+      (token) => token?.address?.toLowerCase() === address?.toLowerCase(),
     );
     return token ? token.logoURI || token.image : null;
   };
 
-  // Function to get token image from GitHub
   const getGithubTokenImage = (address) => {
     return `https://raw.githubusercontent.com/piteasio/app-tokens/main/token-logo/${address}.png`;
   };
 
-  // Combined function to get token image from any source
   const getTokenImage = (address) => {
-    // Check if the address is the native token address
     if (address === "0x0000000000000000000000000000000000000000") {
       return getLocalTokenImage(wethAddress);
     }
-
-    // First check if we already have it cached
     if (tokenImages[address]) {
       return tokenImages[address];
     }
 
-    // Then check tokenList from current chain
     const localImage = getLocalTokenImage(address);
     if (localImage) {
       setTokenImages((prev) => ({
@@ -52,7 +42,6 @@ const Routing = ({ routing }) => {
       return localImage;
     }
 
-    // Finally try GitHub
     if (chainId === 369) {
       const githubImage = getGithubTokenImage(address);
       setTokenImages((prev) => ({
@@ -63,7 +52,6 @@ const Routing = ({ routing }) => {
     }
   };
 
-  // Initialize and update token images whenever route or chainId changes
   useEffect(() => {
     if (route && route.length > 0) {
       const newTokenImages = {};
@@ -82,115 +70,188 @@ const Routing = ({ routing }) => {
   const getAdapter = (address) => {
     if (!address) return "Unknown";
     const foundAdapter = adapters.find(
-      (a) => a?.address?.toLowerCase() === address?.toLowerCase()
+      (a) => a?.address?.toLowerCase() === address?.toLowerCase(),
     );
     return foundAdapter ? foundAdapter.name : "Unknown";
   };
-
-  // Get token symbol from chain-specific tokenList
   const getTokenSymbol = (address) => {
     const token = tokenList.find(
-      (token) => token?.address?.toLowerCase() === address?.toLowerCase()
+      (token) => token?.address?.toLowerCase() === address?.toLowerCase(),
     );
     return token ? token.symbol || token.ticker : "Unknown";
   };
 
-  // if (!isSupported) {
-  //   return <div className="text-white text-center roboto">Please switch to a supported chain</div>;
-  // }
+  if (isLoading) {
+    return (
+      <div className="w-full">
+        <div className="flex justify-between gap-2 items-start">
+          <p className="text-[#FFE3BA] text-lg font-bold font-orbitron">
+            DETAILS
+          </p>
+          <div className="flex gap-2 items-center">
+            <div className="text-right text-[#FF9900] text-2xl font-extrabold font-orbitron">
+              SPLIT
+              <p className="text-right text-[#FF9900] text-sm font-normal font-orbitron">
+                Routing
+              </p>
+            </div>
+            <img
+              src={LoadingIcon}
+              alt="Loading"
+              className="w-7 h-7 animate-spin"
+            />
+          </div>
+        </div>
+        <div className="flex justify-center items-center gap-5 py-4">
+          <div className="w-8 h-8 bg-[#FF9900]/10 rounded-full animate-pulse"></div>
+          <div className="w-8 h-8 bg-[#FF9900]/10 rounded-full animate-pulse"></div>
+          <div className="w-8 h-8 bg-[#FF9900]/10 rounded-full animate-pulse"></div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isSupported) {
+    return (
+      <div className="w-full">
+        <div className="flex justify-between gap-2 items-start">
+          <p className="text-[#FFE3BA] text-lg font-bold font-orbitron">
+            DETAILS
+          </p>
+          <div className="flex gap-2 items-center">
+            <div className="text-right text-[#FF9900] text-2xl font-extrabold font-orbitron">
+              SPLIT
+              <p className="text-right text-[#FF9900] text-sm font-normal font-orbitron">
+                Routing
+              </p>
+            </div>
+          </div>
+        </div>
+        <span className="text-white text-center flex justify-center roboto mt-2">
+          Please switch to a supported chain
+        </span>
+      </div>
+    );
+  }
 
   if (!route || route.length === 0) {
-    return null;
-  }
-  return (
-    <div className="relative">
-      <div
-        onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}
-        // id="hover"
-        className="w-full border-3 border-white rounded-xl-view py-4 2xl:px-7 lg:px-5 px-4 bg-black min-w-[240px] scale81 relative max-w-[302px] mxauto round"
-      >
-        <div className="flex justify-center gap-2 md:flex-nowrap flex-wrap absolute left-0 right-0 -top-7">
-          <p className="w-[194px] h-[28px] flex justify-center items-center bg-[#FF9900] font-orbitron text-black text-base font-semibold border-2 border-white border-b-0 py-2 border-radius-w">
-            Routing
+    return (
+      <div className="w-full">
+        <div className="flex justify-between gap-2 items-start">
+          <p className="text-[#FFE3BA] text-lg font-bold font-orbitron">
+            DETAILS
           </p>
+          <div className="flex gap-2 items-center">
+            <div className="text-right text-[#FF9900] text-2xl font-extrabold font-orbitron">
+              SPLIT
+              <p className="text-right text-[#FF9900] text-sm font-normal font-orbitron">
+                Routing
+              </p>
+            </div>
+          </div>
         </div>
-
-        {!isSupported && (
-          <span className="text-white text-center flex justify-center roboto mt-2">
-            Please switch to a supported chain
-          </span>
-        )}
-
-        <div className="flex justify-center gap-5 items-center mt-1">
-          {route.map((address, index) => (
-            <React.Fragment key={`${address}-${index}`}>
-              <div className="flex flex-col items-center">
-                <img
-                  className="w-4 h-4 object-contain flex flex-shrink-0"
-                  src={tokenImages[address]}
-                  alt={getTokenSymbol(address)}
-                  // onError={(e) => {
-                  //   // console.log(`Failed to load image for ${address}`);
-                  //   e.target.src = "/path/to/fallback/image.png";
-                  // }}
-                />
-              </div>
-
-              {index < route.length - 1 && (
-                <div className="flex flex-col gap-2">
-                  <div className="flex flex-col gap-1">
-                    <img className="w-4 h-4 flex flex-shrink-0 object-contain" src={Arrow} alt="Arrow" />
-                    {/* <p className="text-white text-[10px] font-bold roboto">
-                      {adapter && adapter[index]
-                        ? getAdapter(adapter[index])
-                        : ""}
-                    </p> */}
-                  </div>
-                </div>
-              )}
-            </React.Fragment>
-          ))}
-        </div>
-        {/* hover effect */}
+        <div className="text-center text-gray-400 py-4">No route available</div>
       </div>
-      {isHovered && (
+    );
+  }
+
+  return (
+    <div className="w-full">
+      <div className="flex justify-between gap-2 items-start">
+        <p className="text-[#FFE3BA] text-lg font-bold font-orbitron">
+          DETAILS
+        </p>
+        <div className="flex gap-2 items-center">
+          <div className="text-right text-[#FF9900] text-2xl font-extrabold font-orbitron">
+            SPLIT
+            <p className="text-right text-[#FF9900] text-sm font-normal font-orbitron">
+              Routing
+            </p>
+          </div>
+          <Check size="30" className="text-green-500" />
+        </div>
+      </div>
+      <div className="relative">
         <div
-          // id="stuff"
-          className="flex justify-between gap-2 bg-black py-4 items-center mt-6 absolute transition-all top-[40px] mx-auto w-max left-0 right-0 px-4 border border-white rounded-lg"
           onMouseEnter={() => setIsHovered(true)}
           onMouseLeave={() => setIsHovered(false)}
+          className="w-full flex justify-between items-center gap-5 py-4 relative"
         >
+          <div className="w-full h-2 rounded-full bg-[#FF9900] absolute"></div>
           {route.map((address, index) => (
             <React.Fragment key={`${address}-${index}`}>
-              <div className="flex flex-col items-center">
+              <div className="flex items-center group relative">
                 <img
-                  className="w-4 h-4 flex flex-shrink-0 object-contain"
-                  src={tokenImages[address]}
+                  className="w-8 h-8 object-contain rounded-full p-1 bg-white"
+                  src={tokenImages[address] || "/path/to/fallback.png"}
                   alt={getTokenSymbol(address)}
-                  // onError={(e) => {
-                  //   // console.log(`Failed to load image for ${address}`);
-                  //   e.target.src = "/path/to/fallback/image.png";
-                  // }}
+                  onError={(e) => {
+                    e.target.src = "/path/to/fallback/image.png";
+                  }}
                 />
+                {/* <span className="text-white text-xs mt-1 font-orbitron">
+                  {getTokenSymbol(address)}
+                </span> */}
+
+                {/* Hover tooltip for adapter name */}
+                {/* {adapter && adapter[index] && (
+                  <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-black border border-[#FF9900] text-white text-xs py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                    {getAdapter(adapter[index])}
+                  </div>
+                )} */}
               </div>
 
-              {index < route.length - 1 && (
-                <div className="flex flex-col gap-2">
-                  <div className="flex flex-col gap-1">
-                    <img className="w-4 h-4 flex flex-shrink-0 object-contain" src={Arrow} alt="Arrow" />
-                    <p className="text-white text-[10px] font-bold roboto">
-                      {adapter && adapter[index]
-                        ? getAdapter(adapter[index])
-                        : ""}
-                    </p>
-                  </div>
+              {/* {index < route.length - 1 && (
+                <div className="flex items-center">
+                  <img 
+                    className="w-6 h-6 object-contain" 
+                    src={Arrow} 
+                    alt="Arrow" 
+                    style={{ filter: "invert(58%) sepia(98%) saturate(1358%) hue-rotate(1deg) brightness(103%) contrast(106%)" }}
+                  />
                 </div>
-              )}
+              )} */}
             </React.Fragment>
           ))}
         </div>
-      )}
+        {isHovered && route.length > 1 && (
+          <div
+            className="absolute top-full left-0 right-0 mt-2 bg-black border-2 border-[#FF9900] rounded-lg p-4 z-50"
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
+          >
+            <div className="text-[#FF9900] font-bold text-sm font-orbitron mb-2">
+              Route Details
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {route.map((address, index) => (
+                <React.Fragment key={`hover-${address}-${index}`}>
+                  <div className="flex items-center gap-2">
+                    <img
+                      className="w-6 h-6 object-contain rounded-full"
+                      src={tokenImages[address]}
+                      alt={getTokenSymbol(address)}
+                    />
+                    <span className="text-white text-xs">
+                      {getTokenSymbol(address)}
+                    </span>
+                  </div>
+                  {index < route.length - 1 && (
+                    <>
+                      <span className="text-[#FF9900] text-xs"><ChevronRight/></span>
+                      {adapter && adapter[index] && (
+                        <span className="text-[#FF9900] text-xs bg-[#FF9900]/20 px-2 py-1 rounded">
+                          {getAdapter(adapter[index])}
+                        </span>
+                      )}
+                    </>
+                  )}
+                </React.Fragment>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 };

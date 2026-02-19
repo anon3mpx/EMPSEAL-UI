@@ -6,6 +6,7 @@ import ProvidersListNew from "./ProvidersList-new";
 import { Link } from "react-router-dom";
 import chainsData from "../chainsList.json";
 import Routing from "../swap/Routing";
+import BG from "../../assets/images/empx-bg1.webp";
 
 const Normal = () => {
   const [padding, setPadding] = React.useState("lg:min-h-[573px] h-full");
@@ -25,14 +26,14 @@ const Normal = () => {
     selectedTokenB,
     amountIn,
     receiver,
-    address
+    address,
   ) => {
     setLoading(true);
     // console.log("tokens:", selectedTokenA.address, selectedTokenB.address);
 
     function getChainId(token) {
       const chainInfo = chainsData.find(
-        (chain) => chain.name === token.blockchainNetwork
+        (chain) => chain.name === token.blockchainNetwork,
       );
       const chainId = chainInfo ? chainInfo.chainId : "Not Found";
       // console.log("chainId: ", chainId)
@@ -47,7 +48,7 @@ const Normal = () => {
 
     try {
       const amountBigInt = BigInt(
-        Math.round(parseFloat(amountIn) * 10 ** selectedTokenA.decimals)
+        Math.round(parseFloat(amountIn) * 10 ** selectedTokenA.decimals),
       );
       // Rubic API request
       const rubicPayload = {
@@ -112,7 +113,7 @@ const Normal = () => {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(rubicPayload),
         }).then((res) =>
-          res.ok ? res.json() : Promise.reject(`Rubic error: ${res.status}`)
+          res.ok ? res.json() : Promise.reject(`Rubic error: ${res.status}`),
         ),
 
         fetch(
@@ -121,9 +122,9 @@ const Normal = () => {
             method: "POST",
             headers: { Accept: "*/*", "Content-Type": "application/json" },
             body: JSON.stringify(rangoPayload),
-          }
+          },
         ).then((res) =>
-          res.ok ? res.json() : Promise.reject(`Rango error: ${res.status}`)
+          res.ok ? res.json() : Promise.reject(`Rango error: ${res.status}`),
         ),
 
         /*
@@ -166,7 +167,12 @@ const Normal = () => {
   };
   return (
     <>
-      <div className="py-3 relative md:pt-0 pt-28">
+      <div className="pt-3 pb-10 relative">
+        <img
+          src={BG}
+          alt="Background"
+          className="w-full h-full fixed top-0 left-0 -z-10"
+        />
         <div className="md:max-w-[800px] mx-auto w-full flex flex-col justify-center items-center md:flex-nowrap flex-wrap px-3 mb-5 md:mt-0 mt-5">
           <h1 className="lg:text-5xl md:text-[40px] text-3xl text-center text-[#FF9900] font-orbitron font-bold mb-2">
             Seamless

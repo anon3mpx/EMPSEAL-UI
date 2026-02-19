@@ -2,7 +2,7 @@ import React, {useState} from "react";
 import Trans from "../../assets/images/trans.png";
 import { swapTokens } from "../../utils/contractCalls";
 import { Link } from "react-router-dom";
-import Logo from '../../assets/images/swap-emp.png';
+import Logo from '../../assets/images/empx-new.svg';
 
 const Transcation = ({ onClose, destinationTx }) => {
   const [copied, setCopied] = useState(false);

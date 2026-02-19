@@ -1,5 +1,5 @@
 import { useRef, useEffect } from "react";
-import Min from "../../../assets/images/swap-emp.png";
+import Min from "../../../assets/images/empx-new.svg";
 import Dis from "../../../assets/images/dis.png";
 import Copy from "../../../assets/images/copy.png";
 

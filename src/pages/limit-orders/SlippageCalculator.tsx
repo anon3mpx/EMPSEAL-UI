@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 // import BG1 from "../../assets/images/bg.png";
+import EL from "../../assets/images/emp-logo.png";
 
 interface SlippageCalculatorProps {
   onSlippageChange: (slippage: number) => void;
@@ -18,7 +19,7 @@ export function SlippageCalculator({
 }: SlippageCalculatorProps) {
   // const [isOpen, setIsOpen] = useState(true);
   const [customSlippage, setCustomSlippage] = useState(
-    [0.5, 1.0, 2.0].includes(slippage) ? "" : String(slippage)
+    [0.5, 1.0, 2.0].includes(slippage) ? "" : String(slippage),
   );
 
   useEffect(() => {
@@ -92,6 +93,7 @@ export function SlippageCalculator({
         >
           {" "}
           <svg
+            className="text-white hover:text-[#FF9900]"
             width="18"
             height="19"
             viewBox="0 0 18 19"
@@ -101,21 +103,17 @@ export function SlippageCalculator({
             {" "}
             <path
               d="M17 1.44824L1 17.6321M1 1.44824L17 17.6321"
-              stroke="#ffff"
+              stroke="currentColor"
               strokeWidth="2"
               strokeLinecap="round"
               strokeLinejoin="round"
             ></path>{" "}
           </svg>{" "}
         </button>
-        <h2 className="text-white text-xl font-bold mb-4 roboto text-center">
+        <h2 className="mb-4 md:text-2xl capitalize text-lg font-medium text-white font-orbitron text-center tracking-widest flex gap-1 items-center justify-center">
+          <img src={EL} alt="EL" className="w-10 object-contain" />
           Slippage Settings
         </h2>
-        {/* <div className="mb-4 p-3 bg-red-900/50 border border-red-500 rounded-lg">
-          <p className="text-red-200 text-sm">
-            Please provide token input values before applying slippage.
-          </p>
-        </div> */}
         <div className="flex gap-4 items-center justify-center flex-wrap">
           {[0.5, 1.0, 2.0].map((preset) => (
             <button
@@ -124,7 +122,6 @@ export function SlippageCalculator({
               onClick={() => handleSelect(preset)}
             >
               {preset}%
-              {/* <img src={BG1} alt="BG1" className="absolute top-0 left-0" /> */}
             </button>
           ))}
           <input
@@ -137,10 +134,6 @@ export function SlippageCalculator({
             min="0"
             max="5"
             className="md:w-[120px] w-20 md:h-9 h-9 text-center font-bold text-sm text-white focus:outline-none bg-[#382B19] border border-[#ff9900] rounded-xl"
-          // style={{
-          //   clipPath:
-          //     "polygon(0px 0px, 90% 0px, 100% 20%, 100% 100%, 12% 100%, 0px 65%)",
-          // }}
           />
           <span className="absolute inset-y-0 right-3 flex items-center text-sm text-muted-foreground">
             %
@@ -152,17 +145,12 @@ export function SlippageCalculator({
           </p>
         )}
         <div className="flex justify-center items-center mt-8 flex-col gap-2">
-          {/* clip-path-polygon */}
           <button
-            className={`gtw bg-[#FF9900] relative w-full md:h-16 rounded-xl h-12 flex items-center justify-center font-roboto font-black md:text-2xl text-xl transition-all font-orbitron`}
-            // style={{
-            //   clipPath:
-            //     "polygon(0px 0px, 95% 0px, 100% 30%, 100% 100%, 6% 100%, 0px 60%)",
-            // }}
             onClick={handleReset}
+            className={`gtw bg-[#F59216] relative w-full md:h-16 rounded-xl h-12 flex items-center justify-center font-roboto font-bold md:text-2xl text-xl transition-all font-orbitron
+   `}
           >
             Reset Slippage
-            <div className="w-full absolute md:top-4 top-1 md:-left-4 -left-3 z-[1] bg-transparent border-2 border-[#FF9900] rounded-xl md:h-[58px] h-[50px]"></div>
           </button>
           <button
             className="px-4 py-1 mt-4 bg-black font-semibold md:text-2xl text-xl text-[#FF9900] rounded font-orbitron"

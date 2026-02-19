@@ -87,7 +87,7 @@ export const BRIDGE_CONFIG = {
     name: "Base",
     usdcAddress: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
     wrappedGasTokenAddress: "0x4200000000000000000000000000000000000006", // WETH
-    explorer: "https://basescan.org/",
+    explorer: "https://basescan.org",
     rpcUrl: "https://8453.rpc.vialabs.io/",
     tokens: {
       COCK: {
@@ -159,7 +159,7 @@ export const BRIDGE_CONFIG = {
     name: "Arbitrum",
     usdcAddress: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
     wrappedGasTokenAddress: "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1",
-    explorer: "https://arbiscan.io/",
+    explorer: "https://arbiscan.io",
     rpcUrl: "https://42161.rpc.vialabs.io/",
     tokens: {
       COCK: {
@@ -229,9 +229,9 @@ export const BRIDGE_CONFIG = {
   10: {
     id: "10",
     name: "Optimism",
-    usdcAddress: "0x0b2C639c533813f4Aa9D7837CAf992c923F7044F",
+    usdcAddress: "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85",
     wrappedGasTokenAddress: "0x4200000000000000000000000000000000000006",
-    explorer: "https://optimistic.etherscan.io/",
+    explorer: "https://optimistic.etherscan.io",
     rpcUrl: "https://10.rpc.vialabs.io/",
     tokens: {
       COCK: {
@@ -298,12 +298,13 @@ export const BRIDGE_CONFIG = {
   },
 
   // --- BNB Chain (Synthetic Chain) ---
+  // need to transfer approx: 0.0003 WBNB for gas on each token address. 
   56: {
     id: "56",
     name: "BNB",
     usdcAddress: "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d",
     wrappedGasTokenAddress: "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
-    explorer: "https://bscscan.com/",
+    explorer: "https://bscscan.com",
     rpcUrl: "https://56.rpc.vialabs.io/",
     tokens: {
       COCK: {
@@ -375,7 +376,7 @@ export const BRIDGE_CONFIG = {
     name: "Polygon",
     usdcAddress: "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359",
     wrappedGasTokenAddress: "0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270",
-    explorer: "https://polygonscan.com/",
+    explorer: "https://polygonscan.com",
     rpcUrl: "https://137.rpc.vialabs.io/",
     tokens: {
       COCK: {
@@ -447,7 +448,7 @@ export const BRIDGE_CONFIG = {
     name: "Avalanche",
     usdcAddress: "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
     wrappedGasTokenAddress: "0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7",
-    explorer: "https://snowtrace.io/",
+    explorer: "https://snowtrace.io",
     rpcUrl: "https://43114.rpc.vialabs.io/",
     tokens: {
       COCK: {

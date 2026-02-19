@@ -13,7 +13,7 @@ import {
 } from "@wagmi/core";
 import { erc20Abi } from "viem";
 import { bridgeConfig } from "../../Wagmi/bridgeConfig";
-import { toast } from "react-toastify";
+import { toast } from "../../utils/toastHelper";
 const Amount = ({
   onClose,
   amountIn,

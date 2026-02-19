@@ -29,7 +29,7 @@ const ChainSelector = ({ chain, onClick }) => {
           <img
             src={Ci}
             alt="ci"
-            className="md:w-14 md:h-10 h-7 object-contain"
+            className="md:w-16 md:h-16 h-7 object-contain"
           />
         )}
       </div>

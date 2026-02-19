@@ -2,19 +2,16 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>Empeal - Page Not Found</title>
+    <title>EMPX - Page Not Found</title>
     <script type="text/javascript">
-        // Example: Keep the first segment of the path and redirect to a default page
-        var pathSegmentsToKeep = 1;
-        var newPath = window.location.protocol + "//" + window.location.hostname + (window.location.port? ":" + window.location.port : "") + "/default-page.html";
-
-        // Check if we have more than one segment and adjust accordingly
-        if (window.location.pathname.split("/").length > 1) {
-            newPath += "/" + window.location.pathname.split("/")[pathSegmentsToKeep];
-        }
-
-        // Redirect to the new path
-        window.location.href = newPath;
+        // For single-page applications, redirect to root so React Router can handle routing
+        // Preserve the original path so the app can potentially show a 404 page
+        var currentPath = window.location.pathname;
+        var currentSearch = window.location.search;
+        var currentHash = window.location.hash;
+        
+        // Redirect to root with hash to preserve the original path
+        window.location.replace("/" + currentHash);
     </script>
 </head>
 <body>

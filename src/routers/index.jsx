@@ -14,11 +14,12 @@ import BridgeWrapper from "../components/BridgeWrapper";
 import WagmiProviderWrapper from "../Wagmi/WagmiProvider";
 import { Provider } from "react-redux";
 import store from "../redux/store/store";
-import { ToastContainer } from "react-toastify";
+import { ToastContainer, Slide } from "react-toastify";
 import { useEffect } from "react";
 import { useAccount, useChainId, useSwitchChain } from "wagmi";
-import { pulsechain, sonic } from "wagmi/chains";
+import { pulsechain, sonic, sei, rootstock } from "wagmi/chains";
 import ViaBridge from "../pages/via-bridge/BridgePage";
+import NotFound from "../pages/NotFound";
 
 const GasBridgePage = lazy(() => import("../pages/GasBridgePage"));
 
@@ -30,7 +31,7 @@ const ChainSwitcher = ({ children }) => {
 
   useEffect(() => {
     if (isConnected && chainId) {
-      const swapChainIds = [pulsechain.id, 10001, sonic.id]; // pulsechain, ethw, sonic
+      const swapChainIds = [pulsechain.id, 10001, sonic.id, 8453, sei.id, 80094, rootstock.id]; // pulsechain, ethw, sonic, base, sei, berachain, rootstock
       if (!swapChainIds.includes(chainId)) {
         switchChain({ chainId: pulsechain.id });
       }
@@ -45,7 +46,22 @@ const SwapWrapper = ({ children }) => (
     <Provider store={store}>
       <ChainSwitcher>
         {children}
-        <ToastContainer position="top-right" theme="dark" autoClose={5000} />
+        <ToastContainer
+          position="bottom-right"
+          autoClose={5000}
+          hideProgressBar={true}
+          newestOnTop={true}
+          closeOnClick={false}
+          rtl={false}
+          pauseOnFocusLoss={true}
+          draggable={true}
+          pauseOnHover={true}
+          theme="dark"
+          transition={Slide}
+          toastClassName="empseal-toast"
+          bodyClassName="empseal-toast-body"
+          closeButton={false}
+        />
       </ChainSwitcher>
     </Provider>
   </WagmiProviderWrapper>
@@ -55,7 +71,22 @@ const ViaBridgeWrapper = ({ children }) => (
   <WagmiProviderWrapper appType="via-bridge">
     <Provider store={store}>
       {children}
-      <ToastContainer position="top-right" theme="dark" autoClose={5000} />
+      <ToastContainer
+        position="bottom-right"
+        autoClose={5000}
+        hideProgressBar={true}
+        newestOnTop={true}
+        closeOnClick={false}
+        rtl={false}
+        pauseOnFocusLoss={true}
+        draggable={true}
+        pauseOnHover={true}
+        theme="dark"
+        transition={Slide}
+        toastClassName="empseal-toast"
+        bodyClassName="empseal-toast-body"
+        closeButton={false}
+      />
     </Provider>
   </WagmiProviderWrapper>
 );
@@ -117,7 +148,7 @@ function MyRoutes() {
                 </BridgeWrapper>
               }
             />
-            <Route path="*" element={<div>404 Not Found</div>} />
+            <Route path="*" element={<NotFound />} />
           </Routes>
         </div>
         {/* </Base> */}

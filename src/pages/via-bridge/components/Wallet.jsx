@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Logo from "../../../assets/images/emp-logo.png";
 import WalletImg from "../../../assets/images/wallet-2.svg";
 import Home from "../../../assets/images/house.svg";
@@ -6,11 +6,12 @@ import { Link } from "react-router-dom";
 import WalletConnect from "./WalletConnect/WalletConnect";
 import { useBalance, useAccount } from "wagmi";
 import { formatEther } from "viem";
+import DotsMenu from "../../swap/DotsMenu";
 
 const truncateAddress = (address) =>
   `${address.slice(0, 6)}...${address.slice(-4)}`;
 
-const Wallet = () => {
+const Wallet = ({ onTabChange }) => {
   const [balance, setBalance] = useState(null);
   const [chainIconUrl, setChainIconUrl] = useState(undefined);
   const [chainName, setChainName] = useState(undefined);
@@ -28,10 +29,10 @@ const Wallet = () => {
   const formattedBalance = isLoading
     ? "Loading..."
     : isError
-    ? "Error fetching balance"
-    : balance
-    ? `${parseFloat(balance).toFixed(2)}`
-    : "0.00";
+      ? "Error fetching balance"
+      : balance
+        ? `${parseFloat(balance).toFixed(2)}`
+        : "0.00";
 
   const formatNumber = (value) => {
     if (!value) return ""; // Handle empty input
@@ -54,16 +55,13 @@ const Wallet = () => {
 
   return (
     <>
-      <div className="flex justify-center gap-2 flex-col wallet_bg z-10 md:mt-0 mt-3 absolute wallet-bg-bridge lefts1">
+      <div className="flex justify-center lg:gap-2 gap-2 wallet_bg md:z-10 z-10 md:mt-0 mt-0 absolute wallet-bg-bridge lefts1">
         <WalletConnect
           icon={<img src={WalletImg} alt="Wallet Icon" />}
           onChainChange={handleChainChange}
         />
-        <a href="https://empx.io/dapp">
-          <button className="flex items-center justify-center bg-[#FF9900] gtw transition-all text-sm py-2 px-6 rounded-md font-extrabold w-full font-orbitron">
-            <span>Home</span>
-          </button>
-        </a>
+        {/* https://empx.io/dapp */}
+        <DotsMenu onTabChange={onTabChange} />
       </div>
     </>
   );
