@@ -48,7 +48,7 @@ const DotsMenu = ({ onTabChange }) => {
         </button>
       </div>
       <div
-        className={`fixed inset-0 bg-black/60 backdrop-blur-sm z-40 transition-opacity duration-500 ${
+        className={`fixed inset-0 bg-[#2a1708]/50 backdrop-blur-[1px] z-40 transition-opacity duration-500 ${
           open
             ? "opacity-100 pointer-events-auto"
             : "opacity-0 pointer-events-none"
@@ -56,7 +56,7 @@ const DotsMenu = ({ onTabChange }) => {
         onClick={() => setOpen(false)}
       />
       <div
-        className={`fixed inset-x-0 top-0 md:h-[370px] h-[340px] bg-black border-4 border-[#FFA600]
+        className={`fixed inset-x-0 top-0 2xl:h-[370px] h280 md:h-[280px] h-[340px] bg-black border-4 border-[#FFA600]
   md:rounded-2xl rounded-lg md:px-10 px-4 py-10 z-50 shadow-xl w-full
   transform transition-all duration-500 ease-in-out
   ${
@@ -67,16 +67,16 @@ const DotsMenu = ({ onTabChange }) => {
       >
         <div
           ref={menuRef}
-          className="grid grid-cols-2 gap-10 text-[#FFA600] font-orbitron relative md:pt-10"
+          className="grid grid-cols-2 gap-10 text-[#FFA600] font-orbitron relative 2xl:pt-10 pt10"
         >
           <div
             onClick={() => setOpen(false)}
-            className="cursor-pointer absolute right-5 md:top-5 top-0 text-white text-2xl font-black hover:text-[#FFA600] transition tilt"
+            className="cursor-pointer absolute right-5 2xl:top-4 top-0 text-white text-2xl font-black hover:text-[#FFA600] transition tilt"
           >
             ✕
           </div>
           <div>
-            <h3 className="text-white md:text-4xl text-2xl font-bold mb-3">
+            <h3 className="text-white 2xl:text-4xl text-2xl text2xl font-bold mb-3">
               Products
             </h3>
             {["Swap", "Limit Orders", "Bridge", "Gas"].map((item) => (
@@ -95,14 +95,14 @@ const DotsMenu = ({ onTabChange }) => {
 
                   setOpen(false);
                 }}
-                className="cursor-pointer hover:translate-x-1 transition md:text-[30px] text-lg my-4 font-extrabold"
+                className="cursor-pointer hover:translate-x-1 transition 2xl:text-[30px] text-lg 2xl:my-4 text2xl my4 font-extrabold"
               >
                 {item}
               </p>
             ))}
           </div>
           <div>
-            <h3 className="text-white md:text-4xl text-2xl font-bold mb-3">
+            <h3 className="text-white 2xl:text-4xl text-2xl text2xl font-bold mb-3">
               Help
             </h3>
             {["Documentation", "Twitter/X", "Telegram", "Integration"].map(
@@ -119,14 +119,14 @@ const DotsMenu = ({ onTabChange }) => {
 
                     setOpen(false);
                   }}
-                  className="cursor-pointer hover:translate-x-1 transition md:text-[30px] text-lg my-4 font-extrabold"
+                  className="cursor-pointer hover:translate-x-1 transition 2xl:text-[30px] text-lg 2xl:my-4 text2xl my4 font-extrabold"
                 >
                   {item}
                 </p>
               ),
             )}
           </div>
-          <div className="absolute md:bottom-1 bottom-[-70px] right-3 text-white flex gap-3 flex-col md:text-[30px] text-lg my-4 font-extrabold text-right">
+          <div className="absolute md:bottom-1 bottom-[-70px] right-3 text-white flex gap-3 flex-col 2xl:text-[30px] text-lg 2xl:my-4 text2xl my4 font-extrabold text-right">
              <a href="https://www.empx.io/dapp">
              HOME
             </a>

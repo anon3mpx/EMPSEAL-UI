@@ -51,7 +51,7 @@ const TransactionHistory = () => {
               ) : (
                 <div className="max-h-96 overflow-y-auto font-orbitron">
                   <div className="min-w-full space-y-2">
-                    <div className="md:grid hidden grid-cols-6 text-sm font-semibold text-[#FF9900] px-6 py-3 text-center">
+                    <div className="md:grid hidden grid-cols-6 text-sm font-semibold text-[#FF9900] px-6 py-3">
                       <div>Deposit Hash</div>
                       <div>Date</div>
                       <div>Status</div>

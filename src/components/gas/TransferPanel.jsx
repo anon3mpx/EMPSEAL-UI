@@ -354,7 +354,7 @@ const TransferPanel = () => {
                 </span>
               </div>
             </div>
-            <div className="flex w-full mt-6 md:gap-10 gap-2">
+            <div className="flex w-full mt-6 md:gap-10 gap-2 mt6">
               <div className="lg:md:max-w-[210px] w-full relative">
                 <div className="relative">
                   <div className="absolute left-0 top45 z-[9]">
@@ -390,7 +390,7 @@ const TransferPanel = () => {
                     <>
                       <input
                         id="amount"
-                        type="text"
+                        type="number"
                         value={amount}
                         onChange={handleAmountChange}
                         placeholder="0.1"
@@ -463,8 +463,10 @@ const TransferPanel = () => {
         {/*  */}
         <button
           onClick={() => switchRef.current && switchRef.current()}
-          className="cursor-pointer mtb mt-6 mb-8 flex scales-b scales-top-2 mx-auto md:w-[70px] w-12"
+          className="cursor-pointer mt-6 mb-8 flex mx-auto md:w-[70px] w-12"
         >
+          {/* mtb */}
+          {/* scales-b scales-top-2 */}
           <img
             src={UpDownAr}
             alt="Ar"
@@ -479,7 +481,7 @@ const TransferPanel = () => {
                 Gas In
               </h2>
             </div>
-            <div className="flex w-full mt-6 md:gap-10 gap-2">
+            <div className="flex w-full mt-6 md:gap-10 gap-2 mt6">
               <div className="lg:md:max-w-[210px] w-full relative">
                 <div className="relative">{/*  */}</div>
               </div>
@@ -578,7 +580,7 @@ const TransferPanel = () => {
                 value={recipientAddress}
                 onChange={(e) => setRecipientAddress(e.target.value)}
                 placeholder="Recipient Address"
-                className="absolute inset-0 top-0 bottom-0 my-auto w-full h-full md:pl-4 pl-4 pr-32 py-12 bg-transparent text-white font-orbitron md:text-xl text-sm truncate outline-none"
+                className="absolute inset-0 top-0 bottom-0 my-auto w-full h-full md:pl-4 pl-4 pr-32 py-12 bg-transparent text-white font-orbitron md:text-[15px] text-sm truncate outline-none"
               />
               <button
                 className={`!absolute !bg-transparent md:w-[100px] w-20 md:h-12 h-12 hover:opacity-70 bg-black !border !border-[#FF9900] top-3 right-3 flex justify-center items-center rounded-xl px-2 roboto !text-[#FF9900] text-base font-bold`}

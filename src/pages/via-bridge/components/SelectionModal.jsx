@@ -39,7 +39,7 @@ const SelectionModal = ({
         </div>
 
         {/* Items */}
-        <div className="max-h-60 overflow-y-auto">
+        <div className="max-h-60 overflow-y-auto chain_scroll">
           {items.map((item) => {
             // For tokens, use TokenLogo; for chains, use chain logo
             const isToken = item.address !== undefined;

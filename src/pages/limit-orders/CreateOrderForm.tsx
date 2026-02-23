@@ -22,10 +22,10 @@ import {
   SelectValue,
 } from "../../components/ui/select";
 import { RadioGroup, RadioGroupItem } from "../../components/ui/radio-group";
-import { Loader2, X, InfoIcon } from "lucide-react";
+import { Loader2, X, InfoIcon, CheckCircle2 } from "lucide-react";
 import { Badge } from "../../components/ui/badge";
 import { useAccount, useBalance } from "wagmi";
-import { writeContract, waitForTransactionReceipt } from "@wagmi/core";
+import { writeContract, waitForTransactionReceipt, readContract } from "@wagmi/core";
 import { config } from "../../Wagmi/config";
 import {
   isAddress,
@@ -77,6 +77,8 @@ export function CreateOrderForm({
   const { address: userAddress } = useAccount();
   const [isApproving, setIsApproving] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  const [isApproved, setIsApproved] = useState(false); // New state for approval status
+  const [checkingApproval, setCheckingApproval] = useState(false); // New state for checking approval
   const [tokenInMode, setTokenInMode] = useState<"select" | "custom">("select");
   const [tokenOutMode, setTokenOutMode] = useState<"select" | "custom">(
     "select",
@@ -97,6 +99,7 @@ export function CreateOrderForm({
   const [takeProfitPercent, setTakeProfitPercent] = useState<number>(0);
   const [stopLossPercent, setStopLossPercent] = useState<number>(0);
   // bracket
+  
 
   const form = useForm<CreateOrderInput>({
     resolver: zodResolver(createOrderSchema) as any,
@@ -142,6 +145,37 @@ export function CreateOrderForm({
         : undefined,
   });
   const tokenOutBalance = tokenOutBalanceData?.formatted;
+
+  // Check if tokens are approved whenever tokenIn or amountIn changes
+  useEffect(() => {
+    const checkApproval = async () => {
+      if (!userAddress || !selectedTokenIn || !amountIn || !tokenInInfo) {
+        setIsApproved(false);
+        return;
+      }
+
+      setCheckingApproval(true);
+      try {
+        const amount = parseUnits(amountIn, tokenInInfo.decimals || 18);
+        
+        const allowance = await readContract(config, {
+          address: selectedTokenIn as `0x${string}`,
+          abi: erc20Abi,
+          functionName: "allowance",
+          args: [userAddress, CONTRACT_ADDRESS],
+        });
+
+        setIsApproved(allowance >= amount);
+      } catch (error) {
+        console.error("Error checking allowance:", error);
+        setIsApproved(false);
+      } finally {
+        setCheckingApproval(false);
+      }
+    };
+
+    checkApproval();
+  }, [selectedTokenIn, amountIn, userAddress, tokenInInfo]);
 
   useEffect(() => {
     const isTokenInWhitelisted = !!getTokenInfo(selectedTokenIn);
@@ -449,6 +483,9 @@ export function CreateOrderForm({
 
       await waitForTransactionReceipt(config, { hash });
 
+      // Set approved state to true after successful approval
+      setIsApproved(true);
+      
       onStatusMessage({
         type: "success",
         message: "Tokens approved successfully!",
@@ -461,6 +498,17 @@ export function CreateOrderForm({
       });
     } finally {
       setIsApproving(false);
+    }
+  };
+
+  // Combined function that handles both approval and order creation
+  const handleMainAction = async () => {
+    // If not approved, handle approval first
+    if (!isApproved) {
+      await handleApproveTokens();
+    } else {
+      // If already approved, proceed with order creation
+      await form.handleSubmit(onSubmit)();
     }
   };
 
@@ -667,6 +715,7 @@ export function CreateOrderForm({
       setStopLossPrice("");
       setTakeProfitDeadline("");
       setOrderMode(OrderMode.STANDARD);
+      setIsApproved(false); // Reset approval state after order creation
 
       // Only trigger the client update if we actually found a valid ID
       if (newOrderId !== "new") {
@@ -780,6 +829,88 @@ export function CreateOrderForm({
 
   const [dollarinfo, setDollarInfo] = useState(false);
   const [dollarinfo1, setDollarInfo1] = useState(false);
+
+  // Add this state near your other useState declarations
+  const [customPercentage, setCustomPercentage] = useState<string>("");
+
+  // Add this function to handle custom percentage changes
+  const handleCustomPercentageChange = (value: string) => {
+    // Limit to max 100%
+    let percentValue = parseFloat(value);
+    if (!isNaN(percentValue)) {
+      percentValue = Math.min(100, Math.max(0, percentValue));
+      setCustomPercentage(percentValue.toString());
+    } else {
+      setCustomPercentage(value);
+    }
+
+    // Only calculate if it's a valid number and market price exists
+    if (!isNaN(percentValue) && marketPrice) {
+      const market = parseFloat(marketPrice);
+      let newLimitPrice: number;
+
+      if (currentStrategy === OrderStrategy.SELL) {
+        // For SELL: price above market by X%
+        newLimitPrice = market * (1 + percentValue / 100);
+      } else if (currentStrategy === OrderStrategy.BUY) {
+        // For BUY: price below market by X%
+        newLimitPrice = market * (1 - percentValue / 100);
+      } else {
+        // For BRACKET or other strategies
+        newLimitPrice = market * (1 + percentValue / 100);
+      }
+
+      form.setValue("limitPrice", newLimitPrice.toFixed(8), {
+        shouldValidate: true,
+        shouldDirty: true,
+      });
+    }
+  };
+  
+  // Determine button text and state
+  const getButtonContent = () => {
+    if (isApproving) {
+      return (
+        <>
+          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          Approving...
+        </>
+      );
+    }
+    
+    if (isCreating) {
+      return (
+        <>
+          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          Creating...
+        </>
+      );
+    }
+
+    if (checkingApproval) {
+      return (
+        <>
+          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          Checking Approval...
+        </>
+      );
+    }
+
+    if (isApproved) {
+      return (
+        <>
+          <CheckCircle2 className="mr-2 h-4 w-4" />
+          {orderMode === OrderMode.POSITION 
+            ? "Create Position Protection" 
+            : orderMode === OrderMode.BRACKET 
+              ? "Create Bracket Order" 
+              : "Create Order"}
+        </>
+      );
+    }
+
+    return "Approve Tokens";
+  };
 
   return (
     <>
@@ -1065,6 +1196,14 @@ export function CreateOrderForm({
                                   className="h-12 bg-transparent !focus:none !outline-0  !border-none md:text-xl text-base !font-bold !font-orbitron" // Added padding for logo
                                   data-testid="input-token-in-custom"
                                 />
+                                <X
+                                  onClick={() => {
+                                    setTokenInMode("select");
+                                    form.setValue("tokenIn", "");
+                                  }}
+                                  size={20}
+                                  className="!text-white absolute md:-right-4 -right-3 top-3"
+                                />
                               </div>
                             )}
                             {/* <Button
@@ -1130,7 +1269,15 @@ export function CreateOrderForm({
               </div>
               <div className="flex justify-between gap-2 items-center md:mt-8 mt-5">
                 <div className="text-[#FF9900] font-orbitron md:text-xl text-sm flex flex-col">
-                  {marketPrice ? parseFloat(marketPrice).toFixed(8) : "-"}
+                  {selectedTokenIn ? (
+                    tokenInUSDPrice ? (
+                      `$${tokenInUSDPrice.toFixed(6)}`
+                    ) : (
+                      <span className="animate-pulse">Loading...</span>
+                    )
+                  ) : (
+                    "--"
+                  )}
                   <span className="font-bold">Market Price</span>
                 </div>
                 <div className="text-zinc-200 text-[10px] font-normal font-orbitron leading-normal flex md:gap-2 gap-1 justify-end">
@@ -1305,9 +1452,9 @@ export function CreateOrderForm({
                                 <button
                                   type="button"
                                   onClick={() => form.setValue("tokenOut", "")}
-                                  className="text-white md:text-xl text-xs font-bold tilt"
+                                  className="!text-white md:text-xl text-xs font-bold tilt"
                                 >
-                                  <X size={16} />
+                                  <X size={16} className="!text-white" />
                                 </button>
                               </div>
                             ) : (
@@ -1317,6 +1464,14 @@ export function CreateOrderForm({
                                   placeholder="0x..."
                                   className="h-12 bg-transparent !focus:none !outline-0 !border-none md:text-xl text-base !font-bold !font-orbitron !text-white"
                                   data-testid="input-token-out-custom"
+                                />
+                                <X
+                                  onClick={() => {
+                                    setTokenOutMode("select");
+                                    form.setValue("tokenOut", "");
+                                  }}
+                                  size={20}
+                                  className="!text-white absolute md:-right-4 -right-3 top-3"
                                 />
                               </div>
                             )}
@@ -1384,7 +1539,15 @@ export function CreateOrderForm({
               </div>
               <div className="flex justify-between gap-2 items-center md:mt-8 mt-5">
                 <div className="text-[#FF9900] font-orbitron md:text-xl text-sm flex flex-col">
-                  {marketPrice ? parseFloat(marketPrice).toFixed(8) : "-"}
+                  {selectedTokenOut ? (
+                    tokenOutUSDPrice ? (
+                      `$${tokenOutUSDPrice.toFixed(6)}`
+                    ) : (
+                      <span className="animate-pulse">Loading...</span>
+                    )
+                  ) : (
+                    "--"
+                  )}
                   <span className="font-bold">Market Price</span>
                 </div>
                 <div className="text-zinc-200 text-[10px] font-normal font-orbitron leading-normal flex md:gap-2 gap-1 justify-end">
@@ -1552,49 +1715,28 @@ export function CreateOrderForm({
               </div>
             )}
             {/*  */}
-            {/* For Desktop  */}
+            {/* For Desktop - Single Button */}
             <div className="lg:flex hidden flex-col gap-8 pb-1 mt-5">
               <button
                 type="button"
-                onClick={handleApproveTokens}
-                disabled={isApproving || isCreating || !!tradeError}
-                className="gtw relative w-full md:h-[68px] h-12 bg-[#F59216] md:rounded-[10px] rounded-md mx-auto button-trans flex justify-center text-center items-center transition-all lg:text-[28px] text-xl font-extrabold"
-                data-testid="button-approve-tokens"
-              >
-                {isApproving ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Approving...
-                  </>
-                ) : (
-                  "Approve Tokens"
-                )}
-              </button>
-              <button
-                type="submit"
+                onClick={handleMainAction}
                 disabled={
                   isApproving ||
                   isCreating ||
+                  checkingApproval ||
                   !!tradeError ||
                   !!limitPriceError ||
                   (showBracketSettings &&
                     (!takeProfitPrice || !stopLossPrice || !takeProfitDeadline))
                 }
-                className="gtw relative w-full md:h-[68px] h-12 bg-[#F59216] md:rounded-[10px] rounded-md mx-auto button-trans flex justify-center text-center items-center transition-all lg:text-[28px] text-xl font-extrabold"
-                data-testid="button-create-order"
+                className={`gtw cursor-pointer relative w-full md:h-[68px] h-12 md:rounded-[10px] rounded-md mx-auto button-trans flex justify-center text-center items-center transition-all lg:text-[28px] text-xl font-extrabold ${
+                  isApproved
+                    ? "bg-[#F59216] hover:bg-[#e08a15 hover:text-white"
+                    : "bg-[#F59216] hover:bg-[#e08a15]"
+                }`}
+                data-testid="button-main-action"
               >
-                {isCreating ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Creating...
-                  </>
-                ) : orderMode === OrderMode.POSITION ? (
-                  "Create Position Protection"
-                ) : orderMode === OrderMode.BRACKET ? (
-                  "Create Bracket Order"
-                ) : (
-                  "Create Order"
-                )}
+                {getButtonContent()}
               </button>
             </div>
             <div className="md:pt-1 pt-1 font-extrabold lg:block hidden">
@@ -1608,26 +1750,30 @@ export function CreateOrderForm({
           {/*  */}
           <div className="lg:max-w-[550px] md:max-w-[700px] w-full !mt-0">
             {/* Entry Price - Hidden for Position orders */}
+
             {orderMode !== OrderMode.POSITION && (
               <div className="relative bg_swap_box_black md:!py-5 md:!px-5 mb-5">
                 <div className="flex justify-between gap-2 items-center mt-3">
                   <h2 className="text-[#FF9900] md:text-xl text-sm font-bold font-orbitron whitespace-nowrap">
-                    Entry Price
+                    {currentStrategy === OrderStrategy.SELL
+                      ? "Exit Price"
+                      : "Entry Price"}
                   </h2>
-                  <div className="flex justify-center gap-2 items-center relative w-full">
-                    <div className="flex gap-1 items-center w-full">
-                      <input
-                        id="limitPrice"
-                        {...form.register("limitPrice")}
-                        placeholder="00.000"
-                        type="text"
-                        className="w-full flex justify-center items-center mx-auto bg-transparent focus:none !outline-0 !border-0 text-right text-white placeholder:text-white md:text-lg text-base font-semibold font-orbitron"
-                        data-testid="input-limit-price"
-                      />
-                    </div>
+
+                  <div className="flex gap-1 items-center w-full">
+                    <input
+                      id="limitPrice"
+                      {...form.register("limitPrice")}
+                      placeholder="00.000"
+                      type="text"
+                      className="w-full flex justify-center items-center mx-auto bg-transparent focus:none !outline-0 !border-0 text-right text-white placeholder:text-white md:text-lg text-base font-semibold font-orbitron"
+                      data-testid="input-limit-price"
+                    />
                   </div>
                 </div>
-                <div className="text-right flex gap-2 items-center justify-end">
+
+                {/* Quote reversal button and display */}
+                <div className="text-right flex gap-2 items-center justify-end mt-2">
                   {marketPrice && tokenInInfo && tokenOutInfo && (
                     <button
                       type="button"
@@ -1658,8 +1804,8 @@ export function CreateOrderForm({
                   )}
                   <span className="text-[#FF9900] md:text-xl text-base font-orbitron font-bold">
                     {quoteReversed && tokenInInfo && tokenOutInfo
-                      ? `1 ${tokenOutInfo.symbol} per ${tokenInInfo.symbol}`
-                      : `1 ${tokenInInfo?.symbol || "Token"} per ${tokenOutInfo?.symbol || "USDT"}`}
+                      ? `${tokenOutInfo.symbol} per ${tokenInInfo.symbol}`
+                      : `${tokenInInfo?.symbol || "Token"} per ${tokenOutInfo?.symbol || "USDT"}`}
                   </span>
                 </div>
 
@@ -1681,55 +1827,75 @@ export function CreateOrderForm({
                         100,
                         Math.max(0, priceDiffPercent),
                       );
-                    } else if (currentStrategy === OrderStrategy.BUY) {
-                      // For BUY: limit lower than market
+                    } else if (
+                      currentStrategy === OrderStrategy.BUY ||
+                      currentStrategy === OrderStrategy.BRACKET
+                    ) {
+                      // For BUY and BRACKET: limit lower than market
                       // Calculate percentage below market
                       priceDiffPercent = ((market - limit) / market) * 100;
-                      // Map to position from left (market at 0, lower prices move right)
-                      targetPosition = Math.min(
-                        100,
-                        Math.max(0, priceDiffPercent),
-                      );
-                    } else if (currentStrategy === OrderStrategy.BRACKET) {
-                      // For BRACKET: can be either direction
-                      priceDiffPercent =
-                        Math.abs((limit - market) / market) * 100;
-                      targetPosition = Math.min(100, priceDiffPercent);
+                      // Map to position from right (market at right, lower prices move left)
+                      targetPosition =
+                        100 - Math.min(100, Math.max(0, priceDiffPercent));
                     }
                   }
-
                   return (
                     <div className="mt-3 font-orbitron">
                       <div className="flex justify-between text-xs mb-4 text-[#FFE6C0]">
-                        <span>Market</span>
                         <span>
-                          {currentStrategy === OrderStrategy.BUY
-                            ? `-${priceDiffPercent.toFixed(1)}%`
-                            : `${priceDiffPercent.toFixed(1)}%`}
+                          {currentStrategy === OrderStrategy.SELL
+                            ? "Market"
+                            : currentStrategy === OrderStrategy.BUY ||
+                                currentStrategy === OrderStrategy.BRACKET
+                              ? "Target"
+                              : "Market"}
                         </span>
+                        {/* <span>
+                          {currentStrategy === OrderStrategy.SELL &&
+                          priceDiffPercent > 0
+                            ? `+${priceDiffPercent.toFixed(1)}%`
+                            : currentStrategy === OrderStrategy.BUY &&
+                                priceDiffPercent > 0
+                              ? `-${priceDiffPercent.toFixed(1)}%`
+                              : `${priceDiffPercent.toFixed(1)}%`}
+                        </span> */}
                       </div>
                       <div className="relative h-2 bg-[#352E25] rounded-full">
-                        {/* Progress fill from market to target */}
+                        {/* Progress fill - depends on strategy */}
                         <div
                           className="absolute h-2 bg-[#F59216] rounded-full transition-all duration-200"
                           style={{
-                            width: `${targetPosition}%`,
-                            left: "0", // Always start from left for all strategies
+                            width:
+                              currentStrategy === OrderStrategy.SELL
+                                ? `${targetPosition}%`
+                                : `${100 - targetPosition}%`,
+                            left:
+                              currentStrategy === OrderStrategy.SELL
+                                ? "0"
+                                : `${targetPosition}%`,
                           }}
                         />
 
-                        {/* Market Price Marker (always at left) */}
+                        {/* Market Price Marker - position depends on strategy */}
                         <div
                           className="absolute top-1/2 -translate-y-1/2 w-2 h-8 bg-[#FFE4BA] rounded z-20"
-                          style={{ left: "0px" }}
+                          style={{
+                            left:
+                              currentStrategy === OrderStrategy.SELL
+                                ? "0px"
+                                : "calc(100% - 4px)",
+                          }}
                           title="Market Price"
                         />
 
-                        {/* Target Price Marker (moves right for all strategies) */}
+                        {/* Target Price Marker - position depends on strategy */}
                         <div
                           className="absolute top-1/2 -translate-y-1/2 w-8 h-8 bg-[#F59216] rounded-full shadow-lg transition-all duration-200 cursor-pointer z-30"
                           style={{
-                            left: `calc(${targetPosition}% - 16px)`,
+                            left:
+                              currentStrategy === OrderStrategy.SELL
+                                ? `calc(${targetPosition}% - 16px)`
+                                : `calc(${targetPosition}% - 16px)`,
                           }}
                           title="Target Price"
                         />
@@ -1744,23 +1910,27 @@ export function CreateOrderForm({
                             const newTargetPosition = Number(e.target.value);
                             if (marketPrice) {
                               const market = parseFloat(marketPrice);
-                              let newLimitPrice;
+                              let newLimitPrice: number;
 
                               if (currentStrategy === OrderStrategy.SELL) {
                                 // For SELL: moving right increases price (above market)
                                 newLimitPrice =
                                   market * (1 + newTargetPosition / 100);
-                              } else if (
-                                currentStrategy === OrderStrategy.BUY
-                              ) {
-                                // For BUY: moving right decreases price (below market)
-                                // Since targetPosition represents % below market
-                                newLimitPrice =
-                                  market * (1 - newTargetPosition / 100);
+                                // Update custom percentage
+                                setCustomPercentage(
+                                  newTargetPosition.toString(),
+                                );
                               } else {
-                                // For BRACKET: can go either direction
+                                // For BUY and BRACKET: moving left decreases price (below market)
+                                // Convert slider position to percentage below market
+                                const percentBelowMarket =
+                                  100 - newTargetPosition;
                                 newLimitPrice =
-                                  market * (1 + newTargetPosition / 100);
+                                  market * (1 - percentBelowMarket / 100);
+                                // Update custom percentage
+                                setCustomPercentage(
+                                  percentBelowMarket.toString(),
+                                );
                               }
 
                               form.setValue(
@@ -1777,11 +1947,15 @@ export function CreateOrderForm({
                         />
                       </div>
                       <div className="flex justify-between text-[10px] mt-3 text-gray-400">
-                        <span className="text-[#FF9900] font-bold">Market</span>
-                        <span>
-                          {currentStrategy === OrderStrategy.BUY
-                            ? "Lower"
-                            : "Higher"}
+                        <span className="text-[#FF9900] font-bold">
+                          {currentStrategy === OrderStrategy.SELL
+                            ? "Market"
+                            : "Target"}
+                        </span>
+                        <span className="text-[#FF9900] font-bold">
+                          {currentStrategy === OrderStrategy.SELL
+                            ? "Higher"
+                            : "Market"}
                         </span>
                       </div>
                     </div>
@@ -1790,7 +1964,7 @@ export function CreateOrderForm({
 
                 <div className="mt-4 flex justify-between gap-3 items-center">
                   <div className="flex flex-col justify-center gap-2 items-center">
-                    <div className="py-1 px-2 bg-[#FFE3BA] rounded-lg text-center text-black text-base font-normal font-orbitron">
+                    {/* <div className="py-1 px-2 bg-[#FFE3BA] rounded-lg text-center text-black text-base font-normal font-orbitron">
                       {marketPrice ? (
                         <>
                           <span className="font-bold">1</span>{" "}
@@ -1803,47 +1977,35 @@ export function CreateOrderForm({
                       ) : (
                         "-"
                       )}
-                    </div>
+                    </div> */}
                     <div className="text-[#FFE3BA] text-xs font-normal font-orbitron">
                       Market Price
                     </div>
                   </div>
-                  <div className="flex flex-col justify-center gap-2 items-center">
-                    <div className="py-1 px-2 bg-[#FFE3BA] rounded-lg text-center text-black text-base font-normal font-orbitron">
-                      {(() => {
-                        const market = marketPrice
-                          ? parseFloat(marketPrice)
-                          : 0;
-                        const limit = currentLimitPrice
-                          ? parseFloat(currentLimitPrice)
-                          : 0;
 
-                        if (market > 0 && limit > 0) {
-                          if (currentStrategy === OrderStrategy.SELL) {
-                            const priceDiffPercent =
-                              ((limit - market) / market) * 100;
-                            return `${Math.min(100, Math.max(0, priceDiffPercent)).toFixed(1)}%`;
-                          } else if (currentStrategy === OrderStrategy.BUY) {
-                            const priceDiffPercent =
-                              ((market - limit) / market) * 100;
-                            return `-${Math.min(100, Math.max(0, priceDiffPercent)).toFixed(1)}%`;
-                          } else if (
-                            currentStrategy === OrderStrategy.BRACKET
-                          ) {
-                            const priceDiffPercent =
-                              Math.abs((limit - market) / market) * 100;
-                            return `${Math.min(100, priceDiffPercent).toFixed(1)}%`;
-                          }
+                  <div className="flex flex-col justify-center gap-2 items-center">
+                    <div className="py-1 px-2 bg-[#FFE3BA] rounded-lg text-center text-black text-base font-normal font-orbitron flex items-center gap-1">
+                      <input
+                        type="number"
+                        value={customPercentage}
+                        onChange={(e) =>
+                          handleCustomPercentageChange(e.target.value)
                         }
-                        return "0%";
-                      })()}
+                        placeholder="0"
+                        className="w-16 text-center bg-transparent text-black outline-none font-orbitron"
+                        min="0"
+                        max="100"
+                        step="0.1"
+                      />
+                      <span className="text-black font-bold">%</span>
                     </div>
                     <div className="text-[#FFE3BA] text-xs font-normal font-orbitron">
                       Target Price
                     </div>
                   </div>
                 </div>
-                <div className="flex justify-between gap-4 items-center flex-wrap">
+
+                <div className="flex justify-between gap-4 items-center flex-wrap mt-3">
                   <div className="mt-1 md:text-sm text-xs text-muted-foreground flex items-center justify-left">
                     <span className="text-[#FFE3BA] font-orbitron">
                       {marketPrice && tokenInInfo && tokenOutInfo ? (
@@ -2358,49 +2520,28 @@ export function CreateOrderForm({
               </div>
             </div>
 
-            {/* ForMobile */}
+            {/* ForMobile - Single Button */}
             <div className="lg:hidden flex flex-col gap-8 pb-1 mt-5">
               <button
                 type="button"
-                onClick={handleApproveTokens}
-                disabled={isApproving || isCreating || !!tradeError}
-                className="gtw relative w-full md:h-[68px] h-12 bg-[#F59216] md:rounded-[10px] rounded-md mx-auto button-trans flex justify-center text-center items-center transition-all lg:text-[28px] text-xl font-extrabold"
-                data-testid="button-approve-tokens"
-              >
-                {isApproving ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Approving...
-                  </>
-                ) : (
-                  "Approve Tokens"
-                )}
-              </button>
-              <button
-                type="submit"
+                onClick={handleMainAction}
                 disabled={
                   isApproving ||
                   isCreating ||
+                  checkingApproval ||
                   !!tradeError ||
                   !!limitPriceError ||
                   (showBracketSettings &&
                     (!takeProfitPrice || !stopLossPrice || !takeProfitDeadline))
                 }
-                className="gtw relative w-full md:h-[68px] h-12 bg-[#F59216] md:rounded-[10px] rounded-md mx-auto button-trans flex justify-center text-center items-center transition-all lg:text-[28px] text-xl font-extrabold"
-                data-testid="button-create-order"
+                className={`gtw cursor-pointer relative w-full md:h-[68px] h-12 md:rounded-[10px] rounded-md mx-auto button-trans flex justify-center text-center items-center transition-all lg:text-[28px] text-xl font-extrabold ${
+                  isApproved
+                    ? "bg-[#F59216] hover:bg-[#e08a15 hover:text-white"
+                    : "bg-[#F59216] hover:bg-[#e08a15] hover:text-white"
+                }`}
+                data-testid="button-main-action-mobile"
               >
-                {isCreating ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Creating...
-                  </>
-                ) : orderMode === OrderMode.POSITION ? (
-                  "Create Position Protection"
-                ) : orderMode === OrderMode.BRACKET ? (
-                  "Create Bracket Order"
-                ) : (
-                  "Create Order"
-                )}
+                {getButtonContent()}
               </button>
             </div>
             <div className="md:pt-1 pt-1 font-extrabold lg:hidden flex">

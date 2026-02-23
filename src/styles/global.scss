@@ -673,7 +673,7 @@ body.bg-pattern {
     top: -10px;
   }
   .scales-top_limit {
-    top: -115px;
+    top: -105px;
   }
 }
 @media (min-width: 1024px) and (max-width: 1700px) {
@@ -697,7 +697,7 @@ body.bg-pattern {
 }
 @media (min-width: 1024px) and (max-width: 1536px) {
   .scales8 {
-    scale: 0.9;
+    scale: 0.8;
     position: relative;
     top: -90px;
   }
@@ -717,7 +717,7 @@ body.bg-pattern {
     top: -60px;
   }
   .h_cs {
-    height: 340px !important;
+    height: 410px !important;
   }
   .top0 {
     top: 0px !important;
@@ -988,24 +988,14 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 .model_box {
   border: 3.5px solid #ffa600;
   background: #000000;
-  // box-shadow:
-  //   4px 4px 20px 0px #f79100 inset,
-  //   0px -4px 20px 0px #ff9900 inset;
 }
 .small_box {
   border: 2px solid #ffa600;
   background: #000000;
   border-radius: 6px;
-  // box-shadow:
-  //   2px 2px 10px 0px #f79100 inset,
-  //   0px -2px 10px 0px #ff9900 inset;
 }
 
 .bg_swap_box_chain {
-  // background: #ff9900;
-  // border-radius: 50px;
-  // border-width: 2.5px;
-  // border: 2.5px solid #fdfdfd;
   padding-top: 20px;
   padding-left: 20px;
   padding-right: 20px;
@@ -1013,15 +1003,8 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   border: 4px solid #ffa600;
   background: #000000;
   border-radius: 16px;
-  // box-shadow:
-  //   4px 4px 20px 0px #f79100 inset,
-  //   0px -4px 20px 0px #ff9900 inset;
 }
 .bg_swap_box {
-  // background: #ff9900;
-  // border-radius: 50px;
-  // border-width: 2.5px;
-  // border: 2.5px solid #fdfdfd;
   padding-top: 36px;
   padding-left: 36px;
   padding-right: 36px;
@@ -1029,19 +1012,8 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   border: 4px solid #ffa600;
   background: #000000;
   border-radius: 16px;
-  // box-shadow:
-  //   4px 4px 20px 0px #f79100 inset,
-  //   0px -4px 20px 0px #ff9900 inset;
 }
 .bg_swap_box_black {
-  // background: black;
-  // border-radius: 50px;
-  // border-width: 2.5px;
-  // border: 2.5px solid #ff9900;
-  // padding-top: 18px;
-  // padding-left: 32px;
-  // padding-right: 32px;
-  // padding-bottom: 32px;
   padding-top: 36px;
   padding-left: 36px;
   padding-right: 36px;
@@ -1049,9 +1021,45 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   border: 4px solid #ffa600;
   background: #000000;
   border-radius: 16px;
-  // box-shadow:
-  //   4px 4px 20px 0px #f79100 inset,
-  //   0px -4px 20px 0px #ff9900 inset;
+}
+@media (min-width: 1200px) and (max-width: 1536px) {
+  .bg_swap_box_chain {
+    padding-top: 14px;
+    padding-left: 14px;
+    padding-right: 14px;
+    padding-bottom: 14px;
+  }
+  .bg_swap_box {
+    padding-top: 20px!important;
+    padding-left: 20px!important;
+    padding-right: 20px!important;
+    padding-bottom: 20px!important;
+  }
+  .bg_swap_box_black {
+    padding-top: 20px!important;
+    padding-left: 20px!important;
+    padding-right: 20px!important;
+    padding-bottom: 20px!important;
+  }
+  .font40{
+    font-size: 40px!important;
+  }
+  .mt6{
+    margin-top: 12px!important;
+  }
+  .text2xl{
+    font-size: 24px!important;
+  }
+  .my4{
+    margin-top: 1px!important;
+    margin-bottom: 1px!important;
+  }
+  .pt10{
+    padding-top: 1px!important;
+  }
+  .h280{
+    height: 280px!important;
+  }
 }
 .mtb {
   margin-top: 12px;
@@ -1175,11 +1183,15 @@ input[type="range"]::-moz-range-track {
     opacity: 1;
   }
 }
-.bg-a{
-  background: linear-gradient(180deg, rgba(48, 218, 14, 0.3) 19.7%, rgba(26, 116, 7, 0.3) 140.91%);
+.bg-a {
+  background: linear-gradient(
+    180deg,
+    rgba(48, 218, 14, 0.3) 19.7%,
+    rgba(26, 116, 7, 0.3) 140.91%
+  );
 }
-.bg-f{
-  background: #0E60DA4D;
+.bg-f {
+  background: #0e60da4d;
 }
 
 /* Custom EMPSEAL Toast Notifications - HIGH SPECIFICITY */

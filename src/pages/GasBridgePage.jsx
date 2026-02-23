@@ -18,7 +18,7 @@ export default function GasBridgePage() {
             <Wallet allowUnsupported={true} />
           </div>
           <div className="text-center mb-4 lg:mt-0 mt-1">
-            <h1 className="md:text-5xl text-3xl text-center text-[#FF9900] font-orbitron font-bold mb-2">
+            <h1 className="2xl:text-5xl font40 text-2xl text-center text-[#FF9900] font-orbitron font-bold mb-2">
               Gas <br /> <span className="text-white">Anywhere</span>
             </h1>
           </div>

@@ -221,7 +221,7 @@ const ChainSelector = ({ onSwitch }) => {
   const fromChain = formattedChains.find((c) => c.chain === fromChainId);
   const toChain = formattedChains.find((c) => c.chain === toChainId);
 
-  const getFontSizeClass = (text) => {
+  const c = (text) => {
     const length = text?.toString().length || 0;
     if (length > 10) return "text-xs md:text-base";
     // if (length > 10) return "text-xs md:text-xl";
@@ -230,7 +230,7 @@ const ChainSelector = ({ onSwitch }) => {
 
   return (
     <>
-      <div className="space-y-4 lg:h-[400px] h_cs md:h-[370px] h-[335px] flex flex-col justify-between">
+      <div className="space-y-4 lg:h-[430px] h_cs md:h-[350px] h-[335px] flex flex-col justify-between">
         {/* FROM */}
         <button
           onClick={() => setActiveModal("from")}
@@ -269,7 +269,7 @@ const ChainSelector = ({ onSwitch }) => {
                 className="md:w-6 md:h-6 w-4 h-4 rounded-full"
               />
               <span
-                className={`text-white lg:text-xl text-sm font-bold font-orbitron leading-normal bg-black appearance-none outline-none ${getFontSizeClass(
+                className={`text-white font-bold font-orbitron leading-normal bg-black appearance-none outline-none ${getFontSizeClass(
                   toChain.name,
                 )}`}
               >

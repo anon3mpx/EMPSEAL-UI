@@ -8,14 +8,7 @@ import {
 } from "wagmi";
 import { parseUnits, formatEther, formatUnits } from "viem";
 import { toast } from "../../utils/toastHelper";
-import {
-  ArrowDownUp,
-  Loader2,
-  AlertCircle,
-  CheckCircle2,
-  Check,
-  Copy,
-} from "lucide-react";
+import { Loader2, AlertCircle, CheckCircle2, Check, Copy } from "lucide-react";
 
 import ChainSelector from "./components/ChainSelector";
 import TokenSelector from "./components/TokenSelector";
@@ -30,11 +23,6 @@ import {
   hasToken,
 } from "./config/bridgeConfig";
 import UpDownAr from "../../assets/images/reverse.svg";
-import Sellbox from "../../assets/images/sell-box.png";
-import Buybox from "../../assets/images/buy-bg.png";
-import Swapbutton from "../../assets/images/swap-button.svg";
-import Rbox from "../../assets/images/r-d.png";
-import CPatch from "../../assets/images/rec-token.svg";
 
 // Import ABIs
 import { ERC20_ABI } from "../../utils/via-bridge-abis/index";
@@ -43,11 +31,39 @@ import { useApprovalFlow } from "./hooks/useApprovalFlow";
 // PulseChain network symbol for GeckoTerminal API
 const PULSECHAIN_SYMBOL = "pulsechain";
 
+// Dummy transactions for testing
+// const dummyTransactions = [
+//   {
+//     hash: "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+//     explorerUrl: "https://etherscan.io",
+//     timestamp: Date.now() - 1000 * 60 * 5,
+//     fromChainName: "Ethereum",
+//     toChainName: "Arbitrum",
+//   },
+//   {
+//     hash: "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+//     explorerUrl: "https://arbiscan.io",
+//     timestamp: Date.now() - 1000 * 60 * 60,
+//     fromChainName: "Arbitrum",
+//     toChainName: "Optimism",
+//   },
+//   {
+//     hash: "0x9876543210fedcba9876543210fedcba9876543210fedcba9876543210fedcba",
+//     explorerUrl: "https://optimistic.etherscan.io",
+//     timestamp: Date.now() - 1000 * 60 * 60 * 24,
+//     fromChainName: "Optimism",
+//     toChainName: "Base",
+//   },
+// ];
+
 const BridgeInterface = () => {
   const { address, chain } = useAccount();
   const { switchChain } = useSwitchChain();
   const { transactions, addTransaction, clearTransactions } =
     useRecentTransactions();
+
+  // const displayTransactions =
+  //   transactions?.length > 0 ? transactions : dummyTransactions;
 
   // ----------------------------------------------------------------
   // 1. STATE & CONFIG
@@ -67,6 +83,14 @@ const BridgeInterface = () => {
   const [tokenPrice, setTokenPrice] = useState(null);
   const [usdValue, setUsdValue] = useState("0.00");
   const [isPriceLoading, setIsPriceLoading] = useState(false);
+
+  // Add separate price state for destination token
+  const [destTokenPrice, setDestTokenPrice] = useState(null);
+  const [destUsdValue, setDestUsdValue] = useState("0.00");
+  const [isDestPriceLoading, setIsDestPriceLoading] = useState(false);
+
+  // Add refresh trigger for approval flow
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   const sourceChain = fromChainId ? BRIDGE_CONFIG[fromChainId] : null;
   const destChain = toChainId ? BRIDGE_CONFIG[toChainId] : null;
@@ -96,6 +120,7 @@ const BridgeInterface = () => {
       toast.error("Failed to copy address");
     }
   };
+
   // ----------------------------------------------------------------
   // 2. DATA FETCHING (FEES, ALLOWANCES, BALANCES)
   // ----------------------------------------------------------------
@@ -136,6 +161,8 @@ const BridgeInterface = () => {
   // ----------------------------------------------------------------
   // TOKEN PRICE FETCHING
   // ----------------------------------------------------------------
+
+  // Source token price (collateral on PulseChain)
   useEffect(() => {
     const fetchTokenPrice = async () => {
       if (!selectedToken) {
@@ -148,10 +175,8 @@ const BridgeInterface = () => {
 
       try {
         // Get the collateral token address from PulseChain
-        // If current token is collateral (on PulseChain), use its address
-        // If current token is synthetic (on other chains), get the corresponding collateral token
         let collateralTokenAddress;
-        
+
         if (selectedToken.abiType === "collateral") {
           // Token is on PulseChain, use its address directly
           collateralTokenAddress = selectedToken.address.toLowerCase();
@@ -159,9 +184,13 @@ const BridgeInterface = () => {
           // Token is synthetic on another chain, find the collateral token on PulseChain
           const pulseChainConfig = BRIDGE_CONFIG[369];
           if (pulseChainConfig && pulseChainConfig.tokens[selectedToken.id]) {
-            collateralTokenAddress = pulseChainConfig.tokens[selectedToken.id].address.toLowerCase();
+            collateralTokenAddress =
+              pulseChainConfig.tokens[selectedToken.id].address.toLowerCase();
           } else {
-            console.error("Could not find collateral token for:", selectedToken.id);
+            console.error(
+              "Could not find collateral token for:",
+              selectedToken.id,
+            );
             setTokenPrice(null);
             setIsPriceLoading(false);
             return;
@@ -170,7 +199,7 @@ const BridgeInterface = () => {
 
         // Fetch price from GeckoTerminal using PulseChain network
         const response = await fetch(
-          `https://api.geckoterminal.com/api/v2/simple/networks/${PULSECHAIN_SYMBOL}/token_price/${collateralTokenAddress}`
+          `https://api.geckoterminal.com/api/v2/simple/networks/${PULSECHAIN_SYMBOL}/token_price/${collateralTokenAddress}`,
         );
 
         if (!response.ok) {
@@ -179,21 +208,23 @@ const BridgeInterface = () => {
 
         const data = await response.json();
         const tokenPrices = data?.data?.attributes?.token_prices;
-        
+
         if (tokenPrices && tokenPrices[collateralTokenAddress]) {
           const price = tokenPrices[collateralTokenAddress];
           setTokenPrice(price);
-          
+
           // Calculate USD value
           const amountNum = parseFloat(amount) || 0;
           const priceNum = parseFloat(price) || 0;
           setUsdValue((amountNum * priceNum).toFixed(2));
         } else {
           setTokenPrice(null);
+          setUsdValue("0.00");
         }
       } catch (error) {
         console.error("Error fetching token price:", error.message);
         setTokenPrice(null);
+        setUsdValue("0.00");
       } finally {
         setIsPriceLoading(false);
       }
@@ -201,6 +232,110 @@ const BridgeInterface = () => {
 
     fetchTokenPrice();
   }, [selectedToken, amount]);
+
+  // Destination token price (synthetic on destination chain)
+  useEffect(() => {
+    const fetchDestTokenPrice = async () => {
+      if (!selectedToken || !toChainId) {
+        setDestTokenPrice(null);
+        setDestUsdValue("0.00");
+        return;
+      }
+
+      setIsDestPriceLoading(true);
+
+      try {
+        // Get the synthetic token address on the destination chain
+        let syntheticTokenAddress;
+        const destChainConfig = BRIDGE_CONFIG[toChainId];
+
+        if (destChainConfig && destChainConfig.tokens[selectedToken.id]) {
+          // Use the token address on the destination chain (synthetic)
+          syntheticTokenAddress =
+            destChainConfig.tokens[selectedToken.id].address.toLowerCase();
+        } else {
+          console.error(
+            "Could not find synthetic token for:",
+            selectedToken.id,
+            "on chain:",
+            toChainId,
+          );
+          setDestTokenPrice(null);
+          setIsDestPriceLoading(false);
+          return;
+        }
+
+        // Map chain ID to GeckoTerminal network identifier
+        let networkSymbol;
+        switch (toChainId) {
+          case 8453: // Base
+            networkSymbol = "base";
+            break;
+          case 369: // PulseChain
+            networkSymbol = "pulsechain";
+            break;
+          case 56: // BSC
+            networkSymbol = "bsc";
+            break;
+          case 137: // Polygon
+            networkSymbol = "polygon";
+            break;
+          case 42161: // Arbitrum
+            networkSymbol = "arbitrum";
+            break;
+          case 10: // Optimism
+            networkSymbol = "optimism";
+            break;
+          case 43114: // Avalanche
+            networkSymbol = "avalanche";
+            break;
+          default:
+            networkSymbol = null;
+        }
+
+        if (!networkSymbol) {
+          console.log("No network symbol mapping for chain:", toChainId);
+          setDestTokenPrice(null);
+          setDestUsdValue("0.00");
+          setIsDestPriceLoading(false);
+          return;
+        }
+
+        // Fetch price from GeckoTerminal using destination network
+        const response = await fetch(
+          `https://api.geckoterminal.com/api/v2/simple/networks/${networkSymbol}/token_price/${syntheticTokenAddress}`,
+        );
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! Status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        const tokenPrices = data?.data?.attributes?.token_prices;
+
+        if (tokenPrices && tokenPrices[syntheticTokenAddress]) {
+          const price = tokenPrices[syntheticTokenAddress];
+          setDestTokenPrice(price);
+
+          // Calculate USD value for destination
+          const amountNum = parseFloat(amount) || 0;
+          const priceNum = parseFloat(price) || 0;
+          setDestUsdValue((amountNum * priceNum).toFixed(2));
+        } else {
+          setDestTokenPrice(null);
+          setDestUsdValue("0.00");
+        }
+      } catch (error) {
+        console.error("Error fetching destination token price:", error.message);
+        setDestTokenPrice(null);
+        setDestUsdValue("0.00");
+      } finally {
+        setIsDestPriceLoading(false);
+      }
+    };
+
+    fetchDestTokenPrice();
+  }, [selectedToken, toChainId, amount]);
 
   // --- USDC DATA ---
   // Allowance
@@ -332,7 +467,8 @@ const BridgeInterface = () => {
 
   // --- Validation Flags ---
   // Check if selected token IS the wrapped gas token (WPLS case)
-  const isWrappingGasToken = selectedToken?.address?.toLowerCase() ===
+  const isWrappingGasToken =
+    selectedToken?.address?.toLowerCase() ===
     sourceChain?.wrappedGasTokenAddress?.toLowerCase();
 
   // When token IS wrapped gas token, combine balance and allowance checks
@@ -347,13 +483,14 @@ const BridgeInterface = () => {
     // Normal: separate checks
     totalTokenAmount = amountBigInt;
     needsTokenApproval = currentTokenAllowance < amountBigInt;
-    needsWrappedGasTokenApproval = currentWrappedGasAllowance < requiredGasToken;
+    needsWrappedGasTokenApproval =
+      currentWrappedGasAllowance < requiredGasToken;
   }
 
   // 1. Check Insufficient Balances
   const hasInsufficientTokenBalance = isWrappingGasToken
-    ? currentTokenBalance < totalTokenAmount  // Need combined balance
-    : currentTokenBalance < amountBigInt;     // Just bridge amount
+    ? currentTokenBalance < totalTokenAmount // Need combined balance
+    : currentTokenBalance < amountBigInt; // Just bridge amount
 
   const hasInsufficientUsdcBalance = currentUsdcBalance < requiredUsdc;
   const hasInsufficientGasTokenBalance = isWrappingGasToken
@@ -421,15 +558,37 @@ const BridgeInterface = () => {
     if (address) setRecipient(address);
   }, [address]);
 
-  // Refetch Everything on Success
-  const refetchAll = () => {
+  // Refetch Everything on Success - Memoized with useCallback
+  const refetchAll = useCallback(() => {
     refetchTokenAllowance();
     refetchUsdcAllowance();
     refetchWrappedGasTokenAllowance();
     refetchTokenBalance();
     refetchUsdcBalance();
     refetchWrappedGasTokenBalance();
-  };
+  }, [
+    refetchTokenAllowance,
+    refetchUsdcAllowance,
+    refetchWrappedGasTokenAllowance,
+    refetchTokenBalance,
+    refetchUsdcBalance,
+    refetchWrappedGasTokenBalance,
+  ]);
+
+  // Monitor allowance changes to trigger refresh
+  useEffect(() => {
+    if (
+      tokenAllowance !== undefined ||
+      usdcAllowance !== undefined ||
+      wrappedGasTokenAllowance !== undefined
+    ) {
+      // Small delay to ensure state updates
+      const timer = setTimeout(() => {
+        setRefreshTrigger((prev) => prev + 1);
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [tokenAllowance, usdcAllowance, wrappedGasTokenAllowance]);
 
   // ----------------------------------------------------------------
   // 6. ACTION HANDLERS
@@ -442,11 +601,11 @@ const BridgeInterface = () => {
     // 1. Main token approval
     if (needsTokenApproval) {
       const amount = isWrappingGasToken
-        ? amountBigInt + requiredGasToken  // Combined for WPLS
+        ? amountBigInt + requiredGasToken // Combined for WPLS
         : amountBigInt;
 
       approvals.push({
-        type: 'token',
+        type: "token",
         tokenAddress: selectedToken.address,
         spender: selectedToken.bridge,
         amount,
@@ -458,11 +617,11 @@ const BridgeInterface = () => {
     // 2. USDC approval
     if (needsUsdcApproval) {
       approvals.push({
-        type: 'usdc',
+        type: "usdc",
         tokenAddress: sourceChain.usdcAddress,
         spender: selectedToken.bridge,
         amount: requiredUsdc,
-        symbol: 'USDC',
+        symbol: "USDC",
         chainId: fromChainId,
       });
     }
@@ -470,17 +629,27 @@ const BridgeInterface = () => {
     // 3. Gas token approval (only if NOT wrapping gas token)
     if (needsWrappedGasTokenApproval && !isWrappingGasToken) {
       approvals.push({
-        type: 'gasToken',
+        type: "gasToken",
         tokenAddress: sourceChain.wrappedGasTokenAddress,
         spender: selectedToken.bridge,
         amount: requiredGasToken,
-        symbol: fromChainId === 369 ? 'WPLS' : 'WETH',
+        symbol: fromChainId === 369 ? "WPLS" : "WETH",
         chainId: fromChainId,
       });
     }
 
     return approvals;
-  }, [needsTokenApproval, isWrappingGasToken, amountBigInt, requiredGasToken, selectedToken, needsUsdcApproval, sourceChain, needsWrappedGasTokenApproval, fromChainId]);
+  }, [
+    needsTokenApproval,
+    isWrappingGasToken,
+    amountBigInt,
+    requiredGasToken,
+    selectedToken,
+    needsUsdcApproval,
+    sourceChain,
+    needsWrappedGasTokenApproval,
+    fromChainId,
+  ]);
 
   const handleApprove = useCallback(async () => {
     if (!bridgeFees) {
@@ -510,6 +679,7 @@ const BridgeInterface = () => {
       addTransaction({
         hash: bridgeHash,
         timestamp: Date.now(),
+        fromAddress: address,
         fromChainName: sourceChain?.name || "Unknown",
         toChainName: destChain?.name || "Unknown",
         explorerUrl: sourceChain?.explorer,
@@ -517,7 +687,16 @@ const BridgeInterface = () => {
       setAmount("");
       refetchAll();
     }
-  }, [isBridged, bridgeHash, lastHandledBridgeHash]);
+  }, [
+    isBridged,
+    bridgeHash,
+    lastHandledBridgeHash,
+    sourceChain?.name,
+    sourceChain?.explorer,
+    destChain?.name,
+    addTransaction,
+    refetchAll,
+  ]);
 
   useEffect(() => {
     if (bridgeUiStatus !== "success") return;
@@ -537,13 +716,19 @@ const BridgeInterface = () => {
     }
   }, [approvalFlowStatus, currentApproval]);
 
+  // Updated approval completion handler with delay
   useEffect(() => {
     if (isDone) {
       toast.success("All required approvals completed!");
-      refetchAll();
+
+      // Add delay to allow blockchain to update
+      setTimeout(() => {
+        refetchAll();
+      }, 1500);
+
       clearFlow();
     }
-  }, [isDone, clearFlow]);
+  }, [isDone, clearFlow, refetchAll]);
 
   useEffect(() => {
     if (isCancelled) {
@@ -596,7 +781,15 @@ const BridgeInterface = () => {
       toast.error("Bridge failed");
       console.error(error);
     }
-  }, [amount, selectedToken, toChainId, recipient, fromChainId, executeBridge, parseTokenAmount]);
+  }, [
+    amount,
+    selectedToken,
+    toChainId,
+    recipient,
+    fromChainId,
+    executeBridge,
+    parseTokenAmount,
+  ]);
 
   const handleSwapDirection = () => {
     const newFromChainId = toChainId;
@@ -642,6 +835,11 @@ const BridgeInterface = () => {
         </button>
       );
 
+    // Check if bridgeFees are loaded
+    if (!bridgeFees && currentStep > 1) {
+      return <button disabled>Loading fees...</button>;
+    }
+
     // Step 1: Input Validation
     if (currentStep === 1) {
       return (
@@ -660,7 +858,10 @@ const BridgeInterface = () => {
       if (hasInsufficientTokenBalance)
         return (
           <button disabled className="w-full cursor-not-allowed opacity-50">
-            Insufficient {isWrappingGasToken ? `${selectedToken.symbol} (incl. gas)` : selectedToken.symbol}
+            Insufficient{" "}
+            {isWrappingGasToken
+              ? `${selectedToken.symbol} (incl. gas)`
+              : selectedToken.symbol}
           </button>
         );
       if (hasInsufficientUsdcBalance)
@@ -686,15 +887,26 @@ const BridgeInterface = () => {
         );
       }
 
-      // Single "Approve" button
+      // Single "Approve" button with refresh option
       return (
-        <button
-          onClick={handleApprove}
-          disabled={!amount || !bridgeFees}
-          className="w-full flex justify-center items-center"
-        >
-          Approve{queueCount > 1 ? ` (${queueCount} tokens)` : ""}
-        </button>
+        <div className="w-full space-y-2">
+          <button
+            onClick={handleApprove}
+            disabled={!amount || !bridgeFees}
+            className="w-full flex justify-center items-center"
+          >
+            Approve{queueCount > 1 ? ` (${queueCount} tokens)` : ""}
+          </button>
+          <button
+            onClick={() => {
+              refetchAll();
+              toast.info("Checking approval status...");
+            }}
+            className="text-xs text-[#FF9900] hover:text-[#FF9900]/80 underline w-full text-center"
+          >
+            Refresh approval status
+          </button>
+        </div>
       );
     }
 
@@ -704,7 +916,7 @@ const BridgeInterface = () => {
         <button
           onClick={handleBridge}
           disabled={isBridging || !amount || !recipient}
-          className="w-full"
+          className="w-full flex gap-2 items-center justify-center"
         >
           {isBridging || bridgeUiStatus === "pending" ? (
             <>
@@ -728,9 +940,6 @@ const BridgeInterface = () => {
     isApproving,
     isBridging,
     bridgeFees,
-    needsTokenApproval,
-    needsUsdcApproval,
-    needsWrappedGasTokenApproval,
     hasInsufficientTokenBalance,
     hasInsufficientUsdcBalance,
     hasInsufficientGasTokenBalance,
@@ -742,6 +951,10 @@ const BridgeInterface = () => {
     getApprovalQueue,
     remainingCount,
     currentApproval,
+    refetchAll,
+    fromChainId,
+    sourceChain?.name,
+    switchChain,
   ]);
 
   const maxInputDecimals = Math.min(6, selectedTokenDecimals);
@@ -755,7 +968,8 @@ const BridgeInterface = () => {
       .replace(/\B(?=(\d{3})+(?!\d))/g, ""); // Add commas to integer part
 
     // If there's a decimal part, return formatted integer + decimal
-    if (decimalPart === undefined || maxInputDecimals === 0) return formattedInteger;
+    if (decimalPart === undefined || maxInputDecimals === 0)
+      return formattedInteger;
     return `${formattedInteger}.${decimalPart.replace(/\D/g, "").slice(0, maxInputDecimals)}`;
   };
   const getDynamicFontSize = (value, desktop = 48, mobile = 32) => {
@@ -814,8 +1028,8 @@ const BridgeInterface = () => {
                   </span>
                 </div>
               </div>
-              <div className="flex w-full mt-6 md:gap-10 gap-2">
-                <div className="lg:md:max-w-[210px] w-full">
+              <div className="flex w-full mt-6 md:gap-10 gap-2 mt6">
+                <div className="lg:md:max-w-[220px] w-full">
                   <div className="relative flex md:gap-2 gap-1 items-center bg-black border border-[#FF9900] md:rounded-[10px] rounded-lg md:px-5 px-3 md:py-[10px] py-2 justify-center w-full">
                     <TokenSelector
                       token={selectedToken}
@@ -831,7 +1045,7 @@ const BridgeInterface = () => {
                     />
                     <button
                       onClick={() => handleCopyAddress(selectedToken.address)}
-                      className="rounded-md transition-colors absolute right-2"
+                      className="rounded-md transition-colors"
                       title="Copy token address"
                     >
                       {copySuccess &&
@@ -895,7 +1109,10 @@ const BridgeInterface = () => {
                           onClick={() => {
                             if (tokenBalance !== undefined) {
                               setAmount(
-                                formatUnits(tokenBalance, selectedTokenDecimals),
+                                formatUnits(
+                                  tokenBalance,
+                                  selectedTokenDecimals,
+                                ),
                               );
                               setSelectedPercentage(100);
                             }
@@ -920,14 +1137,14 @@ const BridgeInterface = () => {
                 </div>
               </div>
               <div className="flex justify-between gap-2 items-center md:mt-10 mt-7">
-               <div className="text-[#FF9900] font-orbitron md:text-xl text-sm flex flex-col">
-                 {isPriceLoading ? (
-                   <span className="animate-pulse">Loading...</span>
-                 ) : tokenPrice ? (
-                   `$${parseFloat(tokenPrice).toFixed(6)}`
-                 ) : (
-                   "--"
-                 )}
+                <div className="text-[#FF9900] font-orbitron md:text-xl text-sm flex flex-col">
+                  {isPriceLoading ? (
+                    <span className="animate-pulse">Loading...</span>
+                  ) : tokenPrice ? (
+                    `$${parseFloat(tokenPrice).toFixed(6)}`
+                  ) : (
+                    "--"
+                  )}
                   <span className="font-bold">Market Price</span>
                 </div>
                 <div className="text-zinc-200 text-[10px] font-normal font-orbitron leading-normal flex md:gap-2 gap-1 justify-end">
@@ -976,8 +1193,8 @@ const BridgeInterface = () => {
                   To
                 </div>
               </div>
-              <div className="flex w-full mt-6 md:gap-10 gap-2">
-                <div className="lg:md:max-w-[210px] w-full">
+              <div className="flex w-full mt-6 md:gap-10 gap-2 mt6">
+                <div className="lg:md:max-w-[220px] w-full">
                   <div className="relative flex md:gap-2 gap-1 items-center bg-black border border-[#FF9900] md:rounded-[10px] rounded-lg md:px-5 px-3 md:py-[10px] py-2 justify-center w-full">
                     <TokenSelector
                       token={selectedToken}
@@ -987,7 +1204,7 @@ const BridgeInterface = () => {
                     />
                     <button
                       onClick={() => handleCopyAddress(selectedToken.address)}
-                      className="rounded-md transition-colors absolute right-2"
+                      className="rounded-md transition-colors"
                       title="Copy token address"
                     >
                       {copySuccess &&
@@ -1043,14 +1260,14 @@ const BridgeInterface = () => {
                             fontSize: `${dynamicFontSize}px`,
                           }}
                         />
-                        {/* USD Value Display for expected amount (same price since it's the same token) */}
+                        {/* USD Value Display for expected amount (using destination token price) */}
                         <div className="text-right text-white md:text-sm text-xs mt-2 font-orbitron">
-                          {isPriceLoading ? (
+                          {isDestPriceLoading ? (
                             <span className="animate-pulse">Fetching...</span>
-                          ) : tokenPrice ? (
-                            <span>${usdValue}</span>
+                          ) : destTokenPrice ? (
+                            <span>${destUsdValue}</span>
                           ) : (
-                            <span>--</span>
+                            <span className="text-gray-400">Unknown</span>
                           )}
                         </div>
                       </>
@@ -1059,13 +1276,13 @@ const BridgeInterface = () => {
                 </div>
               </div>
               <div className="flex justify-between gap-2 items-center md:mt-8 mt-5">
-                 <div className="text-[#FF9900] font-orbitron md:text-xl text-sm flex flex-col">
-                  {isPriceLoading ? (
+                <div className="text-[#FF9900] font-orbitron md:text-xl text-sm flex flex-col">
+                  {isDestPriceLoading ? (
                     <span className="animate-pulse">Loading...</span>
-                  ) : tokenPrice ? (
-                    `$${parseFloat(tokenPrice).toFixed(6)}`
+                  ) : destTokenPrice ? (
+                    `$${parseFloat(destTokenPrice).toFixed(6)}`
                   ) : (
-                    "--"
+                    <span className="text-gray-400">Unknown</span>
                   )}
                   <span className="font-bold">Market Price</span>
                 </div>
@@ -1099,7 +1316,7 @@ const BridgeInterface = () => {
               value={recipient}
               onChange={(e) => setRecipient(e.target.value)}
               placeholder="0x..."
-              className="absolute inset-0 top-0 bottom-0 my-auto w-full h-full md:pl-4 pl-4 pr-36 py-12 text-center bg-transparent text-white font-orbitron md:text-xl text-sm truncate outline-none"
+              className="absolute inset-0 top-0 bottom-0 my-auto w-full h-full md:pl-4 pl-4 pr-36 py-12 text-center bg-transparent text-white font-orbitron md:text-lg text-sm truncate outline-none"
             />
             <button
               className={`!absolute !bg-transparent md:w-[100px] w-20 md:h-12 h-12 hover:opacity-70 bg-black !border !border-[#FF9900] top-3 right-3 flex justify-center items-center rounded-xl px-2 roboto !text-[#FF9900] text-base font-bold`}
@@ -1116,17 +1333,18 @@ const BridgeInterface = () => {
               Estimated Fees:
             </div>
             <div className="grid grid-cols-2 gap-1 text-center text-[#FF9900] text-xs md:text-base font-orbitron">
-              <div className="font-bold">Gas Token</div>
+              <div className="font-normal">Gas Token</div>
               <div>
-                <span className="rigamesh">
+                <span className="font-bold">
                   {formatEther(bridgeFees[2] ?? 0n)}{" "}
                 </span>
                 {fromChainId === 369 ? "WPLS" : "ETH"}
               </div>
 
-              <div className="font-bold">Messaging Fees:</div>
-              <div className="rigamesh">
-                {formatUnits(bridgeFees[3] ?? 0n, 6)} USDC
+              <div className="font-normal">Messaging Fees:</div>
+              <div className="font-bold">
+                {formatUnits(bridgeFees[3] ?? 0n, 6)}
+                <span className="font-normal"> USDC</span>
               </div>
             </div>
           </div>
@@ -1188,8 +1406,8 @@ const BridgeInterface = () => {
         chainId={fromChainId}
       />
       {/* Info / Logs */}
-      <div className="lg:max-w-[800px] md:max-w-[800px] mx-auto w-full px-4 scales-b scales-top">
-        {displayBridgeHash && (
+      <div className="lg:max-w-[1000px] md:max-w-[1000px] mx-auto w-full px-4 scales-b scales-top">
+        {/* {displayBridgeHash && (
           <div className="bg_swap_box_chain p-4 w-full font-orbitron">
             <p className="text-lg text-[#FBB025] font-bold  mb-2 v">
               Bridge transaction submitted!
@@ -1206,7 +1424,13 @@ const BridgeInterface = () => {
               Track on VIA Scanner →
             </a>
           </div>
-        )}
+        )} */}
+        {/* Dummy */}
+        {/* <RecentTransactions
+          transactions={displayTransactions}
+          clearTransactions={clearTransactions}
+        /> */}
+        {/*  Ends */}
         <RecentTransactions
           transactions={transactions}
           clearTransactions={clearTransactions}

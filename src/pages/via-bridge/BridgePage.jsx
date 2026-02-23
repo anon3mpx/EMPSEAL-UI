@@ -33,7 +33,7 @@ const BridgePage = () => {
       >
         <div className="w-full">
           <div className="md:max-w-[800px] mx-auto w-full flex flex-col justify-center items-center md:flex-nowrap flex-wrap px-3 pb-4 lg:mt-0 mt-1">
-            <h1 className="md:text-5xl text-3xl text-center text-[#FF9900] font-orbitron font-bold mb-1">
+            <h1 className="2xl:text-5xl font40 text-2xl text-center text-[#FF9900] font-orbitron font-bold mb-1">
               EMPX <span className="text-white">X</span> VIA <br />
               <span className="text-white">BRIDGE</span>
             </h1>

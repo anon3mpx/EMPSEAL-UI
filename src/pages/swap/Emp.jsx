@@ -782,30 +782,70 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
       });
   };
 
+  // const getRateDisplay = () => {
+  //   if (!singleToken?.amounts || singleToken.amounts.length < 2) {
+  //     if (
+  //       amountIn &&
+  //       amountOut &&
+  //       parseFloat(amountIn) > 0 &&
+  //       parseFloat(amountOut) > 0
+  //     ) {
+  //       const rate = parseFloat(amountOut) / parseFloat(amountIn);
+  //       return isRateReversed ? (1 / rate).toFixed(6) : rate.toFixed(6);
+  //     }
+  //     return "0";
+  //   }
+
+  //   const rate = parseFloat(
+  //     formatUnits(
+  //       singleToken.amounts[singleToken.amounts.length - 1],
+  //       parseInt(selectedTokenB.decimal),
+  //     ),
+  //   );
+
+  //   return isRateReversed ? (1 / rate).toFixed(6) : rate.toFixed(6);
+  // };
   const getRateDisplay = () => {
-    // Check if we have valid single token data with at least 2 amounts (input and output)
-    if (!singleToken?.amounts || singleToken.amounts.length < 2) {
-      // Fallback: calculate rate from current amountIn/amountOut if available
-      if (
-        amountIn &&
-        amountOut &&
-        parseFloat(amountIn) > 0 &&
-        parseFloat(amountOut) > 0
-      ) {
-        const rate = parseFloat(amountOut) / parseFloat(amountIn);
-        return isRateReversed ? (1 / rate).toFixed(6) : rate.toFixed(6);
+    // For direct routes (native/wrapped)
+    if (isDirectRoute) {
+      if (selectedTokenA && selectedTokenB) {
+        return isRateReversed ? "1" : "1";
       }
       return "0";
     }
 
-    const rate = parseFloat(
-      formatUnits(
-        singleToken.amounts[singleToken.amounts.length - 1],
-        parseInt(selectedTokenB.decimal),
-      ),
-    );
+    // Use the singleToken data for accurate 1 token price
+    if (
+      singleToken?.amounts &&
+      singleToken.amounts.length >= 2 &&
+      selectedTokenB
+    ) {
+      const rate = parseFloat(
+        formatUnits(
+          singleToken.amounts[singleToken.amounts.length - 1],
+          parseInt(selectedTokenB.decimal),
+        ),
+      );
 
-    return isRateReversed ? (1 / rate).toFixed(6) : rate.toFixed(6);
+      if (!isNaN(rate) && rate > 0) {
+        return isRateReversed ? (1 / rate).toFixed(6) : rate.toFixed(6);
+      }
+    }
+
+    // Fallback: calculate from current amounts
+    if (
+      amountIn &&
+      amountOut &&
+      parseFloat(amountIn) > 0 &&
+      parseFloat(amountOut) > 0
+    ) {
+      const rate = parseFloat(amountOut) / parseFloat(amountIn);
+      if (!isNaN(rate) && rate > 0) {
+        return isRateReversed ? (1 / rate).toFixed(6) : rate.toFixed(6);
+      }
+    }
+
+    return "0";
   };
 
   useEffect(() => {
@@ -1010,6 +1050,13 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
     }
   }, [isQuoting]);
 
+  const getFontSizeClass = (text = "") => {
+    const length = text.toString().length;
+
+    if (length >= 6) return "text-xs md:text-base";
+    return "text-xs md:text-xl";
+  };
+
   return (
     <>
       <div
@@ -1023,7 +1070,7 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
           }`}
         >
           <div className="md:max-w-[1100px] mx-auto w-full flex flex-col justify-center items-center md:flex-nowrap flex-wrap lg:mt-1 mt-1 px-3 pb-4">
-            <h1 className="md:text-5xl text-2xl text-center text-[#FF9900] font-orbitron font-bold md:mb-2">
+            <h1 className="2xl:text-5xl font40 text-2xl text-center text-[#FF9900] font-orbitron font-bold md:mb-2">
               {!order ? (
                 <>
                   Optimized <br />{" "}
@@ -1040,10 +1087,10 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
           {/* Swap */}
           {!order ? (
             <>
-              <div className="lg:max-w-[700px] md:max-w-[600px] mx-auto w-full flex gap-3 items-center md:justify-start justify-start md:flex-nowrap flex- mt-6 mb-5 lg:px-1 px-0">
+              <div className="lg:max-w-[700px] md:max-w-[600px] mx-auto w-full flex gap-3 items-center md:justify-start justify-start md:flex-nowrap flex- mt-2 mb-3 lg:px-1 px-0">
                 <div
                   onClick={() => setSlippageVisible(true)}
-                  className="ml-auto shrink-0 bg-black md:px-6 px-3 md:py-3 py-2 border border-white rounded-lg flex justify-center items-center hoverswap transition-all cursor-pointer group"
+                  className="ml-auto shrink-0 bg-black md:px-6 px-3 md:py-3 py-2 border-2 border-[#FF9900] rounded-lg flex justify-center items-center hoverswap transition-all cursor-pointer group"
                 >
                   <p className="text-[#FF9900] md:text-sm text-xs font-extrabold font-orbitron">
                     SETTINGS
@@ -1083,11 +1130,11 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
                       </span>
                     </div>
                   </div>
-                  <div className="flex w-full mt-6 md:gap-10 gap-2">
-                    <div className="lg:md:max-w-[200px] w-full">
+                  <div className="flex w-full mt-6 mt6 md:gap-10 gap-2">
+                    <div className="lg:md:max-w-[220px] w-full">
                       <div className="flex justify-between items-center cursor-pointer gap-4 w-full">
                         <div className="flex gap-2 items-center w-full">
-                          <div className="flex md:gap-4 gap-1 items-center bg-black border border-[#FF9900] md:rounded-[10px] rounded-lg md:px-5 px-3 md:py-[10px] py-2 justify-center w-full">
+                          <div className="flex md:gap-4 gap-1 items-center bg-black border border-[#FF9900] md:rounded-[10px] rounded-lg md:px-3 px-3 md:py-[10px] py-2 justify-center w-full">
                             <div
                               onClick={() => {
                                 setIsSelectingTokenA(true);
@@ -1095,7 +1142,7 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
                                 setSelectedPercentage("");
                                 setAmountIn("");
                               }}
-                              className="flex items-center md:gap-4 gap-1 w-full"
+                              className="flex items-center md:gap-4 gap-1 w-full justify-center"
                             >
                               {selectedTokenA ? (
                                 <>
@@ -1107,7 +1154,12 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
                                     }
                                     alt={selectedTokenA.name}
                                   />
-                                  <div className="text-white lg:text-xl text-sm font-bold font-orbitron leading-normal bg-black appearance-none outline-none">
+                                  <div
+                                    className={`${getFontSizeClass(
+                                      selectedTokenA.ticker ||
+                                        selectedTokenA.symbol,
+                                    )} text-white font-bold font-orbitron leading-normal bg-black appearance-none outline-none`}
+                                  >
                                     {selectedTokenA.ticker ||
                                       selectedTokenA.symbol}
                                   </div>
@@ -1180,13 +1232,19 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
                       })()}
                     </div>
                   </div>
-                  <div className="flex justify-between gap-2 items-center md:mt-8 mt-5">
+                  <div className="flex justify-between gap-2 items-center 2xl:mt-6 mt-5 md:flex-nowrap flex-wrap mt6">
                     <div className="text-[#FF9900] font-orbitron md:text-xl text-sm flex flex-col">
-                      {selectedTokenA &&
-                      selectedTokenB &&
-                      getRateDisplay() !== "0"
-                        ? getRateDisplay()
-                        : "--"}
+                      <span>
+                        {selectedTokenA ? (
+                        conversionRate ? (
+                          `$${parseFloat(conversionRate).toFixed(6)}`
+                        ) : (
+                          <span className="animate-pulse">Loading...</span>
+                        )
+                      ) : (
+                        "--"
+                      )}
+                      </span>
                       <span className="font-bold">Market Price</span>
                     </div>
                     <div className="text-zinc-200 text-[10px] font-normal font-orbitron leading-normal flex md:gap-2 gap-1 justify-end">
@@ -1291,11 +1349,11 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
                     </div>
                   </div>
 
-                  <div className="flex w-full mt-6 md:gap-10 gap-2">
-                    <div className="lg:md:max-w-[200px] w-full">
+                  <div className="flex w-full mt-6 mt6 md:gap-10 gap-2">
+                    <div className="lg:md:max-w-[220px] w-full">
                       <div className="flex justify-between items-center cursor-pointer gap-4 w-full">
                         <div className="flex gap-2 items-center w-full">
-                          <div className="flex md:gap-4 gap-1 items-center bg-black border border-[#FF9900] md:rounded-[10px] rounded-lg md:px-5 px-3 md:py-[10px] py-2 justify-center w-full">
+                          <div className="flex md:gap-4 gap-1 items-center bg-black border border-[#FF9900] md:rounded-[10px] rounded-lg md:px-3 px-3 md:py-[10px] py-2 justify-center w-full">
                             <div
                               onClick={() => {
                                 setIsSelectingTokenA(false);
@@ -1313,7 +1371,12 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
                                     }
                                     alt={selectedTokenB.name}
                                   />
-                                  <div className="text-white lg:text-xl text-sm font-bold font-orbitron leading-normal bg-black appearance-none outline-none">
+                                  <div
+                                    className={`${getFontSizeClass(
+                                      selectedTokenB.ticker ||
+                                        selectedTokenB.symbol,
+                                    )} text-white font-bold font-orbitron leading-normal bg-black appearance-none outline-none`}
+                                  >
                                     {selectedTokenB.ticker ||
                                       selectedTokenB.symbol}
                                   </div>
@@ -1398,14 +1461,19 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
                       })()}
                     </div>
                   </div>
-                  <div className="flex justify-between gap-2 items-center md:mt-8 mt-5">
+                  <div className="flex justify-between gap-2 items-center 2xl:mt-6 mt-5 md:flex-nowrap flex-wrap mt6">
                     <div className="text-[#FF9900] font-orbitron md:text-xl text-sm flex flex-col">
-                      {" "}
-                      {selectedTokenA &&
-                      selectedTokenB &&
-                      getRateDisplay() !== "0"
-                        ? getRateDisplay()
-                        : "--"}
+                      <span>
+                        {selectedTokenB ? (
+                        conversionRateTokenB ? (
+                          `$${parseFloat(conversionRateTokenB).toFixed(6)}`
+                        ) : (
+                          <span className="animate-pulse">Loading...</span>
+                        )
+                      ) : (
+                        "--"
+                      )}
+                      </span>
                       <span className="font-bold">Market Price</span>
                     </div>
                     <div className="text-zinc-200 text-[10px] font-normal font-orbitron leading-normal flex md:gap-2 gap-1 justify-end">
