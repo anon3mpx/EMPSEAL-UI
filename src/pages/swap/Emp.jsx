@@ -28,7 +28,7 @@ import {
   EMPTY_ADDRESS,
 } from "../../utils/contractCalls";
 import { swapTokens } from "../../utils/contractCalls";
-import { useConnectModal } from "@rainbow-me/rainbowkit";
+import { useConnectPopup } from "../../hooks/ConnectPopupContext";
 import {
   PLS_ROUTER_ABI,
   ETHW_ROUTER_ABI,
@@ -127,7 +127,7 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
   const [swapSuccess, setSwapSuccess] = useState(false);
   const [selectedPercentage, setSelectedPercentage] = useState("");
   const { address, chain } = useAccount();
-  const { openConnectModal } = useConnectModal();
+  const { openConnectPopup } = useConnectPopup();
   const [balanceAddress, setBalanceAddress] = useState(null);
   const { data: datas } = useBalance({ address });
   const [fees, setFees] = useState(0);
@@ -147,7 +147,6 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
   const [isQuoting, setIsQuoting] = useState(false);
   const [isLoadingBetterQuote, setIsLoadingBetterQuote] = useState(false);
   const [protocolFee, setProtocolFee] = useState(28);
-  const publicClient = usePublicClient();
   const [limitOrderSlippage, setLimitOrderSlippage] = useState(0.5);
   const [needsApproval, setNeedsApproval] = useState(false);
   const [tradeInfo, setTradeInfo] = useState(undefined);
@@ -187,6 +186,8 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
     maxHops,
     stableTokens,
   } = useChainConfig();
+
+  const publicClient = usePublicClient({ chainId });
 
   const convertToBigInt = (amount, decimals) => {
     // Add input validation
@@ -232,6 +233,7 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
     abi: routerABI,
     address: routerAddress,
     functionName: "findBestPath",
+    chainId,
     args: [
       amountIn && selectedTokenA && !isNaN(parseFloat(amountIn))
         ? convertToBigInt(
@@ -260,6 +262,7 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
     abi: routerABI,
     address: routerAddress,
     functionName: "findBestPath",
+    chainId,
     args: [
       selectedTokenA?.decimal
         ? convertToBigInt(1, parseInt(selectedTokenA.decimal))
@@ -334,10 +337,15 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
     singleTokenRefresh,
   ]);
 
-  // Reset selected tokens when chain changes
+  // Reset selected tokens and quoting state when chain changes
   useEffect(() => {
     setSelectedTokenA(null);
     setSelectedTokenB(null);
+    setAmountIn("0");
+    setAmountOut("0");
+    setIsQuoting(false);
+    setIsRoutingLoading(false);
+    setTradeInfo(undefined);
   }, [chainId]);
 
   // Dynamic Fee Update
@@ -1524,7 +1532,7 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
                   <button
                     onClick={() => {
                       if (!address) {
-                        openConnectModal?.();
+                        openConnectPopup();
                         return;
                       }
                       if (amountOut && parseFloat(amountOut) > 0) {

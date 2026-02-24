@@ -27,6 +27,7 @@ import AddressCard from "./AddressCard";
 import TermsModal from "../TermsModal";
 import { useSelectedChainId, useSetSelectedChainId } from "../../../hooks/ChainContext";
 import { SUPPORTED_CHAINS } from "../../../config/chains";
+import { useConnectPopup } from "../../../hooks/ConnectPopupContext";
 
 const ChainChangeHandler = ({
   chain,
@@ -64,7 +65,7 @@ export default function WalletConnect({
 
   const [showPopup, setShowPopup] = useState(false);
   const [showChainPopup, setShowChainPopup] = useState(false);
-  const [showConnectPopup, setShowConnectPopup] = useState(false);
+  const { showConnectPopup, openConnectPopup, closeConnectPopup } = useConnectPopup();
 
   const [showTermsPopup, setShowTermsPopup] = useState(false);
 
@@ -190,7 +191,7 @@ export default function WalletConnect({
               </button>
               <button
                 className="new_shad !bg-black !rounded-2xl !text-[#FF9900] transition-all text-center font-extrabold px-4 whitespace-nowrap"
-                onClick={() => setShowConnectPopup(true)}
+                onClick={() => openConnectPopup()}
                 type="button"
               >
                 Connect Wallet
@@ -209,12 +210,12 @@ export default function WalletConnect({
                   className="fixed inset-0 flex items-center justify-center bg-black/70 z-50 px-4"
                   onClick={(e) => {
                     if (e.target === e.currentTarget)
-                      setShowConnectPopup(false);
+                      closeConnectPopup();
                   }}
                 >
                   <div className="relative text-white md:p-8 p-4 rounded-2xl md:max-w-[560px] w-full clip-bg font-orbitron">
                     <svg
-                      onClick={() => setShowConnectPopup(false)}
+                      onClick={() => closeConnectPopup()}
                       className="absolute cursor-pointer md:right-10 right-4 md:top-10 top-4 tilt"
                       width={18}
                       height={19}
@@ -276,7 +277,7 @@ export default function WalletConnect({
                           className="flex items-center justify-start gap-4 cursor-pointer rounded-lg d:py-3 py-2 px-3 transition-all hoverclip_1"
                           onClick={() => {
                             connect({ connector });
-                            setShowConnectPopup(false);
+                            closeConnectPopup();
                           }}
                         >
                           <div className="relative">
@@ -312,7 +313,7 @@ export default function WalletConnect({
                       <span
                         onClick={() => {
                           setShowTermsPopup(true);
-                          setShowConnectPopup(false);
+                          closeConnectPopup();
                         }}
                         className="ml-1 text-[#FF9900] cursor-pointer hover:underline md:text-base text-sm font-orbitron font-bold"
                       >

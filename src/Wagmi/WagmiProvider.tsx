@@ -14,6 +14,7 @@ import { config } from "./config";
 import { bridgeConfig } from "./bridgeConfig";
 import { viaBridgeConfig } from "./viaBridgeConfig";
 import { ChainProvider } from "../hooks/ChainContext";
+import { ConnectPopupProvider } from "../hooks/ConnectPopupContext";
 import React from "react";
 
 const queryClient = new QueryClient();
@@ -42,7 +43,9 @@ export default function WagmiProviderWrapper({
       <QueryClientProvider client={queryClient}>
         <RainbowKitProvider key={appType} theme={darkTheme()} modalSize="compact">
           <ChainProvider>
-            {children}
+            <ConnectPopupProvider>
+              {children}
+            </ConnectPopupProvider>
           </ChainProvider>
         </RainbowKitProvider>
       </QueryClientProvider>
