@@ -25,6 +25,8 @@ import {
 } from "wagmi";
 import AddressCard from "./AddressCard";
 import TermsModal from "../TermsModal";
+import { useSelectedChainId, useSetSelectedChainId } from "../../../hooks/ChainContext";
+import { SUPPORTED_CHAINS } from "../../../config/chains";
 
 const ChainChangeHandler = ({
   chain,
@@ -57,6 +59,8 @@ export default function WalletConnect({
   const { chains, switchChain } = useSwitchChain();
   const availableChains = useChains();
   const { connect, connectors } = useConnect();
+  const selectedChainId = useSelectedChainId();
+  const setSelectedChainId = useSetSelectedChainId();
 
   const [showPopup, setShowPopup] = useState(false);
   const [showChainPopup, setShowChainPopup] = useState(false);
@@ -165,10 +169,27 @@ export default function WalletConnect({
 
         if (!ready) return null;
         if (!connected) {
+          // Find the currently selected chain info for the icon
+          const selectedChainInfo = SUPPORTED_CHAINS[selectedChainId];
+          const selectedChainName = selectedChainInfo?.name?.toLowerCase() || 'pulsechain';
+          const selectedChainIcon = chainIcons[selectedChainName] || dummyImage;
+
           return (
             <>
               <button
-                className="new_shad !bg-black !rounded-2xl !text-[#FF9900] transition-all text-center font-extrabold"
+                className="new_shad !bg-black !rounded-2xl transition-all flex items-center justify-center gap-2 px-2"
+                onClick={() => setShowChainPopup(true)}
+                type="button"
+              >
+                <img
+                  src={selectedChainIcon}
+                  alt={selectedChainInfo?.name || 'Chain'}
+                  className="w-5 h-5 object-contain rounded-full"
+                  onError={(e) => (e.currentTarget.src = dummyImage)}
+                />
+              </button>
+              <button
+                className="new_shad !bg-black !rounded-2xl !text-[#FF9900] transition-all text-center font-extrabold px-4 whitespace-nowrap"
                 onClick={() => setShowConnectPopup(true)}
                 type="button"
               >
@@ -178,8 +199,9 @@ export default function WalletConnect({
                 <ChainPopup
                   setShowChainPopup={setShowChainPopup}
                   availableChains={availableChains}
-                  chain={chain}
+                  chain={{ id: selectedChainId, name: selectedChainInfo?.name }}
                   switchChain={switchChain}
+                  onSelectChain={(chainId) => setSelectedChainId(chainId)}
                 />
               )}
               {showConnectPopup && (
@@ -209,7 +231,7 @@ export default function WalletConnect({
                       />
                     </svg>
 
-                    <h2 className="mt-4 md:text-2xl capitalize text-lg font-medium text-white font-orbitron text-center tracking-widest flex gap-1 items-center justify-center">
+                    <h2 className="mt-4 md:text-lg capitalize text-base font-medium text-white font-orbitron text-center tracking-widest flex gap-1 items-center justify-center">
                       <img src={EL} alt="EL" className="w-10 object-contain" />
                       Wallet Connect
                     </h2>
@@ -268,17 +290,17 @@ export default function WalletConnect({
                                 connector.name.includes("MetaMask")
                                   ? "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT3ymr3UNKopfI0NmUY95Dr-0589vG-91KuAA&s"
                                   : // "https://raw.githubusercontent.com/MetaMask/brand-resources/master/SVG/metamask-fox.svg"
-                                    connector.name.includes("WalletConnect")
+                                  connector.name.includes("WalletConnect")
                                     ? "https://avatars.githubusercontent.com/u/37784886?s=200&v=4"
                                     : connector.name.includes("Coinbase")
                                       ? "https://avatars.githubusercontent.com/u/18060234?s=200&v=4"
                                       : "https://rainbowkit.com/icons/wallet.svg"
                               }
                               alt={connector.name}
-                              className="w-7 h-7 relative z-10 flex flex-shrink-0 object-contain rounded-full"
+                              className="w-5 h-5 relative z-10 flex flex-shrink-0 object-contain rounded-full"
                             />
                           </div>
-                          <p className="md:text-lg text-[10px] text-[#FF9900] font-orbitron font-bold">
+                          <p className="md:text-base text-[10px] text-[#FF9900] font-orbitron font-bold">
                             {connector.name}
                           </p>
                         </div>

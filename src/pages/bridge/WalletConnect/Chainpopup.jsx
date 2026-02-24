@@ -140,7 +140,7 @@ const ChainPopup = ({
             </svg>
           </div>
           {/* Chain cards */}
-          <div className="md:mt-6 mt-4 w-full overflow-y-auto h-[250px] chain_scroll md:px-4 px-2">
+          <div className="md:mt-6 mt-4 w-full overflow-y-auto h-[250px] chain_scroll md:px-2 px-2">
             {filteredChains.map((c) => {
               const isActive = chain?.id === c.id;
               const chainKey = c.name.toLowerCase();
@@ -158,7 +158,7 @@ const ChainPopup = ({
                     // sc1
                   }`}
                 >
-                  <div className="w-[33px] h-[33px] flex justify-center items-center shrink-0">
+                  <div className="w-[23px] h-[23px] flex justify-center items-center shrink-0">
                     <img
                       src={chainIcon}
                       alt={c.name}

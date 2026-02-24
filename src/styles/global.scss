@@ -311,6 +311,8 @@ body {
   top: -38px;
   // right: 94px;
   right: 194px;
+    align-items: center;
+
 }
 // .wallet-bg-bridge01 {
 //   top: 65px;
@@ -321,10 +323,11 @@ body {
   background: #ff9900;
   color: #000;
   font-family: "Orbitron", sans-serif;
-  font-size: 16px;
+  font-size: 13px;
   border-radius: 0 !important;
   border: none;
-  padding: 14px 22px;
+  padding: 10px 16px;
+  height: 40px;
   cursor: pointer;
   letter-spacing: 0.5px;
   // clip-path: polygon(5% 0%, 94% 0%, 100% 22%, 100% 100%, 14% 100%, 5% 70%);
@@ -683,8 +686,8 @@ body.bg-pattern {
 }
 @media (min-width: 768px) and (max-width: 1536px) {
   .wallet-bg-bridge button {
-    font-size: 14px !important;
-    padding: 12px 20px !important;
+    font-size: 12px !important;
+    padding: 10px 16px !important;
   }
 }
 .scales-top_1 {
@@ -717,7 +720,7 @@ body.bg-pattern {
     top: -60px;
   }
   .h_cs {
-    height: 410px !important;
+    height: 340px !important;
   }
   .top0 {
     top: 0px !important;
@@ -811,8 +814,9 @@ body.bg-pattern {
   //   top: 80px!important;
   // }
   .wallet-bg-bridge button {
-    font-size: 12px;
+    font-size: 11px;
     padding: 6px 12px;
+    height: 35px;
   }
   .margin_left {
     margin-left: -30px;
@@ -827,7 +831,7 @@ body.bg-pattern {
     min-width: 18rem;
   }
   .lefts1 {
-    top: -80px;
+    top: -68px;
     right: 10px;
     // right: 0px;
     // width: 145px;
@@ -996,28 +1000,28 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 }
 
 .bg_swap_box_chain {
-  padding-top: 20px;
-  padding-left: 20px;
-  padding-right: 20px;
-  padding-bottom: 20px;
+  padding-top: 14px;
+  padding-left: 14px;
+  padding-right: 14px;
+  padding-bottom: 14px;
   border: 4px solid #ffa600;
   background: #000000;
   border-radius: 16px;
 }
 .bg_swap_box {
-  padding-top: 36px;
-  padding-left: 36px;
-  padding-right: 36px;
-  padding-bottom: 36px;
+  padding-top: 24px;
+  padding-left: 20px;
+  padding-right: 20px;
+  padding-bottom: 24px;
   border: 4px solid #ffa600;
   background: #000000;
   border-radius: 16px;
 }
 .bg_swap_box_black {
-  padding-top: 36px;
-  padding-left: 36px;
-  padding-right: 36px;
-  padding-bottom: 36px;
+  padding-top: 24px;
+  padding-left: 20px;
+  padding-right: 20px;
+  padding-bottom: 24px;
   border: 4px solid #ffa600;
   background: #000000;
   border-radius: 16px;
@@ -1066,7 +1070,7 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   margin-bottom: 12px;
 }
 .top45 {
-  top: 0rem;
+  top: 0.5rem;
 }
 @media (max-width: 1536px) {
   .mtb {

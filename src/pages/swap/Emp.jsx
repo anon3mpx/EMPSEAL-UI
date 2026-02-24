@@ -2,19 +2,7 @@ import { useEffect, useState, useMemo, useRef } from "react";
 import Routing from "./Routing";
 
 import { useSearchParams } from "react-router-dom";
-import LoadingIcon from "../../assets/icons/loading.svg";
-import Logo from "../../assets/images/swap-emp.png";
-import Sett from "../../assets/images/setting.svg";
 import Ar from "../../assets/images/reverse.svg";
-import Bar from "../../assets/images/bar.png";
-import Sellbox from "../../assets/images/sell-box.png";
-import Buybox from "../../assets/images/buy-bg.png";
-import Swapbutton from "../../assets/images/swap-button.svg";
-
-import Usdc from "../../assets/images/usdc.svg";
-import Refresh from "../../assets/images/refresh.svg";
-import Info from "../../assets/images/info.svg";
-import { Link } from "react-router-dom";
 import Amount from "./Amount";
 import Token from "./Token";
 import { formatEther, formatUnits } from "viem";
@@ -40,6 +28,7 @@ import {
   EMPTY_ADDRESS,
 } from "../../utils/contractCalls";
 import { swapTokens } from "../../utils/contractCalls";
+import { useConnectModal } from "@rainbow-me/rainbowkit";
 import {
   PLS_ROUTER_ABI,
   ETHW_ROUTER_ABI,
@@ -138,6 +127,7 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
   const [swapSuccess, setSwapSuccess] = useState(false);
   const [selectedPercentage, setSelectedPercentage] = useState("");
   const { address, chain } = useAccount();
+  const { openConnectModal } = useConnectModal();
   const [balanceAddress, setBalanceAddress] = useState(null);
   const { data: datas } = useBalance({ address });
   const [fees, setFees] = useState(0);
@@ -245,9 +235,9 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
     args: [
       amountIn && selectedTokenA && !isNaN(parseFloat(amountIn))
         ? convertToBigInt(
-            parseFloat(amountIn),
-            parseInt(selectedTokenA.decimal) || 18,
-          )
+          parseFloat(amountIn),
+          parseInt(selectedTokenA.decimal) || 18,
+        )
         : BigInt(0),
       selectedTokenA?.address === EMPTY_ADDRESS
         ? wethAddress
@@ -417,9 +407,9 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
     const amountInBigInt =
       amountIn && selectedTokenA && !isNaN(parseFloat(amountIn))
         ? convertToBigInt(
-            parseFloat(amountIn),
-            parseInt(selectedTokenA.decimal) || 18,
-          )
+          parseFloat(amountIn),
+          parseInt(selectedTokenA.decimal) || 18,
+        )
         : BigInt(0);
 
     const trade = {
@@ -880,6 +870,7 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
   };
 
   const getButtonText = () => {
+    if (!address) return "Connect Wallet";
     if (isInsufficientBalance()) return "Insufficient Balance";
     if (isQuoting) return "Loading...";
     if (needsApproval) return "Approve";
@@ -986,10 +977,10 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
   const priceImpact =
     usdValueTokenA > 0
       ? (
-          ((parseFloat(usdValueTokenB) - parseFloat(usdValueTokenA)) /
-            parseFloat(usdValueTokenA)) *
-          100
-        ).toFixed(2)
+        ((parseFloat(usdValueTokenB) - parseFloat(usdValueTokenA)) /
+          parseFloat(usdValueTokenA)) *
+        100
+      ).toFixed(2)
       : 0;
   // Determine color based on value
   const getPriceImpactColor = (impact) => {
@@ -1053,24 +1044,22 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
   const getFontSizeClass = (text = "") => {
     const length = text.toString().length;
 
-    if (length >= 6) return "text-xs md:text-base";
-    return "text-xs md:text-xl";
+    if (length >= 6) return "text-xs md:text-xs";
+    return "text-xs md:text-xs";
   };
 
   return (
     <>
       <div
-        className={`w-full rounded-xl xl:pb-2 lg:pt-1 pt-1 2xl:px-8 lg:px-8 md:px-6 px-1 md:mt-0 mt-1 relative ${
-          order ? "pb-[0px]" : "2xl:pb-20 xl:pb-2 lg:pb-0 pb-5"
-        }`}
+        className={`w-full rounded-xl xl:pb-2 lg:pt-1 pt-1 2xl:px-8 lg:px-8 md:px-6 px-1 md:mt-0 mt-1 relative ${order ? "pb-[0px]" : "2xl:pb-20 xl:pb-2 lg:pb-0 pb-5"
+          }`}
       >
         <div
-          className={`scales8 ${
-            order ? `scales-top ${address ? "scales-top_limit" : ""}` : "top70"
-          }`}
+          className={`scales8 ${order ? `scales-top ${address ? "scales-top_limit" : ""}` : "top70"
+            }`}
         >
-          <div className="md:max-w-[1100px] mx-auto w-full flex flex-col justify-center items-center md:flex-nowrap flex-wrap lg:mt-1 mt-1 px-3 pb-4">
-            <h1 className="2xl:text-5xl font40 text-2xl text-center text-[#FF9900] font-orbitron font-bold md:mb-2">
+          <div className="md:max-w-[1100px] mx-auto w-full flex flex-col justify-center items-center md:flex-nowrap flex-wrap lg:mt-1 mt-1 px-3 pb-2">
+            <h1 className="2xl:text-[43px] xl:leading-[40px] font40 text-2xl text-center text-[#FF9900] font-orbitron font-bold md:mb-2">
               {!order ? (
                 <>
                   Optimized <br />{" "}
@@ -1087,23 +1076,23 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
           {/* Swap */}
           {!order ? (
             <>
-              <div className="lg:max-w-[700px] md:max-w-[600px] mx-auto w-full flex gap-3 items-center md:justify-start justify-start md:flex-nowrap flex- mt-2 mb-3 lg:px-1 px-0">
+              <div className="lg:max-w-[600px] md:max-w-[600px] mx-auto w-full flex gap-3 items-center md:justify-start justify-start md:flex-nowrap flex- mt-2 mb-3 lg:px-1 px-0">
                 <div
                   onClick={() => setSlippageVisible(true)}
-                  className="ml-auto shrink-0 bg-black md:px-6 px-3 md:py-3 py-2 border-2 border-[#FF9900] rounded-lg flex justify-center items-center hoverswap transition-all cursor-pointer group"
+                  className="ml-auto shrink-0 bg-black md:px-6 px-3 md:py-2 py-2 border-2 border-[#FF9900] rounded-lg flex justify-center items-center hoverswap transition-all cursor-pointer group"
                 >
-                  <p className="text-[#FF9900] md:text-sm text-xs font-extrabold font-orbitron">
+                  <p className="text-[#FF9900] md:text-[10px] text-[10px] font-extrabold font-orbitron">
                     SETTINGS
                   </p>
                 </div>
               </div>
-              <div className="lg:max-w-[700px] md:max-w-[600px] mx-auto w-full">
+              <div className="lg:max-w-[600px] md:max-w-[600px] mx-auto w-full">
                 <div className="relative bg_swap_box">
                   <div className="flex justify-between gap-3 items-center">
-                    <div className="font-orbitron md:text-2xl text-xs font-extrabold leading-normal text-[#FF9900]">
+                    <div className="font-orbitron md:text-[15px] text-xs font-extrabold leading-normal text-[#FF9900]">
                       You Sell
                     </div>
-                    <div className="md:text-xl text-[10px] font-orbitron">
+                    <div className="md:text-xs text-[10px] font-orbitron">
                       <span className="font-normal leading-normal text-[#FF9900]">
                         BAL
                       </span>
@@ -1118,23 +1107,22 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
                             ? "Loading.."
                             : selectedTokenA.address === EMPTY_ADDRESS
                               ? `${formatNumber(formattedBalance)}`
-                              : `${
-                                  tokenBalance
-                                    ? formatNumber(
-                                        parseFloat(
-                                          tokenBalance.formatted,
-                                        ).toFixed(6),
-                                      )
-                                    : "0.00"
-                                }`}
+                              : `${tokenBalance
+                                ? formatNumber(
+                                  parseFloat(
+                                    tokenBalance.formatted,
+                                  ).toFixed(6),
+                                )
+                                : "0.00"
+                              }`}
                       </span>
                     </div>
                   </div>
-                  <div className="flex w-full mt-6 mt6 md:gap-10 gap-2">
-                    <div className="lg:md:max-w-[220px] w-full">
+                  <div className="flex w-full mt-3 mt6 md:gap-10 gap-2">
+                    <div className="lg:md:max-w-[200px] w-full">
                       <div className="flex justify-between items-center cursor-pointer gap-4 w-full">
                         <div className="flex gap-2 items-center w-full">
-                          <div className="flex md:gap-4 gap-1 items-center bg-black border border-[#FF9900] md:rounded-[10px] rounded-lg md:px-3 px-3 md:py-[10px] py-2 justify-center w-full">
+                          <div className="flex md:gap-4 gap-1 items-center bg-black border border-[#FF9900] md:rounded-[7px] rounded-lg md:px-3 px-3 md:py-[8px] py-2 justify-center w-full">
                             <div
                               onClick={() => {
                                 setIsSelectingTokenA(true);
@@ -1147,7 +1135,7 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
                               {selectedTokenA ? (
                                 <>
                                   <img
-                                    className="md:w-9 md:h-9 w-4 h-4"
+                                    className="md:w-5 md:h-5 w-4 h-4"
                                     src={
                                       selectedTokenA.image ||
                                       selectedTokenA.logoURI
@@ -1157,7 +1145,7 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
                                   <div
                                     className={`${getFontSizeClass(
                                       selectedTokenA.ticker ||
-                                        selectedTokenA.symbol,
+                                      selectedTokenA.symbol,
                                     )} text-white font-bold font-orbitron leading-normal bg-black appearance-none outline-none`}
                                   >
                                     {selectedTokenA.ticker ||
@@ -1165,7 +1153,7 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
                                   </div>
                                 </>
                               ) : (
-                                <span className="text-white font-extrabold font-orbitron md:text-xl text-xs capitalize">
+                                <span className="text-white font-extrabold font-orbitron md:text-xs text-xs capitalize">
                                   Select token
                                 </span>
                               )}
@@ -1178,7 +1166,7 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
                                 className="rounded-md transition-colorss"
                               >
                                 {copySuccess &&
-                                activeTokenAddress ===
+                                  activeTokenAddress ===
                                   selectedTokenA.address ? (
                                   <Check className="md:w-4 md:h-4 w-3 h-3 text-green-500" />
                                 ) : (
@@ -1197,9 +1185,9 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
                           0;
                         const defaultFontSize =
                           window.innerWidth >= 1024
-                            ? 40
+                            ? 28
                             : window.innerWidth >= 768
-                              ? 30
+                              ? 24
                               : 20;
                         const FREE_DIGITS = window.innerWidth >= 768 ? 10 : 4;
                         const SHRINK_RATE = 3;
@@ -1232,18 +1220,18 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
                       })()}
                     </div>
                   </div>
-                  <div className="flex justify-between gap-2 items-center 2xl:mt-6 mt-5 md:flex-nowrap flex-wrap mt6">
-                    <div className="text-[#FF9900] font-orbitron md:text-xl text-sm flex flex-col">
+                  <div className="flex justify-between gap-2 items-center 2xl:mt-3 mt-3 md:flex-nowrap flex-wrap mt6">
+                    <div className="text-[#FF9900] font-orbitron md:text-[15px] text-xs flex flex-col">
                       <span>
                         {selectedTokenA ? (
-                        conversionRate ? (
-                          `$${parseFloat(conversionRate).toFixed(6)}`
+                          conversionRate ? (
+                            `$${parseFloat(conversionRate).toFixed(6)}`
+                          ) : (
+                            <span className="animate-pulse">Loading...</span>
+                          )
                         ) : (
-                          <span className="animate-pulse">Loading...</span>
-                        )
-                      ) : (
-                        "--"
-                      )}
+                          "--"
+                        )}
                       </span>
                       <span className="font-bold">Market Price</span>
                     </div>
@@ -1253,12 +1241,11 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
                         <button
                           key={value}
                           type="button"
-                          className={`py-1 border bg-[#EEC485] text-black flex justify-center items-center rounded-full md:text-[10px] text-[7px] font-medium font-orbitron md:w-[70px] w-11 px-2
-            ${
-              selectedPercentage === value
-                ? "!text-black !bg-[#FF9900] border-[#FF9900]"
-                : "bg-[#EEC485] text-[#040404] border-black hover:border-black hover:bg-[#FF9900] hover:text-black"
-            }`}
+                          className={`py-1 border bg-[#EEC485] text-black flex justify-center items-center rounded-full md:text-[7px] text-[7px] font-medium font-orbitron md:w-12 w-11 px-2
+            ${selectedPercentage === value
+                              ? "!text-black !bg-[#FF9900] border-[#FF9900]"
+                              : "bg-[#EEC485] text-[#040404] border-black hover:border-black hover:bg-[#FF9900] hover:text-black"
+                            }`}
                           onClick={() => handlePercentageChange(value)}
                           disabled={isLoading}
                         >
@@ -1267,10 +1254,10 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
                       ))}
                     </div>
                   </div>
-                  <div className="text-right relative text-white md:text-base text-[10px] usd-spacing truncate font-orbitron mt-2 text-sh1 flex justify-end gap-1">
+                  <div className="text-right relative text-white md:text-xs text-[10px] usd-spacing truncate font-orbitron mt-2 text-sh1 flex justify-end gap-1">
                     <div className="relative inline-block">
                       <InfoIcon
-                        size={18}
+                        size={14}
                         className="md:mt-[1.5px] mt-[-1px] cursor-pointer"
                         onMouseEnter={() => setDollarInfo(true)}
                         onMouseLeave={() => setDollarInfo(false)}
@@ -1279,8 +1266,7 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
 
                       {dollarinfo && (
                         <div
-                          className="roboto fixed rt0 z-50 mt-2 md:w-[500px] w-[300px] whitespace-pre-wrap rounded-lg bg-black px-4 py-3 text-center md:text-sm text-[10px] font-bold text-white shadow-lg
-          "
+                          className="font-orbitron fixed rt0 z-50 mt-2 md:w-[450px] w-[300px] whitespace-pre-wrap rounded-lg bg-black px-4 py-3 text-center md:text-xs text-[9px] font-bold text-white shadow-lg"
                           onMouseEnter={() => setDollarInfo(true)}
                           onMouseLeave={() => setDollarInfo(false)}
                         >
@@ -1299,7 +1285,7 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
                   </div>
                 </div>
                 <div
-                  className="cursor-pointer mx-auto my-4 md:pt-7 relative md:top-[-16px] top-[-10px] pt-[20px] md:w-[70px] w-12"
+                  className="cursor-pointer mx-auto my-4 relative md:w-[50px] w-10"
                   onClick={() => {
                     const _tokenA = selectedTokenA;
                     const _tokenB = selectedTokenB;
@@ -1318,10 +1304,10 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
                 </div>
                 <div className="relative bg_swap_box_black">
                   <div className="flex justify-between gap-3 items-center">
-                    <div className="font-orbitron md:text-2xl text-xs font-extrabold leading-normal text-[#FF9900]">
+                    <div className="font-orbitron md:text-[15px] text-xs font-extrabold leading-normal text-[#FF9900]">
                       You Buy
                     </div>
-                    <div className="md:text-xl text-[10px] font-orbitron">
+                    <div className="md:text-xs text-[10px] font-orbitron">
                       <span className="font-normal leading-normal text-[#FF9900]">
                         BAL
                       </span>{" "}
@@ -1336,35 +1322,34 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
                             ? "Loading.."
                             : selectedTokenB.address === EMPTY_ADDRESS
                               ? `${formatNumber(formattedChainBalanceTokenB)}`
-                              : `${
-                                  tokenBBalance
-                                    ? formatNumber(
-                                        parseFloat(
-                                          tokenBBalance.formatted,
-                                        ).toFixed(6),
-                                      )
-                                    : "0.00"
-                                }`}
+                              : `${tokenBBalance
+                                ? formatNumber(
+                                  parseFloat(
+                                    tokenBBalance.formatted,
+                                  ).toFixed(6),
+                                )
+                                : "0.00"
+                              }`}
                       </span>
                     </div>
                   </div>
 
-                  <div className="flex w-full mt-6 mt6 md:gap-10 gap-2">
-                    <div className="lg:md:max-w-[220px] w-full">
+                  <div className="flex w-full mt-3 mt6 md:gap-10 gap-2">
+                    <div className="lg:md:max-w-[200px] w-full">
                       <div className="flex justify-between items-center cursor-pointer gap-4 w-full">
                         <div className="flex gap-2 items-center w-full">
-                          <div className="flex md:gap-4 gap-1 items-center bg-black border border-[#FF9900] md:rounded-[10px] rounded-lg md:px-3 px-3 md:py-[10px] py-2 justify-center w-full">
+                          <div className="flex md:gap-4 gap-1 items-center bg-black border border-[#FF9900] md:rounded-[7px] rounded-lg md:px-3 px-3 md:py-[8px] py-2 justify-center w-full">
                             <div
                               onClick={() => {
                                 setIsSelectingTokenA(false);
                                 setTokenVisible(true);
                               }}
-                              className="flex items-center justify-center md:gap-4 gap-1"
+                              className="flex items-center justify-center md:gap-4 gap-1 w-full"
                             >
                               {selectedTokenB ? (
                                 <>
                                   <img
-                                    className="md:w-9 md:h-9 w-4 h-4"
+                                    className="md:w-5 md:h-5 w-4 h-4"
                                     src={
                                       selectedTokenB.image ||
                                       selectedTokenB.logoURI
@@ -1374,7 +1359,7 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
                                   <div
                                     className={`${getFontSizeClass(
                                       selectedTokenB.ticker ||
-                                        selectedTokenB.symbol,
+                                      selectedTokenB.symbol,
                                     )} text-white font-bold font-orbitron leading-normal bg-black appearance-none outline-none`}
                                   >
                                     {selectedTokenB.ticker ||
@@ -1382,7 +1367,7 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
                                   </div>
                                 </>
                               ) : (
-                                <span className="text-white font-extrabold font-orbitron md:text-xl text-xs capitalize">
+                                <span className="text-white font-extrabold font-orbitron md:text-xs text-xs capitalize">
                                   Select token
                                 </span>
                               )}
@@ -1395,11 +1380,11 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
                                 className="rounded-md transition-colors"
                               >
                                 {copySuccess &&
-                                activeTokenAddress ===
+                                  activeTokenAddress ===
                                   selectedTokenB.address ? (
                                   <Check className="md:w-4 md:h-4 w-3 h-3 text-green-500" />
                                 ) : (
-                                  <Copy className="md:w-4 md:h-4 w-3 h-3 text-black hover:text-black" />
+                                  <Copy className="md:w-4 md:h-4 w-3 h-3 text-white hover:text-white" />
                                 )}
                               </button>
                             )}
@@ -1420,9 +1405,9 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
 
                         const defaultFontSize =
                           window.innerWidth >= 1024
-                            ? 40
+                            ? 28
                             : window.innerWidth >= 768
-                              ? 30
+                              ? 24
                               : 20;
                         const FREE_DIGITS = window.innerWidth >= 768 ? 10 : 6;
                         const SHRINK_RATE = 3;
@@ -1461,18 +1446,18 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
                       })()}
                     </div>
                   </div>
-                  <div className="flex justify-between gap-2 items-center 2xl:mt-6 mt-5 md:flex-nowrap flex-wrap mt6">
-                    <div className="text-[#FF9900] font-orbitron md:text-xl text-sm flex flex-col">
+                  <div className="flex justify-between gap-2 items-center 2xl:mt-3 mt-3 md:flex-nowrap flex-wrap mt6">
+                    <div className="text-[#FF9900] font-orbitron md:text-[15px] text-xs flex flex-col">
                       <span>
                         {selectedTokenB ? (
-                        conversionRateTokenB ? (
-                          `$${parseFloat(conversionRateTokenB).toFixed(6)}`
+                          conversionRateTokenB ? (
+                            `$${parseFloat(conversionRateTokenB).toFixed(6)}`
+                          ) : (
+                            <span className="animate-pulse">Loading...</span>
+                          )
                         ) : (
-                          <span className="animate-pulse">Loading...</span>
-                        )
-                      ) : (
-                        "--"
-                      )}
+                          "--"
+                        )}
                       </span>
                       <span className="font-bold">Market Price</span>
                     </div>
@@ -1482,12 +1467,11 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
                         <button
                           key={value}
                           type="button"
-                          className={`py-1 border bg-[#EEC485] text-black flex justify-center items-center rounded-full md:text-[10px] text-[7px] font-medium font-orbitron md:w-[70px] w-11 px-2
-            ${
-              selectedPercentageBuy === value
-                ? "!text-black !bg-[#FF9900] border-[#FF9900]"
-                : "bg-[#EEC485] text-[#040404] border-black hover:border-black hover:bg-[#FF9900] hover:text-black"
-            }`}
+                          className={`py-1 border bg-[#EEC485] text-black flex justify-center items-center rounded-full md:text-[7px] text-[7px] font-medium font-orbitron md:w-12 w-11 px-2
+            ${selectedPercentageBuy === value
+                              ? "!text-black !bg-[#FF9900] border-[#FF9900]"
+                              : "bg-[#EEC485] text-[#040404] border-black hover:border-black hover:bg-[#FF9900] hover:text-black"
+                            }`}
                           onClick={() => setSelectedPercentageBuy(value)}
                           disabled={isLoading}
                         >
@@ -1496,10 +1480,10 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
                       ))}
                     </div>
                   </div>
-                  <div className="text-right relative text-white md:text-base text-[10px] usd-spacing truncate font-orbitron mt-2 text-sh1 flex justify-end gap-1">
+                  <div className="text-right relative text-white md:text-xs text-[10px] usd-spacing truncate font-orbitron mt-2 text-sh1 flex justify-end gap-1">
                     <div className="relative inline-block">
                       <InfoIcon
-                        size={18}
+                        size={14}
                         className="md:mt-[1.5px] mt-[-1px] cursor-pointer"
                         onMouseEnter={() => setDollarInfo1(true)}
                         onMouseLeave={() => setDollarInfo1(false)}
@@ -1507,8 +1491,7 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
                       />
                       {dollarinfo1 && (
                         <div
-                          className="roboto fixed rt0 z-50 mt-2 md:w-[500px] w-[300px] whitespace-pre-wrap rounded-lg bg-black px-4 py-3 text-center md:text-sm text-[10px] font-bold text-white shadow-lg
-          "
+                          className="font-orbitron fixed rt0 z-50 mt-2 md:w-[450px] w-[300px] whitespace-pre-wrap rounded-lg bg-black px-4 py-3 text-center md:text-xs text-[9px] font-bold text-white shadow-lg"
                           onMouseEnter={() => setDollarInfo1(true)}
                           onMouseLeave={() => setDollarInfo1(false)}
                         >
@@ -1533,38 +1516,40 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
                   </div>
                 </div>
                 <div
-                  className={`relative flex justify-center flex-row md:mt-8 mt-6 xl:pt-0 ${
-                    order
-                      ? "xl:pt-[0px] lg:pt-[20px] pt-[350px] ttt xl:top-0 lg:top-[-140px] top-[-315px]"
-                      : "pt-0 top-0"
-                  }`}
+                  className={`relative flex justify-center flex-row md:mt-5 mt-4 xl:pt-0 ${order
+                    ? "xl:pt-[0px] lg:pt-[20px] pt-[350px] ttt xl:top-0 lg:top-[-140px] top-[-315px]"
+                    : "pt-0 top-0"
+                    }`}
                 >
                   <button
                     onClick={() => {
+                      if (!address) {
+                        openConnectModal?.();
+                        return;
+                      }
                       if (amountOut && parseFloat(amountOut) > 0) {
                         setInitialQuote(amountOut);
                         setAmountVisible(true);
                       }
                     }}
-                    disabled={isInsufficientBalance()}
-                    className={`gtw relative z-50 w-full uppercase md:h-[68px] h-11 bg-[#F59216] md:rounded-[10px] rounded-md mx-auto button-trans h- flex justify-center items-center transition-all ${
-                      isInsufficientBalance()
-                        ? "opacity-50 cursor-not-allowed"
-                        : " "
-                    } font-orbitron lg:text-2xl text-base font-extrabold`}
+                    disabled={address ? isInsufficientBalance() : false}
+                    className={`gtw relative z-50 w-full uppercase md:h-12 h-11 bg-[#F59216] md:rounded-[10px] rounded-md mx-auto button-trans h- flex justify-center items-center transition-all ${address && isInsufficientBalance()
+                      ? "opacity-50 cursor-not-allowed"
+                      : " "
+                      } font-orbitron lg:text-base text-base font-extrabold`}
                   >
                     <span>{getButtonText()}</span>
                   </button>
                 </div>
                 {selectedTokenA && selectedTokenB && (
-                  <div className="bg_swap_box mt-6 md:px-10 px-4 !py-6">
+                  <div className="bg_swap_box mt-6 md:px-5 px-4 !py-6">
                     <Routing isLoading={isRoutingLoading} />
                     {selectedTokenA && selectedTokenB && (
                       <div className="flex justify-between gap-2 items-center md:flex-nowrap flex-wrap">
                         <div>
-                          <div className="text-[#FF9900] text-base font-orbitron">
+                          <div className="text-[#FF9900] text-xs font-orbitron">
                             Min Received :
-                            <span className="text-[#FF9900] text-base font-bold mr-1">
+                            <span className="text-[#FF9900] text-xs font-bold mr-1">
                               {" "}
                               {formatNumber(
                                 parseFloat(minToReceiveAfterFee).toFixed(6),
@@ -1572,9 +1557,9 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
                             </span>
                             {selectedTokenB.ticker}
                           </div>
-                          <div className="text-[#FF9900] text-base font-orbitron">
+                          <div className="text-[#FF9900] text-xs font-orbitron">
                             Rate :
-                            <span className="text-[#FF9900] text-base font-bold">
+                            <span className="text-[#FF9900] text-xs font-bold">
                               {" "}
                               1
                             </span>
@@ -1582,7 +1567,7 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
                               ? selectedTokenB.ticker
                               : selectedTokenA.ticker}{" "}
                             =
-                            <span className="text-[#FF9900] text-base font-bold mr-1">
+                            <span className="text-[#FF9900] text-xs font-bold mr-1">
                               {" "}
                               {getRateDisplay()}
                             </span>
@@ -1599,7 +1584,7 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
                           >
                             Price Impact
                           </div>
-                          <div className="text-center text-black text-base font-normal font-orbitron px-3 py-1 bg-[#FFE3BA] rounded-lg">
+                          <div className="text-center text-black text-xs font-normal font-orbitron px-3 py-1 bg-[#FFE3BA] rounded-lg">
                             {priceImpact} %
                           </div>
                         </div>
@@ -1643,6 +1628,14 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
           <Transaction
             transactionHash={swapHash}
             onClose={() => setSwapSuccess(false)}
+            amountIn={amountIn}
+            amountOut={parseFloat(amountOut).toFixed(6)}
+            tokenA={selectedTokenA}
+            tokenB={selectedTokenB}
+            rate={getRateDisplay()}
+            minReceived={parseFloat(minToReceiveAfterFee).toFixed(6)}
+            usdValueTokenA={usdValueTokenA}
+            usdValueTokenB={usdValueTokenB}
           />
         )}
       </div>
@@ -1659,7 +1652,7 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
             amountOut={parseFloat(amountOut).toFixed(6)}
             tokenA={selectedTokenA}
             tokenB={selectedTokenB}
-            refresh={() => {}}
+            refresh={() => { }}
             confirm={confirmSwap}
             handleApprove={handleApprove}
             needsApproval={needsApproval}
@@ -1684,46 +1677,6 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
           />
         )}
       </div>
-      {/* {selectedTokenA && selectedTokenB && (
-        <div className="xl:fixed absolute bg-[#FFE6C0] left-0 lefts mw300 2xl:bottom-[9%] lg:bottom-[5%] bottom-[120px] scale8 border-4 border-l-2 border-[#FF9900] md:p-6 p-4 rounded-xl-view">
-          <h6 className="font-orbitron md:text-sm text-[10px]">
-            <span>
-              <span className="font-extrabold">Min Received</span> :{" "}
-              <span className="rigamesh truncate">
-                {formatNumber(parseFloat(minToReceiveAfterFee).toFixed(6))}{" "}
-              </span>
-              <span className="font-extrabold">{selectedTokenB.ticker}</span>
-            </span>
-          </h6>
-          <h6 className="font-orbitron md:text-sm text-[10px] py-3">
-            <span>
-              <span className="font-extrabold">Rate :</span>{" "}
-              <span className="font-bold">1</span>{" "}
-              <span className="font-extrabold">
-                {isRateReversed ? selectedTokenB.ticker : selectedTokenA.ticker}{" "}
-                ={" "}
-              </span>
-              <span className="rigamesh truncate">{getRateDisplay()}</span>{" "}
-              <span className="font-extrabold">
-                {isRateReversed ? selectedTokenA.ticker : selectedTokenB.ticker}
-              </span>
-            </span>
-          </h6>
-          <h6 className="font-orbitron md:text-sm text-[10px]">
-            <span>
-              <span className="font-extrabold">Price Impact:</span>{" "}
-              <span
-                className={`rigamesh truncate ${getPriceImpactColor(
-                  priceImpact,
-                )}`}
-              >
-                {" "}
-                {priceImpact} %
-              </span>
-            </span>
-          </h6>
-        </div>
-      )} */}
     </>
   );
 };

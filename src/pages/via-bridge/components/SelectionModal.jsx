@@ -1,6 +1,7 @@
 import { X } from "lucide-react";
 import { LogoService } from "../../../services/LogoService";
 import { TokenLogo } from "../../../components/TokenLogo";
+import EL from "../../../assets/images/emp-logo.png";
 
 const SelectionModal = ({
   isOpen,
@@ -26,20 +27,20 @@ const SelectionModal = ({
       >
         {/* Header */}
         <div className="flex justify-center items-center mb-4">
-          <h3 className="md:text-2xl text-lg font-medium text-white text-center tracking-widest md:mt-5 mt-2">
+          <h2 className="md:text-lg capitalize text-lg font-medium text-white font-orbitron text-center tracking-widest flex gap-1 items-center justify-center">
+            <img src={EL} alt="EL" className="w-10 object-contain" />
             {title}
-          </h3>
+          </h2>
 
           <button
             onClick={onClose}
-            className="absolute md:right-10 right-7 top-11 cursor-pointer tilt hover:text-[#FF9900]"
+            className="absolute md:right-10 right-7 top-10 cursor-pointer tilt hover:text-[#FF9900]"
           >
             <X size={30} />
           </button>
         </div>
-
         {/* Items */}
-        <div className="max-h-60 overflow-y-auto chain_scroll">
+        <div className="max-h-60 overflow-y-auto chain_scroll pr-2">
           {items.map((item) => {
             // For tokens, use TokenLogo; for chains, use chain logo
             const isToken = item.address !== undefined;
@@ -49,10 +50,10 @@ const SelectionModal = ({
               <div
                 key={item.id}
                 onClick={() => onSelect(item)}
-                className="p-3.5 flex items-center gap-3 hoverclip rounded-lg cursor-pointer my-3.5"
+                className="p-3.5 flex items-center gap-3 hoverclip text-[#FFD484] hover:text-white rounded-lg cursor-pointer my-3.5"
               >
                 {isToken ? (
-                  <div className="w-[33px] h-[33px] flex justify-center items-center shrink-0">
+                  <div className="w-[23px] h-[23px] flex justify-center items-center shrink-0">
                     <TokenLogo
                       chainId={chainId}
                       tokenAddress={item.address}
@@ -63,7 +64,7 @@ const SelectionModal = ({
                   </div>
                 ) : (
                   logo && (
-                    <div className="w-[33px] h-[33px] flex justify-center items-center shrink-0">
+                    <div className="w-[23px] h-[23px] flex justify-center items-center shrink-0">
                       <img
                         src={logo}
                         alt={item.name}
@@ -72,7 +73,7 @@ const SelectionModal = ({
                     </div>
                   )
                 )}
-                <span className="font-medium text-white text-2xl">
+                <span className="font-medium text-base">
                   {item.name || item.symbol}
                 </span>
               </div>

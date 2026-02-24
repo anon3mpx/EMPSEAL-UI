@@ -13,6 +13,7 @@ import { QueryClientProvider, QueryClient } from "@tanstack/react-query";
 import { config } from "./config";
 import { bridgeConfig } from "./bridgeConfig";
 import { viaBridgeConfig } from "./viaBridgeConfig";
+import { ChainProvider } from "../hooks/ChainContext";
 import React from "react";
 
 const queryClient = new QueryClient();
@@ -33,16 +34,19 @@ export default function WagmiProviderWrapper({
     appType === 'bridge'
       ? bridgeConfig
       : appType === 'via-bridge'
-      ? viaBridgeConfig
-      : config;
+        ? viaBridgeConfig
+        : config;
 
   return (
     <WagmiProvider config={wagmiConfig}>
       <QueryClientProvider client={queryClient}>
         <RainbowKitProvider key={appType} theme={darkTheme()} modalSize="compact">
-          {children}
+          <ChainProvider>
+            {children}
+          </ChainProvider>
         </RainbowKitProvider>
       </QueryClientProvider>
     </WagmiProvider>
   );
 }
+

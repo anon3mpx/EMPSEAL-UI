@@ -38,7 +38,7 @@ export default function AddressCard({
   return (
     <div
       ref={popupRef}
-      className="relative bg-black text-white md:p-12 p-8 rounded-2xl clip-bg flex flex-col items-center gap-4 md:max-w-[540px] w-full border border-[#FF9900]"
+      className="relative bg-black text-white md:p-8 p-8 rounded-2xl clip-bg flex flex-col items-center gap-4 md:max-w-[540px] w-full border border-[#FF9900]"
     >
       <svg
         onClick={onClose}
@@ -57,20 +57,20 @@ export default function AddressCard({
           strokeLinejoin="round"
         />
       </svg>
-      <h2 className="md:text-2xl capitalize text-lg font-medium text-white font-orbitron text-center tracking-widest flex gap-1 items-center justify-center">
+      <h2 className="md:text-lg capitalize text-lg font-medium text-white font-orbitron text-center tracking-widest flex gap-1 items-center justify-center">
         <img src={EL} alt="EL" className="w-10 object-contain" />
         Address
       </h2>
-      <div className="bg-[#382B19] py-10 w-full rounded-xl text-center mb-8 mt-3">
-        <p className="text-3xl text-[#FFD484] font-bold font-orbitron">
+      <div className="bg-[#382B19] py-6 w-full rounded-xl text-center mb-5 mt-3">
+        <p className="text-2xl text-[#FFD484] font-bold font-orbitron">
           {shortAddress}
         </p>
-        <p className="text-white font-medium text-xl font-orbitron">
+        <p className="text-white font-medium text-lg font-orbitron">
           {balance} PLS
         </p>
       </div>
       <div
-        className="relative hoverclip_2 flex gap-2 items-center justify-center text-[#FF9900] rounded-lg px-6 py-3 w-full font-black text-xl font-orbitron text-center cursor-pointer transition-all"
+        className="relative hoverclip_2 flex gap-2 items-center justify-center text-[#FF9900] rounded-lg px-6 py-3 w-full font-black text-lg font-orbitron text-center cursor-pointer transition-all"
         onClick={onCopy}
       >
         <svg
@@ -98,7 +98,7 @@ export default function AddressCard({
         <span className="relative z-10">Copy Address</span>
       </div>
       <div
-        className="mt-2 relative hoverclip_2 flex gap-2 items-center justify-center text-white rounded-lg px-6 py-3 w-full font-bold text-xl font-orbitron text-center cursor-pointer transition-all"
+        className="mt-2 relative hoverclip_2 flex gap-2 items-center justify-center text-white rounded-lg px-6 py-3 w-full font-bold text-lg font-orbitron text-center cursor-pointer transition-all"
         onClick={onDisconnect}
       >
         <span className="relative z-10">Disconnect</span>

@@ -1,10 +1,13 @@
-import ChainSelector from "../components/gas/ChainSelector";
+// import ChainSelector from "../components/gas/ChainSelector";
 import TransferPanel from "../components/gas/TransferPanel";
 import TransactionHistory from "../components/gas/TransactionHistory";
 import Wallet from "./swap/Wallet";
 import BG from "../assets/images/empx-bg1.webp";
+import { useState } from "react";
 
 export default function GasBridgePage() {
+  const [isChainModalOpen, setIsChainModalOpen] = useState(false);
+
   return (
     <>
       <div className="w-full">
@@ -17,15 +20,17 @@ export default function GasBridgePage() {
           <div className="lg:absolute relative lg:top-[100px] top-[1px] right-0 w-full">
             <Wallet allowUnsupported={true} />
           </div>
-          <div className="text-center mb-4 lg:mt-0 mt-1">
-            <h1 className="2xl:text-5xl font40 text-2xl text-center text-[#FF9900] font-orbitron font-bold mb-2">
-              Gas <br /> <span className="text-white">Anywhere</span>
-            </h1>
+          <div className={!isChainModalOpen ? "scales8 top70" : ""}>
+            <div className="text-center mb-8 lg:mt-0 mt-1">
+              <h1 className="2xl:text-[43px] 2xl:leading-[40px] font40 text-2xl text-center text-[#FF9900] font-orbitron font-bold mb-2">
+                Gas <br /> <span className="text-white">Anywhere</span>
+              </h1>
+            </div>
+            <TransferPanel setIsChainModalOpen={setIsChainModalOpen} />
+            <div className="md:mt-5 mt-4 md:max-w-[1000px] w-full mx-auto p-4">
+              <TransactionHistory />
+            </div>
           </div>
-        </div>
-        <TransferPanel />
-        <div className="md:mt-5 mt-4 md:max-w-[1000px] w-full mx-auto p-4">
-          <TransactionHistory />
         </div>
       </div>
     </>

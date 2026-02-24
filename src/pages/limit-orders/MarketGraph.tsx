@@ -293,39 +293,39 @@ export default function MarketTargetChart({
           // Bracket layout with three columns
           <>
             <div>
-              <div className="text-2xl font-semibold text-[#FFD484]">
+              <div className="text-lg font-semibold text-[#FFD484]">
                 {stopLossDisplay}
               </div>
-              <div className="text-white text-sm">Stop Loss</div>
+              <div className="text-white text-xs">Stop Loss</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-semibold text-[#FFD484]">
+              <div className="text-lg font-semibold text-[#FFD484]">
                 {entryDisplay}
               </div>
-              <div className="text-white text-sm">Entry Price</div>
+              <div className="text-white text-xs">Entry Price</div>
             </div>
             <div className="text-right">
-              <div className="text-2xl font-semibold text-[#FFD484]">
+              <div className="text-lg font-semibold text-[#FFD484]">
                 {takeProfitDisplay}
               </div>
-              <div className="text-white text-sm">Take Profit</div>
+              <div className="text-white text-xs">Take Profit</div>
             </div>
           </>
         ) : (
           // Original layout for SELL and BUY
           <>
             <div>
-              <div className="text-2xl font-semibold text-[#FFD484]">
+              <div className="text-lg font-semibold text-[#FFD484]">
                 {marketPrice
                   ? `$ ${parseFloat(marketPrice).toFixed(3)}`
                   : "$ 0.673"}
               </div>
-              <div className="text-white text-sm">
+              <div className="text-white text-xs">
                 {isSellStrategy ? "Current Price" : "Target Price"}
               </div>
             </div>
             <div className="text-right">
-              <div className="text-2xl font-semibold text-[#FFD484]">
+              <div className="text-lg font-semibold text-[#FFD484]">
                 {(() => {
                   if (isSellStrategy) {
                     return marketPrice
@@ -338,7 +338,7 @@ export default function MarketTargetChart({
                   }
                 })()}
               </div>
-              <div className="text-white text-sm">
+              <div className="text-white text-xs">
                 {isSellStrategy ? "Target Price" : "Current Price"}
               </div>
             </div>

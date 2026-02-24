@@ -84,7 +84,7 @@ export function SlippageCalculator({
       {" "}
       <div
         ref={modalRef}
-        className="bg-black clip-bg rounded-xl lg:px-12 lg:py-10 p-6 md:max-w-[700px] w-full relative"
+        className="bg-black clip-bg rounded-xl lg:px-8 lg:py-8 p-6 md:max-w-[700px] w-full relative"
       >
         {/* Close Button */}
         <button
@@ -110,7 +110,7 @@ export function SlippageCalculator({
             ></path>{" "}
           </svg>{" "}
         </button>
-        <h2 className="mb-4 md:text-2xl capitalize text-lg font-medium text-white font-orbitron text-center tracking-widest flex gap-1 items-center justify-center">
+        <h2 className="mb-4 md:text-lg capitalize text-lg font-medium text-white font-orbitron text-center tracking-widest flex gap-1 items-center justify-center">
           <img src={EL} alt="EL" className="w-10 object-contain" />
           Slippage Settings
         </h2>
@@ -147,13 +147,13 @@ export function SlippageCalculator({
         <div className="flex justify-center items-center mt-8 flex-col gap-2">
           <button
             onClick={handleReset}
-            className={`gtw bg-[#F59216] relative w-full md:h-16 rounded-xl h-12 flex items-center justify-center font-roboto font-bold md:text-2xl text-xl transition-all font-orbitron
+            className={`gtw bg-[#F59216] relative w-full md:h-12 rounded-xl h-11 flex items-center justify-center font-roboto font-bold md:text-lg text-base transition-all font-orbitron
    `}
           >
             Reset Slippage
           </button>
           <button
-            className="px-4 py-1 mt-4 bg-black font-semibold md:text-2xl text-xl text-[#FF9900] rounded font-orbitron"
+            className="px-4 py-1 mt-4 bg-black font-semibold md:text-lg text-base text-[#FF9900] rounded font-orbitron"
             onClick={() => handleDone()}
           >
             Done

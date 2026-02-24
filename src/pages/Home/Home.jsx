@@ -36,7 +36,7 @@ const Home = () => {
         />
       </Helmet>
       {/*  */}
-      <div className='bg-[#121214] py-3 relative'>
+      <div className='bg-[#121214] py-3 relative h-screen'>
         <div className='container-class 2xl:max-w-[1536px] md:max-w-[1036px] mx-auto w-full px-4 flex justify-center xl:gap-9 gap-4 items-start 2xl:py-10 py-2 md:flex-nowrap flex-wrap'>
           <div className='section-class 2xl:max-w-[370px] xl:max-w-[370px] lg:max-w-[680px] md:max-w-[515px] w-full md:mt-0 mt-10'>
             <div className=' w-full py-10 px-3 flex flex-col items-center border-[#C71328] border h_grid rounded-3xl 2xl:h-[474px] lg:h-[428px] md:h-[570px] relative'>

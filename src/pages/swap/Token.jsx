@@ -6,6 +6,7 @@ import { useChainConfig } from "../../hooks/useChainConfig";
 import { useMulticallBalances } from "../../hooks/useMulticallBalances";
 import { useAccount } from "wagmi";
 import Web3 from "web3";
+import EL from "../../assets/images/emp-logo.png";
 
 // Maximum number of tokens to render initially (virtualization)
 const INITIAL_RENDER_LIMIT = 30;
@@ -48,7 +49,7 @@ const TokenListItem = ({
           />
         </div>
         <div>
-          <div className="text-[#FFD484] font-orbitron font-bold md:text-lg text-sm font-orbitron leading-relaxed tracking-wide">
+          <div className="text-[#FFD484] font-orbitron font-bold md:text-base text-sm font-orbitron leading-relaxed tracking-wide">
             {token.name}
           </div>
           <div className="text-white text-xs font-orbitron">
@@ -80,7 +81,7 @@ const TokenListItem = ({
         </button>
 
         <div className="text-right min-w-[100px]">
-          <div className="text-[#FFD484] md:text-lg text-sm font-bold font-orbitron tracking-wide">
+          <div className="text-[#FFD484] md:text-base text-sm font-bold font-orbitron tracking-wide">
             {isLoading ? "Loading..." : formattedBalance}
           </div>
         </div>
@@ -410,7 +411,7 @@ const Token = ({ onClose, onSelect }) => {
       <div className="w-full flex justify-center my-auto items-center">
         <div
           ref={modalRef}
-          className="md:max-w-[618px] w-full rounded-3xl relative py-4 md:px-10 px-4 mx-auto clip-bg"
+          className="md:max-w-[618px] w-full rounded-3xl relative py-4 md:px-8 px-4 mx-auto clip-bg"
         >
           <svg
             onClick={onClose}
@@ -429,17 +430,17 @@ const Token = ({ onClose, onSelect }) => {
               strokeLinejoin="round"
             />
           </svg>
-
           <div className="flex gap-4 items-center justify-center cursor-pointer mt-2 py-3">
-            <p className="md:text-2xl capitalize text-lg font-bold text-white font-orbitron text-center tracking-widest">
+            <h2 className="md:text-lg capitalize text-lg font-medium text-white font-orbitron text-center tracking-widest flex gap-1 items-center justify-center">
+              <img src={EL} alt="EL" className="w-10 object-contain" />
               Select a token
-            </p>
+            </h2>
           </div>
-          <div className="grid md:grid-cols-5 grid-cols-3 gap-2 mt-4 md:px-[24px] px-1">
-            {featureTokens.map((token, index) => (
+          <div className="grid md:grid-cols-5 grid-cols-3 gap-2 mt-4 md:px-2 px-1">
+            {featureTokens.slice(0, 8).map((token, index) => (
               <div
                 key={index}
-                className="flex flex-row items-center cursor-pointer font-orbitron md:rounded-2xl rounded-lg border border-[#FF9900] md:p-[14px] p-2"
+                className="flex flex-row items-center cursor-pointer font-orbitron md:rounded-xl rounded-lg border border-[#FF9900] md:p-[12px] p-2"
                 onClick={() => handleFeaturedTokenClick(token)}
               >
                 <span className="flex items-center">
@@ -447,13 +448,13 @@ const Token = ({ onClose, onSelect }) => {
                     <img
                       src={token.logoURI || token.image}
                       alt={token.name}
-                      className="w-4 h-4 rounded-full relative z-10 p-[1px] object-contain"
+                      className="w-4 h-4 rounded-full relative z-10 p-[1px] object-contain flex shrink-0"
                       onError={(e) =>
                         (e.target.src = "path/to/fallback/image.png")
                       }
                     />
                   </div>
-                  <p className="text-white font-black text-xs mt-0 ms-2 font-orbitron">
+                  <p className="text-white font-black text-[10px] mt-0 ms-2 font-orbitron truncate w-14">
                     {token.symbol || token.ticker}
                   </p>
                 </span>
@@ -461,7 +462,7 @@ const Token = ({ onClose, onSelect }) => {
             ))}
           </div>
           <div className="flex gap-4 items-center justify-between cursor-pointer mt-1 py-3">
-            <p className="md:text-2xl capitalize text-lg font-bold text-white font-orbitron text-center tracking-widest">
+            <p className="md:text-lg capitalize text-lg font-bold text-white font-orbitron text-center tracking-widest">
               Search token
             </p>
             {/* Show favorite count and clear button */}

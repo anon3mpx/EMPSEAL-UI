@@ -146,7 +146,7 @@ export default function WalletConnect({
                         strokeLinejoin="round"
                       />
                     </svg>
-                    <h2 className="mt-4 md:text-2xl capitalize text-lg font-medium text-white font-orbitron text-center tracking-widest flex gap-1 items-center justify-center">
+                    <h2 className="mt-4 md:text-lg capitalize text-base font-medium text-white font-orbitron text-center tracking-widest flex gap-1 items-center justify-center">
                       <img src={EL} alt="EL" className="w-10 object-contain" />
                       Wallet Connect
                     </h2>
@@ -212,10 +212,10 @@ export default function WalletConnect({
                                       : "https://rainbowkit.com/icons/wallet.svg"
                               }
                               alt={connector.name}
-                              className="w-7 h-7 relative z-10 flex flex-shrink-0 object-contain rounded-full"
+                              className="w-5 h-5 relative z-10 flex flex-shrink-0 object-contain rounded-full"
                             />
                           </div>
-                          <p className="md:text-lg text-[10px] text-[#FF9900] font-orbitron font-bold">
+                          <p className="md:text-base text-[10px] text-[#FF9900] font-orbitron font-bold">
                             {connector.name}
                           </p>
                         </div>

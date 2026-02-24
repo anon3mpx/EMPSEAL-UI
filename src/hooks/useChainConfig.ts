@@ -1,4 +1,4 @@
-import { useChainId } from 'wagmi';
+import { useSelectedChainId } from './ChainContext';
 import { SUPPORTED_CHAINS } from '../config/chains';
 import { CHAIN_TOKENS } from '../config/tokens';
 import { CHAIN_ADAPTERS } from '../config/adapters';
@@ -19,7 +19,7 @@ interface Adapter {
 }
 
 export function useChainConfig() {
-  const chainId = useChainId();
+  const chainId = useSelectedChainId();
   const [tokenList, setTokenList] = useState<Token[]>([]);
   const [adapters, setAdapters] = useState<Adapter[]>([]);
   const [featureTokens, setfeatureTokens] = useState<Token[]>([]);

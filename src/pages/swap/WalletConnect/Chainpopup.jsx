@@ -18,6 +18,7 @@ const ChainPopup = ({
   availableChains,
   chain,
   switchChain,
+  onSelectChain,
 }) => {
   const [searchTerm, setSearchTerm] = useState("");
 
@@ -39,7 +40,7 @@ const ChainPopup = ({
     "cronos mainnet":
       "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQK7JCGpwklwB4QMz4g7NoNTd1Epuyi48zgS91loU1-b2RHCK5W",
     base: Base, // local import
-     berachain: Berachain,
+    berachain: Berachain,
     blast:
       "https://cdn.prod.website-files.com/65a6baa1a3f8ed336f415cb4/65a6c461965bf28af43b80bc_Logo%20Yellow%20on%20Transparent%20Background.png",
     "manta pacific mainnet":
@@ -116,7 +117,7 @@ const ChainPopup = ({
               strokeLinejoin="round"
             />
           </svg>
-          <h2 className="mt-4 md:text-2xl capitalize text-lg font-medium text-white font-orbitron text-center tracking-widest flex gap-1 items-center justify-center">
+          <h2 className="mt-4 md:text-lg capitalize text-base font-medium text-white font-orbitron text-center tracking-widest flex gap-1 items-center justify-center">
             <img src={EL} alt="EL" className="w-10 object-contain" />
             Select Chain
           </h2>
@@ -164,15 +165,18 @@ const ChainPopup = ({
                 <div
                   key={c.id}
                   onClick={() => {
-                    switchChain({ chainId: c.id });
+                    if (onSelectChain) {
+                      onSelectChain(c.id);
+                    } else {
+                      switchChain({ chainId: c.id });
+                    }
                     setShowChainPopup(false);
                   }}
-                  className={`group relative mt-2 flex items-center px-2 gap-2 cursor-pointer rounded-lg text-[#FFD484] hover:text-white py-3 w-full transition-all roboto hoverclip ${
-                    isActive ? "" : ""
+                  className={`group relative mt-2 flex items-center px-2 gap-2 cursor-pointer rounded-lg text-[#FFD484] hover:text-white py-3 w-full transition-all roboto hoverclip ${isActive ? "" : ""
                     // sc1
-                  }`}
+                    }`}
                 >
-                  <div className="w-[33px] h-[33px] flex justify-center items-center shrink-0">
+                  <div className="w-[23px] h-[23px] flex justify-center items-center shrink-0">
                     <img
                       src={chainIcon}
                       alt={c.name}
@@ -181,9 +185,8 @@ const ChainPopup = ({
                     />
                   </div>
                   <span
-                    className={`font-orbitron text-xl font-semibold text-center px-3 ${
-                      isActive ? "" : ""
-                    }`}
+                    className={`font-orbitron text-base font-semibold text-center px-2 ${isActive ? "" : ""
+                      }`}
                   >
                     {c.name}
                   </span>

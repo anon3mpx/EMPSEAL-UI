@@ -96,9 +96,9 @@ const ChainModal = ({
       >
         <ChainLogo
           chain={chain}
-          className="md:w-6 md:h-6 w-4 h-4 rounded-full"
+          className="md:w-5 md:h-5 w-4 h-4 rounded-full"
         />
-        <span className="font-orbitron text-xl font-semibold">
+        <span className="font-orbitron text-base font-semibold">
           {chain.name}
         </span>
       </div>
@@ -109,7 +109,7 @@ const ChainModal = ({
     <div className="bg-black bg-opacity-40 py-10 flex justify-center items-center overflow-y-auto h-full my-auto fixed top-0 px-4 left-0 right-0 bottom-0 z-[9999999] fade-in-out fade-out">
       <div
         ref={modalRef}
-        className="relative w-full max-w-[650px] rounded-3xl bg-black py-6 md:px-10 md:py-12 px-6 clip-bg"
+        className="relative w-full max-w-[650px] rounded-3xl bg-black py-6 md:px-8 md:py-8 px-6 clip-bg"
       >
         {/* Close */}
         <button
@@ -120,7 +120,7 @@ const ChainModal = ({
         </button>
 
         {/* Title */}
-        <h2 className="md:text-2xl capitalize text-lg font-medium text-white font-orbitron text-center tracking-widest flex gap-1 items-center justify-center">
+        <h2 className="md:text-lg capitalize text-base font-medium text-white font-orbitron text-center tracking-widest flex gap-1 items-center justify-center">
           <img src={EL} alt="EL" className="w-10 object-contain" />
           {title}
         </h2>
@@ -142,7 +142,7 @@ const ChainModal = ({
         </div>
 
         {/* Chains */}
-        <div className="mt-4 max-h-[350px] overflow-y-auto px-2">
+        <div className="mt-4 max-h-[350px] overflow-y-auto px-2 chain_scroll">
           {/* MAINNETS */}
           {mainnets.length > 0 && (
             <>
@@ -170,7 +170,7 @@ const ChainModal = ({
 /* ---------------------------------
    Main Selector Component
 ---------------------------------- */
-const ChainSelector = ({ onSwitch }) => {
+const ChainSelector = ({ onSwitch, setIsChainModalOpen }) => {
   const { data: chains, isLoading, error } = useGetChains();
   const { fromChainId, toChainId, setFromChain, setToChain } =
     useGasBridgeStore();
@@ -188,14 +188,14 @@ const ChainSelector = ({ onSwitch }) => {
 
   if (isLoading)
     return (
-      <div className="text-white font-extrabold font-orbitron md:text-xl text-xs capitalize">
+      <div className="text-white font-extrabold font-orbitron md:text-xs text-[10px] capitalize">
         Loading chains...
       </div>
     );
 
   if (error)
     return (
-      <div className="font-extrabold font-orbitron md:text-xl text-xs capitalize text-red-500">
+      <div className="font-extrabold font-orbitron md:text-xs text-[10px] capitalize text-red-500">
         Error fetching chains.
       </div>
     );
@@ -221,26 +221,29 @@ const ChainSelector = ({ onSwitch }) => {
   const fromChain = formattedChains.find((c) => c.chain === fromChainId);
   const toChain = formattedChains.find((c) => c.chain === toChainId);
 
-  const c = (text) => {
+  const getFontSizeClass = (text) => {
     const length = text?.toString().length || 0;
-    if (length > 10) return "text-xs md:text-base";
+    if (length > 10) return "text-[10px] md:text-xs";
     // if (length > 10) return "text-xs md:text-xl";
-    return "text-xs md:text-xl";
+    return "text-[10px] md:text-xs";
   };
 
   return (
     <>
-      <div className="space-y-4 lg:h-[430px] h_cs md:h-[350px] h-[335px] flex flex-col justify-between">
+      <div className="space-y-4 lg:h-[340px] h_cs md:h-[340px] h-[285px] flex flex-col justify-between">
         {/* FROM */}
         <button
-          onClick={() => setActiveModal("from")}
-          className="flex md:gap-4 gap-1 items-center bg-black border border-[#FF9900] md:rounded-[10px] rounded-lg md:px-5 px-3 md:py-[10px] py-2 justify-center w-full"
+          onClick={() => {
+            setActiveModal("from");
+            setIsChainModalOpen(true);
+          }}
+          className="flex md:gap-4 gap-1 items-center bg-black border border-[#FF9900] md:rounded-[7px] rounded-lg md:px-5 px-3 md:py-[10px] py-2 justify-center w-full"
         >
           {fromChain ? (
             <>
               <ChainLogo
                 chain={fromChain}
-                className="md:w-6 md:h-6 w-4 h-4 rounded-full"
+                className="md:w-5 md:h-5 w-4 h-4 rounded-full"
               />
               {/* lg:text-xl text-sm */}
               <span
@@ -252,21 +255,24 @@ const ChainSelector = ({ onSwitch }) => {
               </span>
             </>
           ) : (
-            <span className="text-white font-extrabold font-orbitron md:text-xl text-xs capitalize">
+            <span className="text-white font-extrabold font-orbitron md:text-xs text-[10px] capitalize">
               Select Chain
             </span>
           )}
         </button>
         {/* TO */}
         <button
-          onClick={() => setActiveModal("to")}
-          className="flex md:gap-4 gap-1 items-center bg-black border border-[#FF9900] md:rounded-[10px] rounded-lg md:px-5 px-3 md:py-[10px] py-2 justify-center w-full"
+          onClick={() => {
+            setActiveModal("to");
+            setIsChainModalOpen(true);
+          }}
+          className="flex md:gap-4 gap-1 items-center bg-black border border-[#FF9900] md:rounded-[7px] rounded-lg md:px-5 px-3 md:py-[10px] py-2 justify-center w-full"
         >
           {toChain ? (
             <>
               <ChainLogo
                 chain={toChain}
-                className="md:w-6 md:h-6 w-4 h-4 rounded-full"
+                className="md:w-5 md:h-5 w-4 h-4 rounded-full"
               />
               <span
                 className={`text-white font-bold font-orbitron leading-normal bg-black appearance-none outline-none ${getFontSizeClass(
@@ -277,7 +283,7 @@ const ChainSelector = ({ onSwitch }) => {
               </span>
             </>
           ) : (
-            <span className="text-white font-extrabold font-orbitron md:text-xl text-xs capitalize">
+            <span className="text-white font-extrabold font-orbitron md:text-xs text-[10px] capitalize">
               Select Chain
             </span>
           )}
@@ -287,7 +293,10 @@ const ChainSelector = ({ onSwitch }) => {
       {/* FROM MODAL */}
       <ChainModal
         isOpen={activeModal === "from"}
-        onClose={() => setActiveModal(null)}
+        onClose={() => {
+          setActiveModal(null);
+          setIsChainModalOpen(false);
+        }}
         chains={formattedChains}
         selectedChainId={fromChainId}
         onSelectChain={setFromChain}

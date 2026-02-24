@@ -85,13 +85,13 @@ const Routing = ({ routing, isLoading }) => {
     return (
       <div className="w-full">
         <div className="flex justify-between gap-2 items-start">
-          <p className="text-[#FFE3BA] text-lg font-bold font-orbitron">
+          <p className="text-[#FFE3BA] text-xs font-bold font-orbitron">
             DETAILS
           </p>
           <div className="flex gap-2 items-center">
-            <div className="text-right text-[#FF9900] text-2xl font-extrabold font-orbitron">
+            <div className="text-right text-[#FF9900] text-lg font-extrabold font-orbitron">
               SPLIT
-              <p className="text-right text-[#FF9900] text-sm font-normal font-orbitron">
+              <p className="text-right text-[#FF9900] text-xs font-normal font-orbitron">
                 Routing
               </p>
             </div>
@@ -115,13 +115,13 @@ const Routing = ({ routing, isLoading }) => {
     return (
       <div className="w-full">
         <div className="flex justify-between gap-2 items-start">
-          <p className="text-[#FFE3BA] text-lg font-bold font-orbitron">
+          <p className="text-[#FFE3BA] text-xs font-bold font-orbitron">
             DETAILS
           </p>
           <div className="flex gap-2 items-center">
-            <div className="text-right text-[#FF9900] text-2xl font-extrabold font-orbitron">
+            <div className="text-right text-[#FF9900] text-lg font-extrabold font-orbitron">
               SPLIT
-              <p className="text-right text-[#FF9900] text-sm font-normal font-orbitron">
+              <p className="text-right text-[#FF9900] text-xs font-normal font-orbitron">
                 Routing
               </p>
             </div>
@@ -138,13 +138,13 @@ const Routing = ({ routing, isLoading }) => {
     return (
       <div className="w-full">
         <div className="flex justify-between gap-2 items-start">
-          <p className="text-[#FFE3BA] text-lg font-bold font-orbitron">
+          <p className="text-[#FFE3BA] text-xs font-bold font-orbitron">
             DETAILS
           </p>
           <div className="flex gap-2 items-center">
-            <div className="text-right text-[#FF9900] text-2xl font-extrabold font-orbitron">
+            <div className="text-right text-[#FF9900] text-lg font-extrabold font-orbitron">
               SPLIT
-              <p className="text-right text-[#FF9900] text-sm font-normal font-orbitron">
+              <p className="text-right text-[#FF9900] text-xs font-normal font-orbitron">
                 Routing
               </p>
             </div>
@@ -158,13 +158,13 @@ const Routing = ({ routing, isLoading }) => {
   return (
     <div className="w-full">
       <div className="flex justify-between gap-2 items-start">
-        <p className="text-[#FFE3BA] text-lg font-bold font-orbitron">
+        <p className="text-[#FFE3BA] text-xs font-bold font-orbitron">
           DETAILS
         </p>
         <div className="flex gap-2 items-center">
-          <div className="text-right text-[#FF9900] text-2xl font-extrabold font-orbitron">
+          <div className="text-right text-[#FF9900] text-lg font-extrabold font-orbitron">
             SPLIT
-            <p className="text-right text-[#FF9900] text-sm font-normal font-orbitron">
+            <p className="text-right text-[#FF9900] text-xs font-normal font-orbitron">
               Routing
             </p>
           </div>
@@ -220,7 +220,7 @@ const Routing = ({ routing, isLoading }) => {
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
           >
-            <div className="text-[#FF9900] font-bold text-sm font-orbitron mb-2">
+            <div className="text-[#FF9900] font-bold text-xs font-orbitron mb-2">
               Route Details
             </div>
             <div className="flex flex-wrap items-center gap-2">
