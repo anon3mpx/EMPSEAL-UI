@@ -2543,7 +2543,7 @@ export function CreateOrderForm({
                         </div>
                       </div>
                     </div>
-                    <p className="text-[#FF9900] text-right md:text-xl text-base font-orbitron font-bold">
+                    <p className="text-[#FF9900] text-right md:text-lg text-base font-orbitron font-bold">
                       ${tokenOutInfo?.symbol || "USDT"}{" "}
                       <span className="font-normal">per</span> $LINK
                     </p>
