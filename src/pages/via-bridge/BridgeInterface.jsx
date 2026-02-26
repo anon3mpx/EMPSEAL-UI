@@ -294,7 +294,7 @@ const BridgeInterface = () => {
         }
 
         if (!networkSymbol) {
-          console.log("No network symbol mapping for chain:", toChainId);
+          // console.log("No network symbol mapping for chain:", toChainId);
           setDestTokenPrice(null);
           setDestUsdValue("0.00");
           setIsDestPriceLoading(false);
@@ -981,10 +981,11 @@ const BridgeInterface = () => {
 
   return (
     <>
-      <div className="md:max-w-[750px] mx-auto w-full md:px-1 px-4 justify-center xl:gap-4 gap-4 items-start 2xl:pt-2 py-2 md:mt-4 mt-1 scales-b scales-top scales-top_via">
+      {/* scales-b scales-top scales-top_via */}
+      <div className="md:max-w-[750px] scales-b scales-top_via_1 mx-auto w-full md:px-1 px-4 justify-center xl:gap-4 gap-4 items-start 2xl:pt-2 py-2 md:mt-4 mt-1">
         {!isCorrectChain && address && sourceChain && (
           <div
-            className="mb-10 flex items-start gap-3 cursor-pointer bg_swap_box_chain"
+            className="mb-4 flex items-start gap-3 cursor-pointer bg_swap_box_chain"
             onClick={() => switchChain({ chainId: fromChainId })}
           >
             <AlertCircle className="w-5 h-5 text-[#FF9900] mt-0.5 flex-shrink-0" />
@@ -1028,7 +1029,7 @@ const BridgeInterface = () => {
                   </span>
                 </div>
               </div>
-              <div className="flex w-full mt-3 md:gap-10 gap-2 mt6">
+              <div className="flex w-full mt-3 md:gap-5 gap-2 mt6 items-center">
                 <div className="lg:md:max-w-[220px] w-full">
                   <div className="relative flex md:gap-2 gap-1 items-center bg-black border border-[#FF9900] md:rounded-[10px] rounded-lg md:px-5 px-3 md:py-[10px] py-2 justify-center w-full">
                     <TokenSelector
@@ -1072,8 +1073,8 @@ const BridgeInterface = () => {
                         : window.innerWidth >= 768
                           ? 24
                           : 20;
-                    const FREE_DIGITS = window.innerWidth >= 768 ? 7 : 6;
-                    // const FREE_DIGITS = 7; // no shrink up to 10 digits
+                    const FREE_DIGITS = window.innerWidth >= 768 ? 13 : 6;
+                    // const FREE_DIGITS = 12; // no shrink up to 10 digits
                     const SHRINK_RATE = 3; // slow shrink rate
 
                     const excessDigits = Math.max(
@@ -1099,7 +1100,7 @@ const BridgeInterface = () => {
                               ? "0"
                               : "0.00"
                           }
-                          className="font-orbitron font-extrabold text-white  rounded-[10px] px-1 py-3 text-end w-full h-full outline-none border-none transition-all duration-200 ease-in-out bg-black"
+                          className="font-orbitron font-extrabold text-white rounded-[10px] px-1 py-3 text-end w-full h-full outline-none border-none transition-all duration-200 ease-in-out bg-black space"
                           style={{
                             fontSize: `${dynamicFontSize}px`,
                           }}
@@ -1127,7 +1128,7 @@ const BridgeInterface = () => {
                 </div>
               </div>
               <div className="flex justify-between gap-2 items-center md:mt-10 mt-7">
-                <div className="text-[#FF9900] font-orbitron md:text-[15px] text-xs flex flex-col">
+                <div className="text-[#FF9900] font-orbitron md:text-[15px] text-xs flex flex-col relative top-2">
                   {isPriceLoading ? (
                     <span className="animate-pulse">Loading...</span>
                   ) : tokenPrice ? (
@@ -1135,7 +1136,7 @@ const BridgeInterface = () => {
                   ) : (
                     "--"
                   )}
-                  <span className="font-bold">Market Price</span>
+                  <span className="font-bold mt-1">Market Price</span>
                 </div>
                 <div className="text-zinc-200 text-[10px] font-normal font-orbitron leading-normal flex md:gap-2 gap-1 justify-end">
                   <span></span>
@@ -1143,7 +1144,7 @@ const BridgeInterface = () => {
                     <button
                       key={value}
                       type="button"
-                      className={`py-1 border border-[#EEC485] flex justify-center items-center rounded-xl md:text-[7px] text-[7px] font-extrabold font-orbitron md:w-12 w-11 px-2
+                      className={`py-1 border border-[#EEC485] flex justify-center items-center rounded-xl md:text-[10px] text-[8px] font-medium font-orbitron md:w-12 w-11 px-2
                 ${
                   selectedPercentage === value
                     ? "!text-black !bg-[#FF9900] border-[#FF9900]"
@@ -1193,7 +1194,7 @@ const BridgeInterface = () => {
                   To
                 </div>
               </div>
-              <div className="flex w-full mt-3 md:gap-10 gap-2 mt6">
+              <div className="flex w-full mt-3 md:gap-5 gap-2 mt6 items-center">
                 <div className="lg:md:max-w-[220px] w-full">
                   <div className="relative flex md:gap-2 gap-1 items-center bg-black border border-[#FF9900] md:rounded-[10px] rounded-lg md:px-5 px-3 md:py-[10px] py-2 justify-center w-full">
                     <TokenSelector
@@ -1232,7 +1233,7 @@ const BridgeInterface = () => {
                           ? 24
                           : 20;
 
-                    const FREE_DIGITS = window.innerWidth >= 768 ? 7 : 6;
+                    const FREE_DIGITS = window.innerWidth >= 768 ? 13 : 6;
                     const SHRINK_RATE = 3; // slow shrink rate
 
                     const excessDigits = Math.max(0, inputLength - FREE_DIGITS);
@@ -1255,7 +1256,7 @@ const BridgeInterface = () => {
                               ? "0"
                               : "0.00"
                           }
-                          className="font-orbitron font-extrabold text-white  rounded-[10px] px-1 py-3 text-end w-full h-full outline-none border-none transition-all duration-200 ease-in-out bg-black"
+                          className="font-orbitron font-extrabold text-white rounded-[10px] px-1 py-3 text-end w-full h-full outline-none border-none transition-all duration-200 ease-in-out bg-black space"
                           style={{
                             fontSize: `${dynamicFontSize}px`,
                           }}
@@ -1276,7 +1277,7 @@ const BridgeInterface = () => {
                 </div>
               </div>
               <div className="flex justify-between gap-2 items-center md:mt-8 mt-5">
-                <div className="text-[#FF9900] font-orbitron md:text-[15px] text-xs flex flex-col">
+                <div className="text-[#FF9900] font-orbitron md:text-[15px] text-xs flex flex-col relative top-2">
                   {isDestPriceLoading ? (
                     <span className="animate-pulse">Loading...</span>
                   ) : destTokenPrice ? (
@@ -1284,7 +1285,7 @@ const BridgeInterface = () => {
                   ) : (
                     <span className="text-gray-400">Unknown</span>
                   )}
-                  <span className="font-bold">Market Price</span>
+                  <span className="font-bold mt-1">Market Price</span>
                 </div>
                 <div className="text-zinc-200 text-[10px] font-normal font-orbitron leading-normal flex md:gap-2 gap-1 justify-end">
                   <span></span>
@@ -1292,7 +1293,7 @@ const BridgeInterface = () => {
                     <button
                       key={value}
                       type="button"
-                      className={`py-1 border border-[#EEC485] flex justify-center items-center rounded-xl md:text-[7px] text-[7px] font-extrabold font-orbitron md:w-12 w-11 px-2
+                      className={`py-1 border border-[#EEC485] flex justify-center items-center rounded-xl md:text-[10px] text-[8px] font-medium font-orbitron md:w-12 w-11 px-2
                 ${
                   selectedPercentage === value
                     ? "!text-black !bg-[#FF9900] border-[#FF9900]"
@@ -1316,7 +1317,7 @@ const BridgeInterface = () => {
               value={recipient}
               onChange={(e) => setRecipient(e.target.value)}
               placeholder="0x..."
-              className="absolute inset-0 top-0 bottom-0 my-auto w-full h-full md:pl-4 pl-4 md:pr-36 pr-20 py-10 bg-transparent text-white font-orbitron md:text-sm text-[9px] truncate outline-none"
+              className="absolute inset-0 top-0 bottom-0 my-auto w-full h-full md:pl-4 pl-4 md:pr-36 pr-20 py-10 bg-transparent text-white font-orbitron md:text-lg text-[8px] truncate outline-none"
             />
             <button
               className={`!absolute !bg-transparent md:w-[90px] w-16 md:h-10 h-10 hover:opacity-70 bg-black !border !border-[#FF9900] top-2 right-3 flex justify-center items-center rounded-xl px-2 font-orbitron !text-[#FF9900] md:text-base text-xs font-bold`}
@@ -1435,9 +1436,9 @@ const BridgeInterface = () => {
           transactions={transactions}
           clearTransactions={clearTransactions}
         />
-        <hr className="mt-4" />
+        <hr className="mt-4 scales-top_via_2" />
         {/* Instructions */}
-        <div className="w-full md:px-0 px-1 md:pb-10 pb-6">
+        <div className="w-full md:px-0 px-1 md:pb-10 pb-6 scales-top_via_2">
           <div className="mt-5 md:max-w-[1300px] w-full mx-auto bg-[#100C06] border border-[#100C06] rounded-xl lg:px-12 px-6 lg:py-10 py-10">
             <h2 className="md:text-[40px] text-[32px] font-extrabold text-white mb-10 font-orbitron">
               How It Works

@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import Info from "../../assets/images/info.svg";
 import { formatUnits } from "viem";
 import Transaction from "./Transaction";
+import TokenLogo from "../../components/TokenLogo.jsx";
 
 const Amount = ({
   onClose,
@@ -112,7 +113,7 @@ const Amount = ({
               </div>
               <div className="text-white text-2xl font-bold roboto flex gap-3 items-center w-auto-search bg-search bg-search-padd">
                 {formatNumber(amountIn)} {tokenA?.ticker}
-                <img src={tokenA?.image} alt="tokenA" className="w-4 h-4" />
+                <TokenLogo token={tokenA} className="w-4 h-4" />
               </div>
             </div>
             <div className="mt-6">
@@ -121,7 +122,7 @@ const Amount = ({
               </div>
               <div className="text-white text-2xl font-bold roboto flex gap-3 items-center w-auto-search bg-search bg-search-padd">
                 {formatNumber(amountOut)} {tokenB?.ticker}
-                <img src={tokenB?.image} alt="tokenB" className="w-4 h-4" />
+                <TokenLogo token={tokenB} className="w-4 h-4" />
               </div>
             </div>
             <div className="mt-6 text-[#9A5500] text-sm font-normal roboto">

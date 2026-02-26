@@ -8,7 +8,7 @@ import { OrderStrategy } from "./schema";
 import { useReadContract, useWatchContractEvent } from "wagmi";
 import { formatUnits } from "viem";
 import { LIMIT_ORDER_ABI } from "../../utils/abis/limitOrderEscrowABI";
-import { TokenLogo } from "../../components/TokenLogo";
+import { TokenLogo } from "../../components/TokenLogo.tsx";
 import { Badge } from "../../components/ui/badge";
 
 const CONTRACT_ADDRESS = "0xF4856ce8BE6E992819167D55C82a1Fae09Ddd9E2";

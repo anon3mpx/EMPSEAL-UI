@@ -1,6 +1,6 @@
 import { X } from "lucide-react";
 import { LogoService } from "../../../services/LogoService";
-import { TokenLogo } from "../../../components/TokenLogo";
+import { TokenLogo } from "../../../components/TokenLogo.tsx";
 import EL from "../../../assets/images/emp-logo.png";
 
 const SelectionModal = ({

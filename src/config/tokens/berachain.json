@@ -112,6 +112,7 @@
       "decimal": 18,
       "image": "http://api-assets.rubic.exchange/assets/coingecko/berachain/0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34/logo.png",
       "rank": 2.44,
+      "featured": true,
       "source_rank": 26,
       "type": "TOKEN",
       "usdPrice": 0.998858,
@@ -144,12 +145,23 @@
       "decimal": 18,
       "image": "http://api-assets.rubic.exchange/assets/coingecko/berachain/0x211cc4dd073734da055fbf44a2b4667d5e5fe5d2/logo.png",
       "rank": 2.42,
+      "featured": true,
       "source_rank": 40,
       "type": "TOKEN",
       "usdPrice": 1.22,
       "token_security": null,
       "usdPriceChangePercentage24h": 0.00187326287357,
       "usdPriceChangePercentage7d": -0.08336614416978
+    },
+    {
+      "address": "0x59a61b8d3064a51a95a5d6393c03e2152b1a2770",
+      "name": "SailOut Royalty",
+      "ticker": "SAIL.r",
+      "blockchainNetwork": "BERACHAIN",
+      "network": "BERACHAIN",
+      "featured": true,
+      "decimal": 18,
+      "image": "https://www.geckoterminal.com/_next/image?url=https%3A%2F%2Fcoin-images.coingecko.com%2Fcoins%2Fimages%2F102172045%2Flarge%2FSailOut_Logo_%25281%2529.png%3F1771228639&w=96&q=75"
     },
     {
       "address": "0x4186bfc76e2e237523cbc30fd220fe055156b41f",

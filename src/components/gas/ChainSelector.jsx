@@ -306,7 +306,10 @@ const ChainSelector = ({ onSwitch, setIsChainModalOpen }) => {
       {/* TO MODAL */}
       <ChainModal
         isOpen={activeModal === "to"}
-        onClose={() => setActiveModal(null)}
+          onClose={() => {
+          setActiveModal(null);
+          setIsChainModalOpen(false);
+        }}
         chains={formattedChains.filter((c) => c.chain !== fromChainId)}
         selectedChainId={toChainId}
         onSelectChain={setToChain}

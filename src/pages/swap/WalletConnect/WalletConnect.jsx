@@ -109,6 +109,7 @@ export default function WalletConnect({
       "https://s2.coinmarketcap.com/static/img/coins/200x200/24091.png",
     "sei network":
       "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQ6fwxNLN1-so5tXQr4z_Z-VcgryIoKU2iaFw&s",
+    sei: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQ6fwxNLN1-so5tXQr4z_Z-VcgryIoKU2iaFw&s",
     "polygon zkevm":
       "https://www.alchemy.com/dapps/_next/image?url=https%3A%2F%2Fres.cloudinary.com%2Falchemy-website%2Fimage%2Fupload%2Fv1694675395%2Fdapp-store%2Fdapp-logos%2FPolygon%2520zkEVM.png&w=640&q=75",
     moonriver: "https://cryptologos.cc/logos/moonriver-movr-logo.png",
@@ -141,6 +142,7 @@ export default function WalletConnect({
     "mode mainnet":
       "https://s2.coinmarketcap.com/static/img/coins/200x200/31016.png",
     "rootstock mainnet": "https://icons.llamao.fi/icons/chains/rsz_rsk.jpg",
+    rootstock: "https://icons.llamao.fi/icons/chains/rsz_rsk.jpg",
     merlin:
       "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcR0Xu_YMl9FlDCmW-gvl67pGW3fo0qxjdE61g&s",
     "zklink nova":

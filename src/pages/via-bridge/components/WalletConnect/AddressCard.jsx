@@ -67,7 +67,7 @@ export default function AddressCard({
           {shortAddress}
         </p>
         <p className="text-white font-medium text-lg font-orbitron">
-          {balance} PLS
+          {balance} {balanceData?.symbol || "PLS"}
         </p>
       </div>
       <div

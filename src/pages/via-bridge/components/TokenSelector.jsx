@@ -1,5 +1,5 @@
 import { ChevronDown } from "lucide-react";
-import { TokenLogo } from "../../../components/TokenLogo";
+import { TokenLogo } from "../../../components/TokenLogo.tsx";
 
 const TokenSelector = ({ token, chainId, onClick }) => {
   return (

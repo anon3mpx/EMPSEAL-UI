@@ -63,7 +63,6 @@ const Transaction = ({
 
             {/* Header */}
             <div className="flex items-center justify-center gap-3">
-              <img src={Logo} alt="Logo" className="w-10 h-10" />
               <div className="text-white text-2xl font-bold roboto leading-7">
                 Transaction Submitted
               </div>
@@ -135,10 +134,10 @@ const Transaction = ({
                 </div>
                 <div
                   className={`text-sm font-normal roboto ${parseFloat(priceImpact) > 0
-                    ? "text-green-500"
-                    : parseFloat(priceImpact) < 0
-                      ? "text-red-500"
-                      : "text-white"
+                      ? "text-green-500"
+                      : parseFloat(priceImpact) < 0
+                        ? "text-red-500"
+                        : "text-white"
                     }`}
                 >
                   {priceImpact} %
@@ -156,6 +155,19 @@ const Transaction = ({
                   View on {blockExplorerName}
                 </div>
               </Link>
+            </div>
+
+            {/* Powered By */}
+            <div className="flex justify-center items-center mt-6">
+              <a
+                href="https://empx.io"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 text-white/50 hover:text-white transition-colors cursor-pointer"
+              >
+                <span className="text-md font-normal roboto">Powered by</span>
+                <img src={Logo} alt="EmpX Logo" className="w-10 h-8 object-contain" />
+              </a>
             </div>
           </div>
         </div>

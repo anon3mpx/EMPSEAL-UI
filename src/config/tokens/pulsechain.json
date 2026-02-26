@@ -95,6 +95,15 @@
         "featured": true
     },
     {
+      "chainId": 369,
+      "name": "PulseChain Peacock",
+      "address": "0xc10A4Ed9b4042222d69ff0B374eddd47ed90fC1F",
+      "ticker": "PCOCK",
+      "featured": true,
+      "decimal": 18,
+      "image": "https://raw.githubusercontent.com/piteasio/app-tokens/main/token-logo/0xc10A4Ed9b4042222d69ff0B374eddd47ed90fC1F.png"
+    },
+    {
         "chainId": 369,
         "name": "Piteas Token",
         "address": "0x2A06a971fE6ffa002fd242d437E3db2b5cC5B433",
@@ -3709,14 +3718,6 @@
             "ticker": "PLAND",
             "decimal": 18,
             "image": "https://raw.githubusercontent.com/piteasio/app-tokens/main/token-logo/0xEE126a8903b1318f2a2Eb739Fd80481da6E028D3.png"
-        },
-        {
-            "chainId": 369,
-            "name": "PulseChain Peacock",
-            "address": "0xc10A4Ed9b4042222d69ff0B374eddd47ed90fC1F",
-            "ticker": "PCOCK",
-            "decimal": 18,
-            "image": "https://raw.githubusercontent.com/piteasio/app-tokens/main/token-logo/0xc10A4Ed9b4042222d69ff0B374eddd47ed90fC1F.png"
         },
         {
             "chainId": 369,

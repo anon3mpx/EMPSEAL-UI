@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import Arrow from "../../assets/icons/downarrow.svg";
 import { Star, StarIcon } from "lucide-react";
 import { ERC20_ABI } from "./tokenFetch";
+import TokenLogo from "../../components/TokenLogo.jsx";
 import { useChainConfig } from "../../hooks/useChainConfig";
 import { useMulticallBalances } from "../../hooks/useMulticallBalances";
 import { useAccount } from "wagmi";
@@ -39,17 +40,14 @@ const TokenListItem = ({
     >
       <div className="flex items-center gap-2 flex-1">
         <div className="flex justify-center items-center rounded-full p-1">
-          <img
-            src={token.logoURI || token.image}
-            className="w-6 h-6 object-contain"
-            alt={token.name}
-            onError={(e) => {
-              e.target.src = "path/to/fallback/image.png";
-            }}
+          <TokenLogo
+            token={token}
+            className="md:w-6 md:h-6 w-4 h-4 object-contain"
+            fallbackImg={EL}
           />
         </div>
         <div>
-          <div className="text-[#FFD484] font-orbitron font-bold md:text-base text-sm font-orbitron leading-relaxed tracking-wide">
+          <div className="text-[#FFD484] font-orbitron font-bold md:text-base text-xs font-orbitron leading-relaxed tracking-wide">
             {token.name}
           </div>
           <div className="text-white text-xs font-orbitron">
@@ -62,9 +60,8 @@ const TokenListItem = ({
         {/* Star button - always visible for favorites, on hover for non-favorites */}
         <button
           onClick={handleFavoriteClick}
-          className={`transition-opacity duration-200 ${
-            isFavorite ? "opacity-100" : "opacity-0 group-hover:opacity-100"
-          }`}
+          className={`transition-opacity duration-200 ${isFavorite ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+            }`}
           title={isFavorite ? "Remove from favorites" : "Add to favorites"}
         >
           {isFavorite ? (
@@ -81,7 +78,7 @@ const TokenListItem = ({
         </button>
 
         <div className="text-right min-w-[100px]">
-          <div className="text-[#FFD484] md:text-base text-sm font-bold font-orbitron tracking-wide">
+          <div className="text-[#FFD484] md:text-base text-xs font-bold font-orbitron tracking-wide">
             {isLoading ? "Loading..." : formattedBalance}
           </div>
         </div>
@@ -120,7 +117,7 @@ const Token = ({ onClose, onSelect }) => {
           // Ensure it's an array
           if (Array.isArray(parsedFavorites)) {
             setFavorites(parsedFavorites);
-            console.log("Loaded favorites from localStorage:", parsedFavorites);
+            // console.log("Loaded favorites from localStorage:", parsedFavorites);
           } else {
             // If it's not an array, reset it
             localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify([]));
@@ -180,7 +177,7 @@ const Token = ({ onClose, onSelect }) => {
       case 8453:
         return "https://mainnet.base.org";
       case 1329:
-        return "https://sei.drpc.org";
+        return "https://sei.api.pocket.network";
       case 80094:
         return "https://berachain.drpc.org";
       case 30:
@@ -393,7 +390,7 @@ const Token = ({ onClose, onSelect }) => {
   useEffect(() => {
     const checkStorage = () => {
       const saved = localStorage.getItem(FAVORITES_STORAGE_KEY);
-      console.log("Current localStorage value:", saved);
+      // console.log("Current localStorage value:", saved);
     };
     checkStorage();
   }, []);
@@ -415,7 +412,7 @@ const Token = ({ onClose, onSelect }) => {
         >
           <svg
             onClick={onClose}
-            className="absolute cursor-pointer md:right-14 right-7 top-12 tilt"
+            className="absolute cursor-pointer md:right-14 right-7 md:top-12 top-9 tilt md:w-[18px] w-4"
             width={18}
             height={19}
             viewBox="0 0 18 19"
@@ -430,31 +427,28 @@ const Token = ({ onClose, onSelect }) => {
               strokeLinejoin="round"
             />
           </svg>
-          <div className="flex gap-4 items-center justify-center cursor-pointer mt-2 py-3">
-            <h2 className="md:text-lg capitalize text-lg font-medium text-white font-orbitron text-center tracking-widest flex gap-1 items-center justify-center">
+          <div className="flex gap-4 items-center justify-center cursor-pointer mt-2 md:py-3">
+            <h2 className="md:text-lg capitalize text-base font-medium text-white font-orbitron text-center tracking-widest flex gap-1 items-center justify-center">
               <img src={EL} alt="EL" className="w-10 object-contain" />
               Select a token
             </h2>
           </div>
-          <div className="grid md:grid-cols-5 grid-cols-3 gap-2 mt-4 md:px-2 px-1">
-            {featureTokens.slice(0, 8).map((token, index) => (
+          <div className="grid md:grid-cols-5 grid-cols-4 gap-2 mt-4 md:px-2 px-1">
+            {featureTokens.slice(0, 10).map((token, index) => (
               <div
                 key={index}
-                className="flex flex-row items-center cursor-pointer font-orbitron md:rounded-xl rounded-lg border border-[#FF9900] md:p-[12px] p-2"
+                className="flex flex-row items-center cursor-pointer font-orbitron md:rounded-xl rounded-lg border border-[#FF9900] md:p-[12px] px-1 py-1.5"
                 onClick={() => handleFeaturedTokenClick(token)}
               >
                 <span className="flex items-center">
                   <div className="relative flex justify-center items-center">
-                    <img
-                      src={token.logoURI || token.image}
-                      alt={token.name}
-                      className="w-4 h-4 rounded-full relative z-10 p-[1px] object-contain flex shrink-0"
-                      onError={(e) =>
-                        (e.target.src = "path/to/fallback/image.png")
-                      }
+                    <TokenLogo
+                      token={token}
+                      className="md:w-5 md:h-5 w-3 h-3 rounded-full relative z-10 p-[1px] object-contain flex shrink-0"
+                      fallbackImg={EL}
                     />
                   </div>
-                  <p className="text-white font-black text-[10px] mt-0 ms-2 font-orbitron truncate w-14">
+                  <p className="text-white font-black md:text-[12px] text-[9px] mt-0 ms-2 font-orbitron truncate md:w-14 w-10">
                     {token.symbol || token.ticker}
                   </p>
                 </span>
@@ -462,7 +456,7 @@ const Token = ({ onClose, onSelect }) => {
             ))}
           </div>
           <div className="flex gap-4 items-center justify-between cursor-pointer mt-1 py-3">
-            <p className="md:text-lg capitalize text-lg font-bold text-white font-orbitron text-center tracking-widest">
+            <p className="md:text-lg capitalize text-base font-bold text-white font-orbitron text-center tracking-widest">
               Search token
             </p>
             {/* Show favorite count and clear button */}
@@ -480,11 +474,11 @@ const Token = ({ onClose, onSelect }) => {
               </div>
             )}
           </div>
-          <div className="mt-3 relative px-[10px] h-[54px] w-full flex gap-2 items-center border border-[#FF9900] rounded-xl">
+          <div className="mt-3 relative px-[10px] md:h-[54px] h-10 w-full flex gap-2 items-center border border-[#FF9900] rounded-xl">
             <input
               type="text"
               placeholder="Search token name or paste address"
-              className="bg-transparent rounded-[4.83px] h-[43px] text-white md:max-w-[490px] w-full px-5 outline-none border-none text-white/opacity-70 text-sm font-normal font-orbitron leading-tight tracking-wide"
+              className="bg-transparent rounded-[4.83px] md:h-[43px] h-10 text-white md:max-w-[490px] w-full px-5 outline-none border-none text-white/opacity-70 md:text-sm text-xs font-normal font-orbitron leading-tight tracking-wide"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />

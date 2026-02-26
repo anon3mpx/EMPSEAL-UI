@@ -294,19 +294,25 @@ export default function MarketTargetChart({
           <>
             <div>
               <div className="text-lg font-semibold text-[#FFD484]">
-                {stopLossDisplay}
+                {Number(
+                  String(stopLossDisplay).replace(/[^0-9.-]+/g, "") || 0,
+                ).toFixed(3)}
               </div>
               <div className="text-white text-xs">Stop Loss</div>
             </div>
             <div className="text-center">
               <div className="text-lg font-semibold text-[#FFD484]">
-                {entryDisplay}
+                {Number(
+                  String(entryDisplay).replace(/[^0-9.-]+/g, "") || 0,
+                ).toFixed(3)}
               </div>
               <div className="text-white text-xs">Entry Price</div>
             </div>
             <div className="text-right">
               <div className="text-lg font-semibold text-[#FFD484]">
-                {takeProfitDisplay}
+                {Number(
+                  String(takeProfitDisplay).replace(/[^0-9.-]+/g, "") || 0,
+                ).toFixed(3)}
               </div>
               <div className="text-white text-xs">Take Profit</div>
             </div>

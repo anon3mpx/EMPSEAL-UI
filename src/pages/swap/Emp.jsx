@@ -40,6 +40,8 @@ import {
 } from "../../utils/abis/empSealRouterAbi";
 import { toast } from "../../utils/toastHelper";
 import { usePriceMonitor } from "../../hooks/usePriceMonitor";
+import TokenLogo from "../../components/TokenLogo.jsx";
+import { fetchTokenPrice } from "../../utils/priceFetcher";
 
 import { WPLS } from "../../utils/abis/wplsABI";
 import { WETHW } from "../../utils/abis/wethwABI";
@@ -637,41 +639,24 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
   useEffect(() => {
     const fetchConversionRateTokenA = async () => {
       try {
-        // Check if required values are available
         if (!currentChain?.name || !selectedTokenA?.address) {
           console.error("Missing required data for token A price fetch");
           return;
         }
 
-        // Determine which address to use for the API call
         const addressToFetch =
           selectedTokenA?.address === EMPTY_ADDRESS && wethAddress
             ? wethAddress?.toLowerCase()
             : selectedTokenA?.address?.toLowerCase();
 
-        const response = await fetch(
-          `https://api.geckoterminal.com/api/v2/simple/networks/${symbol}/token_price/${addressToFetch}`,
-        );
+        const tokenPrice = await fetchTokenPrice(symbol, addressToFetch);
 
-        if (!response.ok) {
-          throw new Error(`HTTP error! Status: ${response.status}`);
+        if (tokenPrice) {
+          setConversionRate(tokenPrice);
+        } else {
+          setConversionRate(null);
+          console.error("Token A price could not be established.");
         }
-
-        const data = await response.json();
-
-        // Validate and extract token prices
-        const tokenPrices = data?.data?.attributes?.token_prices;
-        if (!tokenPrices) {
-          throw new Error("Token prices not found");
-        }
-
-        // Use the correct address to look up the price
-        const tokenPrice =
-          selectedTokenA?.address === EMPTY_ADDRESS
-            ? tokenPrices[wethAddress?.toLowerCase()]
-            : tokenPrices[addressToFetch];
-
-        setConversionRate(tokenPrice);
       } catch (error) {
         console.error("Error fetching token price:", error.message);
       }
@@ -683,41 +668,24 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
   useEffect(() => {
     const fetchConversionRateTokenB = async () => {
       try {
-        // Check if required values are available
         if (!currentChain?.name || !selectedTokenB?.address) {
           console.error("Missing required data for token B price fetch");
           return;
         }
 
-        // Determine which address to use for the API call
         const addressToFetch =
           selectedTokenB?.address === EMPTY_ADDRESS && wethAddress
             ? wethAddress?.toLowerCase()
             : selectedTokenB?.address?.toLowerCase();
 
-        const response = await fetch(
-          `https://api.geckoterminal.com/api/v2/simple/networks/${symbol}/token_price/${addressToFetch}`,
-        );
+        const tokenPrice = await fetchTokenPrice(symbol, addressToFetch);
 
-        if (!response.ok) {
-          throw new Error(`HTTP error! Status: ${response.status}`);
+        if (tokenPrice) {
+          setConversionRateTokenB(tokenPrice);
+        } else {
+          setConversionRateTokenB(null);
+          console.error("Token B price could not be established.");
         }
-
-        const data = await response.json();
-
-        // Validate and extract token prices
-        const tokenPrices = data?.data?.attributes?.token_prices;
-        if (!tokenPrices) {
-          throw new Error("Token prices not found");
-        }
-
-        // Use the correct address to look up the price
-        const tokenPrice =
-          selectedTokenB?.address === EMPTY_ADDRESS
-            ? tokenPrices[wethAddress?.toLowerCase()]
-            : tokenPrices[addressToFetch];
-
-        setConversionRateTokenB(tokenPrice);
       } catch (error) {
         console.error("Error fetching token price:", error.message);
       }
@@ -996,7 +964,7 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
     // Green for positive (profit), Red for negative (loss)
     if (value > 0) return "text-green-500";
     if (value < 0) return "text-red-500";
-    return "text-black";
+    return "text-white";
   };
   //
   // For Limit Tab
@@ -1126,7 +1094,7 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
                       </span>
                     </div>
                   </div>
-                  <div className="flex w-full mt-3 mt6 md:gap-10 gap-2">
+                  <div className="flex w-full mt-3 mt6 md:gap-5 gap-2 items-center">
                     <div className="lg:md:max-w-[200px] w-full">
                       <div className="flex justify-between items-center cursor-pointer gap-4 w-full">
                         <div className="flex gap-2 items-center w-full">
@@ -1142,13 +1110,9 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
                             >
                               {selectedTokenA ? (
                                 <>
-                                  <img
+                                  <TokenLogo
+                                    token={selectedTokenA}
                                     className="md:w-5 md:h-5 w-4 h-4"
-                                    src={
-                                      selectedTokenA.image ||
-                                      selectedTokenA.logoURI
-                                    }
-                                    alt={selectedTokenA.name}
                                   />
                                   <div
                                     className={`${getFontSizeClass(
@@ -1197,7 +1161,7 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
                             : window.innerWidth >= 768
                               ? 24
                               : 20;
-                        const FREE_DIGITS = window.innerWidth >= 768 ? 10 : 4;
+                        const FREE_DIGITS = window.innerWidth >= 768 ? 12 : 5;
                         const SHRINK_RATE = 3;
 
                         const excessDigits = Math.max(
@@ -1219,7 +1183,7 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
                             }
                             value={formatNumber(amountIn)}
                             onChange={(e) => handleInputChange(e.target.value)}
-                            className="font-orbitron font-extrabold text-white  rounded-[10px] px-1 py-3 text-end w-full h-full outline-none border-none transition-all duration-200 ease-in-out bg-black"
+                            className="font-orbitron font-extrabold text-white rounded-[10px] px-1 py-3 text-end w-full h-full outline-none border-none transition-all duration-200 ease-in-out bg-black space"
                             style={{
                               fontSize: `${dynamicFontSize}px`,
                             }}
@@ -1229,7 +1193,7 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
                     </div>
                   </div>
                   <div className="flex justify-between gap-2 items-center 2xl:mt-3 mt-3 md:flex-nowrap flex-wrap mt6">
-                    <div className="text-[#FF9900] font-orbitron md:text-[15px] text-xs flex flex-col">
+                    <div className="text-[#FF9900] font-orbitron md:text-[15px] text-xs flex flex-col relative top-2">
                       <span>
                         {selectedTokenA ? (
                           conversionRate ? (
@@ -1241,7 +1205,7 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
                           "--"
                         )}
                       </span>
-                      <span className="font-bold">Market Price</span>
+                      <span className="font-bold mt-1">Market Price</span>
                     </div>
                     <div className="text-zinc-200 text-[10px] font-normal font-orbitron leading-normal flex md:gap-2 gap-1 justify-end">
                       <span></span>
@@ -1249,7 +1213,7 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
                         <button
                           key={value}
                           type="button"
-                          className={`py-1 border bg-[#EEC485] text-black flex justify-center items-center rounded-full md:text-[7px] text-[7px] font-medium font-orbitron md:w-12 w-11 px-2
+                          className={`py-1 border bg-[#EEC485] text-black flex justify-center items-center rounded-full md:text-[10px] text-[8px] font-medium font-orbitron md:w-12 w-11 px-2
             ${selectedPercentage === value
                               ? "!text-black !bg-[#FF9900] border-[#FF9900]"
                               : "bg-[#EEC485] text-[#040404] border-black hover:border-black hover:bg-[#FF9900] hover:text-black"
@@ -1342,7 +1306,7 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
                     </div>
                   </div>
 
-                  <div className="flex w-full mt-3 mt6 md:gap-10 gap-2">
+                  <div className="flex w-full mt-3 mt6 md:gap-5 gap-2 items-center">
                     <div className="lg:md:max-w-[200px] w-full">
                       <div className="flex justify-between items-center cursor-pointer gap-4 w-full">
                         <div className="flex gap-2 items-center w-full">
@@ -1356,13 +1320,9 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
                             >
                               {selectedTokenB ? (
                                 <>
-                                  <img
+                                  <TokenLogo
+                                    token={selectedTokenB}
                                     className="md:w-5 md:h-5 w-4 h-4"
-                                    src={
-                                      selectedTokenB.image ||
-                                      selectedTokenB.logoURI
-                                    }
-                                    alt={selectedTokenB.name}
                                   />
                                   <div
                                     className={`${getFontSizeClass(
@@ -1417,7 +1377,7 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
                             : window.innerWidth >= 768
                               ? 24
                               : 20;
-                        const FREE_DIGITS = window.innerWidth >= 768 ? 10 : 6;
+                        const FREE_DIGITS = window.innerWidth >= 768 ? 12 : 6;
                         const SHRINK_RATE = 3;
 
                         const excessDigits = Math.max(
@@ -1443,7 +1403,7 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
                                 value={formattedValue}
                                 onChange={handleOutputChange}
                                 readOnly
-                                className="font-orbitron font-extrabold text-white  rounded-[10px] px-1 py-3 text-end w-full h-full outline-none border-none transition-all duration-200 ease-in-out bg-black"
+                                className="font-orbitron font-extrabold text-white rounded-[10px] px-1 py-3 text-end w-full h-full outline-none border-none transition-all duration-200 ease-in-out bg-black space"
                                 style={{
                                   fontSize: `${dynamicFontSize}px`,
                                 }}
@@ -1455,7 +1415,7 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
                     </div>
                   </div>
                   <div className="flex justify-between gap-2 items-center 2xl:mt-3 mt-3 md:flex-nowrap flex-wrap mt6">
-                    <div className="text-[#FF9900] font-orbitron md:text-[15px] text-xs flex flex-col">
+                    <div className="text-[#FF9900] font-orbitron md:text-[15px] text-xs flex flex-col relative top-2">
                       <span>
                         {selectedTokenB ? (
                           conversionRateTokenB ? (
@@ -1467,7 +1427,7 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
                           "--"
                         )}
                       </span>
-                      <span className="font-bold">Market Price</span>
+                      <span className="font-bold mt-1">Market Price</span>
                     </div>
                     <div className="text-zinc-200 text-[10px] font-normal font-orbitron leading-normal flex md:gap-2 gap-1 justify-end">
                       <span></span>
@@ -1475,7 +1435,7 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
                         <button
                           key={value}
                           type="button"
-                          className={`py-1 border bg-[#EEC485] text-black flex justify-center items-center rounded-full md:text-[7px] text-[7px] font-medium font-orbitron md:w-12 w-11 px-2
+                          className={`py-1 border bg-[#EEC485] text-black flex justify-center items-center rounded-full md:text-[10px] text-[8px] font-medium font-orbitron md:w-12 w-11 px-2
             ${selectedPercentageBuy === value
                               ? "!text-black !bg-[#FF9900] border-[#FF9900]"
                               : "bg-[#EEC485] text-[#040404] border-black hover:border-black hover:bg-[#FF9900] hover:text-black"

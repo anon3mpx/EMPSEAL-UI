@@ -66,7 +66,7 @@ export default function AddressCard({
         className="md:w-[150px] w-16 rounded-full object-contain"
       />
       <p className="text-2xl font-bold roboto">{shortAddress}</p>
-      <p className="text-gray-400 font-medium text-xl mb-5">{balance} PLS</p>
+      <p className="text-gray-400 font-medium text-xl mb-5">{balance} {balanceData?.symbol || "PLS"}</p>
       <div
         className="gtw md:right-[-10px] right-[-5px] relative group text-black bg-[#FF9900] rounded-lg px-6 py-3 w-full font-black text-[28px] font-orbitron text-center cursor-pointer transition-all"
         onClick={onCopy}
