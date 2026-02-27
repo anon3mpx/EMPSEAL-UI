@@ -95,11 +95,19 @@
         "featured": true
     },
     {
+        "chainId": 369,
+        "name": "Incentive",
+        "address": "0x2fa878Ab3F87CC1C9737Fc071108F904c0B0C95d",
+        "ticker": "INC",
+        "decimal": 18,
+        "featured":true,
+        "image": "https://raw.githubusercontent.com/piteasio/app-tokens/main/token-logo/0x2fa878Ab3F87CC1C9737Fc071108F904c0B0C95d.png"
+    },
+    {
       "chainId": 369,
       "name": "PulseChain Peacock",
       "address": "0xc10A4Ed9b4042222d69ff0B374eddd47ed90fC1F",
       "ticker": "PCOCK",
-      "featured": true,
       "decimal": 18,
       "image": "https://raw.githubusercontent.com/piteasio/app-tokens/main/token-logo/0xc10A4Ed9b4042222d69ff0B374eddd47ed90fC1F.png"
     },
@@ -137,15 +145,6 @@
         "whitelisted": true,
         "decimal": 8,
         "image": "https://raw.githubusercontent.com/piteasio/app-tokens/main/token-logo/0x57fde0a71132198BBeC939B98976993d8D89D225.png"
-    },
-    {
-        "chainId": 369,
-        "name": "Incentive",
-        "address": "0x2fa878Ab3F87CC1C9737Fc071108F904c0B0C95d",
-        "ticker": "INC",
-        "decimal": 18,
-        "featured":true,
-        "image": "https://raw.githubusercontent.com/piteasio/app-tokens/main/token-logo/0x2fa878Ab3F87CC1C9737Fc071108F904c0B0C95d.png"
     },
     {
         "chainId": 369,

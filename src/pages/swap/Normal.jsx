@@ -35,7 +35,7 @@ const Normal = () => {
         />
         <div className="mx-auto w-full px-4 flex flex-col justify-start xl:gap-4 gap-4 items-start 2xl:pt-1 py-2 md:flex-nowrap flex-wrap">
           <div className="w-full">
-            <div className="md:hidden block">
+            <div className="md:block block">
               <Wallet onTabChange={handleTabChange} />
             </div>
             <Emp
@@ -47,9 +47,9 @@ const Normal = () => {
             {/* <Routing /> */}
           </div>
           <div className="md:max-w-[474px] w-full">
-            <div className="md:block hidden">
+            {/* <div className="md:block hidden">
               <Wallet onTabChange={handleTabChange} />
-            </div>
+            </div> */}
             <div className="mt-3 lg:fixed absolute md:left-0 lefts lefts01 2xl:bottom-[32%] lg:bottom-[33%] md:bottom-[27%] bottom-[312px]">
               {/* <RoutingButton
                 bestRoute={bestRoute}

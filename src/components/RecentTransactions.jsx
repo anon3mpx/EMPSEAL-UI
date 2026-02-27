@@ -1,36 +1,50 @@
 const RecentTransactions = ({ transactions, clearTransactions }) => {
-  if (transactions.length === 0) return null;
+  if (!transactions || transactions.length === 0) {
+    return (
+      <div className="lg:mt-4 mt-4 text-white">
+        <div className="flex justify-between items-center flex-wrap gap-4 mb-5">
+          <div className="font-orbitron md:text-4xl text-2xl font-extrabold text-[#FF9900]">
+            Bridge Transactions
+          </div>
+        </div>
+
+        <div className="bg_swap_box_chain w-full rounded-2xl px-4 !py-10 text-center">
+          <p className="text-white">You have no past Via Bridge transactions.</p>
+        </div>
+      </div>
+    );
+  }
 
   const getStatusColor = (status) => {
-    switch(status?.toLowerCase()) {
-      case 'in flight':
-        return 'text-yellow-500';
-      case 'delivered':
-        return 'text-green-500';
-      case 'fulfilled':
-        return 'text-green-500';
-      case 'active':
-        return 'text-blue-500';
-      case 'cancelled':
-        return 'text-red-500';
+    switch (status?.toLowerCase()) {
+      case "in flight":
+        return "text-yellow-500";
+      case "delivered":
+        return "text-green-500";
+      case "fulfilled":
+        return "text-green-500";
+      case "active":
+        return "text-blue-500";
+      case "cancelled":
+        return "text-red-500";
       default:
-        return 'text-gray-400';
+        return "text-gray-400";
     }
   };
 
   const getProgressFromStatus = (status) => {
-    switch(status?.toLowerCase()) {
-      case 'in flight':
-        return '50%';
-      case 'delivered':
-      case 'fulfilled':
-        return '100%';
-      case 'active':
-        return '30%';
-      case 'cancelled':
-        return '0%';
+    switch (status?.toLowerCase()) {
+      case "in flight":
+        return "50%";
+      case "delivered":
+      case "fulfilled":
+        return "100%";
+      case "active":
+        return "30%";
+      case "cancelled":
+        return "0%";
       default:
-        return '0%';
+        return "0%";
     }
   };
 
@@ -49,28 +63,39 @@ const RecentTransactions = ({ transactions, clearTransactions }) => {
       </div>
 
       {/* Desktop Table View */}
-      <div className="hidden lg:block bg_swap_box_chain w-full rounded-tr-2xl rounded-2xl lg:p-8 overflow-x-auto font-orbitron">
-        <table className="w-full text-sm">
+      <div className="hidden lg:block bg_swap_box_chain w-full rounded-tr-2xl rounded-2xl lg:p-7 overflow-x-auto font-orbitron">
+        <div className="max-h-[350px] overflow-y-auto px-2 chain_scroll">
+        <table className="w-full text-sm ">
           <thead>
             <tr className="border-b border-[#FF9900]/30">
               {/* <th className="font-semibold text-base text-[#FF9900]">Status</th> */}
-              <th className="font-semibold text-base text-[#FF9900]">Source Chain</th>
-              <th className="font-semibold text-base text-[#FF9900]">Source Hash</th>
+              <th className="font-semibold text-base text-[#FF9900]">
+                Source Chain
+              </th>
+              <th className="font-semibold text-base text-[#FF9900]">
+                Source Hash
+              </th>
               <th className="font-semibold text-base text-[#FF9900]">From</th>
-              <th className="font-semibold text-base text-[#FF9900]">Destination Chain</th>
-              <th className="font-semibold text-base text-[#FF9900]">Date/Time</th>
+              <th className="font-semibold text-base text-[#FF9900]">
+                Destination Chain
+              </th>
+              <th className="font-semibold text-base text-[#FF9900]">
+                Date/Time
+              </th>
               <th className="font-semibold text-base text-[#FF9900]">Action</th>
             </tr>
           </thead>
           <tbody>
             {transactions.map((tx, idx) => (
-              <tr 
-                key={tx.hash || idx} 
+              <tr
+                key={tx.hash || idx}
                 className="border-b border-[#FF9900]/10 hover:bg-[#FF9900]/5 transition-all font-orbitron"
               >
                 <td className="py-4 px-4">
-                  <span className={`${getStatusColor(tx.status)} font-medium font-orbitron text-white`}>
-                    {tx.fromChainName || 'In Flight'}
+                  <span
+                    className={`${getStatusColor(tx.status)} font-medium font-orbitron text-white`}
+                  >
+                    {tx.fromChainName || "In Flight"}
                   </span>
                   {/* Progress bar for visual indication */}
                   {/* <div className="w-20 h-1 bg-gray-700 rounded-full mt-1">
@@ -82,31 +107,37 @@ const RecentTransactions = ({ transactions, clearTransactions }) => {
                 </td>
                 <td className="py-4 px-4">
                   <a
-                    href={`${tx.explorerUrl || 'https://scan.vialabs.io'}/tx/${tx.hash || tx.sourceHash}`}
+                    href={`${tx.explorerUrl || "https://scan.vialabs.io"}/tx/${tx.hash || tx.sourceHash}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-[#FF9900] hover:underline  "
                   >
-                    {`${(tx.hash || tx.sourceHash || '').slice(0, 6)}...${(tx.hash || tx.sourceHash || '').slice(-8)}`}
+                    {`${(tx.hash || tx.sourceHash || "").slice(0, 6)}...${(tx.hash || tx.sourceHash || "").slice(-8)}`}
                   </a>
                 </td>
                 <td className="py-4 px-4">
                   <span className="  text-white">
-                    {tx.fromAddress ? `${tx.fromAddress.slice(0, 6)}...${tx.fromAddress.slice(-4)}` :
-                      tx.from ? `${tx.from.slice(0, 6)}...${tx.from.slice(-4)}` :
-                        '--'}
+                    {tx.fromAddress
+                      ? `${tx.fromAddress.slice(0, 6)}...${tx.fromAddress.slice(-4)}`
+                      : tx.from
+                        ? `${tx.from.slice(0, 6)}...${tx.from.slice(-4)}`
+                        : "--"}
                   </span>
                 </td>
                 <td className="py-4 px-4">
-                  <span className={`${getStatusColor(tx.status)} font-medium font-orbitron text-white`}>
-                    {tx.toChainName || 'In Flight'}
+                  <span
+                    className={`${getStatusColor(tx.status)} font-medium font-orbitron text-white`}
+                  >
+                    {tx.toChainName || "In Flight"}
                   </span>
                 </td>
                 <td className="py-4 px-4 whitespace-nowrap text-white">
                   {tx.date ? (
                     <span>{tx.date}</span>
                   ) : (
-                    <span>{new Date(tx.timestamp || Date.now()).toLocaleString()}</span>
+                    <span>
+                      {new Date(tx.timestamp || Date.now()).toLocaleString()}
+                    </span>
                   )}
                 </td>
                 <td className="py-4 px-4">
@@ -117,8 +148,18 @@ const RecentTransactions = ({ transactions, clearTransactions }) => {
                     className="inline-flex items-center gap-1 text-[#FF9900] hover:text-[#FFB84D] transition-colors"
                   >
                     <span>Track</span>
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                    <svg
+                      className="w-4 h-4"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                      />
                     </svg>
                   </a>
                 </td>
@@ -126,6 +167,7 @@ const RecentTransactions = ({ transactions, clearTransactions }) => {
             ))}
           </tbody>
         </table>
+        </div>
       </div>
 
       {/* Mobile Card View */}
@@ -146,8 +188,18 @@ const RecentTransactions = ({ transactions, clearTransactions }) => {
                 className="text-[#FF9900] hover:text-[#FFB84D] text-sm flex items-center gap-1"
               >
                 Track
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                  />
                 </svg>
               </a>
             </div>
@@ -155,32 +207,34 @@ const RecentTransactions = ({ transactions, clearTransactions }) => {
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
                 <span className="text-gray-400">Source Chain:</span>
-                <span className="text-white">{tx.fromChainName || '--'}</span>
+                <span className="text-white">{tx.fromChainName || "--"}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-400">Source Hash:</span>
                 <a
-                  href={`${tx.explorerUrl || 'https://scan.vialabs.io'}/tx/${tx.hash || tx.sourceHash}`}
+                  href={`${tx.explorerUrl || "https://scan.vialabs.io"}/tx/${tx.hash || tx.sourceHash}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-[#FF9900] hover:underline "
                 >
-                  {`${(tx.hash || tx.sourceHash || '').slice(0, 6)}...${(tx.hash || tx.sourceHash || '').slice(-4)}`}
+                  {`${(tx.hash || tx.sourceHash || "").slice(0, 6)}...${(tx.hash || tx.sourceHash || "").slice(-4)}`}
                 </a>
               </div>
 
               <div className="flex justify-between">
                 <span className="text-gray-400">From:</span>
                 <span className="text-white">
-                  {tx.fromAddress ? `${tx.fromAddress.slice(0, 6)}...${tx.fromAddress.slice(-4)}` :
-                    tx.from ? `${tx.from.slice(0, 6)}...${tx.from.slice(-4)}` :
-                      '--'}
+                  {tx.fromAddress
+                    ? `${tx.fromAddress.slice(0, 6)}...${tx.fromAddress.slice(-4)}`
+                    : tx.from
+                      ? `${tx.from.slice(0, 6)}...${tx.from.slice(-4)}`
+                      : "--"}
                 </span>
               </div>
 
               <div className="flex justify-between">
                 <span className="text-gray-400">Destination Chain:</span>
-                <span className="text-white">{tx.toChainName || '--'}</span>
+                <span className="text-white">{tx.toChainName || "--"}</span>
               </div>
 
               {tx.destinationHash && (
@@ -200,7 +254,8 @@ const RecentTransactions = ({ transactions, clearTransactions }) => {
               <div className="flex justify-between">
                 <span className="text-gray-400">Date/Time:</span>
                 <span className="text-white">
-                  {tx.date || new Date(tx.timestamp || Date.now()).toLocaleString()}
+                  {tx.date ||
+                    new Date(tx.timestamp || Date.now()).toLocaleString()}
                 </span>
               </div>
 
@@ -223,7 +278,7 @@ const RecentTransactions = ({ transactions, clearTransactions }) => {
       </div>
 
       {/* Bridge Transaction Submitted Banner */}
-      {transactions.some(tx => tx.status === 'In Flight') && (
+      {transactions.some((tx) => tx.status === "In Flight") && (
         <div className="mt-4 bg_swap_box_chain p-4 w-full font-orbitron rounded-xl">
           <p className="text-lg text-[#FBB025] font-bold mb-2">
             Bridge transaction submitted!
@@ -232,7 +287,7 @@ const RecentTransactions = ({ transactions, clearTransactions }) => {
             Your tokens will arrive in 2-10 minutes
           </p>
           <a
-            href={`https://scan.vialabs.io/transaction/${transactions.find(tx => tx.status === 'In Flight')?.hash}`}
+            href={`https://scan.vialabs.io/transaction/${transactions.find((tx) => tx.status === "In Flight")?.hash}`}
             target="_blank"
             rel="noopener noreferrer"
             className=" font-bold text-white hover:underline"
@@ -246,65 +301,3 @@ const RecentTransactions = ({ transactions, clearTransactions }) => {
 };
 
 export default RecentTransactions;
-// const RecentTransactions = ({ transactions, clearTransactions }) => {
-//   if (transactions.length === 0) return null;
-
-//   return (
-//     <div className="lg:mt-4 mt-4 text-white">
-//         <div className="flex justify-between items-center flex-wrap gap-4 mb-5">
-//           <div className="font-orbitron md:text-4xl text-2xl font-extrabold text-[#FF9900]">
-//             Recent Transactions
-//           </div>
-//           <button
-//             onClick={clearTransactions}
-//             className="text-sm text-[#FF4C4C] hover:text-red-300 font-orbitron"
-//           >
-//             Clear recent txs
-//           </button>
-//         </div>
-//       <div className="bg_swap_box_chain w-full rounded-tr-2xl rounded-2xl lg:py-8 lg:px-8 md:px-6 px-4 md:py-6 py-6 space-y-3">
-//         {transactions.map((tx, idx) => (
-//           <div
-//             key={tx.hash}
-//             className="border border-[#FF9900] bg-black rounded-xl px-5 py-5 hover:bg-[#FF9900]/10 transition-all"
-//           >
-//             <div className="flex justify-between items-center flex-wrap gap-4">
-//               <div className="flex items-center gap-4 md:max-w-[350px]">
-//                 <div className="flex items-center gap-3 bg-[#1b1a17] px-3 py-1 rounded-full">
-//                   <span className="text-sm text-[#FF9900]">
-//                     {`${tx.hash.slice(0, 6)}...${tx.hash.slice(-4)}`}
-//                   </span>
-//                 </div>
-
-//                 <a
-//                   href={`${tx.explorerUrl}/tx/${tx.hash}`}
-//                   target="_blank"
-//                   rel="noopener noreferrer"
-//                   className="text-[#FF9900] hover:underline "
-//                 >
-//                   View on Explorer
-//                 </a>
-//               </div>
-
-//               <span className="text-sm text-gray-400 whitespace-nowrap">
-//                 {new Date(tx.timestamp).toLocaleString()}
-//               </span>
-//             </div>
-
-//             <div className="mt-3 text-sm text-white flex flex-wrap gap-3">
-//               <span className="px-3 py-1 rounded-full bg-[#402806] border border-[#FF9900]">
-//                 From: {tx.fromChainName}
-//               </span>
-
-//               <span className="px-3 py-1 rounded-full bg-[#402806] border border-[#FF9900]">
-//                 To: {tx.toChainName}
-//               </span>
-//             </div>
-//           </div>
-//         ))}
-//       </div>
-//     </div>
-//   );
-// };
-
-// export default RecentTransactions;

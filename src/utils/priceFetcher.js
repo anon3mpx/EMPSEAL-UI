@@ -19,19 +19,50 @@ export const fetchTokenPrice = async (symbol, address) => {
       return null;
     }
 
+    let price = null;
+    let fetchSuccess = false;
+
     // Default GeckoTerminal logic for all other chains
-    const response = await fetch(
-      `https://api.geckoterminal.com/api/v2/simple/networks/${symbol}/token_price/${address}`
-    );
+    try {
+      const response = await fetch(
+        `https://api.geckoterminal.com/api/v2/simple/networks/${symbol}/token_price/${address}`
+      );
+      if (!response.ok) throw new Error("Failed to fetch from GeckoTerminal");
+      const data = await response.json();
+      const tokenPrices = data?.data?.attributes?.token_prices;
 
-    if (!response.ok) throw new Error("Failed to fetch from GeckoTerminal");
+      if (tokenPrices && tokenPrices[address.toLowerCase()]) {
+        price = parseFloat(tokenPrices[address.toLowerCase()]);
+        fetchSuccess = true;
+      }
+    } catch (error) {
+      console.warn("GeckoTerminal failed, falling back to DexScreener:", error.message);
+    }
 
-    const data = await response.json();
-    const tokenPrices = data?.data?.attributes?.token_prices;
+    // Fallback to DexScreener
+    if (!fetchSuccess) {
+      try {
+        const response = await fetch(
+          `https://api.dexscreener.com/latest/dex/tokens/${address}`
+        );
+        if (!response.ok) throw new Error("Failed to fetch from DexScreener");
+        const data = await response.json();
 
-    if (!tokenPrices) return null;
+        if (data.pairs && data.pairs.length > 0) {
+          const pair = data.pairs.find(
+            (p) => p.baseToken.address.toLowerCase() === address.toLowerCase()
+          ) || data.pairs[0];
 
-    return tokenPrices[address.toLowerCase()] || null;
+          if (pair && pair.priceUsd) {
+            price = parseFloat(pair.priceUsd);
+          }
+        }
+      } catch (error) {
+        console.error("DexScreener API also failed:", error.message);
+      }
+    }
+
+    return price;
 
   } catch (error) {
     console.error("Error fetching token price:", error.message);

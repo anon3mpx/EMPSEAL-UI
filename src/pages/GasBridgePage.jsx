@@ -17,7 +17,7 @@ export default function GasBridgePage() {
           className="w-full h-full fixed top-0 left-0 -z-10"
         />
         <div className="md:max-w-[1100px] w-full mx-auto p-4 text-white">
-          <div className="lg:absolute relative lg:top-[100px] top-[1px] right-0 w-full">
+          <div className="lg:absolute relative 2xl:top-[100px] lg:top-[90px] top-[-5px] right-0 w-full">
             <Wallet allowUnsupported={true} />
           </div>
           <div className={!isChainModalOpen ? "scales8 top70" : ""}>

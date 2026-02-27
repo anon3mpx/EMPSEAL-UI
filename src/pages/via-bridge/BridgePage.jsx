@@ -1,22 +1,22 @@
 import BridgeInterface from "./BridgeInterface";
 import Wallet from "./components/Wallet";
 // import BridgeStats from "./BridgeStats";
-import { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
-import { useLocation } from "react-router-dom";
+// import { useState, useEffect } from "react";
+// import { Link } from "react-router-dom";
+// import { useLocation } from "react-router-dom";
 import BG from "../../assets/images/empx-bg1.webp";
 
 const BridgePage = () => {
-  const [activeTab, setActiveTab] = useState("via-bridge");
+  // const [activeTab, setActiveTab] = useState("via-bridge");
 
-  const location = useLocation();
-  const path = location.pathname;
+  // const location = useLocation();
+  // const path = location.pathname;
 
-  useEffect(() => {
-    if (path === "/") setActiveTab("cross");
-    if (path === "/native-bridge") setActiveTab("native");
-    if (path === "/via-bridge") setActiveTab("viabridge");
-  }, [path]);
+  // useEffect(() => {
+  //   if (path === "/") setActiveTab("cross");
+  //   if (path === "/native-bridge") setActiveTab("native");
+  //   if (path === "/via-bridge") setActiveTab("viabridge");
+  // }, [path]);
 
   return (
     <div className="relative">
@@ -25,10 +25,10 @@ const BridgePage = () => {
         alt="Background"
         className="w-full h-full fixed top-0 left-0 -z-10"
       />
-      <div className="block">
+      <div className="block relative top140 container mx-auto">
         <Wallet />
       </div>
-      <div
+      {/* <div
         className={`w-full scales-b scales-top_via rounded-xl lg:pt-1 pt-2 2xl:px-16 lg:px-12 md:px-8 px-1 md:mt-0 mt-1 lg:pb-0 pb-5`}
       >
         <div className="w-full">
@@ -51,7 +51,6 @@ const BridgePage = () => {
                   Native Bridge
                 </div>
               </Link>
-              {/* Via Bridge */}
               <Link to="/via-bridge" className="w-full">
                 <div
                   className={`border-2 ${
@@ -67,11 +66,8 @@ const BridgePage = () => {
               </Link>
             </div>
           </div>
-          {/* Stats */}
-          {/* <BridgeStats /> */}
-          {/* Bridge Interface */}
         </div>
-      </div>
+      </div> */}
       <BridgeInterface />
     </div>
   );

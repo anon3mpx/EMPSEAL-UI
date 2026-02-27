@@ -308,9 +308,9 @@ body {
   position: absolute;
 }
 .wallet-bg-bridge {
-  top: -38px;
+  top: -55px;
   // right: 94px;
-  right: 194px;
+  right: 5%;
   align-items: center;
 }
 // .wallet-bg-bridge01 {
@@ -670,40 +670,61 @@ body.bg-pattern {
   //   right: 80px;
   // }
 }
-@media (min-width: 1600px) and (max-width: 1920px) {
+.top140 {
+  top: 9px;
+}
+@media (min-width: 1536px) and (max-width: 1920px) {
   .scales-top_via {
     top: -20px !important;
     position: relative;
   }
   .scales-top_via_1 {
-    top: -80px !important;
+    margin-top: -130px !important;
+    // top: -130px !important;
     position: relative;
   }
-  .scales-top_via_2 {
-    top: -120px !important;
-    position: relative;
+  // .scales-top_via_2 {
+  //   top: -120px !important;
+  //   position: relative;
+  // }
+  .top140 {
+    top: 145px !important;
   }
 }
-@media (min-width: 1200px) and (max-width: 1600px) {
+@media (min-width: 1200px) and (max-width: 1536px) {
   .scales-top_via {
     top: -50px !important;
     position: relative;
   }
   .scales-top_via_1 {
-    top: -180px !important;
+    margin-top: -250px !important;
+    // top: -280px !important;
     position: relative;
   }
-  .scales-top_via_2 {
-    top: -250px !important;
-    position: relative;
+  .top140 {
+    top: 260px!important;
   }
+  // .scales-top_via_2 {
+  //   top: -250px !important;
+  //   position: relative;
+  // }
 }
-@media (min-width: 1900px) {
+
+//  .top140{
+//         right: 12vw;
+
+//   }
+// @media (min-width: 1900px) {
+//   .scales-top_limit {
+//     top: -105px;
+//   }
+// }
+@media (min-width: 1536px) and (max-width: 1920px) {
   .scales-top_limit {
-    top: -105px;
+    top: -130px !important;
   }
 }
-@media (min-width: 1024px) and (max-width: 1700px) {
+@media (min-width: 1024px) and (max-width: 1536px) {
   .scales-top_limit {
     top: -180px !important;
   }
@@ -732,7 +753,7 @@ body.bg-pattern {
   .scales8 {
     scale: 0.8;
     position: relative;
-    top: -90px;
+    top: -130px;
   }
 
   .scales-top {
@@ -793,8 +814,8 @@ body.bg-pattern {
 }
 @media (max-width: 1300px) {
   .wallet-bg-bridge {
-    top: -40px;
-    right: 40px;
+    top: -55px;
+    // right: 40px;
   }
   // .wallet-bg-bridge01 {
   //   top: 65px;
@@ -830,6 +851,9 @@ body.bg-pattern {
     margin: auto;
     border-radius: 10px !important;
   }
+    .lefts1 {
+    top: -90px;
+  }
 }
 @media (max-width: 768px) {
   .wallet-bg-bridge {
@@ -841,7 +865,7 @@ body.bg-pattern {
   // }
   .wallet-bg-bridge button {
     font-size: 11px;
-    padding: 6px 12px;
+    padding: 6px 10px;
     height: 35px;
   }
   .margin_left {
@@ -857,8 +881,8 @@ body.bg-pattern {
     min-width: 18rem;
   }
   .lefts1 {
-    top: -68px;
-    right: 10px;
+    top: -77px;
+    right: 1px;
     // right: 0px;
     // width: 145px;
     // width: 200px;
@@ -1323,6 +1347,6 @@ input[type="range"]::-moz-range-track {
 .Toastify__toast-container .Toastify__toast + .Toastify__toast {
   margin-top: 12px !important;
 }
-.space{
-  letter-spacing: 2px
+.space {
+  letter-spacing: 2px;
 }

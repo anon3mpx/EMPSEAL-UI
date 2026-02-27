@@ -3,6 +3,10 @@ import dummyImage from "../../../../assets/images/emp-logo.png";
 import Base from "../../../../assets/icons/base.svg";
 import Pulse from "../../../../assets/icons/pls.svg";
 import Arbitrum from "../../../../assets/icons/arbitrum.svg";
+import Polygon from "../../../../assets/icons/polygon.svg";
+import OP from "../../../../assets/icons/op.svg";
+import BNB from "../../../../assets/icons/binance.svg";
+import Avalanche from "../../../../assets/icons/avalanche.svg";
 import EL from "../../../../assets/images/emp-logo.png";
 
 const ChainPopup = ({
@@ -21,6 +25,11 @@ const ChainPopup = ({
     pulse: Pulse,
     pulsechain: Pulse,
     "arbitrum one": Arbitrum,
+    arbitrum: Arbitrum,
+    polygon: Polygon,
+    "op mainnet": OP,
+    "bnb smart chain": BNB,
+    avalanche: Avalanche,
   };
 
   return (

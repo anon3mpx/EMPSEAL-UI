@@ -241,19 +241,46 @@ const TransferPanel = ({ setIsChainModalOpen }) => {
           return;
         }
 
-        const response = await fetch(
-          `https://api.geckoterminal.com/api/v2/simple/networks/${networkSymbol}/token_price/${wrappedTokenAddress.toLowerCase()}`,
-        );
+        let price = null;
+        let fetchSuccess = false;
 
-        if (!response.ok) {
-          throw new Error(`HTTP error! Status: ${response.status}`);
+        try {
+          const response = await fetch(
+            `https://api.geckoterminal.com/api/v2/simple/networks/${networkSymbol}/token_price/${wrappedTokenAddress.toLowerCase()}`,
+          );
+          if (!response.ok) throw new Error("GeckoTerminal API failed");
+          const data = await response.json();
+          const tokenPrices = data?.data?.attributes?.token_prices;
+          if (tokenPrices && tokenPrices[wrappedTokenAddress.toLowerCase()]) {
+            price = tokenPrices[wrappedTokenAddress.toLowerCase()];
+            fetchSuccess = true;
+          }
+        } catch (error) {
+          console.warn("GeckoTerminal failed, falling back to DexScreener:", error);
         }
 
-        const data = await response.json();
-        const tokenPrices = data?.data?.attributes?.token_prices;
+        if (!fetchSuccess) {
+          try {
+            const response = await fetch(
+              `https://api.dexscreener.com/latest/dex/tokens/${wrappedTokenAddress}`
+            );
+            if (!response.ok) throw new Error("DexScreener API failed");
+            const data = await response.json();
+            if (data.pairs && data.pairs.length > 0) {
+              const pair = data.pairs.find(
+                (p) => p.baseToken.address.toLowerCase() === wrappedTokenAddress.toLowerCase()
+              ) || data.pairs[0];
+              if (pair && pair.priceUsd) {
+                price = pair.priceUsd;
+                fetchSuccess = true;
+              }
+            }
+          } catch (error) {
+            console.error("DexScreener API also failed:", error);
+          }
+        }
 
-        if (tokenPrices && tokenPrices[wrappedTokenAddress.toLowerCase()]) {
-          const price = tokenPrices[wrappedTokenAddress.toLowerCase()];
+        if (price) {
           setFromTokenPrice(price);
 
           // Calculate USD value
@@ -291,19 +318,46 @@ const TransferPanel = ({ setIsChainModalOpen }) => {
           return;
         }
 
-        const response = await fetch(
-          `https://api.geckoterminal.com/api/v2/simple/networks/${networkSymbol}/token_price/${wrappedTokenAddress.toLowerCase()}`,
-        );
+        let price = null;
+        let fetchSuccess = false;
 
-        if (!response.ok) {
-          throw new Error(`HTTP error! Status: ${response.status}`);
+        try {
+          const response = await fetch(
+            `https://api.geckoterminal.com/api/v2/simple/networks/${networkSymbol}/token_price/${wrappedTokenAddress.toLowerCase()}`,
+          );
+          if (!response.ok) throw new Error("GeckoTerminal API failed");
+          const data = await response.json();
+          const tokenPrices = data?.data?.attributes?.token_prices;
+          if (tokenPrices && tokenPrices[wrappedTokenAddress.toLowerCase()]) {
+            price = tokenPrices[wrappedTokenAddress.toLowerCase()];
+            fetchSuccess = true;
+          }
+        } catch (error) {
+          console.warn("GeckoTerminal failed, falling back to DexScreener:", error);
         }
 
-        const data = await response.json();
-        const tokenPrices = data?.data?.attributes?.token_prices;
+        if (!fetchSuccess) {
+          try {
+            const response = await fetch(
+              `https://api.dexscreener.com/latest/dex/tokens/${wrappedTokenAddress}`
+            );
+            if (!response.ok) throw new Error("DexScreener API failed");
+            const data = await response.json();
+            if (data.pairs && data.pairs.length > 0) {
+              const pair = data.pairs.find(
+                (p) => p.baseToken.address.toLowerCase() === wrappedTokenAddress.toLowerCase()
+              ) || data.pairs[0];
+              if (pair && pair.priceUsd) {
+                price = pair.priceUsd;
+                fetchSuccess = true;
+              }
+            }
+          } catch (error) {
+            console.error("DexScreener API also failed:", error);
+          }
+        }
 
-        if (tokenPrices && tokenPrices[wrappedTokenAddress.toLowerCase()]) {
-          const price = tokenPrices[wrappedTokenAddress.toLowerCase()];
+        if (price) {
           setToTokenPrice(price);
 
           // Calculate USD value for expected amount
@@ -438,11 +492,10 @@ const TransferPanel = ({ setIsChainModalOpen }) => {
                     disabled={isBalanceLoading || !balance}
                     onClick={() => handlePercentageChange(value)}
                     className={`py-1 border border-[#EEC485] flex justify-center items-center rounded-xl md:text-[10px] text-[8px] font-medium font-orbitron md:w-12 w-11 px-2
-        ${
-          selectedPercentage === value
-            ? "!text-black !bg-[#FF9900] border-[#FF9900]"
-            : "bg-[#EEC485] text-[#040404] border-black hover:border-black hover:bg-[#FF9900] hover:text-black"
-        }`}
+        ${selectedPercentage === value
+                        ? "!text-black !bg-[#FF9900] border-[#FF9900]"
+                        : "bg-[#EEC485] text-[#040404] border-black hover:border-black hover:bg-[#FF9900] hover:text-black"
+                      }`}
                   >
                     {value}%
                   </button>
@@ -549,11 +602,10 @@ const TransferPanel = ({ setIsChainModalOpen }) => {
                     disabled={isBalanceLoading || !balance}
                     onClick={() => handlePercentageChange(value)}
                     className={`py-1 border border-[#EEC485] flex justify-center items-center rounded-xl md:text-[10px] text-[8px] font-medium font-orbitron md:w-12 w-11 px-2
-        ${
-          selectedPercentage === value
-            ? "!text-black !bg-[#FF9900] border-[#FF9900]"
-            : "bg-[#EEC485] text-[#040404] border-black hover:border-black hover:bg-[#FF9900] hover:text-black"
-        }`}
+        ${selectedPercentage === value
+                        ? "!text-black !bg-[#FF9900] border-[#FF9900]"
+                        : "bg-[#EEC485] text-[#040404] border-black hover:border-black hover:bg-[#FF9900] hover:text-black"
+                      }`}
                   >
                     {value}%
                   </button>
@@ -585,7 +637,7 @@ const TransferPanel = ({ setIsChainModalOpen }) => {
               />
               <button
                 className={`!absolute !bg-transparent md:w-[90px] w-16 md:h-10 h-10 hover:opacity-70 bg-black !border !border-[#FF9900] top-2 right-3 flex justify-center items-center rounded-xl px-2 font-orbitron !text-[#FF9900] md:text-base text-xs font-bold`}
-                // onClick={handleSelfButtonClick}
+              // onClick={handleSelfButtonClick}
               >
                 Self
               </button>

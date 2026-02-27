@@ -220,12 +220,15 @@ export function CreateOrderForm({
       tokenAddress: string,
       setCustomToken: (token: any) => void,
     ) => {
+      let fetchSuccess = false;
       try {
         const response = await fetch(
           `https://api.geckoterminal.com/api/v2/networks/pulsechain/tokens/${tokenAddress}`,
         );
+        if (!response.ok) throw new Error("GeckoTerminal API failed");
         const data = await response.json();
-        if (data.data.attributes) {
+
+        if (data?.data?.attributes) {
           const { name, symbol, decimals, image_url } = data.data.attributes;
 
           // Cache the logo if found
@@ -239,9 +242,42 @@ export function CreateOrderForm({
             decimals,
             logoURI: image_url,
           });
+          fetchSuccess = true;
         }
       } catch (error) {
-        console.error("Failed to fetch custom token data:", error);
+        console.warn("GeckoTerminal fetch failed, falling back to DexScreener:", error);
+      }
+
+      if (!fetchSuccess) {
+        try {
+          const response = await fetch(
+            `https://api.dexscreener.com/latest/dex/tokens/${tokenAddress}`,
+          );
+          if (!response.ok) throw new Error("DexScreener API failed");
+          const data = await response.json();
+
+          if (data.pairs && data.pairs.length > 0) {
+            const pair = data.pairs.find(
+              (p: any) => p.baseToken.address.toLowerCase() === tokenAddress.toLowerCase()
+            ) || data.pairs[0]; // fallback to first pair if exact base token match isn't found
+
+            if (pair) {
+              setCustomToken({
+                address: tokenAddress,
+                name: pair.baseToken.name,
+                symbol: pair.baseToken.symbol,
+                decimals: 18, // DexScreener doesn't provide decimals, defaulting to 18
+                logoURI: pair.info?.imageUrl || "",
+              });
+              fetchSuccess = true;
+            }
+          }
+        } catch (error) {
+          console.error("DexScreener fetch also failed:", error);
+        }
+      }
+
+      if (!fetchSuccess) {
         setCustomToken(null);
       }
     };
@@ -321,59 +357,92 @@ export function CreateOrderForm({
       }
 
       try {
-        const response = await fetch(
-          `https://api.geckoterminal.com/api/v2/simple/networks/pulsechain/token_price/${addresses.join(
-            ",",
-          )}`,
-        );
-        const data = await response.json();
+        let tokenInPrice: number | null = null;
+        let tokenOutPrice: number | null = null;
+        let fetchSuccess = false;
 
-        // Update Token In Price
-        if (selectedTokenIn && isAddress(selectedTokenIn)) {
-          const tokenInPrice = parseFloat(
-            data.data.attributes.token_prices[selectedTokenIn.toLowerCase()],
+        try {
+          const response = await fetch(
+            `https://api.geckoterminal.com/api/v2/simple/networks/pulsechain/token_price/${addresses.join(
+              ",",
+            )}`,
           );
-          setTokenInUSDPrice(tokenInPrice || null);
-        } else {
-          setTokenInUSDPrice(null);
+          if (!response.ok) throw new Error("GeckoTerminal API failed");
+          const data = await response.json();
+
+          if (data?.data?.attributes?.token_prices) {
+            if (selectedTokenIn && isAddress(selectedTokenIn)) {
+              tokenInPrice = parseFloat(
+                data.data.attributes.token_prices[selectedTokenIn.toLowerCase()],
+              );
+              if (isNaN(tokenInPrice)) tokenInPrice = null;
+            }
+            if (selectedTokenOut && isAddress(selectedTokenOut)) {
+              tokenOutPrice = parseFloat(
+                data.data.attributes.token_prices[selectedTokenOut.toLowerCase()],
+              );
+              if (isNaN(tokenOutPrice)) tokenOutPrice = null;
+            }
+            fetchSuccess = true;
+          }
+        } catch (error) {
+          console.warn("GeckoTerminal failed, falling back to DexScreener:", error);
         }
 
-        // Update Token Out Price
-        if (selectedTokenOut && isAddress(selectedTokenOut)) {
-          const tokenOutPrice = parseFloat(
-            data.data.attributes.token_prices[selectedTokenOut.toLowerCase()],
-          );
-          setTokenOutUSDPrice(tokenOutPrice || null);
-        } else {
-          setTokenOutUSDPrice(null);
+        if (!fetchSuccess) {
+          try {
+            const response = await fetch(
+              `https://api.dexscreener.com/latest/dex/tokens/${addresses.join(",")}`
+            );
+            if (!response.ok) throw new Error("DexScreener API failed");
+            const data = await response.json();
+
+            if (data.pairs && data.pairs.length > 0) {
+              if (selectedTokenIn && isAddress(selectedTokenIn)) {
+                // Find most liquid pair where baseToken matches selectedTokenIn
+                const pair = data.pairs.find(
+                  (p: any) => p.baseToken.address.toLowerCase() === selectedTokenIn.toLowerCase()
+                );
+                if (pair && pair.priceUsd) {
+                  tokenInPrice = parseFloat(pair.priceUsd);
+                }
+              }
+              if (selectedTokenOut && isAddress(selectedTokenOut)) {
+                // Find most liquid pair where baseToken matches selectedTokenOut
+                const pair = data.pairs.find(
+                  (p: any) => p.baseToken.address.toLowerCase() === selectedTokenOut.toLowerCase()
+                );
+                if (pair && pair.priceUsd) {
+                  tokenOutPrice = parseFloat(pair.priceUsd);
+                }
+              }
+              fetchSuccess = true;
+            }
+          } catch (error) {
+            console.error("DexScreener API also failed:", error);
+          }
         }
 
-        // Update Market Price (Ratio)
+        // Apply state updates
+        setTokenInUSDPrice(tokenInPrice || null);
+        setTokenOutUSDPrice(tokenOutPrice || null);
+
         if (
+          tokenInPrice &&
+          tokenOutPrice &&
           selectedTokenIn &&
           selectedTokenOut &&
           isAddress(selectedTokenIn) &&
           isAddress(selectedTokenOut)
         ) {
-          const tokenInPrice = parseFloat(
-            data.data.attributes.token_prices[selectedTokenIn.toLowerCase()],
-          );
-          const tokenOutPrice = parseFloat(
-            data.data.attributes.token_prices[selectedTokenOut.toLowerCase()],
-          );
-
-          if (tokenInPrice && tokenOutPrice) {
-            const price = tokenInPrice / tokenOutPrice;
-            setMarketPrice(price.toFixed(8));
-          } else {
-            setMarketPrice(null);
-          }
+          const price = tokenInPrice / tokenOutPrice;
+          setMarketPrice(price.toFixed(8));
         } else {
           setMarketPrice(null);
         }
       } catch (error) {
         console.error(
-          "Failed to fetch market price from GeckoTerminal:",
+          "Failed to fetch market price from APIs:",
           error,
         );
         setMarketPrice(null);
@@ -954,7 +1023,10 @@ export function CreateOrderForm({
   // Add this function to handle custom percentage changes
   const handleCustomPercentageChange = (value: string) => {
     // Sanitize and limit decimal places to 8
-    const sanitized = limitDecimalPlaces(value.replace(/[^0-9.]/g, ""), 8);
+    let sanitized = limitDecimalPlaces(value.replace(/[^0-9.]/g, ""), 8);
+    if (sanitized !== "" && Number(sanitized) > 10000) {
+      sanitized = "10000";
+    }
     // console.log("Sanitized percentage input:", sanitized);
     // Always preserve the raw string to allow typing decimals like "0."
     setCustomPercentage(sanitized);
@@ -985,14 +1057,65 @@ export function CreateOrderForm({
     }
   };
 
-  const applyStopLossPercent = (percent: number, updateState: boolean = true) => {
-    const safePercent = Math.min(10000, Math.max(0, percent));
+  const STOP_LOSS_MAX_ABOVE_PERCENT = 10000;
+  const STOP_LOSS_MAX_BELOW_PERCENT = 1000;
+  const STOP_LOSS_MARKET_POSITION =
+    (STOP_LOSS_MAX_ABOVE_PERCENT /
+      (STOP_LOSS_MAX_ABOVE_PERCENT + STOP_LOSS_MAX_BELOW_PERCENT)) *
+    100;
+
+  const getStopLossSliderPosition = (percent: number) => {
+    const safePercent = Math.min(
+      STOP_LOSS_MAX_ABOVE_PERCENT,
+      Math.max(-STOP_LOSS_MAX_BELOW_PERCENT, percent),
+    );
+
+    if (safePercent >= 0) {
+      return (
+        STOP_LOSS_MARKET_POSITION -
+        (safePercent / STOP_LOSS_MAX_ABOVE_PERCENT) * STOP_LOSS_MARKET_POSITION
+      );
+    }
+
+    return (
+      STOP_LOSS_MARKET_POSITION +
+      (Math.abs(safePercent) / STOP_LOSS_MAX_BELOW_PERCENT) *
+        (100 - STOP_LOSS_MARKET_POSITION)
+    );
+  };
+
+  const getStopLossPercentFromSlider = (sliderPosition: number) => {
+    const safePosition = Math.min(100, Math.max(0, sliderPosition));
+
+    if (safePosition <= STOP_LOSS_MARKET_POSITION) {
+      const aboveRatio =
+        (STOP_LOSS_MARKET_POSITION - safePosition) / STOP_LOSS_MARKET_POSITION;
+      return aboveRatio * STOP_LOSS_MAX_ABOVE_PERCENT;
+    }
+
+    const belowRatio =
+      (safePosition - STOP_LOSS_MARKET_POSITION) /
+      (100 - STOP_LOSS_MARKET_POSITION);
+    return -belowRatio * STOP_LOSS_MAX_BELOW_PERCENT;
+  };
+
+  const applyStopLossPercent = (
+    percent: number,
+    updateState: boolean = true,
+  ) => {
+    const safePercent = Math.min(
+      STOP_LOSS_MAX_ABOVE_PERCENT,
+      Math.max(-STOP_LOSS_MAX_BELOW_PERCENT, percent),
+    );
     if (updateState) {
       setStopLossPercent(safePercent);
     }
     if (marketPrice) {
       const market = Number(marketPrice);
-      const stopLossValue = market * (1 + safePercent / 100);
+      const stopLossValue =
+        safePercent >= 0
+          ? market * (1 + safePercent / 100)
+          : market / (1 + Math.abs(safePercent) / 100);
       setStopLossPrice(stopLossValue.toFixed(8));
     }
   };
@@ -1937,6 +2060,7 @@ export function CreateOrderForm({
                       onChange={(e) => {
                         const sanitized = sanitizeNumericInput(e.target.value);
                         // console.log("Setting limitPrice to:", sanitized);
+                        setCalculatedMarketPrice(sanitized);
                         form.setValue("limitPrice", sanitized, {
                           shouldValidate: true,
                           shouldDirty: true,
@@ -2106,6 +2230,7 @@ export function CreateOrderForm({
                                 );
                               }
 
+                              setCalculatedMarketPrice(newLimitPrice.toFixed(8));
                               form.setValue(
                                 "limitPrice",
                                 newLimitPrice.toFixed(8),
@@ -2120,11 +2245,11 @@ export function CreateOrderForm({
                         />
                       </div>
                       <div className="flex justify-between text-[10px] mt-3 text-gray-400">
-                        <span>0</span>
-                        <span>2500</span>
-                        <span>5000</span>
-                        <span>7500</span>
-                        <span>10000</span>
+                        <span>0%</span>
+                        <span>2500%</span>
+                        <span>5000%</span>
+                        <span>7500%</span>
+                        <span>10000%</span>
                       </div>
                     </div>
                   );
@@ -2151,6 +2276,7 @@ export function CreateOrderForm({
                       disabled={!marketPrice}
                       onClick={() => {
                         if (!marketPrice) return;
+                        setCalculatedMarketPrice(parseFloat(marketPrice).toFixed(8));
                         form.setValue(
                           "limitPrice",
                           parseFloat(marketPrice).toFixed(8),
@@ -2404,23 +2530,25 @@ export function CreateOrderForm({
                       </span>
                     </div>
                     <div className="flex justify-between text-[10px] mb-3 text-gray-400">
-                      <span className="text-[#FF9900] font-bold">Market</span>
                       <span className="text-[#FF9900] font-bold">Target</span>
+                      <span className="text-[#FF9900] font-bold">Market</span>
                     </div>
 
                     {/* Stop Loss Slider */}
                     <div className="mt-3 font-orbitron">
                       <div className="relative h-2 bg-[#352E25] rounded-full">
                         {(() => {
-                          const stopLossSliderPosition = Math.min(
-                            100,
-                            Math.max(0, (Number(stopLossPercent) || 0) / 100),
+                          const stopLossSliderPosition = getStopLossSliderPosition(
+                            Number(stopLossPercent) || 0,
                           );
                           return (
                             <>
                               <div
                                 className="absolute h-2 bg-[#F59216] rounded-full transition-all duration-200"
-                                style={{ width: `${stopLossSliderPosition}%` }}
+                                style={{
+                                  width: `${100 - stopLossSliderPosition}%`,
+                                  left: `${stopLossSliderPosition}%`,
+                                }}
                               />
                               <div
                                 className="absolute top-1/2 -translate-y-1/2 w-8 h-8 bg-[#F59216] rounded-full shadow-lg transition-all duration-200"
@@ -2436,7 +2564,8 @@ export function CreateOrderForm({
                                 value={stopLossSliderPosition}
                                 onChange={(e) => {
                                   const sliderPosition = Number(e.target.value);
-                                  const percent = sliderPosition * 100;
+                                  const percent =
+                                    getStopLossPercentFromSlider(sliderPosition);
                                   applyStopLossPercent(percent);
                                 }}
                                 className="absolute top-0 left-0 w-full h-2 opacity-0 cursor-pointer"
@@ -2446,11 +2575,11 @@ export function CreateOrderForm({
                         })()}
                       </div>
                       <div className="flex justify-between text-[10px] mt-3 text-gray-400">
-                        <span>0</span>
-                        <span>2500</span>
-                        <span>5000</span>
-                        <span>7500</span>
-                        <span>10000</span>
+                        <span>10000%</span>
+                        <span>7500%</span>
+                        <span>5000%</span>
+                        <span>2500%</span>
+                        <span>-1000%</span>
                       </div>
                     </div>
 
@@ -2479,12 +2608,33 @@ export function CreateOrderForm({
                             value={stopLossPercent}
                             placeholder="0"
                             onChange={(e) => {
-                              const value = limitDecimalPlaces(
-                                e.target.value.replace(/[^0-9.]/g, ""),
+                              let value = limitDecimalPlaces(
+                                e.target.value.replace(/[^0-9.-]/g, ""),
                                 8,
                               );
+                              // Allow only a single leading "-" sign
+                              value = value.replace(/(?!^)-/g, "");
+                              const parts = value.split(".");
+                              if (parts.length > 2) {
+                                value = parts[0] + "." + parts.slice(1).join("");
+                              }
+
+                              if (
+                                value !== "" &&
+                                value !== "-" &&
+                                Number(value) > STOP_LOSS_MAX_ABOVE_PERCENT
+                              ) {
+                                value = `${STOP_LOSS_MAX_ABOVE_PERCENT}`;
+                              }
+                              if (
+                                value !== "" &&
+                                value !== "-" &&
+                                Number(value) < -STOP_LOSS_MAX_BELOW_PERCENT
+                              ) {
+                                value = `${-STOP_LOSS_MAX_BELOW_PERCENT}`;
+                              }
                               setStopLossPercent(value);
-                              if (value === "") {
+                              if (value === "" || value === "-") {
                                 applyStopLossPercent(0, false);
                                 return;
                               }
@@ -2596,11 +2746,11 @@ export function CreateOrderForm({
                         })()}
                       </div>
                       <div className="flex justify-between text-[10px] mt-3 text-gray-400">
-                        <span>0</span>
-                        <span>2500</span>
-                        <span>5000</span>
-                        <span>7500</span>
-                        <span>10000</span>
+                        <span>0%</span>
+                        <span>2500%</span>
+                        <span>5000%</span>
+                        <span>7500%</span>
+                        <span>10000%</span>
                       </div>
                     </div>
 
@@ -2629,10 +2779,13 @@ export function CreateOrderForm({
                             value={takeProfitPercent}
                             placeholder="0"
                             onChange={(e) => {
-                              const value = limitDecimalPlaces(
+                              let value = limitDecimalPlaces(
                                 e.target.value.replace(/[^0-9.]/g, ""),
                                 8,
                               );
+                              if (value !== "" && Number(value) > 10000) {
+                                value = "10000";
+                              }
                               setTakeProfitPercent(value);
                               if (value === "") {
                                 applyTakeProfitPercent(0, false);
@@ -2892,27 +3045,32 @@ export function CreateOrderForm({
                         ? `${(((parseFloat(takeProfitPrice) - parseFloat(marketPrice)) / parseFloat(marketPrice)) * 100).toFixed(2)}%`
                         : "80%"} */}
                       {(() => {
-                        const market = marketPrice
-                          ? parseFloat(marketPrice)
-                          : 0;
-                        const limit = currentLimitPrice
-                          ? parseFloat(currentLimitPrice)
-                          : 0;
+                        const market = marketPrice ? parseFloat(marketPrice) : 0;
+                        const limit = currentLimitPrice ? parseFloat(currentLimitPrice) : 0;
 
-                        if (
-                          market > 0 &&
-                          limit > 0 &&
-                          currentStrategy === OrderStrategy.SELL
-                        ) {
-                          const priceDiffPercent =
-                            ((limit - market) / market) * 100;
-                          return `${Math.min(100, Math.max(0, priceDiffPercent)).toFixed(1)}%`;
+                        if (market > 0) {
+                          if ((currentStrategy === OrderStrategy.SELL || orderMode === OrderMode.BRACKET) && limit > 0) {
+                            const priceDiffPercent = ((limit - market) / market) * 100;
+                            // Only show profit if limit > market
+                            return priceDiffPercent > 0 ? `${priceDiffPercent.toFixed(2)}%` : "0%";
+                          } else if (currentStrategy === OrderStrategy.BUY && limit > 0) {
+                            // To mirror "buying X% below market" and track infinite positive potential (like the 10000% slider)
+                            const priceDiffPercent = ((market - limit) / limit) * 100;
+                            // Only show profit if limit < market (which means priceDiffPercent > 0)
+                            return priceDiffPercent > 0 ? `${priceDiffPercent.toFixed(2)}%` : "0%";
+                          } else if (orderMode === OrderMode.POSITION && takeProfitPrice) {
+                            const tp = parseFloat(takeProfitPrice);
+                            if (tp > 0) {
+                              const priceDiffPercent = Math.abs(((tp - market) / market) * 100);
+                              return priceDiffPercent > 0 ? `${priceDiffPercent.toFixed(2)}%` : "0%";
+                            }
+                          }
                         }
                         return "0%";
                       })()}
                     </div>
                     <div className="text-white md:text-[11px] mt-1 text-[9px] font-semibold">
-                      {currentStrategy === OrderStrategy.BRACKET
+                      {orderMode === OrderMode.BRACKET || orderMode === OrderMode.POSITION
                         ? "Potential Profit"
                         : "Profit"}
                     </div>
@@ -2922,7 +3080,9 @@ export function CreateOrderForm({
                   strategy={form.watch("strategy")}
                   stopLossPrice={stopLossPrice}
                   takeProfitPrice={takeProfitPrice}
+                  currentMarketPrice={marketPrice || undefined}
                   marketPrice={calculatedMarketPrice || undefined}
+                  limitPrice={currentLimitPrice || undefined}
                 />
               </div>
             </div>

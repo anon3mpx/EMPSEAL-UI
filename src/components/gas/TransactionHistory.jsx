@@ -30,7 +30,7 @@ const TransactionHistory = () => {
       <h2 className="font-extrabold text-center text-[#FF9900] md:text-3xl text-lg font-orbitron transition-all duration-200">
         Transaction History
       </h2>
-      <div className="mt-6 clip-bg1 w-full rounded-2xl lg:py-8 lg:px-8 md:px-6 px-4 md:py-6 py-6 space-y-3">
+      <div className="mt-6 clip-bg1 w-full rounded-2xl lg:py-8 lg:px-8 md:px-6 px-4 md:py-6 py-6 space-y-3 max-h-[350px] overflow-y-auto chain_scroll">
         <>
           {isOpen && (
             <>

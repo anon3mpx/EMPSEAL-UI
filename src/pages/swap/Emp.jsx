@@ -1366,7 +1366,7 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
 
                         const formattedValue = isNaN(numericValue)
                           ? ""
-                          : formatNumber(numericValue.toFixed(2));
+                          : formatNumber(numericValue.toFixed(4));
 
                         const outputLength =
                           formattedValue.replace(/,/g, "").length || 0;

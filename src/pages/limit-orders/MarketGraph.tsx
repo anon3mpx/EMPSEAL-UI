@@ -5,14 +5,18 @@ interface MarketTargetChartProps {
   strategy?: OrderStrategy;
   stopLossPrice?: string;
   takeProfitPrice?: string;
+  currentMarketPrice?: string;
   marketPrice?: string;
+  limitPrice?: string;
 }
 
 export default function MarketTargetChart({
   strategy = OrderStrategy.SELL,
   stopLossPrice,
   takeProfitPrice,
+  currentMarketPrice,
   marketPrice,
+  limitPrice,
 }: MarketTargetChartProps) {
   const sellPoints = [
     [0, 80],
@@ -244,10 +248,10 @@ export default function MarketTargetChart({
         {isBuyStrategy && (
           <>
             <div className="absolute left-2 top-4 bg-[#FFE3BA] text-black text-xs px-2 py-1 rounded-md">
-              Target
+              Market
             </div>
             <div className="absolute right-2 top-10 bg-[#FFE3BA] text-black text-xs px-2 py-1 rounded-md">
-              Market
+              Target
             </div>
           </>
         )}
@@ -322,30 +326,33 @@ export default function MarketTargetChart({
           <>
             <div>
               <div className="text-lg font-semibold text-[#FFD484]">
-                {marketPrice
-                  ? `$ ${parseFloat(marketPrice).toFixed(3)}`
+                {currentMarketPrice
+                  ? ` ${parseFloat(currentMarketPrice).toFixed(3)}`
                   : "$ 0.673"}
               </div>
               <div className="text-white text-xs">
-                {isSellStrategy ? "Current Price" : "Target Price"}
+                Current Price
               </div>
             </div>
             <div className="text-right">
               <div className="text-lg font-semibold text-[#FFD484]">
                 {(() => {
+                  if (limitPrice) {
+                    return ` ${parseFloat(limitPrice).toFixed(3)}`;
+                  }
                   if (isSellStrategy) {
                     return marketPrice
-                      ? `$ ${(parseFloat(marketPrice) * 1.2).toFixed(3)}`
+                      ? ` ${(parseFloat(marketPrice) * 1.2).toFixed(3)}`
                       : "$ 54";
                   } else {
                     return marketPrice
-                      ? `$ ${(parseFloat(marketPrice) * 0.8).toFixed(3)}`
+                      ? ` ${(parseFloat(marketPrice) * 0.8).toFixed(3)}`
                       : "$ 28";
                   }
                 })()}
               </div>
               <div className="text-white text-xs">
-                {isSellStrategy ? "Target Price" : "Current Price"}
+                Target Price
               </div>
             </div>
           </>
