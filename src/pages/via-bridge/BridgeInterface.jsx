@@ -1017,18 +1017,23 @@ const BridgeInterface = () => {
               <span className="text-white">BRIDGE</span>
             </h1>
             <div className="flex justify-center gap-4 md:mt-7 mt-2 md:flex-nowrap md:max-w-[600px] w-full mx-auto md:px-0 px-1">
-              <Link to="/native-bridge" className="w-full">
-                <div
-                  className={`border-2 ${activeTab === "native"
-                      ? "border-[#FF9900]"
-                      : "border-black bg-black"
-                    } 
+              <div className="group relative w-full">
+                <Link to="/native-bridge" className="w-full">
+                  <div
+                    className={`border-2 ${activeTab === "native"
+                        ? "border-[#FF9900]"
+                        : "border-black bg-black"
+                      } 
               px-3 py-2 w-full md:h-10 h-[28px] flex justify-center items-center 
               rounded-md border text-white md:text-[15px] text-xs font-bold font-orbitron`}
-                >
-                  Native Bridge
+                  >
+                    Native Bridge
+                  </div>
+                </Link>
+                <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 px-2 py-1 bg-black border border-[#FF9900] rounded text-white text-lg font-orbitron opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+                  Deprecating soon
                 </div>
-              </Link>
+              </div>
               <Link to="/via-bridge" className="w-full">
                 <div
                   className={`border-2 ${activeTab === "viabridge"
@@ -1351,7 +1356,7 @@ const BridgeInterface = () => {
                     )}
                     <span className="font-bold mt-1">Market Price</span>
                   </div>
-                  <div className="text-zinc-200 text-[10px] font-normal font-orbitron leading-normal flex md:gap-2 gap-1 justify-end">
+                  {/* <div className="text-zinc-200 text-[10px] font-normal font-orbitron leading-normal flex md:gap-2 gap-1 justify-end">
                     <span></span>
                     {[25, 50, 75, 100].map((value) => (
                       <button
@@ -1368,7 +1373,7 @@ const BridgeInterface = () => {
                         {value}%
                       </button>
                     ))}
-                  </div>
+                  </div> */}
                 </div>
               </div>
             </div>

@@ -1429,7 +1429,7 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
                       </span>
                       <span className="font-bold mt-1">Market Price</span>
                     </div>
-                    <div className="text-zinc-200 text-[10px] font-normal font-orbitron leading-normal flex md:gap-2 gap-1 justify-end">
+                    {/* <div className="text-zinc-200 text-[10px] font-normal font-orbitron leading-normal flex md:gap-2 gap-1 justify-end">
                       <span></span>
                       {[25, 50, 75, 100].map((value) => (
                         <button
@@ -1446,7 +1446,7 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
                           {value}%
                         </button>
                       ))}
-                    </div>
+                    </div> */}
                   </div>
                   <div className="text-right relative text-white md:text-xs text-[10px] usd-spacing truncate font-orbitron mt-2 text-sh1 flex justify-end gap-1">
                     <div className="relative inline-block">

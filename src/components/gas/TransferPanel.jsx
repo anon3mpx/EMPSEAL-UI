@@ -593,7 +593,7 @@ const TransferPanel = ({ setIsChainModalOpen }) => {
                 )}
                 <span className="font-bold mt-1">Market Price</span>
               </div>
-              <div className="text-zinc-200 text-[10px] font-normal font-orbitron leading-normal flex md:gap-2 gap-1 justify-end">
+              {/* <div className="text-zinc-200 text-[10px] font-normal font-orbitron leading-normal flex md:gap-2 gap-1 justify-end">
                 {[25, 50, 75, 100].map((value) => (
                   <button
                     key={value}
@@ -610,7 +610,7 @@ const TransferPanel = ({ setIsChainModalOpen }) => {
                     {value}%
                   </button>
                 ))}
-              </div>
+              </div> */}
             </div>
             {/* USD Value Display for expected amount */}
             <div className="text-right text-white text-xs mt-2 font-orbitron">

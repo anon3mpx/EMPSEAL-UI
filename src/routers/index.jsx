@@ -1,8 +1,8 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { lazy, Suspense } from "react";
 
 // import Base from "../layout/base/Base";
-import Home from "../pages/Home/Main";
+// Home page removed — root path redirects to /swap
 import Swap from "../pages/swap/Main";
 import BreadCrumb from "../components/BreadCrumb";
 import NFTMarketplace from "../pages/Home/NFTMarketPlace";
@@ -99,7 +99,7 @@ function MyRoutes() {
         <div>
           <BreadCrumb />
           <Routes>
-            <Route path="/" element={<Home />} />
+            <Route path="/" element={<Navigate to="/swap" replace />} />
             <Route
               path="/swap"
               element={
