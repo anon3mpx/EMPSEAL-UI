@@ -12,6 +12,8 @@ interface MainActionButtonProps {
   onClick: () => void;
   testId: string;
   className: string;
+  minValueError: string | null;
+  hasInsufficientBalance: boolean;
 }
 
 const getButtonContent = ({
@@ -20,6 +22,8 @@ const getButtonContent = ({
   checkingApproval,
   isApproved,
   orderMode,
+  minValueError,
+  hasInsufficientBalance,
 }: Omit<MainActionButtonProps, "disabled" | "onClick" | "testId" | "className">): ReactNode => {
   if (isApproving) {
     return (
@@ -48,6 +52,14 @@ const getButtonContent = ({
     );
   }
 
+  if (minValueError) {
+    return "Minimum order value is $30";
+  }
+
+  if (hasInsufficientBalance) {
+    return "Insufficient Balance";
+  }
+
   if (isApproved) {
     return (
       <>
@@ -74,6 +86,8 @@ export function MainActionButton({
   onClick,
   testId,
   className,
+  minValueError,
+  hasInsufficientBalance,
 }: MainActionButtonProps) {
   return (
     <button
@@ -89,6 +103,8 @@ export function MainActionButton({
         checkingApproval,
         isApproved,
         orderMode,
+        minValueError,
+        hasInsufficientBalance,
       })}
     </button>
   );

@@ -95,7 +95,7 @@ export function StrategySelector({
           </div>
         </div>
 
-        <div className="flex flex-col items-center">
+        {/* <div className="flex flex-col items-center">
           <div className="text-center text-[#FF9900] md:text-sm font-bold text-sm font-orbitron mb-2">
             Spot Protection
           </div>
@@ -146,7 +146,7 @@ export function StrategySelector({
               </div>
             </div>
           </div>
-        </div>
+        </div> */}
       </div>
     </div>
   );

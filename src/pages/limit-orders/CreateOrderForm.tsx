@@ -97,7 +97,7 @@ export function CreateOrderForm({
   const [quoteReversed, setQuoteReversed] = useState(false);
   const [tradeError, setTradeError] = useState<string | null>(null);
   const [limitPriceError, setLimitPriceError] = useState<string | null>(null);
-  // const [minValueError, setMinValueError] = useState<string | null>(null); // state for minimum value error for amount in with USD check $30
+  const [minValueError, setMinValueError] = useState<string | null>(null); // state for minimum value error for amount in with USD check $30
   const [tokenInUSDPrice, setTokenInUSDPrice] = useState<number | null>(null);
   const [tokenOutUSDPrice, setTokenOutUSDPrice] = useState<number | null>(null);
 
@@ -150,6 +150,12 @@ export function CreateOrderForm({
         : undefined,
   });
   const tokenInBalance = tokenInBalanceData?.formatted;
+
+  const hasInsufficientBalance =
+    !!tokenInBalance &&
+    !!amountIn &&
+    !isNaN(parseFloat(amountIn)) &&
+    parseFloat(amountIn) > parseFloat(tokenInBalance);
 
   const { data: tokenOutBalanceData } = useBalance({
     address: userAddress,
@@ -493,6 +499,20 @@ export function CreateOrderForm({
     }
   }, [currentLimitPrice, marketPrice, currentStrategy, orderMode]);
 
+  // Validate that the order value is at least $30
+  useEffect(() => {
+    if (tokenInUSDPrice && amountIn && !isNaN(parseFloat(amountIn))) {
+      const usdValue = parseFloat(amountIn) * tokenInUSDPrice;
+      if (usdValue < 30) {
+        setMinValueError(`Minimum order value is $30`);
+      } else {
+        setMinValueError(null);
+      }
+    } else {
+      setMinValueError(null);
+    }
+  }, [amountIn, tokenInUSDPrice]);
+
   // Reset bracket settings when strategy changes from BRACKET
   useEffect(() => {
     if (currentStrategy !== OrderStrategy.BRACKET) {
@@ -612,6 +632,12 @@ export function CreateOrderForm({
   // Combined function that handles both approval and order creation
   const handleMainAction = async () => {
     // If not approved, handle approval first
+    // Block action if order value is below $30
+    if (minValueError) {
+      onStatusMessage({ type: "error", message: minValueError });
+      return;
+    }
+
     if (!isApproved) {
       await handleApproveTokens();
     } else {
@@ -1384,6 +1410,11 @@ export function CreateOrderForm({
                     {form.formState.errors.amountIn.message}
                   </p>
                 )}
+                {/* {minValueError && (
+                  <p className="mt-1 text-sm text-destructive">
+                    {minValueError}
+                  </p>
+                )} */}
               </div>
             </div>
 
@@ -1788,22 +1819,25 @@ export function CreateOrderForm({
                   checkingApproval ||
                   !!tradeError ||
                   !!limitPriceError ||
+                  !!minValueError ||
+                  hasInsufficientBalance ||
                   (orderMode === OrderMode.BRACKET &&
                     !!exitTokenValidationError) ||
                   (showBracketSettings &&
                     (!takeProfitPrice || !stopLossPrice || !takeProfitDeadline))
                 }
-                className={`gtw cursor-pointer relative w-full md:h-12 h-11 md:rounded-[10px] rounded-md mx-auto button-trans flex justify-center text-center items-center transition-all lg:text-base text-base font-extrabold ${
-                  isApproved
+                className={`gtw cursor-pointer relative w-full md:h-12 h-11 md:rounded-[10px] rounded-md mx-auto button-trans flex justify-center text-center items-center transition-all lg:text-base text-base font-extrabold ${isApproved
                   ? "bg-[#F59216] hover:bg-[#e08a15 hover:text-white"
                   : "bg-[#F59216] hover:bg-[#e08a15]"
-                }`}
+                  } ${!!minValueError || hasInsufficientBalance ? "opacity-50 cursor-not-allowed" : ""}`}
                 testId="button-main-action"
                 isApproving={isApproving}
                 isCreating={isCreating}
                 checkingApproval={checkingApproval}
                 isApproved={isApproved}
                 orderMode={orderMode}
+                minValueError={minValueError}
+                hasInsufficientBalance={hasInsufficientBalance}
               />
             </div>
             <div className="md:pt-1 pt-1 font-extrabold lg:block hidden">
@@ -2405,15 +2439,15 @@ export function CreateOrderForm({
                             </>
                           );
                         })()}
+                      </div>
+                      <div className="flex justify-between text-[10px] mt-3 text-gray-400">
+                        <span>-10000%</span>
+                        <span>-7500%</span>
+                        <span>-5000%</span>
+                        <span>-2500%</span>
+                        <span>+1000%</span>
+                      </div>
                     </div>
-                    <div className="flex justify-between text-[10px] mt-3 text-gray-400">
-                      <span>-10000%</span>
-                      <span>-7500%</span>
-                      <span>-5000%</span>
-                      <span>-2500%</span>
-                      <span>+1000%</span>
-                    </div>
-                  </div>
 
                     {/* Stop Loss Market Info */}
                     <div className="mt-2 flex justify-between gap-3 items-center">
@@ -2952,22 +2986,25 @@ export function CreateOrderForm({
                   checkingApproval ||
                   !!tradeError ||
                   !!limitPriceError ||
+                  !!minValueError ||
+                  hasInsufficientBalance ||
                   (orderMode === OrderMode.BRACKET &&
                     !!exitTokenValidationError) ||
                   (showBracketSettings &&
                     (!takeProfitPrice || !stopLossPrice || !takeProfitDeadline))
                 }
-                className={`gtw cursor-pointer relative w-full md:h-[68px] h-12 md:rounded-[10px] rounded-md mx-auto button-trans flex justify-center text-center items-center transition-all lg:text-[28px] text-xl font-extrabold ${
-                  isApproved
+                className={`gtw cursor-pointer relative w-full md:h-[68px] h-12 md:rounded-[10px] rounded-md mx-auto button-trans flex justify-center text-center items-center transition-all lg:text-[28px] text-xl font-extrabold ${isApproved
                   ? "bg-[#F59216] hover:bg-[#e08a15 hover:text-white"
                   : "bg-[#F59216] hover:bg-[#e08a15] hover:text-white"
-                }`}
+                  } ${!!minValueError || hasInsufficientBalance ? "opacity-50 cursor-not-allowed" : ""}`}
                 testId="button-main-action-mobile"
                 isApproving={isApproving}
                 isCreating={isCreating}
                 checkingApproval={checkingApproval}
                 isApproved={isApproved}
                 orderMode={orderMode}
+                minValueError={minValueError}
+                hasInsufficientBalance={hasInsufficientBalance}
               />
             </div>
             <div className="md:pt-1 pt-1 font-extrabold lg:hidden flex">
