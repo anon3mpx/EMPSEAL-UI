@@ -20,6 +20,7 @@
         "name": "USDC",
         "ticker": "USDC",
         "decimal": 6,
+        "featured":true,
         "image": "https://static.oklink.com/cdn/wallet/logo/USDC.png?x-oss-process=image/format,webp/resize,w_240,h_240,type_6/ignore-error,1"
     },
     {
@@ -27,6 +28,7 @@
         "name": "Dai Stablecoin",
         "ticker": "DAI",
         "decimal": 18,
+        "featured":true,
         "image": "https://static.oklink.com/cdn/wallet/logo/dai01.png?x-oss-process=image/format,webp/resize,w_240,h_240,type_6/ignore-error,1"
     },
     {
@@ -34,6 +36,7 @@
         "name": "Wrapped BTC",
         "ticker": "WBTC",
         "decimal": 8,
+        "featured":true,
         "image": "https://static.oklink.com/cdn/wallet/logo/WBTC-20230804.png?x-oss-process=image/format,webp/resize,w_240,h_240,type_6/ignore-error,1"
     },
     {
@@ -49,6 +52,7 @@
         "name": "EW PRO",
         "ticker": "EW PRO",
         "decimal": 16,
+        "featured":true,
         "image": "https://assets.geckoterminal.com/2eiftjzwfoac7r2cy8sh7b9bxiev"
     },
     {
