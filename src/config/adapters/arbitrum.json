@@ -1,0 +1,70 @@
+[
+  {
+    "name": "UniswapV2Adapter",
+    "address": "0xE6EF55853f548b7EdFa403056f91f85fD3B3F086"
+  },
+  {
+    "name": "UniswapV3Adapter",
+    "address": "0xa91d8284C199FE4c178d76558A1427790AF7e80F"
+  },
+  {
+    "name": "PancakeV2Adapter",
+    "address": "0x65642Ac8FD57EfF8DD4651CB76bE48814C8Bf386"
+  },
+  {
+    "name": "PancakeV3Adapter",
+    "address": "0xe92d374a55655F4b8447e3A6eacA87bBc09Dd8D7"
+  },
+  {
+    "name": "SushiswapV2Adapter",
+    "address": "0x1cB21a8a39E760E97c587B323D891927F3D006e9"
+  },
+  {
+    "name": "SushiswapV3Adapter",
+    "address": "0xe0c4Aa6A461f5032F3153DC2801dD5fcEf9D469e"
+  },
+  {
+    "name": "CamelotV2Adapter",
+    "address": "0x1b7Eb489EB0AE102720442Fe15b0e08653A13404"
+  },
+  {
+    "name": "CamelotV3Adapter",
+    "address": "0x2CEbbE0B2145D6D8a103e91C4fd01B06B9058Eda"
+  },
+  {
+    "name": "BalancerV2Adapter",
+    "address": "0xC9db13E1cacc930517634e7d96334df7796C5852"
+  },
+  {
+    "name": "RamsesV2Adapter",
+    "address": "0x9a64E7a18f5A9edcE3A3728B2C12643FA0cee26B"
+  },
+  {
+    "name": "DeltaSwapAdapter",
+    "address": "0x050c6C2555c2d54AbA01420FBc02fF0F1d10E8dF"
+  },
+  {
+    "name": "CurveStableSwap(susdai/usdc)",
+    "address": "0x227fD8AAf5e86a96881e2CCE3393F53247537b34"
+  },
+  {
+    "name": "CurveStableSwap(wbtc/tbtc)",
+    "address": "0x845Cd50644A9592de43BCAC0212656480744AAcA"
+  },
+  {
+    "name": "CurveStableSwap(usdt/usdc)",
+    "address": "0xFE4D69f3fb00AEd81003212904BEa55487daeff0"
+  },
+  {
+    "name": "CurveStableSwap(usdai/usdc)",
+    "address": "0x0bBB52AC247943d70F75EDD21DFA864652Db2e04"
+  },
+  {
+    "name": "Tricrypto(usdt/weth/wbtc)",
+    "address": "0xDb403792c55bFE26beaeF235986D4F106E40Ee6F"
+  },
+  {
+    "name": "LFJV2.1",
+    "address": "0x8C30E0D45733e99cc5aA8269E92922412471DbCF"
+  }
+]

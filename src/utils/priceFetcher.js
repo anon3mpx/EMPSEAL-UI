@@ -14,6 +14,7 @@ const DEXSCREENER_CHAIN_BY_SYMBOL = {
   rootstock: "rootstock",
   bsc: "bsc",
   monad: "monad",
+  arbitrum: "arbitrum",
 };
 
 const getMostLiquidPair = (pairs = []) => {

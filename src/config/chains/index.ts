@@ -210,5 +210,29 @@ export const SUPPORTED_CHAINS: Record<number, ChainConfig> = {
       "0x00000000eFE302BEAA2b3e6e1b18d08D69a9012a",
       "0xe7cd86e13AC4309349F30B3435a9d337750fC82D",
     ]
-  }
+  },
+  // Arbitrum
+  42161: {
+    chainId: 42161,
+    name: "Arbitrum",
+    symbol: "arbitrum",
+    routerAddress: "0xA7772cDBA7739F19dcaE85fe0357929790FD23F9",
+    wethAddress: "0x82af49447d8a07e3bd95bd0d56f35241523fbab1",
+    priceApi: {
+      baseUrl: "https://api.geckoterminal.com/api/v2",
+      tokenPriceEndpoint: "simple/networks/arbitrum/token_price",
+      graphEndpoint: "networks/arbitrum/pools",
+    },
+    blockExplorer: "https://arbiscan.io/tx/",
+    blockExplorerName: "Arbiscan",
+    rpcUrl: "https://arb-one.api.pocket.network",
+    maxHops: 3,
+    blockTime: 2,
+    stableTokens: [
+      "0xaf88d065e77c8cc2239327c5edb3a432268e5831", // USDC
+      "0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9", // USDT
+      "0x6491c05a82219b8d1479057361ff1654749b876b", // USDS
+      "0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34", // USDe
+    ],
+  },
 };

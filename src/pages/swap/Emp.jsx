@@ -39,6 +39,7 @@ import {
   ROOTSTOCK_ROUTER_ABI,
   BSC_ROUTER_ABI,
   MONAD_ROUTER_ABI,
+  ARBITRUM_ROUTER_ABI,
 } from "../../utils/abis/empSealRouterAbi";
 import { toast } from "../../utils/toastHelper";
 import { usePriceMonitor } from "../../hooks/usePriceMonitor";
@@ -76,6 +77,8 @@ const getWrappedTokenABI = (chainId) => {
       return WRBTC;
     case 143:
       return WMON;
+    case 42161:
+      return WETH;
     case 369:
     default:
       return WPLS;
@@ -100,6 +103,8 @@ const getRouterABI = (chainId) => {
       return BSC_ROUTER_ABI;
     case 143:
       return MONAD_ROUTER_ABI;
+    case 42161:
+      return ARBITRUM_ROUTER_ABI;
     case 369:
     default:
       return PLS_ROUTER_ABI;

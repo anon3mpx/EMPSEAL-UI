@@ -92,7 +92,7 @@ export default function WalletConnect({
     sonic: Sonic,
     berachain: Berachain,
     bsc: BSC, // local import
-    "arbitrum one": Arbitrum, // local import
+    arbitrum: Arbitrum, // local import
     avalanche: Avalanche, // local import
     polygon: Polygon, // local import
     "op mainnet": OP, // local import

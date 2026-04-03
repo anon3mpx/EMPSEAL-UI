@@ -33,7 +33,7 @@ const ChainPopup = ({
     pulsechain: Pulse,
     sonic: Sonic,
     bsc: BSC, // local import
-    "arbitrum one": Arbitrum, // local import
+    arbitrum: Arbitrum, // local import
     avalanche: Avalanche, // local import
     polygon: Polygon, // local import
     "op mainnet": OP, // local import

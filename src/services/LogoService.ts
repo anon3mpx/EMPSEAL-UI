@@ -10,6 +10,7 @@ const NETWORK_SLUGS: Record<number, string> = {
     56: "binance-smart-chain",
     10001: "ethw",
     146: "sonic",
+    143: "monad",
 };
 
 const CACHE_PREFIX = "logo_cache_";

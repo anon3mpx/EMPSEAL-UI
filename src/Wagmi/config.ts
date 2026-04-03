@@ -7,163 +7,20 @@ import {
   walletConnectWallet,
 } from '@rainbow-me/rainbowkit/wallets';
 import { http } from 'wagmi';
-import { pulsechain, sonic, rootstock} from 'wagmi/chains';
-import { defineChain, fallback } from 'viem';
-
-export const ethw = defineChain({
-  id: 10001,
-  name: 'EthereumPoW',
-  nativeCurrency: {
-    name: 'EthereumPoW',
-    symbol: 'ETHW',
-    decimals: 18,
-  },
-  rpcUrls: {
-    default: {
-      http: ['https://mainnet.ethereumpow.org'],
-    },
-  },
-  blockExplorers: {
-    default: {
-      name: 'OKLink',
-      url: 'https://www.oklink.com/ethereum-pow',
-    },
-  },
-} as const);
-
-export const base = defineChain({
-  id: 8453,
-  name: "Base",
-  nativeCurrency: {
-    name: "Base Ether",
-    symbol: "ETH",
-    decimals: 18,
-  },
-  rpcUrls: {
-    default: {
-      http: ["https://base.drpc.org"],
-    },
-  },
-  contracts: {
-    multicall3: {
-      address: "0xca11bde05977b3631167028862be2a173976ca11",
-    },
-  },
-  blockExplorers: {
-    default: {
-      name: "BaseScan",
-      url: "https://basescan.org",
-    },
-  },
-} as const);
-
-export const bsc = defineChain({
-  id: 56,
-  name: "BSC",
-  nativeCurrency: {
-    name: "BNB",
-    symbol: "BNB",
-    decimals: 18,
-  },
-  rpcUrls: {
-    default: {
-      http: ["https://bsc-rpc.publicnode.com"],
-    },
-  },
-  contracts: {
-    multicall3: {
-      address: "0xca11bde05977b3631167028862be2a173976ca11",
-    },
-  },
-  blockExplorers: {
-    default: {
-      name: "BscScan",
-      url: "https://bscscan.com",
-    },
-  },
-} as const);
-
-export const sei = defineChain({
-  id: 1329,
-  name: "Sei Network",
-  nativeCurrency: {
-    name: "Sei",
-    symbol: "SEI",
-    decimals: 18,
-  },
-  rpcUrls: {
-    default: {
-      http: ["https://sei.api.pocket.network"],
-      // https://evm-rpc.sei-apis.com
-      // https://sei.drpc.org
-      // https://sei-evm-rpc.stakeme.pro
-      // https://sei-evm-rpc.publicnode.com
-    },
-  },
-  contracts: {
-    multicall3: {
-      address: "0xcA11bde05977b3631167028862bE2a173976CA11",
-    },
-  },
-  blockExplorers: {
-    default: {
-      name: "seitrace",
-      url: "https://seitrace.com/",
-    },
-  },
-} as const);
-
-export const berachain = defineChain({
-  id: 80094,
-  name: "Berachain",
-  nativeCurrency: {
-    name: "Bera",
-    symbol: "BERA",
-    decimals: 18,
-  },
-  rpcUrls: {
-    default: {
-      http: ["https://berachain.drpc.org"],
-    },
-  },
-  contracts: {
-    multicall3: {
-      address: "0xca11bde05977b3631167028862be2a173976ca11",
-    },
-  },
-  blockExplorers: {
-    default: {
-      name: "Berascan",
-      url: "https://berascan.org",
-    },
-  },
-} as const);
-
-export const monad = defineChain({
-  id: 143,
-  name: "Monad",
-  nativeCurrency: {
-    name: "Monad",
-    symbol: "MONAD",
-    decimals: 18,
-  },
-  rpcUrls: {
-    default: {
-      http: ["https://rpc.monad.xyz"],
-    },
-  },
-  contracts: {
-    multicall3: {
-      address: "0xca11bde05977b3631167028862be2a173976ca11",
-    },
-  },
-  blockExplorers: {
-    default: {
-      name: "Monadscan",
-      url: "https://monadscan.com/",
-    },
-  },
-} as const);
+import { fallback } from 'viem';
+import {
+  chains,
+  pulsechain,
+  sonic,
+  base,
+  sei,
+  berachain,
+  rootstock,
+  ethw,
+  bsc,
+  monad,
+  arbitrum,
+} from './chains';
 
 // Wallet configuration for swap
 const swapConnectors = connectorsForWallets(
@@ -198,7 +55,7 @@ export const config = getDefaultConfig({
   projectId: 'YOUR_PROJECT_ID',
   // Note: ethw and sonic are temporarily disabled (not up to date)
   // To re-enable, change to: chains: [pulsechain, ethw, sonic],
-  chains: [pulsechain, sonic, base, sei, berachain, rootstock, ethw, bsc, monad],
+  chains,
   transports: {
     [pulsechain.id]: http(),
     [sonic.id]: http(),
@@ -217,6 +74,7 @@ export const config = getDefaultConfig({
     [ethw.id]: http(),
     [bsc.id]: http(),
     [monad.id]: http(),
+    [arbitrum.id]: http(),
   },
   ssr: true,
   connectors: swapConnectors,
