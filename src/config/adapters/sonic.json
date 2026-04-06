@@ -12,6 +12,14 @@
         "address": "0xc1Bb27E7AE8af9164Cb6B5D3A465478415EdEbB7"
     },
     {
+        "name": "SwapxV3",
+        "address": "0x5D5Ce53eE21694834cb6C70030b24937340E9C81"
+    },
+    {
+        "name": "SilverSwap",
+        "address": "0x55cC592be7E49c4020e67a895FEe9474C7D71dbc"
+    },
+    {
         "name": "WagmiV3",
         "address": "0x12dA769027A9A6121eB176346697d81Ff6673a22"
     },

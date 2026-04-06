@@ -112,7 +112,7 @@ export const SUPPORTED_CHAINS: Record<number, ChainConfig> = {
     maxHops: 3,
     blockTime: 1,
     stableTokens: [
-      "0x3894085ef7ff0f0aedf52e2a2704928d1ec074f1", // USDC
+      "0xe15fc38f6d8c56af07bbcbe3baf5708a2bf42392", // USDC
       "0xb75d0b03c06a926e488e2659df1a861f860bd3d1", // USDT
       "0x37a4dd9ced2b19cfe8fac251cd727b5787e45269", // fastusd
     ]
@@ -235,4 +235,106 @@ export const SUPPORTED_CHAINS: Record<number, ChainConfig> = {
       "0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34", // USDe
     ],
   },
+  // Optimism
+  10: {
+    chainId: 10,
+    name: "Optimism",
+    symbol: "optimism",
+    routerAddress: "0x686c652d079A370eC97F93B2b4805Ee06aE25d04",
+    wethAddress: "0x4200000000000000000000000000000000000006",
+    priceApi: {
+      baseUrl: "https://api.geckoterminal.com/api/v2",
+      tokenPriceEndpoint: "simple/networks/optimism/token_price",
+      graphEndpoint: "networks/optimism/pools",
+    },
+    blockExplorer: "https://optimistic.etherscan.io/tx/",
+    blockExplorerName: "Optimistic Etherscan",
+    rpcUrl: "https://mainnet.optimism.io",
+    maxHops: 3,
+    blockTime: 2,
+    quoteHopFallback: {
+      strategy: "decrement_to_one",
+      minStep: 1,
+    },
+    stableTokens: [
+      "0x7f5c764cbc14f9669b88837ca1490cca17c31607", // USDC
+      "0x94b008aA00579c1307B0EF2c499aD98a8ce58e58", // USDT
+      "0x8c6f28f2F1A3C87F0f93840faE2Eae5a30666eDc", // USDP
+      "0xDecaf9CD2367cdbb726E904cD6397eDFcAe6068D", // USDD
+    ],
+  },
+  // Avalanche
+  43114: {
+    chainId: 43114,
+    name: "Avalanche",
+    symbol: "avalanche",
+    routerAddress: "0xf4e53aAe1D9f27851B03842007D0a8a023317cD2",
+    wethAddress: "0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7",
+    priceApi: {
+      baseUrl: "https://api.geckoterminal.com/api/v2",
+      tokenPriceEndpoint: "simple/networks/avalanche/token_price",
+      graphEndpoint: "networks/avalanche/pools",
+    },
+    blockExplorer: "https://snowtrace.io/tx/",
+    blockExplorerName: "SnowTrace",
+    rpcUrl: "https://api.avax.network/ext/bc/C/rpc",
+    maxHops: 3,
+    blockTime: 2,
+    stableTokens: [
+      "0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e", // USDC.e
+      "0x9702230a8ea53601f5cd2dc00fdbc13d4df4a8c7", // USDT.e
+      "0x00000000efe302beaa2b3e6e1b18d08d69a9012a", // AUSD
+    ],
+  },
+  // Polygon
+  137: {
+    chainId: 137,
+    name: "Polygon",
+    symbol: "polygon",
+    routerAddress: "0x9a64E7a18f5A9edcE3A3728B2C12643FA0cee26B",
+    wethAddress: "0x0d500b1d8e8ef31e21c99d1db9a6444d3adf1270",
+    priceApi: {
+      baseUrl: "https://api.geckoterminal.com/api/v2",
+      tokenPriceEndpoint: "simple/networks/polygon_pos/token_price",
+      graphEndpoint: "networks/polygon_pos/pools",
+    },
+    blockExplorer: "https://polygonscan.com/tx/",
+    blockExplorerName: "PolygonScan",
+    rpcUrl: "https://polygon.drpc.org",
+    maxHops: 3,
+    blockTime: 2,
+    stableTokens: [
+      "0x2791bca1f2de4661ed88a30c99a7a9449aa84174", // USDC
+      "0xc2132d05d31c914a87c6611c10748aeb04b58e8f", // USDT
+      "0x8f3cf7ad23cd3cadbd9735aff958023239c6a063", // DAI
+      "0x3c499c542cef5e3811e1192ce70d8cc03d5c3359", // USDC.e
+    ], 
+  },
+  // HyperEVM 
+  999: {
+    chainId: 999,
+    name: "HyperEVM",
+    symbol: "hyperevm",
+    routerAddress: "0xd3c8153351df63287cCD042ba75f6Be2583d939E",
+    wethAddress: "0x5555555555555555555555555555555555555555",
+    priceApi: {
+      baseUrl: "https://api.geckoterminal.com/api/v2",
+      tokenPriceEndpoint: "simple/networks/hyperevm/token_price",
+      graphEndpoint: "networks/hyperevm/pools",
+    },
+    quoteHopFallback: {
+      strategy: "decrement_to_one",
+      minStep: 1,
+    },
+    blockExplorer: "https://hyperevmscan.io/tx/",
+    blockExplorerName: "HyperEVMScan",
+    rpcUrl: "https://rpc.hyperliquid.xyz/evm",
+    maxHops: 3,
+    blockTime: 1,
+     stableTokens: [
+      "0xb88339cb7199b77e23db6e890353e22632ba630f", // USDC
+      "0xb8ce59fc3717ada4c02eadf9682a9e934f625ebb", // USDTO
+      "0x111111a1a0667d36bd57c0a9f569b98057111111", // USDH
+    ],
+  }
 };

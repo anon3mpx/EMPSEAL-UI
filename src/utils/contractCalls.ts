@@ -15,6 +15,9 @@ import { WBERA } from "./abis/wberaABI";
 import { WRBTC } from "./abis/wrbtcABI";
 import { WBNB } from "./abis/wbnbABI";
 import { WMON } from "./abis/wmonABI";
+import { WPOL } from "./abis/wpolABI";
+import { WAVAX } from "./abis/wavaxABI";
+import { WHYPE } from "./abis/whypeABI";
 import { config } from "../Wagmi/config";
 import {
   ETHW_ROUTER_ABI,
@@ -27,6 +30,10 @@ import {
   BSC_ROUTER_ABI,
   MONAD_ROUTER_ABI,
   ARBITRUM_ROUTER_ABI,
+  OPTIMISM_ROUTER_ABI,
+  POLYGON_ROUTER_ABI,
+  AVALANCHE_ROUTER_ABI,
+  HYPEREVM_ROUTER_ABI,
 } from "./abis/empSealRouterAbi";
 import Tokens from "../pages/tokenList.json";
 import { convertToBigInt } from "./utils";
@@ -95,6 +102,30 @@ const ROUTER_FUNCTION_NAMES = {
     swapToNative: "swapNoSplitToETH",
     swapWithPermit: "swapNoSplitToETHWithPermit"
   },
+  // Optimism
+  10: {
+    swapFromNative: "swapNoSplitFromETH",
+    swapToNative: "swapNoSplitToETH",
+    swapWithPermit: "swapNoSplitToETHWithPermit"
+  },
+  // HyperEVM
+  999: {
+    swapFromNative: "swapNoSplitFromETH",
+    swapToNative: "swapNoSplitToETH",
+    swapWithPermit: "swapNoSplitToETHWithPermit"
+  },
+  // Avalanche  
+   43114: {
+    swapFromNative: "swapNoSplitFromETH",
+    swapToNative: "swapNoSplitToETH",
+    swapWithPermit: "swapNoSplitToETHWithPermit"
+  },
+  // Polygon
+  137: {
+    swapFromNative: "swapNoSplitFromETH",
+    swapToNative: "swapNoSplitToETH",
+    swapWithPermit: "swapNoSplitToETHWithPermit"
+  }
 } as const;
 
 // Create a union type of all possible function names
@@ -126,6 +157,14 @@ const getWrappedTokenABI = (chainId: number) => {
       return WMON;
     case 42161: // Arbitrum
       return WETH;
+    case 10: // Optimism
+      return WETH;
+    case 137: // Polygon
+      return WPOL;
+    case 43114: // Avalanche
+      return WAVAX;
+    case 999: // HyperEVM
+      return WHYPE;
     case 369: // Pulsechain
     default:
       return WPLS;
@@ -156,6 +195,14 @@ const getRouterABI = (chainId: number) => {
       return MONAD_ROUTER_ABI;
     case 42161: // Arbitrum
       return ARBITRUM_ROUTER_ABI;
+    case 10: // Optimism
+      return OPTIMISM_ROUTER_ABI;
+    case 137: // Polygon
+      return POLYGON_ROUTER_ABI;
+    case 43114: // Avalanche
+      return AVALANCHE_ROUTER_ABI;
+    case 999: // HyperEVM
+      return HYPEREVM_ROUTER_ABI;
     case 369: // Pulsechain
     default:
       return PLS_ROUTER_ABI;

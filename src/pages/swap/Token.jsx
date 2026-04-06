@@ -188,6 +188,12 @@ const Token = ({ onClose, onSelect }) => {
         return "https://rpc.monad.xyz";
       case 42161:
         return "https://arb-one.api.pocket.network";
+      case 10: 
+        return "https://mainnet.optimism.io";
+      case 43114: 
+        return "https://avalanche-c-chain.publicnode.com";
+      case 999: 
+        return "https://rpc.hyperliquid.xyz/evm";
       default:
         return null;
     }

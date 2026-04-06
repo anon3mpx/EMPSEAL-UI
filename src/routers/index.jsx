@@ -17,7 +17,7 @@ import store from "../redux/store/store";
 import { ToastContainer, Slide } from "react-toastify";
 import { useEffect } from "react";
 import { useAccount, useChainId, useSwitchChain } from "wagmi";
-import { pulsechain, sonic, sei, rootstock, bsc, arbitrum } from "wagmi/chains";
+import { pulsechain, sonic, sei, rootstock, bsc, arbitrum, optimism, polygon, avalanche } from "wagmi/chains";
 import ViaBridge from "../pages/via-bridge/BridgePage";
 import NotFound from "../pages/NotFound";
 
@@ -31,7 +31,7 @@ const ChainSwitcher = ({ children }) => {
 
   useEffect(() => {
     if (isConnected && chainId) {
-      const swapChainIds = [pulsechain.id, 10001, sonic.id, 8453, sei.id, 80094, rootstock.id, bsc.id, 143, arbitrum.id]; // pulsechain, ethw, sonic, base, sei, berachain, rootstock, bsc
+      const swapChainIds = [pulsechain.id, 10001, sonic.id, 8453, sei.id, 80094, rootstock.id, bsc.id, 143, arbitrum.id, optimism.id, polygon.id, avalanche.id, 999]; // pulsechain, ethw, sonic, base, sei, berachain, rootstock, bsc, optimism
       if (!swapChainIds.includes(chainId)) {
         switchChain({ chainId: pulsechain.id });
       }

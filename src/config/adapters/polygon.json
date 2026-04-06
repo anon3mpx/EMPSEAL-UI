@@ -1,0 +1,34 @@
+[
+  {
+    "name": "QuickswapV2Adapter",
+    "address": "0x050c6C2555c2d54AbA01420FBc02fF0F1d10E8dF"
+  },
+  {
+    "name": "UniswapV2Adapter",
+    "address": "0xDb403792c55bFE26beaeF235986D4F106E40Ee6F"
+  },
+  {
+    "name": "UniswapV3Adapter",
+    "address": "0x6AeC9Ab81A6D66Cae61B1F11c9A5c3d06020bfCB"
+  },
+  {
+    "name": "WDEXAdapter",
+    "address": "0xC92551f405F5741b6BC98f8FAd5E488923C4b063"
+  },
+  {
+    "name": "BalancerV2Adapter",
+    "address": "0x227fD8AAf5e86a96881e2CCE3393F53247537b34"
+  },
+  {
+    "name": "SushiswapV2Adapter",
+    "address": "0x845Cd50644A9592de43BCAC0212656480744AAcA"
+  },
+  {
+    "name": "ApeSwapV2Adapter",
+    "address": "0xFE4D69f3fb00AEd81003212904BEa55487daeff0"
+  },
+  {
+    "name": "GT3Adapter",
+    "address": "0x0bBB52AC247943d70F75EDD21DFA864652Db2e04"
+  }
+]

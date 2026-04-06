@@ -9,7 +9,7 @@ import Tx from '../../assets/images/tele.png';
 import X from '../../assets/images/x.png';
 import Master from '../../assets/images/master.png';
 import Star from '../../assets/images/star.png';
-import Cell from '../../assets/images/cell.gif';
+// import Cell from '../../assets/images/cell.gif';
 import Dia from '../../assets/images/diamond.png';
 import Stone from '../../assets/images/bridge.png';
 import User from '../../assets/images/user-nft.svg';

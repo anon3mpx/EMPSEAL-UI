@@ -1,0 +1,46 @@
+[
+  {
+    "name": "TraderJoeAdapter",
+    "address": "0x7F76c13d61AB4F9F7902c255A52a1Dae6c434afB"
+  },
+  {
+    "name": "LiquidityBookV2.1Adapter",
+    "address": "0xbBB3F1c913343CA3D1aB0Fc346fbF09dd1e2f681"
+  },
+  {
+    "name": "LiquidityBookV2.2Adapter",
+    "address": "0xD4F0A5a29cCe8a1cdbadbf8D6c328640Ab984F1D"
+  },
+  {
+    "name": "PharaohLegacyAdapter",
+    "address": "0x95bbb8985062F2c02D077f0F8F788b7CAa2c2f08"
+  },
+  {
+    "name": "PharaohV2Adapter",
+    "address": "0xC827913F0556a74BF9589d7ba7434cfE1Be2a62b"
+  },
+  {
+    "name": "PharaohV3Adapter",
+    "address": "0x62698059A5305C7f31Cd28A28AC035568C858b9f"
+  },
+  {
+    "name": "PangolinV0Adapter",
+    "address": "0x1c2BDa495534a45469D08F35d68D95D5132EC5Ac"
+  },
+  {
+    "name": "PangolinV3Adapter",
+    "address": "0x0B53D47f69AAF1Ed56b7Dc9AA24f26e7AA37d261"
+  },
+  {
+    "name": "UniswapV3Adapter",
+    "address": "0x79313D4e44615250A0fA41cdA0CFc3A45d3561Be"
+  },
+  {
+    "name": "BlackholeV3Adapter",
+    "address": "0x686c652d079A370eC97F93B2b4805Ee06aE25d04"
+  },
+  {
+    "name": "BlackholeAdapter",
+    "address": "0xae0aF43cf60640C1b08CCDE447F231Af02770C88"
+  }
+]

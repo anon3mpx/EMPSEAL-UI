@@ -1,7 +1,7 @@
 import { defineChain } from 'viem';
-import { pulsechain, sonic, rootstock } from 'wagmi/chains';
+import { pulsechain, sonic, rootstock, avalanche } from 'wagmi/chains';
 
-export { pulsechain, sonic, rootstock };
+export { pulsechain, sonic, rootstock, avalanche };
 
 export const ethw = defineChain({
   id: 10001,
@@ -204,6 +204,51 @@ export const optimism = defineChain({
   },
 } as const);
 
+export const polygon = defineChain({
+  id: 137,
+  name: 'Polygon',
+  nativeCurrency: { name: 'POL', symbol: 'POL', decimals: 18 },
+  rpcUrls: {
+    default: {
+      http: ['https://polygon.drpc.org'],
+    },
+  },
+  blockExplorers: {
+    default: {
+    name: 'PolygonScan',
+      url: 'https://polygonscan.com',
+      apiUrl: 'https://api.polygonscan.com/api',
+    },
+  },
+  contracts: {
+    multicall3: {
+      address: '0xca11bde05977b3631167028862be2a173976ca11',
+    },
+  },
+} as const);
+
+export const hyperEVM = defineChain({
+  id: 999,
+  name: 'HyperEVM',
+  nativeCurrency: { name: 'HyperEVM', symbol: 'HEVM', decimals: 18 },
+  rpcUrls: {
+    default: {
+      http: ['https://rpc.hyperliquid.xyz/evm'],
+    },
+  },
+  blockExplorers: {
+    default: {
+      name: 'hyperevmscan',
+      url: 'https://hyperevmscan.io/',
+    },
+  },
+  contracts: {
+    multicall3: {
+      address: '0xca11bde05977b3631167028862be2a173976ca11',
+    },
+  },
+} as const);
+
 export const chains = [
   pulsechain,
   sonic,
@@ -215,4 +260,8 @@ export const chains = [
   bsc,
   monad,
   arbitrum,
+  optimism,
+  polygon,
+  avalanche,
+  hyperEVM,
 ] as const;

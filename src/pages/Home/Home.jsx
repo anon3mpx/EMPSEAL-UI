@@ -12,7 +12,7 @@ import Master from '../../assets/images/master.png';
 import telegram from '../../assets/images/telegram.png';
 import GitBook from '../../assets/images/GitBook.png';
 import Star from '../../assets/images/star.png';
-import Cell from '../../assets/images/cell.gif';
+// import Cell from '../../assets/images/cell.gif';
 import Dia from '../../assets/images/diamond.png';
 import Stone from '../../assets/images/bridge.png';
 import { Link } from 'react-router-dom';
@@ -154,11 +154,11 @@ const Home = () => {
             <Link to='/swap'>
               <div className='w-full rounded-3xl border border-white 2xl:pt-7 2xl:pb-6 lg:py-4 py-7 relative h_grid3'>
                 <Link to='/swap'>
-                  <img
+                  {/* <img
                     src={Cell}
                     alt='Cell'
                     className='absolute z-20 2xl:w-[348px] xl:w-[260px] lg:w-[200px] md:w-[150px] w-[290px] 2xl:right-[-75px] lg:right-[-25px] md:right-[-15px] right-[-50px] 2xl:top-[-20px] md:top-[70px] top-[80px]'
-                  />
+                  /> */}
                 </Link>
                 {/* <Link to="/swap"> */}
                 <div className='bg-[#F1DDDD] Marquee'>

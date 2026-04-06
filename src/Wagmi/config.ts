@@ -20,6 +20,10 @@ import {
   bsc,
   monad,
   arbitrum,
+  optimism,
+  polygon,
+  avalanche,
+  hyperEVM,
 } from './chains';
 
 // Wallet configuration for swap
@@ -75,6 +79,10 @@ export const config = getDefaultConfig({
     [bsc.id]: http(),
     [monad.id]: http(),
     [arbitrum.id]: http(),
+    [optimism.id]: http(),
+    [polygon.id]: http(),
+    [avalanche.id]: http(),
+    [hyperEVM.id]: http(),
   },
   ssr: true,
   connectors: swapConnectors,

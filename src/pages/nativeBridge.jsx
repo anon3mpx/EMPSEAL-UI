@@ -38,35 +38,36 @@ const NativeBridge = () => {
             Cross Chain Swap
           </div>
         </Link> */}
-                    <div className="flex justify-center gap-4 mt-7 md:flex-nowrap flex-wrap md:max-w-[600px] w-full mx-auto md:px-0 px-20">
-
-       <Link to="/native-bridge" className="w-full">
-                <div
-                  className={`border-2 ${
-                    activeTab === "native" ? "border-[#FF9900]" : "border-black bg-black"
-                  } 
+        <div className="flex justify-center gap-4 mt-7 md:flex-nowrap flex-wrap md:max-w-[600px] w-full mx-auto md:px-0 px-20">
+          <Link to="/native-bridge" className="w-full">
+            <div
+              className={`border-2 ${
+                activeTab === "native"
+                  ? "border-[#FF9900]"
+                  : "border-black bg-black"
+              } 
       px-3 py-2 w-full md:h-9 h-[28px] flex justify-center items-center 
       rounded-md border text-white text-[15px] font-bold roboto`}
-                >
-                  Native Bridge
-                </div>
-              </Link>
+            >
+              Native Bridge
+            </div>
+          </Link>
 
-              {/* Via Bridge */}
-              <Link to="/via-bridge" className="w-full">
-                <div
-                  className={`border-2 ${
-                    activeTab === "viabridge"
-                      ? "border-[#FF9900] bg-black"
-                      : "border-white"
-                  } 
+          {/* Via Bridge */}
+          {/* <Link to="/via-bridge" className="w-full">
+            <div
+              className={`border-2 ${
+                activeTab === "viabridge"
+                  ? "border-[#FF9900] bg-black"
+                  : "border-white"
+              } 
       px-3 py-2 w-full md:h-9 h-[28px] flex justify-center items-center 
       rounded-md border text-white text-[15px] font-bold roboto`}
-                >
-                  Via Bridge
-                </div>
-              </Link>
-      </div>
+            >
+              Via Bridge
+            </div>
+          </Link> */}
+        </div>
       </div>
       {/* Loader (Visible when iframe is loading) */}
       {loading && (
@@ -92,7 +93,7 @@ const NativeBridge = () => {
           width: "100%",
           height: "100vh",
           border: "none",
-          background:"#000000",
+          background: "#000000",
           display: loading ? "none" : "block",
         }}
         onLoad={() => setLoading(false)}

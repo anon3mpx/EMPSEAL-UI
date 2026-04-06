@@ -1,0 +1,38 @@
+[
+  {
+    "name": "ProjectXAdapter",
+    "address": "0x91F544d5E4795adBa662780ae9F0216942764140"
+  },
+  {
+    "name": "HyperswapV3Adapter",
+    "address": "0x46763657C2e4845C4f72c7Cce605B3cB3309fd2f"
+  },
+  {
+    "name": "HyperswapV2Adapter",
+    "address": "0x2F21FF788e14A531847E6658aFBD725555757da5"
+  },
+  {
+    "name": "RamsesV3Adapter",
+    "address": "0xABA4Fe7F9c08F1230FbeD21426C7198118D35917"
+  },
+  {
+    "name": "NestAdapter",
+    "address": "0x4392E30Ddd3bA7a318DE9D5EF8f7b4254f0d7Bc6"
+  },
+  {
+    "name": "HydrafinanceV3Adapter",
+    "address": "0x5D5Ce53eE21694834cb6C70030b24937340E9C81"
+  },
+  {
+    "name": "KittenswapAdapter",
+    "address": "0xB7e18d1ddc55D5c0748573AC97519F7b309aaA1B"
+  },
+  {
+    "name": "UpheavalV3Adapter",
+    "address": "0x867c1fd9341DEC12e4B779C35D7b7C475316b334"
+  },
+  {
+    "name": "UltrasolidV3Adapter",
+    "address": "0x8A5CAEF153e4Dc59A89aAfEBbC5725726617860a"
+  }
+]

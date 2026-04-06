@@ -1,0 +1,34 @@
+[
+  {
+    "name": "CurveStablePoolcrvUSD/USDT",
+    "address": "0x21e1a9261a7E1050D34Db82BB67dEa80c5D4c0bC"
+  },
+  {
+    "name": "CurveStablePoolcrvUSD/USDC",
+    "address": "0x7F76c13d61AB4F9F7902c255A52a1Dae6c434afB"
+  },
+  {
+    "name": "CurveStablePoolDAI/USD/USDT",
+    "address": "0xC827913F0556a74BF9589d7ba7434cfE1Be2a62b"
+  },
+  {
+    "name": "CurveStablePoolcrvUSD/OP/CRV",
+    "address": "0xae0aF43cf60640C1b08CCDE447F231Af02770C88"
+  },
+  {
+    "name": "UniswapV3Adapter",
+    "address": "0x7F5713bcF5198a1D1045DDd79d2952317FE3846E"
+  },
+  {
+    "name": "VelodromeSlipstreamAdapter",
+    "address": "0x9293cB3DeC942C9F0a76d1c9131D923d2713a1F6"
+  },
+  {
+    "name": "VelodromeV2Adapter",
+    "address": "0xa8E3e938d0c3876595BA1d77d0fD2C18D170827d"
+  },
+  {
+    "name": "SushiswapV3Adapter",
+    "address": "0x164327dfF74CfDFe092Af81265eF11396d4135Cd"
+  }
+]
