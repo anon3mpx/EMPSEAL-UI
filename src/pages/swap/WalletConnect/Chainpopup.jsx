@@ -99,7 +99,7 @@ const ChainPopup = ({
   };
 
   return (
-    <div className="bg-black bg-opacity-40 py-10 flex justify-center items-center overflow-y-auto h-full my-auto fixed top-0 px-4 left-0 right-0 bottom-0 z-[9999999] fade-in-out fade-out">
+    <div className="bg-black bg-opacity-40 backdrop-blur-sm py-10 flex justify-center items-center overflow-y-auto h-full my-auto fixed top-0 px-4 left-0 right-0 bottom-0 z-[9999999] fade-in-out fade-out">
       <div className="w-full flex justify-center my-auto items-center">
         <div className="md:max-w-[618px] w-full rounded-3xl relative py-6 md:px-8 px-4 mx-auto clip-bg">
           <svg

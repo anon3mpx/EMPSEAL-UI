@@ -211,7 +211,7 @@ export default function WalletConnect({
               )}
               {showConnectPopup && (
                 <div
-                  className="fixed inset-0 flex items-center justify-center bg-black/70 z-50 px-4"
+                  className="fixed inset-0 flex items-center justify-center bg-black/70 z-50 px-4 backdrop-blur-sm"
                   onClick={(e) => {
                     if (e.target === e.currentTarget)
                       closeConnectPopup();

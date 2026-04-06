@@ -106,7 +106,7 @@ const ChainModal = ({
   };
 
   return (
-    <div className="bg-black bg-opacity-40 py-10 flex justify-center items-center overflow-y-auto h-full my-auto fixed top-0 px-4 left-0 right-0 bottom-0 z-[9999999] fade-in-out fade-out">
+    <div className="bg-black bg-opacity-40 backdrop-blur-sm py-10 flex justify-center items-center overflow-y-auto h-full my-auto fixed top-0 px-4 left-0 right-0 bottom-0 z-[9999999] fade-in-out fade-out">
       <div
         ref={modalRef}
         className="relative w-full max-w-[650px] rounded-3xl bg-black py-6 md:px-8 md:py-8 px-6 clip-bg"

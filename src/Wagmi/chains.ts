@@ -34,7 +34,7 @@ export const base = defineChain({
   },
   rpcUrls: {
     default: {
-      http: ['https://base.drpc.org'],
+      http: ['https://mainnet.base.org'],
     },
   },
   contracts: {

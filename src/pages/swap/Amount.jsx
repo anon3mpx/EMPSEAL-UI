@@ -79,7 +79,7 @@ const Amount = ({
 
   return (
     <>
-      <div className="px-4 bg-black bg-opacity-40 py-10 flex justify-center items-center overflow-y-auto h-full fixed top-0 left-0 right-0 bottom-0 z-[9999] fade-in-out fade-out">
+      <div className="px-4 bg-black bg-opacity-40 backdrop-blur-sm py-10 flex justify-center items-center overflow-y-auto h-full fixed top-0 left-0 right-0 bottom-0 z-[9999] fade-in-out fade-out">
         <div className="w-full flex justify-center items-center">
           <div
             ref={modalRef}

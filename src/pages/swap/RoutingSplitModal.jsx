@@ -275,7 +275,7 @@ export default function RoutingSplitModal({ isOpen, onClose, bestRoute, tokenA, 
   return (
     <div
       onClick={onClose}
-      className="bg-black bg-opacity-40 xl:py-12 lg:py-20 py-10 flex justify-center items-center overflow-y-auto h-full my-auto fixed top-0 px-4 left-0 right-0 bottom-0 z-[999999] fade-in-out fade-out"
+      className="bg-black bg-opacity-40 backdrop-blur-sm xl:py-12 lg:py-20 py-10 flex justify-center items-center overflow-y-auto h-full my-auto fixed top-0 px-4 left-0 right-0 bottom-0 z-[999999] fade-in-out fade-out"
     >
       <div
         onClick={(e) => e.stopPropagation()}

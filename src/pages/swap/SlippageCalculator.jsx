@@ -139,7 +139,7 @@ const SlippageCalculator = ({ inputAmount, onSlippageCalculated, onClose }) => {
   const slippageOptions = [0.0, 0.5, 1.0, 2.0];
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 roboto px-4">
+    <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center z-50 roboto px-4">
       <div
         ref={modalRef}
         className="bg-black clip-bg rounded-xl lg:px-8 lg:py-8 p-6 md:max-w-[700px] w-full relative"
