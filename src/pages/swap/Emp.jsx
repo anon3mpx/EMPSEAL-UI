@@ -791,7 +791,7 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
 
     // Update states
     setMinAmountOut(adjustedAmount);
-    setAmountOut(decimalAdjusted);
+    setAmountOut(decimalAdjusted.toString());
 
     // Reset minAmountOut if needed
     setMinAmountOut("0");
@@ -1019,15 +1019,21 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
   const formatNumber = (value) => {
     if (!value) return ""; // Handle empty input
 
-    const [integerPart, decimalPart] = value.split("."); // Split into integer and decimal parts
+    const stringValue = value.toString();
+
+    const [integerPart, decimalPart] = stringValue.split("."); // Split into integer and decimal parts
     const formattedInteger = integerPart
       .replace(/\D/g, "") // Allow only digits
-      .replace(/\B(?=(\d{3})+(?!\d))/g, ""); // Add commas to integer part
+      .replace(/\B(?=(\d{3})+(?!\d))/g, ","); // Add commas to integer part
 
-    // If there's a decimal part, return formatted integer + decimal
-    return decimalPart !== undefined
-      ? `${formattedInteger}.${decimalPart.replace(/\D/g, "")}` // Remove non-numeric from decimal
-      : formattedInteger;
+    // If there's a decimal part, limit to 6 digits and remove non-numeric
+    if (decimalPart !== undefined) {
+      // Limit to 6 decimal places
+      const limitedDecimal = decimalPart.replace(/\D/g, "").slice(0, 6);
+      return `${formattedInteger}.${limitedDecimal}`;
+    }
+
+    return formattedInteger;
   };
 
   // Function to handle input changes
@@ -1230,7 +1236,7 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
           {/* Swap */}
           {!order ? (
             <>
-              <div className="lg:max-w-[550px] md:max-w-[550px] mx-auto w-full mt-4">
+              <div className="lg:max-w-[450px] md:max-w-[450px] mx-auto w-full mt-4 relative">
                 <div className="relative bg_swap_box">
                   <div className="swap-header">
                     <h3 className="swap-title">Swap</h3>
@@ -1291,7 +1297,7 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
                         </span>
                       </div>
                     </div>
-                    <div className="flex w-full mt-3 md:gap-5 gap-2 items-center">
+                    <div className="flex w-full mt-3 md:gap-3 gap-2 items-center">
                       <div className="w-full">
                         {(() => {
                           const rawAmount = amountIn?.replace(/,/g, "") || "0";
@@ -1323,7 +1329,7 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
                           );
                         })()}
                       </div>
-                      <div className="lg:md:max-w-[200px] w-full">
+                      <div className="lg:md:max-w-[180px] w-full">
                         <div className="flex justify-between items-center cursor-pointer gap-4 w-full">
                           <div className="flex gap-2 items-center justify-end w-full">
                             <div className="flex items-center gap-2 shrink-0 transition-opacity duration-150 hover:opacity-60 select_token">
@@ -1392,7 +1398,7 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
                             "--"
                           )}
                         </span>
-                        <span className="font-bold mt-1">Market Price</span>
+                        <span className="mt-1">Market Price</span>
                       </div>
                       <div className="flex md:gap-2 gap-1 justify-end">
                         <span></span>
@@ -1403,8 +1409,8 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
                             className={`slippage-btn
             ${
               selectedPercentage === value
-                ? "!text-white !bg-[#FF8A00] border-[#FF8A00]"
-                : "bg-[#EEC485] text-[#040404] border-black hover:border-black hover:bg-[#FF8A00] hover:text-black"
+                ? "!text-[#FF8A00]/80 !bg-[#FF8A00]/5 !border !border-[#FF8A00]/80"
+                : "text-[#FF8A00]/80 hover:text-[#FF8A00]/80 hover:border-[#FF8A00]/80 hover:bg-[#FF8A00]/5"
             }`}
                             onClick={() => handlePercentageChange(value)}
                             disabled={isLoading}
@@ -1414,29 +1420,17 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
                         ))}
                       </div>
                     </div>
-                    <div className="text-right relative text-white md:text-[10px] truncate mt-2 text-sh1 flex justify-end gap-1">
+                    <div className="text-right relative text-white text-[9px] text-white/20 tracking-[0.04em] truncate mt-2 flex justify-end gap-1">
                       <div className="relative inline-block">
                         <InfoIcon
-                          size={14}
-                          className="md:mt-[1.5px] mt-[-1px] cursor-pointer"
+                          size={9}
+                          className="md:mt-[1.5px] mt-[1.1px] cursor-pointer"
                           onMouseEnter={() => setDollarInfo(true)}
                           onMouseLeave={() => setDollarInfo(false)}
                           onClick={() => setDollarInfo((prev) => !prev)}
                         />
-
-                        {dollarinfo && (
-                          <div
-                            className=" fixed rt0 z-[10000] mt-2 md:w-[450px] w-[300px] whitespace-pre-wrap  bg-black px-3 py-3 text-center md:text-[10px] text-[9px] text-white shadow-lg"
-                            onMouseEnter={() => setDollarInfo(true)}
-                            onMouseLeave={() => setDollarInfo(false)}
-                          >
-                            Dollar value display <br />
-                            The dollar value displayed are fetched from 3rd
-                            party API. They may not be 100% accurate in some
-                            cases. For accuracy please check the Output units.
-                          </div>
-                        )}
                       </div>
+
                       {selectedTokenA
                         ? conversionRate
                           ? `$${formatNumber(usdValue)}`
@@ -1445,6 +1439,18 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
                     </div>
                   </div>
                 </div>
+                {dollarinfo && (
+                  <div
+                    className="absolute right-0 z-[10000] mt-[-10px] md:w-[250px] w-[250px] whitespace-pre-wrap bg_swap_box px-3 py-3 text-center md:text-[9px] text-[8px] text-white"
+                    onMouseEnter={() => setDollarInfo(true)}
+                    onMouseLeave={() => setDollarInfo(false)}
+                  >
+                    Dollar value display <br />
+                    The dollar value displayed are fetched from 3rd party API.
+                    They may not be 100% accurate in some cases. For accuracy
+                    please check the Output units.
+                  </div>
+                )}
                 <div className="separator">
                   <div className="separator-inner">
                     <button
@@ -1506,7 +1512,7 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
                     <div className="flex w-full mt-3 md:gap-5 gap-2 items-center">
                       <div className="w-full">
                         {(() => {
-                          const rawAmount = amountOut?.replace(/,/g, "") || "0";
+                          const rawAmount = (amountOut?.toString() || "0").replace(/,/g, "");
                           const isMobile = window.innerWidth < 768;
 
                           return (
@@ -1523,7 +1529,15 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
                                       ? "0"
                                       : calculateAmount(selectedPercentage)
                                   }
-                                  value={formatNumber(amountOut)}
+                                  value={(() => {
+                                    const num =
+                                      (amountOut?.toString() || "").replace(/,/g, "");
+                                    if (!num || isNaN(Number(num))) return "";
+
+                                    return Number(num)
+                                      .toFixed(6)
+                                      .replace(/\.?0+$/, "");
+                                  })()}
                                   onChange={(e) =>
                                     handleOutputChange(e.target.value)
                                   }
@@ -1617,31 +1631,20 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
                             "--"
                           )}
                         </span>
-                        <span className="font-bold mt-1">Market Price</span>
+                        <span className="mt-1">Market Price</span>
                       </div>
                     </div>
-                    <div className="text-right relative text-white md:text-[10px] truncate mt-2 text-sh1 flex justify-end gap-1">
+                    <div className="text-right relative text-white text-[9px] text-white/20 tracking-[0.04em] truncate mt-2 flex justify-end gap-1">
                       <div className="relative inline-block">
                         <InfoIcon
-                          size={14}
-                          className="md:mt-[1.5px] mt-[-1px] cursor-pointer"
+                          size={9}
+                          className="md:mt-[1.5px] mt-[1.1px] cursor-pointer"
                           onMouseEnter={() => setDollarInfo1(true)}
                           onMouseLeave={() => setDollarInfo1(false)}
                           onClick={() => setDollarInfo1((prev) => !prev)}
                         />
-                        {dollarinfo1 && (
-                          <div
-                            className=" fixed rt0 z-[10000] mt-2 md:w-[450px] w-[300px] whitespace-pre-wrap  bg-black px-3 py-3 text-center md:text-[10px] text-[9px] text-white shadow-lg"
-                            onMouseEnter={() => setDollarInfo1(true)}
-                            onMouseLeave={() => setDollarInfo1(false)}
-                          >
-                            Dollar value display <br />
-                            The dollar value displayed are fetched from 3rd
-                            party API. They may not be 100% accurate in some
-                            cases. For accuracy please check the Output units.
-                          </div>
-                        )}
                       </div>
+
                       {selectedTokenB ? (
                         conversionRateTokenB ? (
                           <span className="">
@@ -1655,82 +1658,102 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
                       )}
                     </div>
                   </div>
-                  <div
-                    className={`relative flex justify-center flex-row border-top mt-4 p-4`}
-                  >
-                    <button
-                      onClick={() => {
-                        if (!address) {
-                          openConnectPopup();
-                          return;
-                        }
-                        if (amountOut && parseFloat(amountOut) > 0) {
-                          setInitialQuote(amountOut);
-                          setAmountVisible(true);
-                        }
-                      }}
-                      disabled={address ? isInsufficientBalance() : false}
-                      className={`gtw relative z-50 w-full uppercase md:h-12 h-11 bg-[#FF8A00] mx-auto font-bold button-trans h- flex justify-center items-center transition-all ${
-                        address && isInsufficientBalance()
-                          ? "opacity-50 cursor-not-allowed"
-                          : " "
-                      }  text-xs`}
+                  {dollarinfo1 && (
+                    <div
+                      className="absolute right-0 z-[10000] mt-[-10px] md:w-[250px] w-[250px] whitespace-pre-wrap bg_swap_box px-3 py-3 text-center md:text-[9px] text-[8px] text-white"
+                      onMouseEnter={() => setDollarInfo1(true)}
+                      onMouseLeave={() => setDollarInfo1(false)}
                     >
-                      <span>{getButtonText()}</span>
-                    </button>
+                      Dollar value display <br />
+                      The dollar value displayed are fetched from 3rd party API.
+                      They may not be 100% accurate in some cases. For accuracy
+                      please check the Output units.
+                    </div>
+                  )}
+                  {selectedTokenA && selectedTokenB && (
+                    <div className="bg_swap_box p-4 !border-b-0 !border-l-0 !border-r-0 border-t">
+                      {selectedTokenA && selectedTokenB && (
+                        <div className="flex justify-between gap-2 items-center md:flex-nowrap flex-wrap">
+                          <div>
+                            <div className="text-[9px] text-white/20 tracking-[0.04em]">
+                              Rate :
+                              <span className="text-[9px] text-white/20 tracking-[0.04em] font-bold">
+                                {" "}
+                                1
+                              </span>
+                              {isRateReversed
+                                ? selectedTokenB.ticker
+                                : selectedTokenA.ticker}{" "}
+                              =
+                              <span className="text-[9px] text-white/20 tracking-[0.04em] font-bold mr-1">
+                                {" "}
+                                {getRateDisplay()}
+                              </span>
+                              {isRateReversed
+                                ? selectedTokenA.ticker
+                                : selectedTokenB.ticker}
+                            </div>
+                          </div>
+                          <div className="flex gap-2 items-center">
+                            <div
+                              className={`text-[9px] text-white/20 tracking-[0.04em] truncate ${getPriceImpactColor(
+                                priceImpact,
+                              )}`}
+                            >
+                              Price Impact
+                            </div>
+                            <div className="text-[9px] text-[#FF8A00] tracking-[0.04em]">
+                              {priceImpact} %
+                            </div>
+                            <div className="text-[9px] text-white/20 tracking-[0.04em]">
+                              ROUTE
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      <Routing isLoading={isRoutingLoading} />
+                      <div className="text-[9px] text-white/20 tracking-[0.04em] text-right">
+                        Min :
+                        <span className="text-[9px] text-white/20 tracking-[0.04em] font-bold mr-1">
+                          {" "}
+                          {formatNumber(
+                            parseFloat(minToReceiveAfterFee).toFixed(6),
+                          )}
+                        </span>
+                        {selectedTokenB.ticker}
+                      </div>
+                    </div>
+                  )}
+                  <div className="bg-[#06060efa] backdrop-blur-[60px]">
+                    <div
+                      className={`relative flex justify-center flex-row border-top p-4`}
+                    >
+                      <button
+                        onClick={() => {
+                          if (!address) {
+                            openConnectPopup();
+                            return;
+                          }
+                          if (amountOut && parseFloat(amountOut) > 0) {
+                            setInitialQuote(amountOut);
+                            setAmountVisible(true);
+                          }
+                        }}
+                        disabled={address ? isInsufficientBalance() : false}
+                        className={`gtw relative z-50 w-full uppercase md:h-12 h-11 bg-[#FF8A00] mx-auto font-bold button-trans h- flex justify-center items-center transition-all ${
+                          address && isInsufficientBalance()
+                            ? "opacity-50 cursor-not-allowed"
+                            : " "
+                        }  text-xs`}
+                      >
+                        <span>{getButtonText()}</span>
+                      </button>
+                    </div>
+                    <p className="text-center text-[9px] text-white/10 mb-3 font-medium tracking-[0.14em]">
+                      POWERED BY EMPX · 100+ DEXS · ZERO FEES
+                    </p>
                   </div>
                 </div>
-                {selectedTokenA && selectedTokenB && (
-                  <div className="bg_swap_box mt-6 md:px-5 px-4 !py-6">
-                    <Routing isLoading={isRoutingLoading} />
-                    {selectedTokenA && selectedTokenB && (
-                      <div className="flex justify-between gap-2 items-center md:flex-nowrap flex-wrap">
-                        <div>
-                          <div className="text-[#FF8A00] text-xs ">
-                            Min Received :
-                            <span className="text-[#FF8A00] text-xs font-bold mr-1">
-                              {" "}
-                              {formatNumber(
-                                parseFloat(minToReceiveAfterFee).toFixed(6),
-                              )}
-                            </span>
-                            {selectedTokenB.ticker}
-                          </div>
-                          <div className="text-[#FF8A00] text-xs ">
-                            Rate :
-                            <span className="text-[#FF8A00] text-xs font-bold">
-                              {" "}
-                              1
-                            </span>
-                            {isRateReversed
-                              ? selectedTokenB.ticker
-                              : selectedTokenA.ticker}{" "}
-                            =
-                            <span className="text-[#FF8A00] text-xs font-bold mr-1">
-                              {" "}
-                              {getRateDisplay()}
-                            </span>
-                            {isRateReversed
-                              ? selectedTokenA.ticker
-                              : selectedTokenB.ticker}
-                          </div>
-                        </div>
-                        <div className="flex gap-4 items-center">
-                          <div
-                            className={`text-xs truncate ${getPriceImpactColor(
-                              priceImpact,
-                            )}`}
-                          >
-                            Price Impact
-                          </div>
-                          <div className="text-center slippage-btn">
-                            {priceImpact} %
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
               </div>
             </>
           ) : (

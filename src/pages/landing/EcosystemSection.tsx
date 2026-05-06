@@ -129,7 +129,7 @@ export default function EcosystemSection() {
 
           <div className="relative z-10 flex flex-col sm:flex-row gap-4 shrink-0">
             <a
-              href="https://empx.io"
+              href="/swap"
               className="px-8 py-4 font-black text-[11px] tracking-[0.2em] transition-all duration-300 text-center"
               style={{
                 background: "linear-gradient(135deg, #FF8A00, #FF6B00)",
@@ -140,7 +140,7 @@ export default function EcosystemSection() {
               ENTER DAPP
             </a>
             <a
-              href="https://empx.io"
+              href="/swap"
               className="px-8 py-4 font-bold text-[11px] tracking-[0.2em] text-white/60 hover:text-white transition-all duration-300 text-center"
               style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
             >
@@ -165,7 +165,7 @@ export default function EcosystemSection() {
             Support@EMPX.io
           </a>
           <span className="hidden sm:block w-px h-3 bg-white/10" />
-          <a href="https://empx.io" className="hover:text-white transition-colors tracking-wider">
+          <a href="/swap" className="hover:text-white transition-colors tracking-wider">
             Documentation
           </a>
           <span className="hidden sm:block w-px h-3 bg-white/10" />
@@ -200,7 +200,7 @@ function PillarCard({ pillar, index }: { pillar: (typeof PILLARS)[0]; index: num
       <h3 className="text-lg font-black text-white tracking-tight">{pillar.title}</h3>
       <p className="text-sm text-white/38 leading-relaxed">{pillar.description}</p>
       <a
-        href="https://empx.io"
+        href="/swap"
         className="text-[9px] font-black tracking-[0.2em] self-start px-4 py-2 transition-all duration-300"
         style={{ background: "rgba(255,138,0,0.08)", color: "var(--empx-orange)", border: "1px solid rgba(255,138,0,0.2)" }}
       >

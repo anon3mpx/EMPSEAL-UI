@@ -171,8 +171,8 @@ const SlippageCalculator = ({
         </h2> */}
 
         {error && (
-          <div className="mb-4 p-1 bg-red-900/50 border border-red-500 ">
-            <p className="text-red-200 text-xs">{error}</p>
+          <div className="mb-2">
+            <p className="text-white/30 text-xs">{error}</p>
           </div>
         )}
         <div className="flex gap-4 items-center justify-center flex-wrap">
@@ -190,13 +190,12 @@ const SlippageCalculator = ({
               {option}%
             </button>
           ))}
-
           <input
             type="text"
             inputMode="decimal"
             value={customSlippage}
             onChange={handleCustomSlippageChange}
-            className={`slip1
+            className={`slip1 text-center
       ${error ? "opacity-50 cursor-not-allowed" : ""}`}
             placeholder="%"
             disabled={!!error}
@@ -212,7 +211,6 @@ const SlippageCalculator = ({
           >
             Reset Slippage
           </button>
-
           <button
             onClick={handleModalClose}
             className="slippage-btn w-full uppercase md:h-8 h-8"

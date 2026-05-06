@@ -1,4 +1,3 @@
-
 /**
  * ScrollStage — 1400vh sticky canvas, all text driven by ONE GSAP timeline.
  *
@@ -19,7 +18,6 @@ import { useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
-
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -241,7 +239,7 @@ export default function ScrollStage() {
                 border: "1px solid rgba(255,138,0,0.22)",
               }}
             >
-              SWAP API DOCS
+              ENTER DOCS
             </a>
           </motion.div>
 
@@ -299,12 +297,7 @@ export default function ScrollStage() {
               border: "1px solid rgba(255,138,0,0.2)",
             }}
           >
-            <span
-              className="text-[11px] font-black"
-              style={{ color: "var(--empx-orange)" }}
-            >
-              E
-            </span>
+            <img src="/emp-logo.png" alt="EMP LOGO" />
           </div>
         </div>
 
@@ -349,12 +342,7 @@ export default function ScrollStage() {
                 border: "1px solid rgba(255,138,0,0.2)",
               }}
             >
-              <span
-                className="text-[11px] font-black"
-                style={{ color: "var(--empx-orange)" }}
-              >
-                E
-              </span>
+              <img src="/emp-logo.png" alt="EMP LOGO" />
             </div>
           </div>
         </div>
@@ -424,12 +412,7 @@ export default function ScrollStage() {
                   border: "1px solid rgba(255,138,0,0.2)",
                 }}
               >
-                <span
-                  className="text-[9px] font-black"
-                  style={{ color: "var(--empx-orange)" }}
-                >
-                  E
-                </span>
+                <img src="/emp-logo.png" alt="EMP LOGO" />
               </div>
               <p
                 className="text-[10px] font-black tracking-[0.4em]"

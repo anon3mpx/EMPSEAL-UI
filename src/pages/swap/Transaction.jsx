@@ -63,7 +63,7 @@ const Transaction = ({
 
             {/* Header */}
             <div className="flex items-center justify-center gap-3">
-              <div className="text-white text-2xl font-bold  leading-7">
+              <div className="text-white text-2xl  leading-7">
                 Transaction Submitted
               </div>
             </div>

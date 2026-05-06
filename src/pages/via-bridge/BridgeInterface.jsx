@@ -1203,7 +1203,7 @@ const BridgeInterface = () => {
                     ) : (
                       "--"
                     )}
-                    <span className="font-bold mt-1">Market Price</span>
+                    <span className="mt-1">Market Price</span>
                   </div>
                   <div className="text-zinc-200 text-[10px] font-normal  leading-normal flex md:gap-2 gap-1 justify-end">
                     <span></span>
@@ -1354,7 +1354,7 @@ const BridgeInterface = () => {
                     ) : (
                       <span className="text-gray-400">Unknown</span>
                     )}
-                    <span className="font-bold mt-1">Market Price</span>
+                    <span className="mt-1">Market Price</span>
                   </div>
                   {/* <div className="text-zinc-200 text-[10px] font-normal  leading-normal flex md:gap-2 gap-1 justify-end">
                     <span></span>

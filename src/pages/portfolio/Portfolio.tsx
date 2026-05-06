@@ -445,8 +445,7 @@ export default function PortfolioPage() {
                 </>
               )}
             </div>
-
-            <div className="flex items-center gap-2">
+            {/* <div className="flex items-center gap-2">
               <div
                 className="flex"
                 style={{
@@ -499,7 +498,7 @@ export default function PortfolioPage() {
                   Connect Wallet
                 </button>
               )}
-            </div>
+            </div> */}
           </div>
           <motion.div
             initial={{ opacity: 0, y: 8 }}
