@@ -10,6 +10,8 @@ import CollectionDetail from "../components/CollectionDetail";
 import ItemDetail from "../pages/Home/ItemDetail";
 import Bridge from "../pages/bridge/Main";
 import NativeBridge from "../pages/nativeBridge";
+import Widget from "../pages/widget/Main";
+import Cross from "../pages/cross/Main";
 import BridgeWrapper from "../components/BridgeWrapper";
 import WagmiProviderWrapper from "../Wagmi/WagmiProvider";
 import { Provider } from "react-redux";
@@ -134,6 +136,22 @@ function MyRoutes() {
               element={
                 <SwapWrapper>
                   <Portfolio />
+                </SwapWrapper>
+              }
+            />
+            <Route
+              path="/widget"
+              element={
+                <SwapWrapper>
+                  <Widget />
+                </SwapWrapper>
+              }
+            />
+            <Route
+              path="/cross"
+              element={
+                <SwapWrapper>
+                  <Cross />
                 </SwapWrapper>
               }
             />

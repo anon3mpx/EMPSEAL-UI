@@ -76,7 +76,7 @@ export default function Footer() {
                 ].map((item) => (
                   <li key={item}>
                     <Link
-                      to="https://empx.io"
+                      to="/"
                       className="text-xs text-white/28 hover:text-white/65 transition-colors"
                     >
                       {item}
@@ -102,7 +102,7 @@ export default function Footer() {
                 ].map((item) => (
                   <li key={item}>
                     <Link
-                      to="https://empx.io"
+                      to="/"
                       className="text-xs text-white/28 hover:text-white/65 transition-colors"
                     >
                       {item}
@@ -149,7 +149,7 @@ export default function Footer() {
             </a>
             {" · "}
             <a
-              href="https://empx.io"
+              href="/"
               className="hover:text-white/50 transition-colors"
             >
               EMPX.IO

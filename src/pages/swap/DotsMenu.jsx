@@ -162,11 +162,11 @@ const DotsMenu = ({ onTabChange }) => {
           </div>
         {/* <div className="hidden"></div> */}
         <div className="col-span-1 md:col-span-3 relative 2xl:bottom-0 md:bottom-[-20px] bottom-0 md:right-3 text-white flex gap-3 flex-col 2xl:text-2xl text-lg 2xl:my-1 text2xl my4 font-extrabold md:text-right md:self-end">
-            <a href="https://www.empx.io/dapp" className="relative z-10">
+            <a href="/swap" className="relative z-10">
               HOME
             </a>
             <a
-              href="https://www.empx.io/dapp"
+              href="/swap"
               className="relative w-full z-10 flex items-center justify-end h-[46px] px-2"
             >
               <img

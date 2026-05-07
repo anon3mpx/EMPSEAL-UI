@@ -1834,6 +1834,11 @@ input[type="range"]::-moz-range-track {
     grid-template-columns: repeat(3, 1fr);
   }
 }
+@media (max-width: 768px) {
+  .v1-connect-btn {
+  padding: 5px 8px!important;
+}
+}
 
 .gas-chain-card {
   padding: 16px;
@@ -1917,4 +1922,51 @@ input[type="range"]::-moz-range-track {
   font-size: 9px;
   color: rgba(255, 255, 255, 0.25);
   letter-spacing: 0.04em;
+}
+.widget-container {
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.widget-input:focus {
+  border-color: rgba(255, 138, 0, 0.3);
+}
+
+.widget-accent-active {
+  outline-offset: 2px;
+}
+.bg-new-gray {
+  background: rgba(255, 255, 255, 0.04);
+}
+.bg-new-gray-1 {
+  background: rgba(255, 255, 255, 0.03);
+}
+.text-new-gray {
+  color: rgba(255, 255, 255, 0.2);
+}
+.text-new-gray-1 {
+  color: rgba(255, 255, 255, 0.15);
+}
+.border-new-gray {
+  border: 1px solid rgba(255, 255, 255, 0.07);
+} /* crosschain.css */
+
+.crosschain-shell {
+  background: radial-gradient(
+    ellipse 60% 40% at 50% 0%,
+    rgba(255, 138, 0, 0.04) 0%,
+    transparent 60%
+  );
+}
+
+.crosschain-card {
+  box-shadow: 0 40px 80px rgba(0, 0, 0, 0.7);
+}
+
+.crosschain-dropdown {
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+}
+
+.crosschain-live-dot {
+  box-shadow: 0 0 6px rgba(74, 222, 128, 0.5);
 }

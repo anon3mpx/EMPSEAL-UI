@@ -31,7 +31,7 @@ const NotFound = () => {
           
           <div className='flex flex-col sm:flex-row gap-4 justify-center'>
             <a
-              href='https://www.empx.io/dapp'
+              href='/swap'
               target='_blank'
               rel='noopener noreferrer'
               className='inline-flex items-center justify-center px-8 py-3 border border-[#FF8A00]  text-[#040404] font-medium  bg-[#FF8A00] hover:border-[#FF8A00] hover:bg-transparent hover:text-[#FF8A00] transition-all duration-200'

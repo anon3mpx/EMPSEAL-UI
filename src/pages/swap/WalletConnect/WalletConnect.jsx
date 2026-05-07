@@ -31,6 +31,9 @@ import {
 import { SUPPORTED_CHAINS } from "../../../config/chains";
 import { useConnectPopup } from "../../../hooks/ConnectPopupContext";
 
+const truncateAddress = (address) =>
+  `${address?.slice(0, 6)}...${address?.slice(-4)}`;
+
 const ChainChangeHandler = ({
   chain,
   onChainChange,
@@ -173,7 +176,7 @@ export default function WalletConnect({
         mounted,
       }) => {
         const ready = mounted && authenticationStatus !== "loading";
-        const connected = ready && account && chain;
+        const connected = ready && account;
 
         // Effects moved inside render prop to correctly access `chain`
         // and avoid infinite loops.
@@ -196,7 +199,7 @@ export default function WalletConnect({
                 <img
                   src={selectedChainIcon}
                   alt={selectedChainInfo?.name || "Chain"}
-                  className="w-4 h-4 object-contain "
+                  className="md:w-4 md:h-4 w-2 h-3 object-contain "
                   onError={(e) => (e.currentTarget.src = dummyImage)}
                 />
               </button>
@@ -405,7 +408,7 @@ export default function WalletConnect({
             </>
           );
         }
-        if (chain.unsupported && !allowUnsupported) {
+        if (chain?.unsupported && !allowUnsupported) {
           return (
             <>
               <button
@@ -449,27 +452,27 @@ export default function WalletConnect({
                       dummyImage
                     }
                     alt={chain.name}
-                    className="w-4 h-4 object-contain "
+                    className="md:w-4 md:h-4 w-2 h-3 object-contain "
                     onError={(e) => (e.currentTarget.src = dummyImage)}
                   />
-                  {/* <span
-                    className={
-                      chain.name.length > 11
-                        ? "truncate md:w-[150px] w-[110px]"
-                        : ""
-                    }
-                  >
-                    {chain.name}
-                  </span> */}
                 </>
               ) : (
                 "Select Chain"
               )}
             </button>
-            <div className="flex flex-col sm:flex-row justify-center items-center gap-4">
+            <div className="flex justify-center items-center md:gap-4 gap-2">
               <button
-                className="v1-connect-btn"
+                className="v1-connect-btn md:text-[11px] !text-[8px]"
                 onClick={() => setShowPopup(true)}
+                type="button"
+              >
+                {account?.address
+                  ? truncateAddress(account.address)
+                  : "Connected"}
+              </button>
+              <button
+                className="v1-connect-btn md:text-[11px] !text-[8px]"
+                onClick={() => disconnect()}
                 type="button"
               >
                 Disconnect

@@ -16,7 +16,7 @@ const NAV_ITEMS = [
   { label: "Cross", href: "/cross" },
   { label: "Bridge", href: "/native-bridge" },
   { label: "Limit", href: "/orders" },
-  { label: "Widget", href: "https://widget.empx.io/builder" },
+  { label: "Widget", href: "/widget" },
   { label: "Gas", href: "/gas" },
 ];
 
@@ -429,13 +429,10 @@ const BreadCrumb = () => {
               </>
             )}
           </div> */}
-          {/* Mobile hamburger */}
           <button
             onClick={() => setMenuOpen((o) => !o)}
-            className="md:hidden flex flex-col justify-center gap-1.5 ml-1"
+            className="md:hidden flex flex-col justify-center gap-1.5 ml-1 md:w-8 md:h-8 w-8 h-6"
             style={{
-              width: 32,
-              height: 32,
               background: "rgba(255,255,255,0.04)",
               border: "1px solid rgba(255,255,255,0.07)",
               borderRadius: 0,
@@ -445,30 +442,27 @@ const BreadCrumb = () => {
             }}
           >
             <span
+              className="md:w-4 md:h-1.5 w-3 h-px"
               style={{
                 display: "block",
-                width: 16,
-                height: 1.5,
                 background: menuOpen ? "#FF8A00" : "rgba(255,255,255,0.6)",
                 transition: "all 0.2s",
                 transform: menuOpen ? "rotate(45deg) translateY(5px)" : "none",
               }}
             />
             <span
+              className="md:w-4 md:h-1.5 w-3 h-px"
               style={{
                 display: "block",
-                width: 16,
-                height: 1.5,
                 background: "rgba(255,255,255,0.4)",
                 transition: "opacity 0.2s",
                 opacity: menuOpen ? 0 : 1,
               }}
             />
             <span
+              className="md:w-4 md:h-1.5 w-3 h-px"
               style={{
                 display: "block",
-                width: 16,
-                height: 1.5,
                 background: menuOpen ? "#FF8A00" : "rgba(255,255,255,0.6)",
                 transition: "all 0.2s",
                 transform: menuOpen
@@ -506,7 +500,7 @@ const BreadCrumb = () => {
           </button>
         </div>
       </nav>
-      <div className="fixed top-3 right-4 z-50 flex gap-3 items-center">
+      <div className="fixed top-3 md:right-4 right-0 z-50 flex md:gap-3 gap-2 items-center">
         <WalletConnect />
       </div>
 

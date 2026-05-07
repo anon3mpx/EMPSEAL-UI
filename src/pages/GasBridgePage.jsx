@@ -6,6 +6,7 @@ import BG from "../assets/images/empx-bg1.webp";
 import { useState } from "react";
 import { Helmet } from "react-helmet";
 import BreadCrumb from "../components/BreadCrumb";
+import { motion } from "framer-motion";
 
 export default function GasBridgePage() {
   const [isChainModalOpen, setIsChainModalOpen] = useState(false);
@@ -35,7 +36,13 @@ export default function GasBridgePage() {
               <span className="text-white mr-2">Gas Prices.</span>
               Real Time.
             </h1>
-            <TransferPanel setIsChainModalOpen={setIsChainModalOpen} />
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4 }}
+            >
+              <TransferPanel setIsChainModalOpen={setIsChainModalOpen} />
+            </motion.div>
             {/* <div className="md:mt-5 mt-4 md:max-w-[1000px] w-full mx-auto p-4">
               <TransactionHistory />
             </div> */}

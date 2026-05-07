@@ -1,14 +1,13 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
-import Logo from "../../assets/images/emp-main-logo.png";
 
 const NAV_LINKS = [
   { label: "Swap", href: "#swap" },
   { label: "Bridge", href: "#bridge" },
   { label: "Ecosystem", href: "#ecosystem" },
   { label: "SDK", href: "#sdk" },
-  { label: "Docs", href: "/dapp/swap" },
+  { label: "Docs", href: "/swap" },
 ];
 
 export default function Navbar() {
@@ -38,19 +37,16 @@ export default function Navbar() {
             : "1px solid rgba(255,255,255,0.05)",
         }}
       >
-        {/* Logo only */}
         <Link to="/" className="flex items-center shrink-0">
           <div className="relative" style={{ width: 120 }}>
             <img
-              src={Logo}
+              src="/emp-main-logo.png"
               alt="EMPX"
               sizes="120px"
               className="object-contain object-left"
             />
           </div>
         </Link>
-
-        {/* Desktop Links */}
         <div className="hidden md:flex items-center gap-6 lg:gap-8">
           {NAV_LINKS.map((link) => (
             <Link
@@ -62,8 +58,6 @@ export default function Navbar() {
             </Link>
           ))}
         </div>
-
-        {/* CTAs */}
         <div className="hidden md:flex items-center gap-3 shrink-0">
           <Link
             to="/swap"
@@ -88,8 +82,6 @@ export default function Navbar() {
             <span className="opacity-70">→</span>
           </Link>
         </div>
-
-        {/* Mobile toggle */}
         <button
           onClick={() => setOpen(!open)}
           className="md:hidden flex flex-col gap-1.5 p-2"
@@ -109,8 +101,6 @@ export default function Navbar() {
           />
         </button>
       </div>
-
-      {/* Mobile menu */}
       {open && (
         <motion.div
           initial={{ opacity: 0, y: -10 }}

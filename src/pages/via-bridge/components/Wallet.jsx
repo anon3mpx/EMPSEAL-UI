@@ -60,7 +60,7 @@ const Wallet = ({ onTabChange }) => {
           icon={<img src={WalletImg} alt="Wallet Icon" />}
           onChainChange={handleChainChange}
         />
-        {/* https://empx.io/dapp */}
+        {/* //dapp */}
         <DotsMenu onTabChange={onTabChange} />
       </div>
     </>

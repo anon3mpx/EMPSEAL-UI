@@ -160,7 +160,7 @@ const Transaction = ({
             {/* Powered By */}
             <div className="flex justify-center items-center mt-6">
               <a
-                href="https://empx.io"
+                href="/"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-2 text-white/50 hover:text-white transition-colors cursor-pointer"

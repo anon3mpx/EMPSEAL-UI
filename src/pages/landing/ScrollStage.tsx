@@ -221,7 +221,7 @@ export default function ScrollStage() {
             className="mt-7 flex flex-col sm:flex-row items-center gap-3 pointer-events-auto"
           >
             <a
-              href="https://empx.io"
+              href="/swap"
               className="px-8 py-3.5 font-black text-[12px] tracking-[0.2em] transition-all duration-300 hover:scale-105 text-center"
               style={{
                 background: "linear-gradient(135deg, #FF8A00, #FF6B00)",
@@ -232,7 +232,7 @@ export default function ScrollStage() {
               ENTER DAPP
             </a>
             <a
-              href="https://empx.io"
+              href="/swap"
               className="px-8 py-3.5 font-bold text-[12px] tracking-[0.18em] text-white/55 hover:text-white transition-all duration-300 text-center"
               style={{
                 background: "rgba(255,255,255,0.04)",
