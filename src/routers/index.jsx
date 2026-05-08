@@ -178,14 +178,14 @@ function MyRoutes() {
                 </BridgeWrapper>
               }
             /> */}
-            <Route
+            {/* <Route
               path="/native-bridge"
               element={
                 <BridgeWrapper>
                   <NativeBridge />
                 </BridgeWrapper>
               }
-            />
+            /> */}
             {/* via-bridge disabled — coming soon */}
             <Route
               path="/via-bridge"

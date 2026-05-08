@@ -83,7 +83,7 @@ const DotsMenu = ({ onTabChange }) => {
             {[
               { label: "Swap", path: "/swap" },
               { label: "Limit Orders", disabled: true },
-              { label: "Bridge", path: "/native-bridge" },
+              { label: "Bridge", disabled: true },
               { label: "Gas", path: "/gas" },
             ].map((item) => (
               <div key={item.label} className="relative w-fit group">

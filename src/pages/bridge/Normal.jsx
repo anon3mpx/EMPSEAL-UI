@@ -189,7 +189,7 @@ const Normal = () => {
             >
               Cross Chain Swap
             </div> */}
-            <Link className="md:max-w-[200px] w-full" to={"/native-bridge"}>
+            {/* <Link className="md:max-w-[200px] w-full" to={"/native-bridge"}>
               <div
                 className={`${
                   activeTab === "native"
@@ -199,7 +199,7 @@ const Normal = () => {
               >
                 Native Bridge
               </div>
-            </Link>
+            </Link> */}
             <Link className="md:max-w-[200px] w-full" to={"/via-bridge"}>
               <div
                 className={`${
