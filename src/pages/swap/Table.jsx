@@ -5,16 +5,16 @@ import R1 from "../../assets/images/ri.svg";
 const Table = () => {
   return (
     <>
-      <div className="w-full border-[2px] border-[#FF9900] rounded-xl py-5 bg-black lg:h-[370px] h-full">
+      <div className="w-full border-[2px] border-[#FF8A00]  py-5 bg-black lg:h-[370px] h-full">
         <div className="px-4 mt-2 flex justify-center">
-          <div className="w-[160px] h-[29px] border border-[#FF9900] rounded-[8px] flex">
-            <div className="w-[56px] h-[27px] roboto rounded-l-md bg-[#FF9900] text-black text-[8.94px] flex justify-center items-center">
+          <div className="w-[160px] h-[29px] border border-[#FF8A00] rounded-[8px] flex">
+            <div className="w-[56px] h-[27px] roboto rounded-l-md bg-[#FF8A00] text-black text-[8.94px] flex justify-center items-center">
               Active
             </div>
-            {/* <div className="w-[80px] h-[27px] roboto bg-black text-[#FF9900] border-r border-[#FF9900] text-[8.94px] flex justify-center items-center">
+            {/* <div className="w-[80px] h-[27px] roboto bg-black text-[#FF8A00] border-r border-[#FF8A00] text-[8.94px] flex justify-center items-center">
               Pending
             </div> */}
-            <div className="w-[105px] h-[27px] roboto rounded-r-md bg-black text-[#FF9900] border-r border-[#FF9900] text-[8.94px] flex justify-center items-center">
+            <div className="w-[105px] h-[27px] roboto rounded-r-md bg-black text-[#FF8A00] border-r border-[#FF8A00] text-[8.94px] flex justify-center items-center">
               Limit Orders
             </div>
           </div>

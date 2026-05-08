@@ -83,7 +83,7 @@ const Amount = ({
         <div className="w-full flex justify-center items-center">
           <div
             ref={modalRef}
-            className="md:max-w-[600px] w-full bg-black clip-bg rounded-3xl relative py-10 md:px-8 px-6 mx-auto border border-[#222]"
+            className="md:max-w-[600px] w-full bg-black clip-bg  relative py-10 md:px-8 px-6 mx-auto border border-[#222]"
           >
             <svg
               onClick={onClose}
@@ -165,8 +165,8 @@ const Amount = ({
 
             {/* Price Alert */}
             {showPriceAlert && (
-              <div className="p-4 rounded-xl w-full mt-4 border-2 border-[#FF9900] bg-[#FF9900]/10">
-                <h3 className="text-lg font-bold roboto mb-3 text-[#FF9900]">
+              <div className="p-4  w-full mt-4 border-2 border-[#FF8A00] bg-[#FF8A00]/10">
+                <h3 className="text-lg font-bold roboto mb-3 text-[#FF8A00]">
                   Price Update
                 </h3>
                 <div className="mb-4">
@@ -189,7 +189,7 @@ const Amount = ({
                 </div>
                 <button
                   onClick={onAcceptNewQuote}
-                  className="w-full px-4 py-3 bg-[#FF9900] text-black rounded-xl hover:bg-opacity-80 transition-colors text-sm font-bold roboto uppercase"
+                  className="w-full px-4 py-3 bg-[#FF8A00] text-black  hover:bg-opacity-80 transition-colors text-sm font-bold roboto uppercase"
                 >
                   Accept New Price
                 </button>
@@ -202,18 +202,18 @@ const Amount = ({
                 disabled={disabled || isLoading || showPriceAlert || swapStatus === "APPROVING" || swapStatus === "WAITING_FOR_CONFIRMATION" || swapStatus === "SWAPPING"}
                 usdValueTokenA={usdValueTokenA}
                 usdValueTokenB={usdValueTokenB}
-                className="gtw relative w-full rounded-xl py-4 bg-[#FF9900] flex gap-4 items-center mt-6 justify-center border border-[#FF9900] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                className="gtw relative w-full  py-4 bg-[#FF8A00] flex gap-4 items-center mt-6 justify-center border border-[#FF8A00] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
               >
-                <div className="w-full absolute md:top-2 top-2 md:-left-3 -left-3 z-[1] bg-transparent border-2 border-[#FF9900] rounded-xl h-[58px]"></div>
+                <div className="w-full absolute md:top-2 top-2 md:-left-3 -left-3 z-[1] bg-transparent border-2 border-[#FF8A00]  h-[58px]"></div>
                 {isLoading || swapStatus === "APPROVING" || swapStatus === "WAITING_FOR_CONFIRMATION" || swapStatus === "SWAPPING" ? (
                   <div className="flex items-center gap-2">
                     <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    <span className="md:text-xl text-base font-black font-orbitron">
+                    <span className="md:text-xl text-base font-black ">
                       {swapStatus === "APPROVING" ? "Approving..." : swapStatus === "WAITING_FOR_CONFIRMATION" ? "Waiting for confirmation..." : swapStatus === "SWAPPING" ? "Swapping..." : "Processing..."}
                     </span>
                   </div>
                 ) : (
-                  <div className="md:text-xl text-base font-black text-center leading-normal uppercase font-orbitron">
+                  <div className="md:text-xl text-base font-black text-center leading-normal uppercase ">
                     {needsApproval ? "Approve" : "Swap"}
                   </div>
                 )}
@@ -299,7 +299,7 @@ export default Amount;
 //         <div className="w-full flex justify-center my-auto items-center">
 //           <div
 //             ref={modalRef}
-//             className="md:max-w-[390px] w-full bg-black border border-white rounded-3xl relative py-6 px-6 mx-auto"
+//             className="md:max-w-[390px] w-full bg-black border border-white  relative py-6 px-6 mx-auto"
 //           >
 //             <svg
 //               onClick={onClose}
@@ -417,7 +417,7 @@ export default Amount;
 //             <button
 //               onClick={handleClick}
 //               disabled={disabled || isLoading}
-//               className="w-full rounded-xl px-4 py-4 bg-[#FF9900] flex gap-4 items-center mt-6 justify-center hover:bg-transparent border border-[#FF9900] hover:text-[#FF9900] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+//               className="w-full  px-4 py-4 bg-[#FF8A00] flex gap-4 items-center mt-6 justify-center hover:bg-transparent border border-[#FF8A00] hover:text-[#FF8A00] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
 //             >
 //               {isLoading ? (
 //                 <div className="flex items-center gap-2">

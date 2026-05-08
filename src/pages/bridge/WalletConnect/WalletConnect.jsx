@@ -193,7 +193,7 @@ export default function WalletConnect({
                       setShowConnectPopup(false);
                   }}
                 >
-                  <div className="relative text-white md:p-12 p-6 rounded-2xl md:max-w-[520px] w-full clip-bg font-orbitron">
+                  <div className="relative text-white md:p-12 p-6 rounded-2xl md:max-w-[520px] w-full clip-bg ">
                     <svg
                       onClick={() => setShowConnectPopup(false)}
                       className="absolute cursor-pointer md:right-10 right-4 md:top-11 top-4 tilt"
@@ -220,7 +220,7 @@ export default function WalletConnect({
                       placeholder="Search"
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
-                      className="my-5 border border-[#FF9900] rounded-xl bg-transparent h-[48px] text-white md:max-w-[490px] w-full px-5 outline-none text-white/opacity-70 text-sm font-normal roboto leading-tight tracking-wide"
+                      className="my-5 border border-[#FF8A00]  bg-transparent h-[48px] text-white md:max-w-[490px] w-full px-5 outline-none text-white/opacity-70 text-sm font-normal roboto leading-tight tracking-wide"
                     />
 
                     {/* Wallet options */}
@@ -228,7 +228,7 @@ export default function WalletConnect({
                       {filteredConnectors.slice(0, 6).map((connector) => (
                         <div
                           key={connector.uid}
-                          className="flex items-center justify-start gap-4 cursor-pointer rounded-lg d:py-3 py-2 px-3 transition-all hoverclip"
+                          className="flex items-center justify-start gap-4 cursor-pointer  d:py-3 py-2 px-3 transition-all hoverclip"
                           onClick={() => {
                             connect({ connector });
                             setShowConnectPopup(false);
@@ -255,21 +255,21 @@ export default function WalletConnect({
                               className="w-8 h-8 relative z-10 flex flex-shrink-0 object-contain rounded-full"
                             />
                           </div>
-                          <p className="md:text-lg text-[10px] text-white font-orbitron font-extrabold">
+                          <p className="md:text-lg text-[10px] text-white  font-extrabold">
                             {connector.name}
                           </p>
                         </div>
                       ))}
                     </div>
                     <div className="bg-[#444444] w-full h-[1px] mb-4 mt-10"></div>
-                    <div className="text-white md:text-base text-sm mt-4 font-orbitron font-bold text-center">
+                    <div className="text-white md:text-base text-sm mt-4  font-bold text-center">
                       By logging in I agree to the
                       <span
                         onClick={() => {
                           setShowTermsPopup(true);
                           setShowConnectPopup(false);
                         }}
-                        className="ml-1 text-[#FF9900] cursor-pointer hover:underline md:text-base text-sm font-orbitron font-bold"
+                        className="ml-1 text-[#FF8A00] cursor-pointer hover:underline md:text-base text-sm  font-bold"
                       >
                         Terms & Privacy Policy
                       </span>

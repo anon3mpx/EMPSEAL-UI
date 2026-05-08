@@ -724,7 +724,7 @@ const Emp = ({
   // };
   return (
     <>
-      <div className="w-full rounded-xl pb-10 pt-0  lg:px-10 md:px-8 px-4 md:mt-0 mt-4">
+      <div className="w-full  pb-10 pt-0  lg:px-10 md:px-8 px-4 md:mt-0 mt-4">
         {/* <img src={Logo} alt='Logo' className=' mx-auto' /> */}
 
         {isTokenVisible ? (
@@ -742,7 +742,7 @@ const Emp = ({
                   setPadding('lg:h-[295px] h-full');
                 }}
                 className={`${
-                  order ? 'border-[#3b3c4e]' : 'border-[#FF9900]'
+                  order ? 'border-[#3b3c4e]' : 'border-[#FF8A00]'
                 } cursor-pointer md:max-w-[200px] w-full h-[28px] flex justify-center items-center rounded-md border text-white text-[15px] font-bold roboto`}
               >
                 Cross Chain Swap
@@ -755,21 +755,21 @@ const Emp = ({
                 }}
                 className={`${
                   order
-                    ? 'border-[#FF9900]'
+                    ? 'border-[#FF8A00]'
                     : 'border-[#3b3c4e] opacity-50 cursor-not-allowed'
                 }  md:max-w-[200px] w-full h-[28px] flex justify-center items-center rounded-md border text-white text-[15px] font-bold roboto`}
               >
                 Native Bridge
               </div>
             </div> */}
-            {/* <h4 className="text-[#FF9900] font-orbitron font-bold text-lg">
+            {/* <h4 className="text-[#FF8A00]  font-bold text-lg">
               Cross Chain Swap
             </h4> */}
             <div className="relative z-0">
               <img className="bg-sell" src="src/assets/images/sell-box.png" />
               <div className="flex justify-between gap-3 items-center mt-4">
                 <div className="text-center pt-5 ps-4">
-                  <span className="font-orbitron text-dark-400 ps-2 text-2xl font-semibold leading-normal">
+                  <span className=" text-dark-400 ps-2 text-2xl font-semibold leading-normal">
                     You Sell
                   </span>
                 </div>
@@ -783,7 +783,7 @@ const Emp = ({
                     setSelectedPercentage("");
                     setAmountIn("");
                   }}
-                  className="flex justify-center gap-4 items-center cursor-pointer h-[56px] bg-[#FFE6C0] px-3 py-0 rounded-lg w-[28%] margin_left mt-7"
+                  className="flex justify-center gap-4 items-center cursor-pointer h-[56px] bg-[#FFE6C0] px-3 py-0  w-[28%] margin_left mt-7"
                 >
                   <div
                     className={`relatve flex gap-2 items-center ${
@@ -807,7 +807,7 @@ const Emp = ({
                     />
                     {selectedTokenA.image && (
                       <div
-                        className={`relative bg-black border border-white rounded-lg ${
+                        className={`relative bg-black border border-white  ${
                           selectedChainA.image ? "left-40-box" : "left-40-box"
                         }`}
                       >
@@ -843,11 +843,11 @@ const Emp = ({
                     {[25, 50, 75, 100].map((value) => (
                       <button
                         key={value}
-                        className={` py-1 w-full border border-[#FF9900] flex justify-center  items-center rounded-xl text-xs font-semibold font-normal  font-orbitron px-2
+                        className={` py-1 w-full border border-[#FF8A00] flex justify-center  items-center  text-xs font-semibold font-normal   px-2
           ${
             selectedPercentage === value
               ? " text-white bg-black"
-              : "bg-[#FFE7C3] text-[#040404] hover:border-black hover:bg-[#FF9900] hover:text-black"
+              : "bg-[#FFE7C3] text-[#040404] hover:border-black hover:bg-[#FF8A00] hover:text-black"
           }`}
                         onClick={() => handlePercentageChange(value)}
                         disabled={isLoading}
@@ -865,20 +865,20 @@ const Emp = ({
                     }
                     value={formatNumber(amountIn)}
                     onChange={(e) => handleInputChange(e.target.value)}
-                    className="text-[#000000] py-2 text-4xl font-bold text-end w-full leading-7 outline-none border-none bg-transparent token_input ps-0 font-orbitron place-holder-bg"
+                    className="text-[#000000] py-2 text-4xl font-bold text-end w-full leading-7 outline-none border-none bg-transparent token_input ps-0  place-holder-bg"
                   />
                 </div>
               </div>
-              <div className="absolute -top-4 right-0 gap-3 lg:px-4 lg:py-3 rounded-lg mt-2 bg-[#FFE6C0]">
+              <div className="absolute -top-4 right-0 gap-3 lg:px-4 lg:py-3  mt-2 bg-[#FFE6C0]">
                 <div className="text-center">
-                  <span className=" font-bold font-orbitron leading-normal">
+                  <span className=" font-bold  leading-normal">
                     Balance
                   </span>
-                  <span className="font-bold font-orbitron leading-normal">
+                  <span className="font-bold  leading-normal">
                     {" "}
                     :{" "}
                   </span>
-                  <span className="font-bold font-orbitron leading-normal">
+                  <span className="font-bold  leading-normal">
                     {isLoading
                       ? "Loading.."
                       : selectedTokenA.address === EMPTY_ADDRESS
@@ -910,13 +910,13 @@ const Emp = ({
             >
               <img src={UpDownAr} alt="Ar" className="mx-auto my-5 pt-4" />
             </div>
-            <h4 className="text-[#FF9900] font-orbitron font-bold text-lg mb-4">
+            <h4 className="text-[#FF8A00]  font-bold text-lg mb-4">
               Cross Chain Swap
             </h4>
             <div className="relative z-0">
               <img className="bg-sell" src="src/assets/images/buy-bg.png" />
               <div className="pt-5 ps-4">
-                <div className="text-white ps-2 font-semibold text-2xl font-orbitron leading-normal">
+                <div className="text-white ps-2 font-semibold text-2xl  leading-normal">
                   You Buy
                 </div>
               </div>
@@ -927,7 +927,7 @@ const Emp = ({
                     setIsSelectingTokenA(false);
                     setTokenVisible(true);
                   }}
-                  className="flex justify-center gap-4 items-center cursor-pointer h-[56px] bg-[#FFE6C0] px-3 py-0 rounded-lg w-[28%] margin_left"
+                  className="flex justify-center gap-4 items-center cursor-pointer h-[56px] bg-[#FFE6C0] px-3 py-0  w-[28%] margin_left"
                 >
                   <div
                     className={` flex gap-2 items-center ${
@@ -952,7 +952,7 @@ const Emp = ({
                     {/* Token Image */}
                     {selectedTokenB.image && (
                       <div
-                        className={`relative bg-[#FF9900] border border-white rounded-lg ${
+                        className={`relative bg-[#FF8A00] border border-white  ${
                           selectedChainB.image ? "left-40-box" : "left-40-box"
                         }`}
                       >
@@ -991,20 +991,20 @@ const Emp = ({
                         ? ""
                         : parseFloat(amountOut).toFixed(6)
                     } // Ensure 0 or empty will display a blank field
-                    className="text-white text-4xl font-bold font-orbitron text-end w-full leading-7 outline-none border-none bg-transparent ps-0 py-2 input-bridge"
+                    className="text-white text-4xl font-bold  text-end w-full leading-7 outline-none border-none bg-transparent ps-0 py-2 input-bridge"
                   />
                 </div>
               </div>
-              <div className="absolute -top-4 right-0 gap-3 lg:px-4 lg:py-3 rounded-lg mt-2 bg-[#FFE6C0]">
+              <div className="absolute -top-4 right-0 gap-3 lg:px-4 lg:py-3  mt-2 bg-[#FFE6C0]">
                 <div className="text-center">
-                  <span className="font-bold font-orbitron leading-normal">
+                  <span className="font-bold  leading-normal">
                     Balance
                   </span>
-                  <span className="font-bold font-orbitron leading-normal">
+                  <span className="font-bold  leading-normal">
                     {" "}
                     :{" "}
                   </span>
-                  <span className="font-bold font-orbitron leading-normal">
+                  <span className="font-bold  leading-normal">
                     {isLoading
                       ? "Loading.."
                       : selectedTokenA.address === EMPTY_ADDRESS
@@ -1032,9 +1032,9 @@ const Emp = ({
                 />
               </div>
               <button
-                className={` flex justify-center items-center rounded-xl px-2 
-                   bg-[#FF9900] hover:text-black hover:bg-[#FF9900]
-                 roboto text-black text-base font-bold border border-[#FF9900]`}
+                className={` flex justify-center items-center  px-2 
+                   bg-[#FF8A00] hover:text-black hover:bg-[#FF8A00]
+                 roboto text-black text-base font-bold border border-[#FF8A00]`}
                 onClick={handleSelfButtonClick}
               >
                 Self
@@ -1046,10 +1046,10 @@ const Emp = ({
           <button
             onClick={() => setAmountVisible(true)}
             disabled={isInsufficientBalance()}
-            className={`w-full button-trans mt-12 h- flex justify-center items-center rounded-xl ${isInsufficientBalance()
+            className={`w-full button-trans mt-12 h- flex justify-center items-center  ${isInsufficientBalance()
               ? "opacity-50 cursor-not-allowed"
               : " hover:text-black hover:bg-transparent"
-              } font-orbitron text-black text-3xl font-bold`}
+              }  text-black text-3xl font-bold`}
           >
             <img className="absolute swap-button" src="src/assets/images/swap-button.svg" />
             <span className="ps-7">{getButtonText()}</span>
@@ -1068,11 +1068,11 @@ const Emp = ({
                 disabled={
                   loading || amountIn === "0" || !amountIn || !selfAddress
                 }
-                className={`w-full button-trans mt-12 h- flex justify-center items-center rounded-xl  ${
+                className={`w-full button-trans mt-12 h- flex justify-center items-center   ${
                   loading || amountIn === "0" || !amountIn || !selfAddress
                     ? "opacity-50 cursor-not-allowed"
                     : "hover:text-black hover:bg-transparent"
-                } font-orbitron text-black text-3xl font-bold`}
+                }  text-black text-3xl font-bold`}
               >
                 <img
                   className="absolute swap-button"
@@ -1083,11 +1083,11 @@ const Emp = ({
               <button
                 onClick={() => setAmountVisible(true)}
                 disabled={isInsufficientBalance()}
-                className={`w-full button-trans mt-24 mb-10 h- flex justify-center items-center rounded-xl ${
+                className={`w-full button-trans mt-24 mb-10 h- flex justify-center items-center  ${
                   isInsufficientBalance() || !amountOut || amountOut === "0"
                     ? "opacity-50 cursor-not-allowed"
                     : "hover:text-black hover:bg-transparent"
-                } font-orbitron text-black text-3xl font-bold`}
+                }  text-black text-3xl font-bold`}
               >
                 <img
                   className="absolute swap-button"
@@ -1141,15 +1141,15 @@ const Emp = ({
           />
         )}
       </div> */}
-      {/* <div className='absolute bg-white left-0 bottom-20 border-4 border-l-2 border-[#FF9900] p-10 rounded-lg'>
-        <h6 className='font-orbitron text-sm'>
+      {/* <div className='absolute bg-white left-0 bottom-20 border-4 border-l-2 border-[#FF8A00] p-10 '>
+        <h6 className=' text-sm'>
           <span><span className='font-semibold'>Min Received</span> : <span className='font-bold'>{formatNumber(parseFloat(minToReceiveAfterFee).toFixed(6))}{" "}
 </span>{selectedTokenB.ticker}</span>
         </h6>
-                <h6 className='font-orbitron text-sm py-1'>
+                <h6 className=' text-sm py-1'>
           <span><span className='font-semibold'>Rate :</span> <span className='font-bold'>1</span> {isRateReversed ? selectedTokenB.ticker : selectedTokenA.ticker} = <span className='font-bold'>{getRateDisplay()}</span>             {isRateReversed ? selectedTokenA.ticker : selectedTokenB.ticker}</span>
         </h6>
-                <h6 className='font-orbitron text-sm'>
+                <h6 className=' text-sm'>
           <span><span className='font-semibold'>Price Impact :</span> <span className='font-bold'>1%</span></span>
         </h6>
       </div> */}

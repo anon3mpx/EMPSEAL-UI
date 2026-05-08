@@ -42,7 +42,7 @@ const Transaction = ({
     <>
       <div className="px-4 bg-black bg-opacity-40 backdrop-blur-sm py-10 flex justify-center items-center overflow-y-auto h-full fixed top-0 left-0 right-0 bottom-0 z-[9999] fade-in-out fade-out">
         <div className="w-full flex justify-center items-center">
-          <div className="md:max-w-[600px] w-full bg-black clip-bg rounded-3xl relative py-10 md:px-8 px-6 mx-auto border border-[#222]">
+          <div className="md:max-w-[600px] w-full bg-black clip-bg  relative py-10 md:px-8 px-6 mx-auto border border-[#222]">
             <svg
               onClick={onClose}
               className="absolute cursor-pointer right-8 top-8"
@@ -63,7 +63,7 @@ const Transaction = ({
 
             {/* Header */}
             <div className="flex items-center justify-center gap-3">
-              <div className="text-white text-2xl font-bold font-orbitron leading-7">
+              <div className="text-white text-2xl  leading-7">
                 Transaction Submitted
               </div>
             </div>
@@ -71,10 +71,10 @@ const Transaction = ({
             {/* You Pay */}
             {tokenA && amountIn && (
               <div className="mt-6">
-                <div className="text-white mb-2 text-sm font-normal font-orbitron">
+                <div className="text-white mb-2 text-sm font-normal ">
                   You Paid
                 </div>
-                <div className="text-white text-2xl font-bold font-orbitron flex gap-3 items-center w-auto-search bg-search bg-search-padd">
+                <div className="text-white text-2xl font-bold  flex gap-3 items-center w-auto-search bg-search bg-search-padd">
                   {formatNumber(amountIn)} {tokenA?.ticker}
                   <img
                     src={tokenA?.image}
@@ -88,10 +88,10 @@ const Transaction = ({
             {/* You Receive */}
             {tokenB && amountOut && (
               <div className="mt-6">
-                <div className="text-white text-sm font-normal font-orbitron mb-2">
+                <div className="text-white text-sm font-normal  mb-2">
                   You Received
                 </div>
-                <div className="text-white text-2xl font-bold font-orbitron flex gap-3 items-center w-auto-search bg-search bg-search-padd">
+                <div className="text-white text-2xl font-bold  flex gap-3 items-center w-auto-search bg-search bg-search-padd">
                   {formatNumber(amountOut)} {tokenB?.ticker}
                   <img
                     src={tokenB?.image}
@@ -105,10 +105,10 @@ const Transaction = ({
             {/* Price */}
             {tokenA && tokenB && rate && (
               <div className="flex justify-between items-center w-full mt-6">
-                <div className="text-white text-sm font-normal font-orbitron">
+                <div className="text-white text-sm font-normal ">
                   Price
                 </div>
-                <div className="text-white text-sm font-normal font-orbitron">
+                <div className="text-white text-sm font-normal ">
                   1 {tokenA?.ticker} = {rate} {tokenB?.ticker}
                 </div>
               </div>
@@ -129,11 +129,11 @@ const Transaction = ({
             {/* Price Impact */}
             {usdValueTokenA && usdValueTokenB && (
               <div className="flex justify-between items-center w-full mt-2">
-                <div className="text-white text-sm font-normal font-orbitron">
+                <div className="text-white text-sm font-normal ">
                   Price Impact
                 </div>
                 <div
-                  className={`text-sm font-normal font-orbitron ${parseFloat(priceImpact) > 0
+                  className={`text-sm font-normal  ${parseFloat(priceImpact) > 0
                       ? "text-green-500"
                       : parseFloat(priceImpact) < 0
                         ? "text-red-500"
@@ -146,12 +146,12 @@ const Transaction = ({
             )}
 
             {/* Transaction Hash */}
-            <div className="rounded-xl px-4 py-4 bg-[#2C2D3A] flex gap-4 items-center mt-6 justify-center">
+            <div className=" px-4 py-4 bg-[#2C2D3A] flex gap-4 items-center mt-6 justify-center">
               <Link
                 target="_blank"
                 to={`${blockExplorer}${transactionHash}`}
               >
-                <div className="text-white text-base font-bold font-orbitron text-center leading-normal">
+                <div className="text-white text-base font-bold  text-center leading-normal">
                   View on {blockExplorerName}
                 </div>
               </Link>
@@ -160,12 +160,12 @@ const Transaction = ({
             {/* Powered By */}
             <div className="flex justify-center items-center mt-6">
               <a
-                href="https://empx.io"
+                href="/"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-2 text-white/50 hover:text-white transition-colors cursor-pointer"
               >
-                <span className="text-md font-normal font-orbitron">Powered by</span>
+                <span className="text-md font-normal ">Powered by</span>
                 <img src={Logo} alt="EmpX Logo" className="w-10 h-8 object-contain" />
               </a>
             </div>

@@ -280,7 +280,7 @@ const CollectionTable = () => {
         </div>
         {/* Buttons */}
         <div className="flex space-x-4">
-          <button className="text-black text-sm py-1.5 px-3 rounded flex items-center roboto bg-[#FF9900]">
+          <button className="text-black text-sm py-1.5 px-3 rounded flex items-center roboto bg-[#FF8A00]">
             <img className="pe-2" src={Icon} />
             Collections
           </button>
@@ -318,7 +318,7 @@ const CollectionTable = () => {
             id="table-search"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            class="block py-1.5 ps-10 text-sm text-white border border-gray-300 rounded-lg w-[292px] bg-transparent placeholder-white text-sm"
+            class="block py-1.5 ps-10 text-sm text-white border border-gray-300  w-[292px] bg-transparent placeholder-white text-sm"
             placeholder="Search by Collection, NFT and Wallet"
           />
         </div>

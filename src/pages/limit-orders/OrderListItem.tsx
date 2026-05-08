@@ -210,7 +210,7 @@ export function OrderListItem({
   return (
     <div
       data-testid={`card-order-${order.id}`}
-      className="text-white w-full font-orbitron"
+      className="text-white w-full "
     >
       <div className="md:mt-3 md:pt-3 md:border-t md:border-b-0 border-b border-[#D4D4D4]/60 grid lg:grid-cols-8 md:grid-cols-4 grid-cols-2 whitespace-nowrap md:gap-4 gap-1 items-center w-full text-sm justify-between">
         {/* Order ID */}
@@ -222,14 +222,14 @@ export function OrderListItem({
         >
           <span className="md:hidden">{getStrategyName()}</span> # {order.id}
           {hoveredCell === "id" && (
-            <div className="absolute z-50 bg-black border border-[#FF9900] p-2 rounded text-xs whitespace-nowrap">
+            <div className="absolute z-50 bg-black border border-[#FF8A00] p-2 rounded text-xs whitespace-nowrap">
               Full Order ID: {getStrategyName()} {order.id}
             </div>
           )}
           {/* {order.groupId && order.groupId !== "0" && (
             <Badge
               variant="outline"
-              className="ml-2 border-[#FF9900] text-[#FF9900] text-xs"
+              className="ml-2 border-[#FF8A00] text-[#FF8A00] text-xs"
             >
               {order.fundsDeposited ? "Active Bracket" : "Pending Bracket Leg"}
             </Badge>
@@ -275,7 +275,7 @@ export function OrderListItem({
             )}
           </div>
           {hoveredCell === "price" && (
-            <div className="absolute z-50 bg-black border border-[#FF9900] p-2 rounded text-xs whitespace-nowrap">
+            <div className="absolute z-50 bg-black border border-[#FF8A00] p-2 rounded text-xs whitespace-nowrap">
               Full Price: {getFullAmount(order.limitPrice)}
             </div>
           )}
@@ -307,7 +307,7 @@ export function OrderListItem({
               {formatLargeAmount(order.amountIn, tokenInInfo?.decimals)}
             </span>
             {hoveredCell === "amountIn" && (
-              <div className="absolute z-50 bg-black border border-[#FF9900] p-2 rounded text-xs whitespace-nowrap">
+              <div className="absolute z-50 bg-black border border-[#FF8A00] p-2 rounded text-xs whitespace-nowrap">
                 Full Amount:{" "}
                 {getFullAmount(order.amountIn, tokenInInfo?.decimals)}
               </div>
@@ -342,7 +342,7 @@ export function OrderListItem({
               {formatLargeAmount(order.minAmountOut, tokenOutInfo?.decimals)}
             </span>
             {hoveredCell === "amountOut" && (
-              <div className="absolute z-50 bg-black border border-[#FF9900] p-2 rounded text-xs whitespace-nowrap">
+              <div className="absolute z-50 bg-black border border-[#FF8A00] p-2 rounded text-xs whitespace-nowrap">
                 Full Amount:{" "}
                 {getFullAmount(order.minAmountOut, tokenOutInfo?.decimals)}
               </div>
@@ -386,7 +386,7 @@ export function OrderListItem({
             {formatExpiryDate(order.deadline)}
           </span>
           {hoveredCell === "date" && (
-            <div className="absolute z-50 bg-black border border-[#FF9900] p-2 rounded text-xs whitespace-nowrap">
+            <div className="absolute z-50 bg-black border border-[#FF8A00] p-2 rounded text-xs whitespace-nowrap">
               Expiry:{" "}
               {new Date(parseInt(order.deadline) * 1000).toLocaleString()}
             </div>
@@ -400,18 +400,18 @@ export function OrderListItem({
               size="sm"
               onClick={() => onCancel(order.id)}
               disabled={isCancelling || order.id === "unknown"}
-              className="!border-0 hover:bg-[#FF9900]/20"
+              className="!border-0 hover:bg-[#FF8A00]/20"
               data-testid={`button-cancel-${order.id}`}
             >
-              <Trash2 className="md:h-10 md:w-10 w-5 h-5 !text-2xl text-[#ff9900]" />
+              <Trash2 className="md:h-10 md:w-10 w-5 h-5 !text-2xl text-[#FF8A00]" />
             </Button>
           ) : (
             <Button
               size="sm"
               onClick={() => onRemove(order.id)}
-              className="!border-0 hover:bg-[#FF9900]/20"
+              className="!border-0 hover:bg-[#FF8A00]/20"
             >
-              <Trash2 className="md:h-10 md:w-10 w-5 h-5 !text-2xl text-[#ff9900]" />
+              <Trash2 className="md:h-10 md:w-10 w-5 h-5 !text-2xl text-[#FF8A00]" />
             </Button>
           )}
         </div>

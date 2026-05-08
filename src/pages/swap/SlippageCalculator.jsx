@@ -14,9 +14,17 @@ const calculateSlippage = (amountOut, slippagePercent) => {
   );
 };
 
-const SlippageCalculator = ({ inputAmount, onSlippageCalculated, onClose }) => {
-  const [slippage, setSlippage] = useState(0);
-  const [customSlippage, setCustomSlippage] = useState("");
+const SlippageCalculator = ({
+  inputAmount,
+  selectedSlippage = 0.5,
+  onSlippageChange,
+  onSlippageCalculated,
+  onClose,
+}) => {
+  const [slippage, setSlippage] = useState(selectedSlippage);
+  const [customSlippage, setCustomSlippage] = useState(
+    selectedSlippage ? selectedSlippage.toString() : "",
+  );
   const [slippageApplied, setSlippageApplied] = useState(false);
   const [error, setError] = useState("");
   const originalAmountRef = useRef(null);
@@ -38,10 +46,15 @@ const SlippageCalculator = ({ inputAmount, onSlippageCalculated, onClose }) => {
     }
   }, [inputAmount]);
 
+  // Sync selected slippage from parent state
+  useEffect(() => {
+    setSlippage(selectedSlippage);
+    setCustomSlippage(selectedSlippage ? selectedSlippage.toString() : "");
+    setSlippageApplied(false);
+  }, [selectedSlippage]);
+
   // Calculate slippage when necessary
   useEffect(() => {
-    // console.log("Calculating slippage...");
-    // console.log(originalAmountRef.current, slippage, slippageApplied, error);
     if (
       originalAmountRef.current &&
       slippage >= 0 &&
@@ -50,7 +63,6 @@ const SlippageCalculator = ({ inputAmount, onSlippageCalculated, onClose }) => {
       !error
     ) {
       try {
-        // Always calculate based on original amount
         const adjustedAmount = calculateSlippage(
           originalAmountRef.current,
           slippage,
@@ -71,6 +83,7 @@ const SlippageCalculator = ({ inputAmount, onSlippageCalculated, onClose }) => {
       setSlippage(value);
       setCustomSlippage(value.toString());
       setSlippageApplied(false);
+      if (onSlippageChange) onSlippageChange(value);
     }
   };
 
@@ -81,6 +94,7 @@ const SlippageCalculator = ({ inputAmount, onSlippageCalculated, onClose }) => {
     const inputValue = e.target.value;
     if (inputValue === "") {
       setCustomSlippage("");
+      if (onSlippageChange) onSlippageChange(0);
       return;
     }
 
@@ -90,6 +104,7 @@ const SlippageCalculator = ({ inputAmount, onSlippageCalculated, onClose }) => {
     setCustomSlippage(inputValue);
     setSlippage(value);
     setSlippageApplied(false);
+    if (onSlippageChange) onSlippageChange(value);
   };
 
   // Reset slippage state and calculate immediately
@@ -107,6 +122,7 @@ const SlippageCalculator = ({ inputAmount, onSlippageCalculated, onClose }) => {
         setSlippage(defaultSlippage);
         setCustomSlippage("");
         setSlippageApplied(true);
+        if (onSlippageChange) onSlippageChange(defaultSlippage);
       } catch (error) {
         console.error("Error resetting slippage:", error);
         setError(error.message);
@@ -122,34 +138,17 @@ const SlippageCalculator = ({ inputAmount, onSlippageCalculated, onClose }) => {
     onClose();
   };
 
-  // Close modal if clicked outside
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (modalRef.current && !modalRef.current.contains(event.target)) {
-        handleModalClose();
-      }
-    };
-
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, []);
-
   const slippageOptions = [0.0, 0.5, 1.0, 2.0];
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center z-50 roboto px-4">
-      <div
-        ref={modalRef}
-        className="bg-black clip-bg rounded-xl lg:px-8 lg:py-8 p-6 md:max-w-[700px] w-full relative"
-      >
-        <button
+    <div className="w-full">
+      <div ref={modalRef} className="clip-bg bg_slip_box w-full relative">
+        {/* <button
           onClick={handleModalClose}
           className="absolute md:top-10 top-7 md:right-10 right-7 text-white hover:opacity-80 flex flex-shrink-0 tilt"
         >
           <svg
-            className="text-white hover:text-[#FF9900]"
+            className="text-white hover:text-[#FF8A00]"
             width="18"
             height="19"
             viewBox="0 0 18 19"
@@ -165,15 +164,15 @@ const SlippageCalculator = ({ inputAmount, onSlippageCalculated, onClose }) => {
               strokeLinejoin="round"
             ></path>{" "}
           </svg>{" "}
-        </button>
-        <h2 className="mb-4 md:text-lg capitalize text-lg font-medium text-white font-orbitron text-center tracking-widest flex gap-1 items-center justify-center">
+        </button> */}
+        {/* <h2 className="mb-4 md:text-lg capitalize text-lg font-medium text-white  text-center tracking-widest flex gap-1 items-center justify-center">
           <img src={EL} alt="EL" className="w-10 object-contain" />
           Slippage Settings
-        </h2>
+        </h2> */}
 
         {error && (
-          <div className="mb-4 p-3 bg-red-900/50 border border-red-500 rounded-lg">
-            <p className="text-red-200 text-sm">{error}</p>
+          <div className="mb-2">
+            <p className="text-white/30 text-xs">{error}</p>
           </div>
         )}
         <div className="flex gap-4 items-center justify-center flex-wrap">
@@ -181,7 +180,7 @@ const SlippageCalculator = ({ inputAmount, onSlippageCalculated, onClose }) => {
             <button
               key={index}
               onClick={() => handleSlippageSelect(option)}
-              className={`px-4 py-1.5 justify-center md:w-[100px] w-20 relative md:text-base text-sm border border-[#ff9900] rounded-xl ${
+              className={`slip1 ${
                 slippage === option
                   ? "bg- text-white"
                   : "bg-transparent text-white"
@@ -191,36 +190,30 @@ const SlippageCalculator = ({ inputAmount, onSlippageCalculated, onClose }) => {
               {option}%
             </button>
           ))}
-
           <input
             type="text"
             inputMode="decimal"
             value={customSlippage}
             onChange={handleCustomSlippageChange}
-            className={`md:w-[120px] w-20 md:h-9 h-9 text-center font-bold text-sm text-white focus:outline-none bg-[#382B19] border border-[#ff9900] rounded-xl
+            className={`slip1 text-center
       ${error ? "opacity-50 cursor-not-allowed" : ""}`}
             placeholder="%"
             disabled={!!error}
           />
         </div>
 
-        <div className="flex justify-center items-center mt-20 flex-col">
+        <div className="flex justify-center items-center mt-4 gap-4">
           <button
             onClick={handleResetSlippage}
-            className={`gtw relative w-full md:h-12 rounded-xl h-11 flex items-center justify-center font-roboto font-bold md:text-lg text-base transition-all font-orbitron
+            className={`gtw relative z-50 w-full uppercase md:h-8 h-8 bg-[#FF8A00] mx-auto font-bold button-trans h- flex justify-center items-center transition-all text-xs 
     ${error ? "opacity-100 cursor-not-allowed" : ""}`}
-            style={{
-              background: "#F59216",
-              border: "2px solid #F59216",
-            }}
             disabled={!!error}
           >
             Reset Slippage
           </button>
-
           <button
             onClick={handleModalClose}
-            className="px-4 py-1 mt-5 bg-black font-semibold md:text-lg text-base text-[#FF9900] rounded font-orbitron"
+            className="slippage-btn w-full uppercase md:h-8 h-8"
           >
             Close
           </button>

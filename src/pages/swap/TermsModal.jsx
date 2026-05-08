@@ -1,4 +1,5 @@
 import { useRef, useEffect } from "react";
+import EL from "../../assets/images/emp-logo.png";
 
 export default function TermsModal({ onClose }) {
   const cardRef = useRef(null);
@@ -17,29 +18,27 @@ export default function TermsModal({ onClose }) {
   return (
     <div
       ref={cardRef}
-      className="relative bg-black text-white md:p-8 p-4 rounded-2xl flex flex-col items-center gap-4 md:max-w-[700px] w-full"
+      className="text-white p-4 rounded-2xl flex flex-col items-center gap-4 md:max-w-[550px] w-full relative py-4 mx-auto clip-bg"
     >
-      <svg
-        onClick={onClose}
-        className="absolute cursor-pointer md:right-10 right-4 md:top-10 top-4 tilt"
-        width={18}
-        height={19}
-        viewBox="0 0 18 19"
-        fill="none"
-        xmlns="http://www.w3.org/2000/svg"
-      >
-        <path
-          d="M17 1.44824L1 17.6321M1 1.44824L17 17.6321"
-          stroke="#fff"
-          strokeWidth={2}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </svg>
-      <h2 className="md:text-2xl text-xl font-bold text-white mb-2 text-center font-orbitron">
-        Terms and Conditions
-      </h2>
-      <div className="h-[180px] overflow-y-auto md:pl-10 pl-4 text-white roboto font-bold text-[10px] terms mr-3 pr-4">
+      <div className="flex justify-between gap-2 items-center px-4 pb-2 w-full">
+        <h2 className="text-[13px] uppercase font-bold text-white tracking-widest flex gap-1 items-center justify-center">
+          <img src={EL} alt="EL" className="w-10 object-contain" />
+          Terms and Conditions
+        </h2>
+        <button onClick={onClose} className="close-btn">
+          <svg
+            width="10"
+            height="10"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+          >
+            <path d="M18 6 6 18M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+      <div className="h-[180px] overflow-y-auto md:pl-10 pl-2 text-white roboto font-bold text-[10px] terms mr-3 pr-4">
         EMPX – Terms & Conditions
         <br />
         These Terms & Conditions (“Terms”) govern your access to and use of the

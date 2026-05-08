@@ -10,6 +10,8 @@ import CollectionDetail from "../components/CollectionDetail";
 import ItemDetail from "../pages/Home/ItemDetail";
 import Bridge from "../pages/bridge/Main";
 import NativeBridge from "../pages/nativeBridge";
+import Widget from "../pages/widget/Main";
+import Cross from "../pages/cross/Main";
 import BridgeWrapper from "../components/BridgeWrapper";
 import WagmiProviderWrapper from "../Wagmi/WagmiProvider";
 import { Provider } from "react-redux";
@@ -17,9 +19,21 @@ import store from "../redux/store/store";
 import { ToastContainer, Slide } from "react-toastify";
 import { useEffect } from "react";
 import { useAccount, useChainId, useSwitchChain } from "wagmi";
-import { pulsechain, sonic, sei, rootstock, bsc, arbitrum, optimism, polygon, avalanche } from "wagmi/chains";
+import {
+  pulsechain,
+  sonic,
+  sei,
+  rootstock,
+  bsc,
+  arbitrum,
+  optimism,
+  polygon,
+  avalanche,
+} from "wagmi/chains";
 import ViaBridge from "../pages/via-bridge/BridgePage";
 import NotFound from "../pages/NotFound";
+import Landing from "../pages/landing/Home";
+import Portfolio from "../pages/portfolio/Portfolio";
 
 const GasBridgePage = lazy(() => import("../pages/GasBridgePage"));
 
@@ -31,7 +45,22 @@ const ChainSwitcher = ({ children }) => {
 
   useEffect(() => {
     if (isConnected && chainId) {
-      const swapChainIds = [pulsechain.id, 10001, sonic.id, 8453, sei.id, 80094, rootstock.id, bsc.id, 143, arbitrum.id, optimism.id, polygon.id, avalanche.id, 999]; // pulsechain, ethw, sonic, base, sei, berachain, rootstock, bsc, optimism
+      const swapChainIds = [
+        pulsechain.id,
+        10001,
+        sonic.id,
+        8453,
+        sei.id,
+        80094,
+        rootstock.id,
+        bsc.id,
+        143,
+        arbitrum.id,
+        optimism.id,
+        polygon.id,
+        avalanche.id,
+        999,
+      ]; // pulsechain, ethw, sonic, base, sei, berachain, rootstock, bsc, optimism
       if (!swapChainIds.includes(chainId)) {
         switchChain({ chainId: pulsechain.id });
       }
@@ -97,9 +126,36 @@ function MyRoutes() {
       <BrowserRouter>
         {/* <Base> */}
         <div>
-          <BreadCrumb />
+          {/* <BreadCrumb /> */}
           <Routes>
-            <Route path="/" element={<Navigate to="/swap" replace />} />
+            {/* <Route path="/" element={<Navigate to="/landing" replace />} /> */}
+            <Route path="/" element={<Landing />} />
+            <Route path="/landing" element={<Landing />} />
+            <Route
+              path="/portfolio"
+              element={
+                <SwapWrapper>
+                  <Portfolio />
+                </SwapWrapper>
+              }
+            />
+            <Route
+              path="/widget"
+              element={
+                <SwapWrapper>
+                  <Widget />
+                </SwapWrapper>
+              }
+            />
+            <Route
+              path="/cross"
+              element={
+                <SwapWrapper>
+                  <Cross />
+                </SwapWrapper>
+              }
+            />
+            {/* <Route path="/" element={<Navigate to="/swap" replace />} /> */}
             <Route
               path="/swap"
               element={
@@ -131,12 +187,21 @@ function MyRoutes() {
               }
             /> */}
             {/* via-bridge disabled — coming soon */}
-            <Route path="/via-bridge" element={<Navigate to="/swap" replace />} />
+            <Route
+              path="/via-bridge"
+              element={<Navigate to="/swap" replace />}
+            />
             <Route
               path="/gas"
               element={
                 <BridgeWrapper>
-                  <Suspense fallback={<div>Loading...</div>}>
+                  <Suspense
+                    fallback={
+                      <div className="w-full h-screen flex items-center justify-center">
+                        <div className="animate-spin rounded-full h-10 w-10 border-2 border-white border-t-transparent" />
+                      </div>
+                    }
+                  >
                     <GasBridgePage />
                   </Suspense>
                 </BridgeWrapper>

@@ -738,7 +738,7 @@ const Emp = ({
   return (
     <>
       <div
-        className={`w-full rounded-xl xl:pb-10 lg:pt-1 md:mt-0 mt-4 relative ${
+        className={`w-full  xl:pb-10 lg:pt-1 md:mt-0 mt-4 relative ${
           order ? "pb-[0px]" : "2xl:pb-20 xl:pb-10 lg:pb-0 pb-[350px]"
         }`}
       >
@@ -746,18 +746,18 @@ const Emp = ({
           <div className="relative bg_swap_box">
             {/* <img className="bg-sell" src={Sellbox} alt="sellbox" /> */}
             <div className="flex justify-between gap-3 items-center lg:px-2">
-              <div className="font-orbitron text-dark-400 md:text-2xl text-xs font-semibold leading-normal">
+              <div className=" text-dark-400 md:text-2xl text-xs font-semibold leading-normal">
                 You Sell
               </div>
-              <div className="text-center absolute -top-8 md:right-0 right-5 gap-3 2xl:px-6 lg:px-4 lg:py-3 rounded-lg mt-2 border border-white bg-[#FFE6C0] md:text-sm text-[10px] px-2 py-2">
-                <span className="font-extrabold font-orbitron leading-normal">
+              <div className="text-center absolute -top-8 md:right-0 right-5 gap-3 2xl:px-6 lg:px-4 lg:py-3  mt-2 border border-white bg-[#FFE6C0] md:text-sm text-[10px] px-2 py-2">
+                <span className="font-extrabold  leading-normal">
                   BAL
                 </span>
-                <span className="font-bold font-orbitron leading-normal">
+                <span className="font-bold  leading-normal">
                   {" "}
                   :{" "}
                 </span>
-                <span className="rigamesh leading-normal">
+                <span className=" leading-normal">
                   {isLoading
                     ? "Loading.."
                     : selectedTokenA.address === EMPTY_ADDRESS
@@ -781,7 +781,7 @@ const Emp = ({
                     setSelectedPercentage("");
                     setAmountIn("");
                   }}
-                  className="relative cursor-pointer flex md:gap-4 gap-1 items-center bg-black text-white md:border-2 border border-white md:rounded-xl rounded-lg md:h-20 h-12 md:px-6 px-3 md:py-2 py-2.5 margin_left_1 lg:w-[280px] md:w-[220px] w-[120px] justify-center"
+                  className="relative cursor-pointer flex md:gap-4 gap-1 items-center bg-black text-white md:border-2 border border-white md:  md:h-20 h-12 md:px-6 px-3 md:py-2 py-2.5 margin_left_1 lg:w-[280px] md:w-[220px] w-[120px] justify-center"
                 >
                   <div
                     className={`relatve flex gap-2 items-center ${
@@ -802,7 +802,7 @@ const Emp = ({
                           alt={selectedTokenA?.name}
                         />
                         <h3
-                          className={`font-bold font-orbitron text-center ${
+                          className={`font-bold  text-center ${
                             selectedTokenA?.name?.length > 8
                               ? "text-[8px] lg:text-[20px]"
                               : selectedTokenA?.name?.length > 6
@@ -814,7 +814,7 @@ const Emp = ({
                         </h3>
 
                         {/* <h3
-                          className={`font-bold font-orbitron text-center ${
+                          className={`font-bold  text-center ${
                             selectedChainA?.name?.length > 10
                               ? "text-[8px] lg:text-[12px]"
                               : selectedChainA?.name?.length > 6
@@ -827,7 +827,7 @@ const Emp = ({
                       </div>
                     )}
                     {!selectedTokenA?.name && (
-                      <span className="absolute md:px-3 px-1 lg:left-4 left-2 lg:right-0 mx-auto flex items-center justify-center !text-[#FF9900] font-bold font-orbitron lg:text-3xl md:text-base text-sm">
+                      <span className="absolute md:px-3 px-1 lg:left-4 left-2 lg:right-0 mx-auto flex items-center justify-center !text-[#FF8A00] font-bold  lg:text-3xl md:text-base text-sm">
                         Select token
                       </span>
                     )}{" "}
@@ -837,7 +837,7 @@ const Emp = ({
                     /> */}
                     {/* {selectedChainA.image && ( */}
                     <div
-                      className={`relative bg-black md:h-20 md:w-[70px] w-11 h-12 md:px-1.5 px-1 flex justify-center items-center border-2 border-white rounded-lg z-10 lg:!left-[11.5rem] md:!left-[9.5rem] !left-[5.4rem] ${
+                      className={`relative bg-black md:h-20 md:w-[70px] w-11 h-12 md:px-1.5 px-1 flex justify-center items-center border-2 border-white  z-10 lg:!left-[11.5rem] md:!left-[9.5rem] !left-[5.4rem] ${
                         selectedChainA.image ? "left-40-box " : "left-40-box"
                       }`}
                     >
@@ -863,17 +863,17 @@ const Emp = ({
                 </div>
               </div> */}
               <div className="md:max-w-1/2 w-full">
-                <div className="text-zinc-200 text-[10px] font-normal font-orbitron leading-normal flex md:gap-2 gap-1 justify-end">
+                <div className="text-zinc-200 text-[10px] font-normal  leading-normal flex md:gap-2 gap-1 justify-end">
                   <span></span>
                   {[25, 50, 75, 100].map((value) => (
                     <button
                       key={value}
                       type="button"
-                      className={`py-1 border border-[#FF9900] flex justify-center items-center rounded-xl md:text-[12px] text-[7px] font-extrabold font-orbitron md:w-[70px] w-11 px-2
+                      className={`py-1 border border-[#FF8A00] flex justify-center items-center  md:text-[12px] text-[7px] font-extrabold  md:w-[70px] w-11 px-2
                 ${
                   selectedPercentage === value
                     ? " text-white bg-black"
-                    : "bg-black text-white hover:border-black hover:bg-[#FF9900] hover:text-black"
+                    : "bg-black text-white hover:border-black hover:bg-[#FF8A00] hover:text-black"
                 }`}
                       onClick={() => handlePercentageChange(value)}
                       disabled={isLoading}
@@ -919,7 +919,7 @@ const Emp = ({
                       }
                       value={formatNumber(amountIn)}
                       onChange={(e) => handleInputChange(e.target.value)}
-                      className="text-[#000000] text-sh py-2 rigamesh text-end w-full leading-7 outline-none border-none bg-transparent token_input px-1 placeholder-black transition-all duration-200 ease-in-out"
+                      className="text-[#000000] text-sh py-2  text-end w-full leading-7 outline-none border-none bg-transparent token_input px-1 placeholder-black transition-all duration-200 ease-in-out"
                       style={{
                         fontSize: `${dynamicFontSize}px`,
                       }}
@@ -960,25 +960,25 @@ const Emp = ({
               <img
                 src={UpDownAr}
                 alt="Ar"
-                className="hoverswap transition-all rounded-xl"
+                className="hoverswap transition-all "
               />
             </div>
           </div>
           <div className="relative bg_swap_box_black">
             {/* <img className="bg-sell" src={Buybox} alt="Buybox" /> */}
             <div className="flex justify-between gap-3 items-center">
-              <div className="font-orbitron text-white md:text-2xl text-xs font-semibold leading-normal">
+              <div className=" text-white md:text-2xl text-xs font-semibold leading-normal">
                 You Buy
               </div>
-              <div className="text-center absolute -top-8 md:right-0 right-5 gap-3 2xl:px-6 lg:px-4 lg:py-3 rounded-lg mt-2 border border-white bg-[#FFE6C0] md:text-sm text-[10px] px-2 py-2">
-                <span className="font-bold font-orbitron leading-normal">
+              <div className="text-center absolute -top-8 md:right-0 right-5 gap-3 2xl:px-6 lg:px-4 lg:py-3  mt-2 border border-white bg-[#FFE6C0] md:text-sm text-[10px] px-2 py-2">
+                <span className="font-bold  leading-normal">
                   BAL
                 </span>
-                <span className="font-bold font-orbitron leading-normal">
+                <span className="font-bold  leading-normal">
                   {" "}
                   :{" "}
                 </span>
-                <span className="rigamesh leading-normal">
+                <span className=" leading-normal">
                   {isLoading
                     ? "Loading.."
                     : selectedTokenA.address === EMPTY_ADDRESS
@@ -1002,7 +1002,7 @@ const Emp = ({
                         setIsSelectingTokenA(false);
                         setTokenVisible(true);
                       }}
-                      className="flex md:gap-4 gap-1 relative items-center justify-center bg-[#FFE6C0] text-black md:border-2 md:h-20 h-12 border border-white rounded-lg md:px-6 px-3 md:py-2 py-2.5 lg:w-[280px] md:w-[220px] w-[120px] margin_left_1"
+                      className="flex md:gap-4 gap-1 relative items-center justify-center bg-[#FFE6C0] text-black md:border-2 md:h-20 h-12 border border-white  md:px-6 px-3 md:py-2 py-2.5 lg:w-[280px] md:w-[220px] w-[120px] margin_left_1"
                     >
                       <div
                         className={` flex gap-2 items-center ${
@@ -1024,7 +1024,7 @@ const Emp = ({
                               alt={selectedTokenB?.name}
                             />
                             <h3
-                              className={`font-bold font-orbitron text-center ${
+                              className={`font-bold  text-center ${
                                 selectedTokenB?.name?.length > 10
                                   ? "text-[8px] lg:text-[20px]"
                                   : selectedTokenB?.name?.length > 6
@@ -1037,7 +1037,7 @@ const Emp = ({
                           </div>
                         )}
                         {!selectedTokenB?.name && (
-                          <span className="absolute md:px-3 px-1 lg:left-4 left-2 lg:right-0 mx-auto flex items-center justify-center !text-black font-bold font-orbitron lg:text-3xl md:text-base text-sm">
+                          <span className="absolute md:px-3 px-1 lg:left-4 left-2 lg:right-0 mx-auto flex items-center justify-center !text-black font-bold  lg:text-3xl md:text-base text-sm">
                             Select token
                           </span>
                         )}{" "}
@@ -1047,7 +1047,7 @@ const Emp = ({
                         /> */}
                         {/* {selectedChainB.image && ( */}
                         <div
-                          className={`relative bg-black border md:h-20 md:w-[70px] w-11 h-12 md:px-1.5 px-1 flex justify-center items-center border-white rounded-lg z-10 lg:!left-[11.5rem] md:!left-[9.5rem] !left-[5.4rem] ${
+                          className={`relative bg-black border md:h-20 md:w-[70px] w-11 h-12 md:px-1.5 px-1 flex justify-center items-center border-white  z-10 lg:!left-[11.5rem] md:!left-[9.5rem] !left-[5.4rem] ${
                             selectedChainB.image
                               ? "left-40-box "
                               : "left-40-box"
@@ -1107,11 +1107,11 @@ const Emp = ({
                     <button
                       key={value}
                       type="button"
-                      className={` py-1 border border-[#FF9900] flex justify-center items-center rounded-xl text-[10px] md:w-[70px] w-11 font-medium font-orbitron px-2
+                      className={` py-1 border border-[#FF8A00] flex justify-center items-center  text-[10px] md:w-[70px] w-11 font-medium  px-2
                 ${
                   selectedPercentage === value
                     ? " text-white bg-black"
-                    : "bg-[#FF9900] text-[#040404] hover:border-black hover:bg-[#FF9900] hover:text-black"
+                    : "bg-[#FF8A00] text-[#040404] hover:border-black hover:bg-[#FF8A00] hover:text-black"
                 }`}
                       onClick={() => handlePercentageChange(value)}
                       disabled={isLoading}
@@ -1157,7 +1157,7 @@ const Emp = ({
                           : parseFloat(amountOut).toFixed(3)
                       }
                       readOnly
-                      className="truncate text-white font-bold rigamesh text_sh text-end placeholder:text-white w-full leading-7 outline-none border-none bg-transparent ps-0 transition-all duration-200 ease-in-out"
+                      className="truncate text-white font-bold  text_sh text-end placeholder:text-white w-full leading-7 outline-none border-none bg-transparent ps-0 transition-all duration-200 ease-in-out"
                       style={{
                         fontSize: `${dynamicFontSize}px`,
                       }}
@@ -1175,7 +1175,7 @@ const Emp = ({
           {/* grid grid-cols-[65%_30%] justify-between  */}
           {/* wallet-bg-bridge */}
           <div className="w-full md:my-9 my-4 pt-4">
-            <div className="w-full border border-[#FF9900] py-7 rounded-[40px] relative">
+            <div className="w-full border border-[#FF8A00] py-7 rounded-[40px] relative">
               <input
                 type="text"
                 placeholder="To Address"
@@ -1185,7 +1185,7 @@ const Emp = ({
                 className="text-white text-sm font-bold roboto text-start w-full leading-7 outline-none border-none bg-transparent md:pl-10 pl-4 pr-32"
               />
               <button
-                className={`!absolute !bg-transparent w-[100px] bg-black h-12 hover:opacity-70 !border !border-white top-4 right-4 flex justify-center items-center rounded-xl px-2 roboto !text-[#FF9900] text-base font-bold`}
+                className={`!absolute !bg-transparent w-[100px] bg-black h-12 hover:opacity-70 !border !border-white top-4 right-4 flex justify-center items-center  px-2 roboto !text-[#FF8A00] text-base font-bold`}
                 onClick={handleSelfButtonClick}
               >
                 Self
@@ -1205,10 +1205,10 @@ const Emp = ({
           <button
             onClick={() => setAmountVisible(true)}
             disabled={isInsufficientBalance()}
-            className={`w-full button-trans mt-12 h- flex justify-center items-center rounded-xl ${isInsufficientBalance()
+            className={`w-full button-trans mt-12 h- flex justify-center items-center  ${isInsufficientBalance()
               ? "opacity-50 cursor-not-allowed"
               : " hover:text-black hover:bg-transparent"
-              } font-orbitron text-black text-3xl font-bold`}
+              }  text-black text-3xl font-bold`}
           >
             <img className="absolute swap-button" src={Swapbutton} />
             <span className="ps-7">{getButtonText()}</span>
@@ -1227,26 +1227,26 @@ const Emp = ({
                 disabled={
                   loading || amountIn === "0" || !amountIn || !selfAddress
                 }
-                className={`gtw relative md:w-[360px] w-[250px] md:h-[68px] h-11 bg-[#FF9900] md:rounded-[10px] rounded-md mx-auto button-trans md:mt-12 mt-4 h- flex justify-center items-center  ${
+                className={`gtw relative md:w-[360px] w-[250px] md:h-[68px] h-11 bg-[#FF8A00] md:rounded-[10px] rounded-md mx-auto button-trans md:mt-12 mt-4 h- flex justify-center items-center  ${
                   loading || amountIn === "0" || !amountIn || !selfAddress
                     ? "opacity-50 cursor-not-allowed"
                     : ""
-                } font-orbitron lg:text-2xl text-base font-extrabold`}
+                }  lg:text-2xl text-base font-extrabold`}
               >
-                <div className="group-hover:opacity-80 w-full absolute md:top-4 top-2 md:-left-5 -left-3 z-[-1] bg-transparent border-2 border-[#FF9900] md:rounded-[10px] rounded-md md:h-[68px] h-11"></div>
+                <div className="group-hover:opacity-80 w-full absolute md:top-4 top-2 md:-left-5 -left-3 z-[-1] bg-transparent border-2 border-[#FF8A00] md:rounded-[10px] rounded-md md:h-[68px] h-11"></div>
                 {/* <img className="absolute swap-button" src={Swapbutton} /> */}
                 {loading ? "Processing..." : "Estimate Trade"}
               </button>
               <button
                 onClick={() => setAmountVisible(true)}
                 disabled={isInsufficientBalance()}
-                className={`gtw relative md:w-[360px] w-[250px] md:h-[68px] h-11 bg-[#FF9900] md:rounded-[10px] rounded-md mx-auto button-trans mt-16 mb-10 h- flex justify-center items-center ${
+                className={`gtw relative md:w-[360px] w-[250px] md:h-[68px] h-11 bg-[#FF8A00] md:rounded-[10px] rounded-md mx-auto button-trans mt-16 mb-10 h- flex justify-center items-center ${
                   isInsufficientBalance() || !amountOut || amountOut === "0"
                     ? "opacity-50 cursor-not-allowed"
                     : ""
-                } font-orbitron lg:text-2xl text-base font-extrabold`}
+                }  lg:text-2xl text-base font-extrabold`}
               >
-                <div className="group-hover:opacity-80 w-full absolute md:top-4 top-2 md:-left-5 -left-3 z-[-1] bg-transparent border-2 border-[#FF9900] md:rounded-[10px] rounded-md md:h-[68px] h-11"></div>
+                <div className="group-hover:opacity-80 w-full absolute md:top-4 top-2 md:-left-5 -left-3 z-[-1] bg-transparent border-2 border-[#FF8A00] md:rounded-[10px] rounded-md md:h-[68px] h-11"></div>
                 {/* <img className="absolute swap-button" src={Swapbutton} /> */}
                 <span>{getButtonText()}</span>
               </button>
@@ -1281,9 +1281,9 @@ const Emp = ({
       {/* Routing  */}
       {/* <div className="mt-3 lg:fixed absolute md:left-0 lefts 2xl:bottom-[31%] lg:bottom-[31%] md:bottom-[16%] bottom-[275px] z-40">
         <div className="relative">
-          <div className="w-full border-3 border-white rounded-xl-view py-4 2xl:px-7 lg:px-5 px-4 bg-black min-w-[240px] scale81 relative max-w-[302px] mxauto round">
+          <div className="w-full border-3 border-white -view py-4 2xl:px-7 lg:px-5 px-4 bg-black min-w-[240px] scale81 relative max-w-[302px] mxauto round">
             <div className="flex justify-center gap-2 md:flex-nowrap flex-wrap absolute left-0 right-0 -top-7">
-              <p className="w-[194px] h-[28px] flex justify-center items-center bg-[#FF9900] font-orbitron text-black text-base font-semibold border-2 border-white border-b-0 py-2 border-radius-w">
+              <p className="w-[194px] h-[28px] flex justify-center items-center bg-[#FF8A00]  text-black text-base font-semibold border-2 border-white border-b-0 py-2 border-radius-w">
                 Routing
               </p>
             </div>

@@ -61,13 +61,13 @@ const Wallet = () => {
           onChainChange={handleChainChange}
         />
         <Link to="/">
-          <button className="flex items-center justify-center bg-[#FF9900] gtw text-sm py-2 px-6 rounded-md font-extrabold w-full font-orbitron">
+          <button className="flex items-center justify-center bg-[#FF8A00] gtw text-sm py-2 px-6 rounded-md font-extrabold w-full ">
             <span className="ps-3">Home Page</span>
           </button>
         </Link>
       </div>
-      {/* <div className="w-full border border-white hidden rounded-xl py-4 2xl:px-6 lg:px-5 px-4 bg-black gap-8"> */}
-      {/* <div className='flex flex-col bg-[#161616] p-5 rounded-lg w-full md:max-w-[202px]'>
+      {/* <div className="w-full border border-white hidden  py-4 2xl:px-6 lg:px-5 px-4 bg-black gap-8"> */}
+      {/* <div className='flex flex-col bg-[#161616] p-5  w-full md:max-w-[202px]'>
         <div className='flex items-center gap-2 mb-4 text-white font-mono text-sm truncate roboto'>
           <img src={Logo} alt='Logo' className='h-8' />
           {address ? 

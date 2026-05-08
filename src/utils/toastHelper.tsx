@@ -15,8 +15,8 @@ const CustomToastContent = ({ closeToast, data, type }: { closeToast?: () => voi
       glowColor: "rgba(250, 106, 29, 0.3)",
     },
     warning: {
-      borderColor: "#FF9900",
-      iconColor: "#FF9900",
+      borderColor: "#FF8A00",
+      iconColor: "#FF8A00",
       glowColor: "rgba(255, 153, 0, 0.3)",
     },
     info: {
@@ -26,7 +26,7 @@ const CustomToastContent = ({ closeToast, data, type }: { closeToast?: () => voi
     },
     default: {
       borderColor: "#ffa600",
-      iconColor: "#FF9900",
+      iconColor: "#FF8A00",
       glowColor: "rgba(255, 153, 0, 0.3)",
     },
   };

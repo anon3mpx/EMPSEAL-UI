@@ -87,7 +87,7 @@ const ItemDetails = () => {
           <button
             className={`flex items-center px-4 py-2 text-sm font-semibold rounded ${
               activeTab === 'items'
-                ? 'bg-[#FF9900] text-black'
+                ? 'bg-[#FF8A00] text-black'
                 : 'bg-[#222222] text-white'
             }`}
             onClick={() => setActiveTab('items')}
@@ -98,7 +98,7 @@ const ItemDetails = () => {
           <button
             className={`flex items-center px-4 py-2 text-sm font-semibold rounded ${
               activeTab === 'bids'
-                ? 'bg-[#FF9900] text-black'
+                ? 'bg-[#FF8A00] text-black'
                 : 'bg-[#222222] text-white'
             }`}
             onClick={() => setActiveTab('bids')}
@@ -109,7 +109,7 @@ const ItemDetails = () => {
           <button
             className={`flex items-center px-4 py-2 text-sm font-semibold rounded ${
               activeTab === 'descriptions'
-                ? 'bg-[#FF9900] text-black'
+                ? 'bg-[#FF8A00] text-black'
                 : 'bg-[#222222] text-white'
             }`}
             onClick={() => setActiveTab('descriptions')}
@@ -123,7 +123,7 @@ const ItemDetails = () => {
       {activeTab === 'items' && (
         <div>
                       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-4">
-              <div className="bg-[#222222] p-4 rounded-lg shadow-md text-white w-72 relative z-10">
+              <div className="bg-[#222222] p-4  shadow-md text-white w-72 relative z-10">
                 <h3 className="text-[#9F9F9F] text-sm">Plain Backgrounds</h3>
 
                 <h4 className="text-base font-bold mt-2">3</h4>
@@ -134,10 +134,10 @@ const ItemDetails = () => {
                   <h5 className="px-2 py-1 border border-white-600 rounded text-[#9F9F9F] text-sm">
                     1,239/9,012
                   </h5>
-                  <h6 className="text-[#FF9900] font-bold text-sm">12%</h6>
+                  <h6 className="text-[#FF8A00] font-bold text-sm">12%</h6>
                 </div>
               </div>
-              <div className="bg-[#222222] p-4 rounded-lg shadow-md text-white w-72 relative z-10">
+              <div className="bg-[#222222] p-4  shadow-md text-white w-72 relative z-10">
                 <div className="text-[#9F9F9F] text-sm">Skin</div>
 
                 <div className="text-base font-bold mt-2">Brown</div>
@@ -148,10 +148,10 @@ const ItemDetails = () => {
                   <div className="px-2 py-1 border border-white-600 rounded text-[#9F9F9F] text-sm">
                     1,239/9,012
                   </div>
-                  <div className="text-[#FF9900] font-bold text-sm">12%</div>
+                  <div className="text-[#FF8A00] font-bold text-sm">12%</div>
                 </div>
               </div>
-              <div className="bg-[#222222] p-4 rounded-lg shadow-md text-white w-72 relative z-10">
+              <div className="bg-[#222222] p-4  shadow-md text-white w-72 relative z-10">
                 <div className="text-[#9F9F9F] text-sm">Accessories</div>
 
                 <div className="text-base font-bold mt-2">None</div>
@@ -162,7 +162,7 @@ const ItemDetails = () => {
                   <div className="px-2 py-1 border border-white-600 rounded text-[#9F9F9F] text-sm">
                   6,780/9012
                   </div>
-                  <div className="text-[#FF9900] font-bold text-sm">54%</div>
+                  <div className="text-[#FF8A00] font-bold text-sm">54%</div>
                 </div>
               </div>
             </div>

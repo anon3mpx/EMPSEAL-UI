@@ -32,7 +32,7 @@ const ActivityChart = () => {
       gridlines: { color: 'transparent' }
     },
     legend: 'none',
-    colors: ['#FF9900'],
+    colors: ['#FF8A00'],
     backgroundColor: 'transparent',
     chartArea: {
       width: '85%',
@@ -44,7 +44,7 @@ const ActivityChart = () => {
   };
 
   return (
-    <div className="border_gradient p-4 rounded-lg  mt-7 relative z-10">
+    <div className="border_gradient p-4   mt-7 relative z-10">
       <div className="flex space-x-2 mb-4 relative z-10">
         <button
           onClick={() => setActiveTab("Depth")}

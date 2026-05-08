@@ -84,7 +84,7 @@ export function SlippageCalculator({
       {" "}
       <div
         ref={modalRef}
-        className="bg-black clip-bg rounded-xl lg:px-8 lg:py-8 p-6 md:max-w-[700px] w-full relative"
+        className="bg-black clip-bg  lg:px-8 lg:py-8 p-6 md:max-w-[700px] w-full relative"
       >
         {/* Close Button */}
         <button
@@ -93,7 +93,7 @@ export function SlippageCalculator({
         >
           {" "}
           <svg
-            className="text-white hover:text-[#FF9900]"
+            className="text-white hover:text-[#FF8A00]"
             width="18"
             height="19"
             viewBox="0 0 18 19"
@@ -110,7 +110,7 @@ export function SlippageCalculator({
             ></path>{" "}
           </svg>{" "}
         </button>
-        <h2 className="mb-4 md:text-lg capitalize text-lg font-medium text-white font-orbitron text-center tracking-widest flex gap-1 items-center justify-center">
+        <h2 className="mb-4 md:text-lg capitalize text-lg font-medium text-white  text-center tracking-widest flex gap-1 items-center justify-center">
           <img src={EL} alt="EL" className="w-10 object-contain" />
           Slippage Settings
         </h2>
@@ -118,7 +118,7 @@ export function SlippageCalculator({
           {[0.5, 1.0, 2.0].map((preset) => (
             <button
               key={preset}
-              className={`px-4 py-1.5 justify-center md:w-[100px] w-20 relative md:text-base text-sm text-white border border-[#ff9900] rounded-xl`}
+              className={`px-4 py-1.5 justify-center md:w-[100px] w-20 relative md:text-base text-sm text-white border border-[#FF8A00] `}
               onClick={() => handleSelect(preset)}
             >
               {preset}%
@@ -133,7 +133,7 @@ export function SlippageCalculator({
             step="0.1"
             min="0"
             max="5"
-            className="md:w-[120px] w-20 md:h-9 h-9 text-center font-bold text-sm text-white focus:outline-none bg-[#382B19] border border-[#ff9900] rounded-xl"
+            className="md:w-[120px] w-20 md:h-9 h-9 text-center font-bold text-sm text-white focus:outline-none bg-[#382B19] border border-[#FF8A00] "
           />
           <span className="absolute inset-y-0 right-3 flex items-center text-sm text-muted-foreground">
             %
@@ -147,13 +147,13 @@ export function SlippageCalculator({
         <div className="flex justify-center items-center mt-8 flex-col gap-2">
           <button
             onClick={handleReset}
-            className={`gtw bg-[#F59216] relative w-full md:h-12 rounded-xl h-11 flex items-center justify-center font-roboto font-bold md:text-lg text-base transition-all font-orbitron
+            className={`gtw bg-[#F59216] relative w-full md:h-12  h-11 flex items-center justify-center font-roboto font-bold md:text-lg text-base transition-all 
    `}
           >
             Reset Slippage
           </button>
           <button
-            className="px-4 py-1 mt-4 bg-black font-semibold md:text-lg text-base text-[#FF9900] rounded font-orbitron"
+            className="px-4 py-1 mt-4 bg-black font-semibold md:text-lg text-base text-[#FF8A00] rounded "
             onClick={() => handleDone()}
           >
             Done

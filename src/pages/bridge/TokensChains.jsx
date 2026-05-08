@@ -84,7 +84,7 @@ const TokensChains = ({ onClose, onSelect, onChainSelect }) => {
           </p>
         </div>
         <div className="grid grid-cols-[48%_48%] justify-between mt-4">
-          <div className="bg-[#191919] rounded-xl">
+          <div className="bg-[#191919] ">
             <div className=" w-full flex items-center p-3 ">
               <button onClick={() => setChainSearchQuery(chainSearchQuery)}>
                 <svg
@@ -138,7 +138,7 @@ const TokensChains = ({ onClose, onSelect, onChainSelect }) => {
               ))}
             </div>
           </div>
-          <div className="bg-[#191919] rounded-xl">
+          <div className="bg-[#191919] ">
             <div className=" w-full flex  items-center p-3 ">
               <button onClick={() => setTokenSearchQuery(tokenSearchQuery)}>
                 <svg

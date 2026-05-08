@@ -35,11 +35,11 @@ const TokenListItem = ({
 
   return (
     <div
-      className="flex justify-between items-center mt-2 cursor-pointer hoverclip md:p-2 p-1 rounded-xl group"
+      className="flex justify-between items-center mt-2 cursor-pointer hoverclip md:p-2 p-1 hover:bg-[#FF8A00]/5"
       onClick={() => onClick(token)}
     >
       <div className="flex items-center gap-2 flex-1">
-        <div className="flex justify-center items-center rounded-full p-1">
+        <div className="flex justify-center items-center rounded-full p-1 slippage-btn1">
           <TokenLogo
             token={token}
             className="md:w-6 md:h-6 w-4 h-4 object-contain"
@@ -47,10 +47,10 @@ const TokenListItem = ({
           />
         </div>
         <div>
-          <div className="text-[#FFD484] font-orbitron font-bold md:text-base text-xs font-orbitron leading-relaxed tracking-wide">
+          <div className="text-white  font-semibold uppercase md:text-xs text-xs tracking-wide">
             {token.name}
           </div>
-          <div className="text-white text-xs font-orbitron">
+          <div className="text-white/50 text-[10px] uppercase">
             {token.symbol || token.ticker}
           </div>
         </div>
@@ -60,25 +60,26 @@ const TokenListItem = ({
         {/* Star button - always visible for favorites, on hover for non-favorites */}
         <button
           onClick={handleFavoriteClick}
-          className={`transition-opacity duration-200 ${isFavorite ? "opacity-100" : "opacity-0 group-hover:opacity-100"
-            }`}
+          className={`transition-opacity duration-200 ${
+            isFavorite ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+          }`}
           title={isFavorite ? "Remove from favorites" : "Add to favorites"}
         >
           {isFavorite ? (
             <StarIcon
-              className="w-5 h-5 text-[#FF9900] fill-[#FF9900]"
+              className="w-5 h-5 text-[#FF8A00] fill-[#FF8A00]"
               strokeWidth={1.5}
             />
           ) : (
             <Star
-              className="w-5 h-5 text-white hover:text-[#FF9900]"
+              className="w-5 h-5 text-white hover:text-[#FF8A00]"
               strokeWidth={1.5}
             />
           )}
         </button>
 
         <div className="text-right min-w-[100px]">
-          <div className="text-[#FFD484] md:text-base text-xs font-bold font-orbitron tracking-wide">
+          <div className="text-[#ffffffb3] text-xs font-medium uppercase tracking-wide">
             {isLoading ? "Loading..." : formattedBalance}
           </div>
         </div>
@@ -184,15 +185,15 @@ const Token = ({ onClose, onSelect }) => {
         return "https://public-node.rsk.co";
       case 56:
         return "https://bsc-rpc.publicnode.com";
-      case 143: 
+      case 143:
         return "https://rpc.monad.xyz";
       case 42161:
         return "https://arb-one.api.pocket.network";
-      case 10: 
+      case 10:
         return "https://mainnet.optimism.io";
-      case 43114: 
+      case 43114:
         return "https://avalanche-c-chain.publicnode.com";
-      case 999: 
+      case 999:
         return "https://rpc.hyperliquid.xyz/evm";
       default:
         return null;
@@ -416,65 +417,38 @@ const Token = ({ onClose, onSelect }) => {
   }
 
   return (
-    <div className="bg-black bg-opacity-40 backdrop-blur-sm py-10 flex justify-center items-center overflow-y-auto h-full my-auto fixed top-0 px-4 left-0 right-0 bottom-0 z-[9999] fade-in-out fade-out">
+    <div className="bg-black bg-opacity-40 backdrop-blur-sm py-8 flex justify-center items-center overflow-y-auto h-full my-auto fixed top-0 px-4 left-0 right-0 bottom-0 z-[9999999] fade-in-out fade-out">
       <div className="w-full flex justify-center my-auto items-center">
         <div
           ref={modalRef}
-          className="md:max-w-[618px] w-full rounded-3xl relative py-4 md:px-8 px-4 mx-auto clip-bg"
+          className="md:max-w-[550px] w-full relative py-4 mx-auto clip-bg"
         >
-          <svg
-            onClick={onClose}
-            className="absolute cursor-pointer md:right-14 right-7 md:top-12 top-9 tilt md:w-[18px] w-4"
-            width={18}
-            height={19}
-            viewBox="0 0 18 19"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <path
-              d="M17 1.44824L1 17.6321M1 1.44824L17 17.6321"
-              stroke="#ffff"
-              strokeWidth={2}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-          <div className="flex gap-4 items-center justify-center cursor-pointer mt-2 md:py-3">
-            <h2 className="md:text-lg capitalize text-base font-medium text-white font-orbitron text-center tracking-widest flex gap-1 items-center justify-center">
+          <div className="flex justify-between gap-2 items-center !px-4">
+            <h2 className="text-[13px] uppercase font-bold text-white tracking-widest flex gap-1 items-center justify-center">
               <img src={EL} alt="EL" className="w-10 object-contain" />
-              Select a token
+              Select a Token
             </h2>
-          </div>
-          <div className="grid md:grid-cols-5 grid-cols-4 gap-2 mt-4 md:px-2 px-1">
-            {featureTokens.slice(0, 10).map((token, index) => (
-              <div
-                key={index}
-                className="flex flex-row items-center cursor-pointer font-orbitron md:rounded-xl rounded-lg border border-[#FF9900] md:p-[12px] px-1 py-1.5"
-                onClick={() => handleFeaturedTokenClick(token)}
+            <button
+              onClick={onClose}
+              className="close-btn"
+            >
+              <svg
+                width="10"
+                height="10"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
               >
-                <span className="flex items-center">
-                  <div className="relative flex justify-center items-center">
-                    <TokenLogo
-                      token={token}
-                      className="md:w-5 md:h-5 w-3 h-3 rounded-full relative z-10 p-[1px] object-contain flex shrink-0"
-                      fallbackImg={EL}
-                    />
-                  </div>
-                  <p className="text-white font-black md:text-[12px] text-[9px] mt-0 ms-2 font-orbitron truncate md:w-14 w-10">
-                    {token.symbol || token.ticker}
-                  </p>
-                </span>
-              </div>
-            ))}
+                <path d="M18 6 6 18M6 6l12 12" />
+              </svg>
+            </button>
           </div>
-          <div className="flex gap-4 items-center justify-between cursor-pointer mt-1 py-3">
-            <p className="md:text-lg capitalize text-base font-bold text-white font-orbitron text-center tracking-widest">
-              Search token
-            </p>
+          <div className="flex gap-4 items-center justify-between cursor-pointer py-3 !px-4">
             {/* Show favorite count and clear button */}
             {favorites.length > 0 && (
               <div className="flex items-center gap-2">
-                <span className="text-[#FF9900] text-sm">
+                <span className="text-[#FF8A00] text-sm">
                   {favorites.length} ⭐
                 </span>
                 <button
@@ -486,39 +460,65 @@ const Token = ({ onClose, onSelect }) => {
               </div>
             )}
           </div>
-          <div className="mt-3 relative px-[10px] md:h-[54px] h-10 w-full flex gap-2 items-center border border-[#FF9900] rounded-xl">
-            <input
-              type="text"
-              placeholder="Search token name or paste address"
-              className="bg-transparent rounded-[4.83px] md:h-[43px] h-10 text-white md:max-w-[490px] w-full px-5 outline-none border-none text-white/opacity-70 md:text-sm text-xs font-normal font-orbitron leading-tight tracking-wide"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-            <button
-              className="ms-4"
-              onClick={() => handleTokenLookup(searchQuery)}
-            >
+          <div className="px-4 border-top border-bottom">
+            <div className="search-wrapper py-4">
               <svg
-                className="flex flex-shrink-0 cursor-pointer"
-                width={24}
-                height={24}
+                onClick={() => handleTokenLookup(searchQuery)}
+                className="search-icon"
+                width="12"
+                height="12"
                 viewBox="0 0 24 24"
                 fill="none"
-                xmlns="http://www.w3.org/2000/svg"
+                stroke="currentColor"
+                strokeWidth="2"
               >
-                <path
-                  d="M18.8632 19.0535L13.3482 13.5375C10.8947 15.2818 7.51414 14.8552 5.57102 12.556C3.62792 10.257 3.7706 6.85254 5.89925 4.72413C8.02735 2.59479 11.4322 2.45149 13.7317 4.3945C16.0311 6.3375 16.458 9.71849 14.7137 12.1721L20.2287 17.688L18.8642 19.0526L18.8632 19.0535ZM9.99282 4.95765C8.16287 4.95724 6.58411 6.24178 6.21237 8.03356C5.84064 9.82534 6.7781 11.6319 8.45718 12.3596C10.1363 13.0871 12.0955 12.5358 13.1486 11.0392C14.2018 9.54268 14.0594 7.51235 12.8078 6.17743L13.3916 6.75644L12.7335 6.10023L12.7219 6.08865C11.9999 5.36217 11.0171 4.95489 9.99282 4.95765Z"
-                  fill="#5C5C5C"
-                />
+                <circle cx="11" cy="11" r="8" />
+                <path d="m21 21-4.35-4.35" />
               </svg>
-            </button>
+              <input
+                type="text"
+                placeholder="Search token name or paste address"
+                className="search-input"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
           </div>
-
+          <div className="grid md:grid-cols-5 grid-cols-4 gap-2 mt-4 !px-4">
+            {featureTokens.slice(0, 10).map((token, index) => (
+              <div
+                key={index}
+                className="flex flex-row items-center cursor-pointer slippage-btn2 hover:bg-[#FF8A00]/5"
+                onClick={() => handleFeaturedTokenClick(token)}
+              >
+                <span className="flex items-center">
+                  <div className="relative flex justify-center items-center">
+                    <TokenLogo
+                      token={token}
+                      className="md:w-5 md:h-5 w-3 h-3 rounded-full relative z-10 p-[1px] object-contain flex shrink-0"
+                      fallbackImg={EL}
+                    />
+                  </div>
+                  <p className="text-white font-black md:text-[11px] text-[9px] mt-0 ms-2  truncate md:w-14 w-10">
+                    {token.symbol || token.ticker}
+                  </p>
+                </span>
+              </div>
+            ))}
+          </div>
+          <div className="grid shrink-0 grid-cols-[1fr_auto_auto] gap-x-4 px-5 py-2 border-b border-t mt-4 border-white/5">
+            <span className="text-[9px] font-bold tracking-[0.22em] text-white/20">
+              TOKEN
+            </span>
+            <span className="text-[9px] font-bold tracking-[0.22em] text-white/20 text-right">
+              BALANCE
+            </span>
+          </div>
           <div className="mt-4 px-[2px]">
             {/* Virtualized token list with scroll handler */}
             <div
               ref={listContainerRef}
-              className="max-h-[400px] overflow-y-auto px-1"
+              className="max-h-[300px] overflow-y-auto px-1"
               onScroll={handleScroll}
             >
               {displayedTokens.map((token, index) => (
@@ -533,18 +533,22 @@ const Token = ({ onClose, onSelect }) => {
                 />
               ))}
               {displayLimit < sortedTokens.length && (
-                <div className="text-center text-white py-2 text-sm">
+                <div className="text-center text-white py-2 text-xs">
                   Scroll for more tokens...
                 </div>
               )}
             </div>
 
             {isLoading && (
-              <div className="text-white text-center mt-4">Loading...</div>
+              <div className="text-white text-center text-xs mt-4">
+                Loading...
+              </div>
             )}
 
             {error && (
-              <div className="text-red-500 text-center mt-4">{error}</div>
+              <div className="text-red-500 text-center text-xs mt-4">
+                {error}
+              </div>
             )}
 
             {tokenDetails && (
@@ -558,7 +562,7 @@ const Token = ({ onClose, onSelect }) => {
               />
             )}
 
-            <div className="my-6">
+            <div className="my-3">
               <img src={Arrow} alt="Arrow" className="mx-auto" />
             </div>
           </div>

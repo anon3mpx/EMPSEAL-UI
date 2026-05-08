@@ -24,10 +24,10 @@ const UserCard = ({ name, username, imgSrc }) => {
         <button
           type="button"
           onClick={handleFollowClick}
-          className={`focus:outline-none font-medium rounded-lg text-sm px-4 w-32 py-2.5 ${
+          className={`focus:outline-none font-medium  text-sm px-4 w-32 py-2.5 ${
             isFollowing
               ? 'text-[#f39c12] bg-transparent border border-[#f39c12]'
-              : 'text-black bg-[#FF9900] hover:bg-[#FF9900] border border-[#f39c12]'
+              : 'text-black bg-[#FF8A00] hover:bg-[#FF8A00] border border-[#f39c12]'
           }`}
         >
           {isFollowing ? 'Following' : 'Follow'}

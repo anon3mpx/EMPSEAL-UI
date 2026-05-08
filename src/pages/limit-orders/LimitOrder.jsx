@@ -49,7 +49,7 @@ export default function LimitOrder({ slippage, onOpenSlippage = () => {} }) {
 
   return (
     // lg:pb-16 pb-[20rem]
-    <div className="w-full pt-2 pb-2 text-white rounded-lg font-orbitron">
+    <div className="w-full pt-2 pb-2 text-white  ">
       <Helmet>
         <title>EMPX | Limit Orders - Advanced Crypto Order Management</title>
         <meta
@@ -78,7 +78,7 @@ export default function LimitOrder({ slippage, onOpenSlippage = () => {} }) {
             />
           </>
         ) : (
-          <div className="rounded-lg border-4 bg-black border-[#FF9900] bg-card px-6 py-10 text-center md:max-w-[812px] mx-auto w-full">
+          <div className=" border-4 bg-black border-[#FF8A00] bg-card px-6 py-10 text-center md:max-w-[812px] mx-auto w-full">
             <h2 className="mb-2 text-lg font-semibold">
               Welcome to Limit Orders
             </h2>

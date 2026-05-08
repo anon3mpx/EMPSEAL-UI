@@ -91,28 +91,10 @@ const Routing = ({ routing, isLoading }) => {
   if (isLoading) {
     return (
       <div className="w-full">
-        <div className="flex justify-between gap-2 items-start">
-          <p className="text-[#FFE3BA] text-xs font-bold font-orbitron">
-            DETAILS
-          </p>
-          <div className="flex gap-2 items-center">
-            <div className="text-right text-[#FF9900] text-lg font-extrabold font-orbitron">
-              SPLIT
-              <p className="text-right text-[#FF9900] text-xs font-normal font-orbitron">
-                Routing
-              </p>
-            </div>
-            <img
-              src={LoadingIcon}
-              alt="Loading"
-              className="w-7 h-7 animate-spin"
-            />
-          </div>
-        </div>
         <div className="flex justify-center items-center gap-5 py-4">
-          <div className="w-8 h-8 bg-[#FF9900]/10 rounded-full animate-pulse"></div>
-          <div className="w-8 h-8 bg-[#FF9900]/10 rounded-full animate-pulse"></div>
-          <div className="w-8 h-8 bg-[#FF9900]/10 rounded-full animate-pulse"></div>
+          <div className="w-8 h-8 bg-white/10  animate-pulse"></div>
+          <div className="w-8 h-8 bg-white/10  animate-pulse"></div>
+          <div className="w-8 h-8 bg-white/10  animate-pulse"></div>
         </div>
       </div>
     );
@@ -121,20 +103,7 @@ const Routing = ({ routing, isLoading }) => {
   if (!isSupported) {
     return (
       <div className="w-full">
-        <div className="flex justify-between gap-2 items-start">
-          <p className="text-[#FFE3BA] text-xs font-bold font-orbitron">
-            DETAILS
-          </p>
-          <div className="flex gap-2 items-center">
-            <div className="text-right text-[#FF9900] text-lg font-extrabold font-orbitron">
-              SPLIT
-              <p className="text-right text-[#FF9900] text-xs font-normal font-orbitron">
-                Routing
-              </p>
-            </div>
-          </div>
-        </div>
-        <span className="text-white text-center flex justify-center roboto mt-2">
+        <span className="text-[9px] text-white/20 tracking-[0.04em]">
           Please switch to a supported chain
         </span>
       </div>
@@ -144,122 +113,111 @@ const Routing = ({ routing, isLoading }) => {
   if (!route || route.length === 0) {
     return (
       <div className="w-full">
-        <div className="flex justify-between gap-2 items-start">
-          <p className="text-[#FFE3BA] text-xs font-bold font-orbitron">
-            DETAILS
-          </p>
-          <div className="flex gap-2 items-center">
-            <div className="text-right text-[#FF9900] text-lg font-extrabold font-orbitron">
-              SPLIT
-              <p className="text-right text-[#FF9900] text-xs font-normal font-orbitron">
-                Routing
-              </p>
-            </div>
-          </div>
+        <div className="text-[9px] text-white/20 tracking-[0.04em] py-4">
+          No route available
         </div>
-        <div className="text-center text-gray-400 py-4">No route available</div>
       </div>
     );
   }
-
   return (
-    <div className="w-full">
-      <div className="flex justify-between gap-2 items-start">
-        <p className="text-[#FFE3BA] text-xs font-bold font-orbitron">
-          DETAILS
-        </p>
-        <div className="flex gap-2 items-center">
-          <div className="text-right text-[#FF9900] text-lg font-extrabold font-orbitron">
-            SPLIT
-            <p className="text-right text-[#FF9900] text-xs font-normal font-orbitron">
-              Routing
-            </p>
-          </div>
-          <Check size="30" className="text-green-500" />
-        </div>
-      </div>
-      <div className="relative">
-        <div
-          onMouseEnter={() => setIsHovered(true)}
-          onMouseLeave={() => setIsHovered(false)}
-          className="w-full flex justify-between items-center gap-5 py-4 relative"
-        >
-          <div className="w-full h-2 rounded-full bg-[#FF9900] absolute"></div>
-          {route.map((address, index) => (
+    <div className="w-full overflow-x-auto">
+      <div className="flex items-center gap-0 my-2 flex-wrap space-y-1">
+        {route.map((address, index) => {
+          const symbol = getTokenSymbol(address);
+          return (
             <React.Fragment key={`${address}-${index}`}>
-              <div className="flex items-center group relative">
-                <img
-                  className="w-8 h-8 object-contain rounded-full p-1 bg-white"
-                  src={tokenImages[address] || FallbackTokenIcon}
-                  alt={getTokenSymbol(address)}
-                  onError={handleTokenImageError}
-                />
-                {/* <span className="text-white text-xs mt-1 font-orbitron">
-                  {getTokenSymbol(address)}
-                </span> */}
-
-                {/* Hover tooltip for adapter name */}
-                {/* {adapter && adapter[index] && (
-                  <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-black border border-[#FF9900] text-white text-xs py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                    {getAdapter(adapter[index])}
-                  </div>
-                )} */}
-              </div>
-
-              {/* {index < route.length - 1 && (
-                <div className="flex items-center">
-                  <img 
-                    className="w-6 h-6 object-contain" 
-                    src={Arrow} 
-                    alt="Arrow" 
-                    style={{ filter: "invert(58%) sepia(98%) saturate(1358%) hue-rotate(1deg) brightness(103%) contrast(106%)" }}
-                  />
-                </div>
-              )} */}
-            </React.Fragment>
-          ))}
-        </div>
-        {isHovered && route.length > 1 && (
-          <div
-            className="absolute top-full left-0 right-0 mt-2 bg-black border-2 border-[#FF9900] rounded-lg p-4 z-50"
-            onMouseEnter={() => setIsHovered(true)}
-            onMouseLeave={() => setIsHovered(false)}
-          >
-            <div className="text-[#FF9900] font-bold text-xs font-orbitron mb-2">
-              Route Details
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              {route.map((address, index) => (
-                <React.Fragment key={`hover-${address}-${index}`}>
-                  <div className="flex items-center gap-2">
-                    <img
-                      className="w-6 h-6 object-contain rounded-full"
-                      src={tokenImages[address] || FallbackTokenIcon}
-                      alt={getTokenSymbol(address)}
-                      onError={handleTokenImageError}
-                    />
-                    <span className="text-white text-xs">
-                      {getTokenSymbol(address)}
-                    </span>
-                  </div>
-                  {index < route.length - 1 && (
+              <span className="flex-shrink-0 inline-flex items-center gap-[3px] px-2 py-[3px] bg-white/5 border border-white/10">
+                <span className="text-[10px] font-bold text-white/70">
+                  {symbol === "ETH" ? "Ξ" : symbol === "USDC" ? "$" : ""}
+                </span>
+                <span className="text-[9px] font-semibold text-white/50">
+                  {symbol}
+                </span>
+              </span>
+              {index < route.length - 1 && (
+                <>
+                  <div className="flex-shrink-0 w-[14px] h-[1px] bg-white/20" />
+                  {adapter && adapter[index] && (
                     <>
-                      <span className="text-[#FF9900] text-xs"><ChevronRight/></span>
-                      {adapter && adapter[index] && (
-                        <span className="text-[#FF9900] text-xs bg-[#FF9900]/20 px-2 py-1 rounded">
-                          {getAdapter(adapter[index])}
-                        </span>
-                      )}
+                      <span className="flex-shrink-0 px-2 py-[3px] bg-[#FF8A00]/10 border border-[#FF8A00]/30 text-[9px] font-bold text-[#FF8A00] tracking-[0.06em]">
+                        {getAdapter(adapter[index])}
+                      </span>
+                      <div className="flex-shrink-0 w-[14px] h-[1px] bg-white/20" />
                     </>
                   )}
-                </React.Fragment>
-              ))}
-            </div>
-          </div>
-        )}
+                </>
+              )}
+            </React.Fragment>
+          );
+        })}
       </div>
     </div>
   );
+  // return (
+  //   <div className="w-full">
+  //     <div className="relative">
+  //       <div
+  //         onMouseEnter={() => setIsHovered(true)}
+  //         onMouseLeave={() => setIsHovered(false)}
+  //         className="w-full flex justify-between items-center gap-5 py-4 relative"
+  //       >
+  //         <div className="w-full h-2  bg-[#FF8A00] absolute"></div>
+  //         {route.map((address, index) => (
+  //           <React.Fragment key={`${address}-${index}`}>
+  //             <div className="flex items-center group relative">
+  //               <img
+  //                 className="w-8 h-8 object-contain  p-1 slippage-btn1"
+  //                 src={tokenImages[address] || FallbackTokenIcon}
+  //                 alt={getTokenSymbol(address)}
+  //                 onError={handleTokenImageError}
+  //               />
+  //             </div>
+  //           </React.Fragment>
+  //         ))}
+  //       </div>
+  //       {isHovered && route.length > 1 && (
+  //         <div
+  //           className="absolute top-full left-0 right-0 mt-2 bg-black border-2 border-[#FF8A00]  p-4 z-50"
+  //           onMouseEnter={() => setIsHovered(true)}
+  //           onMouseLeave={() => setIsHovered(false)}
+  //         >
+  //           <div className="text-[#FF8A00] font-bold text-xs  mb-2">
+  //             Route Details
+  //           </div>
+  //           <div className="flex flex-wrap items-center gap-2">
+  //             {route.map((address, index) => (
+  //               <React.Fragment key={`hover-${address}-${index}`}>
+  //                 <div className="flex items-center gap-2">
+  //                   <img
+  //                     className="w-6 h-6 object-contain "
+  //                     src={tokenImages[address] || FallbackTokenIcon}
+  //                     alt={getTokenSymbol(address)}
+  //                     onError={handleTokenImageError}
+  //                   />
+  //                   <span className="text-white text-xs">
+  //                     {getTokenSymbol(address)}
+  //                   </span>
+  //                 </div>
+  //                 {index < route.length - 1 && (
+  //                   <>
+  //                     <span className="text-[#FF8A00] text-xs">
+  //                       <ChevronRight />
+  //                     </span>
+  //                     {adapter && adapter[index] && (
+  //                       <span className="text-[#FF8A00] text-xs bg-[#FF8A00]/20 px-2 py-1 rounded">
+  //                         {getAdapter(adapter[index])}
+  //                       </span>
+  //                     )}
+  //                   </>
+  //                 )}
+  //               </React.Fragment>
+  //             ))}
+  //           </div>
+  //         </div>
+  //       )}
+  //     </div>
+  //   </div>
+  // );
 };
 
 export default Routing;

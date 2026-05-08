@@ -56,66 +56,16 @@ const Wallet = ({ onTabChange }) => {
 
   return (
     <>
-      {/* <div className="w-full border border-white rounded-xl py-4 2xl:px-6 lg:px-5 px-4 bg-black md:flex gap-8">
-      <div className="flex flex-col bg-[#161616] p-5 rounded-lg w-full md:max-w-[202px]">
-        <div className="flex items-center gap-2 mb-4">
-          <img src={Logo} alt="Logo" className="h-8" />
-          {address ? (
-            <Link
-              to="#"
-              target="_blank"
-              className="text-white font-mono text-sm truncate roboto"
-            >
-              {truncateAddress(address)}
-            </Link>
-          ) : (
-            <span className="text-gray-400">Not Connected</span>
-          )}
-        </div>
-        {chainName ? (
-          <div className="text-white text-sm font-medium mb-2 flex items-center roboto">
-            {chainIconUrl && (
-              <img
-                src={chainIconUrl}
-                alt={`${chainName} icon`}
-                className="w-6 h-6 mt-1 me-2"
-              />
-            )}
-            {chainName}
-          </div>
-        ) : (
-          <div className="text-gray-400 text-sm">No chain found</div>
-        )}
-        <div className="flex items-center gap-2">
-          <div className="text-white text-lg font-bold roboto">
-            {formatNumber(formattedBalance)}{" "}
-            {chain?.nativeCurrency?.symbol || "ETH"}
-          </div>
-        </div>
-      </div>
-      <div className="flex justify-center gap-4 flex-col wallet_bg z-10 md:mt-0 mt-3 absolute wallet-bg-bridge ">
-        <WalletConnect
-          icon={<img src={WalletImg} alt="Wallet Icon" />}
-          onChainChange={handleChainChange}
-        />
-        <Link to="/">
-          <button className="flex items-center md:justify-start justify-center gap-2 bg-[#FF9900] text-black text-sm py-2 px-6 rounded-md font-semibold w-full font-orbitron">
-            <img className="pe-2" src={Home} alt="Home Icon" />
-            Home Page
-          </button>
-        </Link>
-      </div>
+      {/* <div className="relative container mx-auto w-full">
+      <div className="flex justify-center lg:gap-2 gap-2 wallet_bg md:z-10 z-10 md:mt-0 mt-0 absolute wallet-bg-bridge lefts1"> */}
+      <WalletConnect
+        icon={<img src={WalletImg} alt="Wallet Icon" />}
+        onChainChange={handleChainChange}
+      />
+      {/* //dapp */}
+      {/* <DotsMenu onTabChange={onTabChange} /> */}
+      {/* </div>
     </div> */}
-    <div className="relative container mx-auto w-full">
-      <div className="flex justify-center lg:gap-2 gap-2 wallet_bg md:z-10 z-10 md:mt-0 mt-0 absolute wallet-bg-bridge lefts1">
-        <WalletConnect
-          icon={<img src={WalletImg} alt="Wallet Icon" />}
-          onChainChange={handleChainChange}
-        />
-        {/* https://empx.io/dapp */}
-        <DotsMenu onTabChange={onTabChange} />
-      </div>
-    </div>
     </>
   );
 };

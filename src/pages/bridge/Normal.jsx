@@ -174,17 +174,17 @@ const Normal = () => {
           className="w-full h-full fixed top-0 left-0 -z-10"
         />
         <div className="md:max-w-[800px] mx-auto w-full flex flex-col justify-center items-center md:flex-nowrap flex-wrap px-3 mb-5 md:mt-0 mt-5">
-          <h1 className="lg:text-5xl md:text-[40px] text-3xl text-center text-[#FF9900] font-orbitron font-bold mb-2">
+          <h1 className="lg:text-5xl md:text-[40px] text-3xl text-center text-[#FF8A00]  font-bold mb-2">
             Seamless
           </h1>
-          <h2 className="lg:text-5xl md:text-[40px] text-3xl text-center text-white font-orbitron font-bold">
+          <h2 className="lg:text-5xl md:text-[40px] text-3xl text-center text-white  font-bold">
             Cross Chain Swaps
           </h2>
           <div className="flex justify-center gap-4 w-full mt-7 md:flex-nowrap flex-wrap md:px-0 px-20">
             {/* <div
               onClick={() => setActiveTab("cross")}
               className={`${
-                activeTab === "cross" ? "border-[#FF9900]" : "border-[#3b3c4e]"
+                activeTab === "cross" ? "border-[#FF8A00]" : "border-[#3b3c4e]"
               } cursor-pointer md:max-w-[200px] w-full h-[28px] flex justify-center items-center rounded-md border text-white text-[15px] font-bold roboto`}
             >
               Cross Chain Swap
@@ -193,7 +193,7 @@ const Normal = () => {
               <div
                 className={`${
                   activeTab === "native"
-                    ? "border-[#FF9900]"
+                    ? "border-[#FF8A00]"
                     : "border-[#3b3c4e] "
                 }   opacity-50 px-3 py-2 md:max-w-[200px] w-full h-[28px] flex justify-center items-center rounded-md border border-white text-white text-[15px] font-bold roboto`}
               >
@@ -204,7 +204,7 @@ const Normal = () => {
               <div
                 className={`${
                   activeTab === "native"
-                    ? "border-[#FF9900]"
+                    ? "border-[#FF8A00]"
                     : "border-[#3b3c4e] "
                 }   opacity-50 px-3 py-2 md:max-w-[200px] w-full h-[28px] flex justify-center items-center rounded-md border border-white text-white text-[15px] font-bold roboto`}
               >

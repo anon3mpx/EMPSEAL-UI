@@ -31,7 +31,7 @@ const MarketPlaceWallet = () => {
   return (
     <>
       <div className="w-full max-w-md  border_gradient p-4 bg-transparent flex gap-4 ">
-        <div className="flex-1 bg-black rounded-lg p-4 relative z-10">
+        <div className="flex-1 bg-black  p-4 relative z-10">
           <div className="flex gap-2 items-center">
             <img src={Logo} alt="Logo" />
             <Link className="text-white underline text-sm"
@@ -58,7 +58,7 @@ const MarketPlaceWallet = () => {
         </div>
         <div className="flex justify-center gap-4 flex-col wallet_bg relative z-10">
           <WalletConnect />
-        <button className="flex items-center justify-start gap-2 bg-[#FF9900] text-black text-sm py-2 px-4 rounded-md font-semibold roboto">
+        <button className="flex items-center justify-start gap-2 bg-[#FF8A00] text-black text-sm py-2 px-4 rounded-md font-semibold roboto">
         <img className="pe-2" src={Home} />
           Home Page
         </button>

@@ -36,10 +36,10 @@ const Home = () => {
         />
       </Helmet>
       {/*  */}
-      <div className='bg-[#121214] py-3 relative h-screen'>
+      <div className='py-3 relative h-screen'>
         <div className='container-class 2xl:max-w-[1536px] md:max-w-[1036px] mx-auto w-full px-4 flex justify-center xl:gap-9 gap-4 items-start 2xl:py-10 py-2 md:flex-nowrap flex-wrap'>
           <div className='section-class 2xl:max-w-[370px] xl:max-w-[370px] lg:max-w-[680px] md:max-w-[515px] w-full md:mt-0 mt-10'>
-            <div className=' w-full py-10 px-3 flex flex-col items-center border-[#C71328] border h_grid rounded-3xl 2xl:h-[474px] lg:h-[428px] md:h-[570px] relative'>
+            <div className=' w-full py-10 px-3 flex flex-col items-center border-[#C71328] border h_grid  2xl:h-[474px] lg:h-[428px] md:h-[570px] relative'>
               <div>
                 <img
                   src={Logo}
@@ -68,7 +68,7 @@ const Home = () => {
                 className='absolute left-0 right-0 2xl:bottom-[-100px] bottom-[-85px] mx-auto 2xl:w-[369px] w-[300px]'
               />
             </div>
-            <div className='mt-14 w-full py-2 px-3 flex flex-col justify-between items-center border-[#895E8C] border h_grid_metallic rounded-3xl 2xl:h-[250px] xl:h-[386px] md:h-[570px] relative bg-[#1B1B1F]'>
+            <div className='mt-14 w-full py-2 px-3 flex flex-col justify-between items-center border-[#895E8C] border h_grid_metallic  2xl:h-[250px] xl:h-[386px] md:h-[570px] relative bg-[#1B1B1F]'>
               <div className='absolute 2xl:top-[-50px] top-[-50px]  xl:top-[-16px] 2xl:left-[-60px] left-[-10px]'>
                 <img
                   src={Metallic}
@@ -100,7 +100,7 @@ const Home = () => {
           </div>
 
           <div className='section-class 2xl:max-w-[370px] xl:max-w-[370px] lg:max-w-[680px] md:max-w-[515px] w-full md:mt-0 mt-10'>
-            <div className='w-full rounded-3xl border border-[#90A321] h_grid1 px-4 py-3 relative'>
+            <div className='w-full  border border-[#90A321] h_grid1 px-4 py-3 relative'>
               <div className='w-[74px] h-[74px] rounded-full flex justify-center items-center bg-[#FFE500] absolute right-8 bottom-[-20px]'>
                 <img src={Bracket} alt='Bracket' />
               </div>
@@ -111,7 +111,7 @@ const Home = () => {
               </div>
             </div>
             <Link to='/nft-marketplace' className='pointer-events-none'>
-              <div className='w-full rounded-3xl border border-white black px-4 py-3 relative mt-10 flex flex-col justify-center items-center'>
+              <div className='w-full  border border-white black px-4 py-3 relative mt-10 flex flex-col justify-center items-center'>
                 <div className='absolute left-0 right-0 top-0 bottom-0 mx-auto my-auto px-5 py-5 h-full'>
                   <img src={Market} alt='Market' className='w-full h-full' />
                 </div>
@@ -152,7 +152,7 @@ const Home = () => {
           </div>
           <div className='section-class 2xl:max-w-[400px] xl:max-w-[400px] lg:max-w-[680px] md:max-w-[515px] w-full'>
             <Link to='/swap'>
-              <div className='w-full rounded-3xl border border-white 2xl:pt-7 2xl:pb-6 lg:py-4 py-7 relative h_grid3'>
+              <div className='w-full  border border-white 2xl:pt-7 2xl:pb-6 lg:py-4 py-7 relative h_grid3'>
                 <Link to='/swap'>
                   {/* <img
                     src={Cell}
@@ -232,7 +232,7 @@ const Home = () => {
                 {/* </Link> */}
               </div>
             </Link>
-            <div className='w-full blur-lg rounded-3xl border border-[#916894] 2xl:py-8 lg:py-4 py-8 relative mt-4 h_grid4 px-9 pt-8 pb-8'>
+            <div className='w-full blur-lg  border border-[#916894] 2xl:py-8 lg:py-4 py-8 relative mt-4 h_grid4 px-9 pt-8 pb-8'>
               <img
                 src={Dia}
                 alt='Dia'
@@ -260,7 +260,7 @@ const Home = () => {
               </div>
             </div>
             <Link to={'/via-bridge'}>
-              <div className='w-full rounded-3xl border border-[#c6b2c9] 2xl:py-[67px] lg:py-4 py-8 relative mt-4 h_grid5 px-9 pt-8 pb-10 z-10'>
+              <div className='w-full  border border-[#c6b2c9] 2xl:py-[67px] lg:py-4 py-8 relative mt-4 h_grid5 px-9 pt-8 pb-10 z-10'>
                 <img
                   src={Stone}
                   alt='Dia'

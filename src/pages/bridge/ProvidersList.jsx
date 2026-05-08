@@ -68,16 +68,16 @@ const ProvidersList = ({
       {/* Toggle Buttons */}
       <div className="flex justify-center absolute top-[-71px] z-20">
         <button
-          className={`px-6 py-2 md:text-base text-sm font-extrabold border border-[#FF9900] rounded-t-[10px] font-orbitron transition-all duration-200
+          className={`px-6 py-2 md:text-base text-sm font-extrabold border border-[#FF8A00] rounded-t-[10px]  transition-all duration-200
             ${
               selectedProvider === "rubic"
-                ? "bg-[#FF9900] text-black md:w-[220px] h-[70px]"
+                ? "bg-[#FF8A00] text-black md:w-[220px] h-[70px]"
                 : "text-orange-400 md:w-[160px] h-[70px]  "
             }
             ${
               !getProviderAvailability().rubic
                 ? "opacity-50 cursor-not-allowed"
-                : "hover:border-[#FF9900]"
+                : "hover:border-[#FF8A00]"
             }`}
           onClick={() =>
             getProviderAvailability().rubic && setSelectedProvider("rubic")
@@ -87,16 +87,16 @@ const ProvidersList = ({
           Rubic
         </button>
         <button
-          className={`px-6 py-2 md:text-base text-sm font-extrabold border border-[#FF9900] rounded-t-[10px] font-orbitron transition-all duration-200
+          className={`px-6 py-2 md:text-base text-sm font-extrabold border border-[#FF8A00] rounded-t-[10px]  transition-all duration-200
             ${
               selectedProvider === "rango"
-                ? "bg-[#FF9900] text-black md:w-[220px] h-[70px]"
+                ? "bg-[#FF8A00] text-black md:w-[220px] h-[70px]"
                 : "text-orange-400 md:w-[160px] h-[70px]  "
             }
             ${
               !getProviderAvailability().rango
                 ? "opacity-50 cursor-not-allowed"
-                : "hover:border-[#FF9900]"
+                : "hover:border-[#FF8A00]"
             }`}
           onClick={() =>
             getProviderAvailability().rango && setSelectedProvider("rango")
@@ -107,8 +107,8 @@ const ProvidersList = ({
         </button>
         {/*  <button
           className={`w-[100px] h-[35px] flex justify-center items-center rounded-md bg-black roboto text-[12px] font-bold border
-            ${selectedProvider === "symbiosis" ? "border-[#FF9900] text-[#FF9900]" : "border-[#3b3c4e] text-white"}
-            ${!getProviderAvailability().symbiosis ? "opacity-50 cursor-not-allowed" : "hover:border-[#FF9900] hover:text-[#FF9900]"}`}
+            ${selectedProvider === "symbiosis" ? "border-[#FF8A00] text-[#FF8A00]" : "border-[#3b3c4e] text-white"}
+            ${!getProviderAvailability().symbiosis ? "opacity-50 cursor-not-allowed" : "hover:border-[#FF8A00] hover:text-[#FF8A00]"}`}
           onClick={() => getProviderAvailability().symbiosis && setSelectedProvider("symbiosis")}
           disabled={!getProviderAvailability().symbiosis}
         >
@@ -116,10 +116,10 @@ const ProvidersList = ({
         </button> */}
       </div>
       <div
-        className={`clip-bg1 border-[2px] border-[#FF9900] rounded-b-xl rounded-tr-xl bg-black ${padding}`}
+        className={`clip-bg1 border-[2px] border-[#FF8A00] rounded-b-xl rounded-tr-xl bg-black ${padding}`}
       >
         <div className="w-full flex justify-center p-5">
-          <p className="w-[100px] h-[35px] flex justify-center items-center rounded-md bg-black roboto text-[#FF9900] text-[12px] font-bold border border-[#FF9900]">
+          <p className="w-[100px] h-[35px] flex justify-center items-center rounded-md bg-black roboto text-[#FF8A00] text-[12px] font-bold border border-[#FF8A00]">
             Providers
           </p>
         </div>

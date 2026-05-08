@@ -33,101 +33,91 @@ const ChainPopup = ({
   };
 
   return (
-    <div className="bg-black bg-opacity-40 backdrop-blur-sm py-10 flex justify-center items-center overflow-y-auto h-full my-auto fixed top-0 px-4 left-0 right-0 bottom-0 z-[9999] fade-in-out fade-out">
+    <div className="bg-black bg-opacity-40 backdrop-blur-sm py-10 flex justify-center items-center overflow-y-auto h-full my-auto fixed top-0 px-4 left-0 right-0 bottom-0 z-[9999999] fade-in-out fade-out">
       <div className="w-full flex justify-center my-auto items-center">
-        <div className="md:max-w-[618px] w-full rounded-3xl relative py-6 md:px-10 px-4 mx-auto clip-bg">
-          <svg
-            onClick={() => setShowChainPopup(false)}
-            className="absolute cursor-pointer md:right-10 right-7 top-14 tilt text-white hover:text-[#FF9900]"
-            width={20}
-            height={20}
-            viewBox="0 0 18 19"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <path
-              d="M17 1.44824L1 17.6321M1 1.44824L17 17.6321"
-              stroke="currentColor"
-              strokeWidth={2}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-          <h2 className="mt-5 md:text-lg capitalize text-lg font-medium text-white font-orbitron text-center tracking-widest flex gap-1 items-center justify-center">
-            <img src={EL} alt="EL" className="w-10 object-contain" />
-            Select Chain
-          </h2>
-
-          {/* Search bar */}
-          {/* bg-search */}
-          <div className="mt-8 relative px-[10px] h-[54px] w-full flex gap-2 items-center bg-[#382B19] rounded-xl">
-            <svg
-              className="flex flex-shrink-0 cursor-pointer"
-              width={26}
-              height={26}
-              viewBox="0 0 26 26"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
+        <div className="md:max-w-[550px] w-full relative py-4 mx-auto clip-bg">
+          <div className="flex justify-between gap-2 items-center px-4 pb-2">
+            <h2 className="text-[13px] uppercase font-bold text-white tracking-widest flex gap-1 items-center justify-center">
+              <img src={EL} alt="EL" className="w-10 object-contain" />
+              Select Chain
+            </h2>
+            <button
+              onClick={() => setShowChainPopup(false)}
+              className="close-btn"
             >
-              <path
-                d="M11.9167 20.5833C16.7031 20.5833 20.5833 16.7031 20.5833 11.9167C20.5833 7.1302 16.7031 3.25 11.9167 3.25C7.1302 3.25 3.25 7.1302 3.25 11.9167C3.25 16.7031 7.1302 20.5833 11.9167 20.5833Z"
-                stroke="#FF9900"
-                strokeWidth={2}
-                strokeLinecap="round"
-                strokeLinejoin="round"
+              <svg
+                width="10"
+                height="10"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+              >
+                <path d="M18 6 6 18M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          <div className="px-4 border-top border-bottom">
+            <div className="search-wrapper py-4">
+              <svg
+                className="search-icon"
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <circle cx="11" cy="11" r="8" />
+                <path d="m21 21-4.35-4.35" />
+              </svg>
+              <input
+                type="text"
+                placeholder="Search token or paste address..."
+                className="search-input"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
               />
-              <path
-                d="M22.7496 22.7501L18.0371 18.0376"
-                stroke="#FF9900"
-                strokeWidth={2}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-            <input
-              type="text"
-              placeholder="Search Chain"
-              className="bg-[#382B19] rounded-lg h-11 text-[#FF9900] w-full px-3 outline-none border-none placeholder:text-[#FF9900] text-sm font-normal roboto leading-tight tracking-wide"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
+            </div>
           </div>
           {/* Chain cards */}
-          <div className="md:mt-6 mt-4 w-full overflow-y-auto h-[250px] chain_scroll md:px-2 px-2">
-            {filteredChains.map((c) => {
-              const isActive = chain?.id === c.id;
-              const chainKey = c.name.toLowerCase();
-              const chainIcon = chainIcons[chainKey] || dummyImage;
-              return (
-                <div
-                  key={c.id}
-                  onClick={() => {
-                    switchChain({ chainId: c.id });
-                    setShowChainPopup(false);
-                  }}
-                  className={`group relative mt-2 flex items-center px-2 gap-2 cursor-pointer rounded-lg text-[#FFD484] hover:text-white py-3 w-full transition-all roboto hoverclip ${
-                    isActive ? "" : ""
-                    // sc1
-                  }`}
-                >
-                  <div className="w-[23px] h-[23px] flex justify-center items-center shrink-0">
-                    <img
-                      src={chainIcon}
-                      alt={c.name}
-                      className="w-full flex shrink-0 rounded-full"
-                      onError={(e) => (e.currentTarget.src = dummyImage)}
-                    />
-                  </div>
-                  <span
-                    className={`font-orbitron text-base font-semibold text-center px-2 ${
+          <div className="px-3">
+            <div className="md:mt-3 mt-3 w-full overflow-y-auto h-[250px] chain_scroll md:px-2 px-2">
+              {filteredChains.map((c) => {
+                const isActive = chain?.id === c.id;
+                const chainKey = c.name.toLowerCase();
+                const chainIcon = chainIcons[chainKey] || dummyImage;
+                return (
+                  <div
+                    key={c.id}
+                    onClick={() => {
+                      switchChain({ chainId: c.id });
+                      setShowChainPopup(false);
+                    }}
+                    className={`group relative mt-2 flex items-center px-2 gap-1 cursor-pointer  hover:bg-[#FF8A00]/5 text-white py-2 w-full transition-all hoverclip ${
                       isActive ? "" : ""
+                      // sc1
                     }`}
                   >
-                    {c.name}
-                  </span>
-                </div>
-              );
-            })}
+                    <div className="w-[16px] h-[16px] flex justify-center items-center shrink-0">
+                      <img
+                        src={chainIcon}
+                        alt={c.name}
+                        className="w-full flex shrink-0 rounded-full"
+                        onError={(e) => (e.currentTarget.src = dummyImage)}
+                      />
+                    </div>
+                    <span
+                      className={`text-sm font-semibold text-center px-2 uppercase ${
+                        isActive ? "" : ""
+                      }`}
+                    >
+                      {c.name}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
       </div>

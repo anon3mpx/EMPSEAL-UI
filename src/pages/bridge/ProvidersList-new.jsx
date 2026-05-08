@@ -98,12 +98,12 @@ export default function App() {
     <div className="text-white w-full sctable">
       <h1>Note:Static Table</h1>
       <div className="flex justify-between items-center flex-wrap gap-4">
-        <button className="font-orbitron px-6 py-2 bg-[#FF9900] text-black md:w-[220px] h-[70px] md:text-base text-sm font-extrabold border border-[#FF9900] rounded-t-[10px] font-orbitron transition-all duration-200">
+        <button className=" px-6 py-2 bg-[#FF8A00] text-black md:w-[220px] h-[70px] md:text-base text-sm font-extrabold border border-[#FF8A00] rounded-t-[10px]  transition-all duration-200">
           Your Orders
         </button>
 
         <select
-          className="bg-black border border-[#FF9900] rounded-md px-3 py-2 w-[137px] h-10 font-orbitron"
+          className="bg-black border border-[#FF8A00] rounded-md px-3 py-2 w-[137px] h-10 "
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
         >
@@ -120,12 +120,12 @@ export default function App() {
         {filteredData.map((item, idx) => (
           <div
             key={idx}
-            className="border border-[#FF9900] rounded-lg md:px-6 md:py-6 px-4 py-4 hover:bg-[#FF9900]/10 transition"
+            className="border border-[#FF8A00]  md:px-6 md:py-6 px-4 py-4 hover:bg-[#FF8A00]/10 transition"
           >
             <div className="flex justify-between items-center md:flex-nowrap flex-wrap md:gap-1 gap-4">
               <div className="flex items-center gap-4 md:max-w-[350px] w-full">
                 <div className="w-8 h-8 flex items-center justify-center bg-white rounded-full flex-shrink-0">
-                  <Bitcoin className="text-[#FF9900]" size={24} />
+                  <Bitcoin className="text-[#FF8A00]" size={24} />
                 </div>
                 <div className="flex gap-4 items-center">
                   <div className="font-medium whitespace-nowrap">
@@ -164,7 +164,7 @@ export default function App() {
                 <button
                   className={`w-[30px] h-[30px] rounded-full flex justify-center items-center ${
                     expandedIndex === idx
-                      ? "border-2 border-[#FF9900]"
+                      ? "border-2 border-[#FF8A00]"
                       : "bg-[#402806] border-2 border-transparent  "
                   }`}
                   onClick={() =>
@@ -172,7 +172,7 @@ export default function App() {
                   }
                 >
                   <ChevronDown
-                    className={`w-5 h-5 transition-transform text-[#FF9900] ${
+                    className={`w-5 h-5 transition-transform text-[#FF8A00] ${
                       expandedIndex === idx ? "rotate-0" : "-rotate-90"
                     }`}
                   />
@@ -184,39 +184,39 @@ export default function App() {
               <div className="mt-6 pt-5 border-t border-[#D4D4D4] border-opacity-80 p-3 text-sm grid md:grid-cols-4 grid-cols-1 gap-6">
                 <div className="space-y-2">
                   <div>
-                    <span className="text-[#FF9900]">Token In:</span>{" "}
+                    <span className="text-[#FF8A00]">Token In:</span>{" "}
                     {item.tokenIn}
                   </div>
                   <div>
-                    <span className="text-[#FF9900]">Token Out: </span>
+                    <span className="text-[#FF8A00]">Token Out: </span>
                     {item.tokenOut}
                   </div>
                   <div>
-                    <span className="text-[#FF9900]">Amount In: </span>
+                    <span className="text-[#FF8A00]">Amount In: </span>
                     {item.amountIn}
                   </div>
                 </div>
                 <div className="space-y-2">
                   <div>
-                    <span className="text-[#FF9900]">Min Out: </span>
+                    <span className="text-[#FF8A00]">Min Out: </span>
                     {item.minOut}
                   </div>
                   <div>
-                    <span className="text-[#FF9900]">Limit Price: </span>
+                    <span className="text-[#FF8A00]">Limit Price: </span>
                     {item.limitPrice}
                   </div>
                   <div>
-                    <span className="text-[#FF9900]">Date: </span>
+                    <span className="text-[#FF8A00]">Date: </span>
                     {item.date}
                   </div>
                 </div>
                 <div className="space-y-2">
                   <div>
-                    <span className="text-[#FF9900]">Time: </span>
+                    <span className="text-[#FF8A00]">Time: </span>
                     {item.time}
                   </div>
                   <div>
-                    <span className="text-[#FF9900]">Address: </span>
+                    <span className="text-[#FF8A00]">Address: </span>
                     {item.address}
                   </div>
                 </div>

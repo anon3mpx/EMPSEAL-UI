@@ -41,7 +41,7 @@ export default function AddressCard({
   return (
     <div
       ref={popupRef}
-      className="relative bg-black text-white md:p-12 p-8 rounded-2xl clip-bg flex flex-col items-center gap-4 md:max-w-[430px] w-full border border-[#FF9900]"
+      className="relative bg-black text-white md:p-12 p-8 rounded-2xl clip-bg flex flex-col items-center gap-4 md:max-w-[430px] w-full border border-[#FF8A00]"
     >
       <svg
         onClick={onClose}
@@ -68,10 +68,10 @@ export default function AddressCard({
       <p className="text-2xl font-bold roboto">{shortAddress}</p>
       <p className="text-gray-400 font-medium text-xl mb-5">{balance} {balanceData?.symbol || "PLS"}</p>
       <div
-        className="gtw md:right-[-10px] right-[-5px] relative group text-black bg-[#FF9900] rounded-lg px-6 py-3 w-full font-black text-[28px] font-orbitron text-center cursor-pointer transition-all"
+        className="gtw md:right-[-10px] right-[-5px] relative group text-black bg-[#FF8A00]  px-6 py-3 w-full font-black text-[28px]  text-center cursor-pointer transition-all"
         onClick={onCopy}
       >
-        <div className="w-full absolute md:top-4 top-4 md:-left-5 -left-5 lg:z-[-1] bg-transparent border-2 border-[#FF9900] rounded-[10px] h-[68px]"></div>
+        <div className="w-full absolute md:top-4 top-4 md:-left-5 -left-5 lg:z-[-1] bg-transparent border-2 border-[#FF8A00] rounded-[10px] h-[68px]"></div>
         {/* <img
           src={Copy}
           alt="Copy"
@@ -80,10 +80,10 @@ export default function AddressCard({
         <span className="relative z-10">Copy Address</span>
       </div>
       <div
-        className="mt-6 gtw md:right-[-10px] right-[-5px] relative group text-black bg-[#FF9900] rounded-lg px-6 py-3 w-full font-black text-[28px] font-orbitron text-center cursor-pointer transition-all"
+        className="mt-6 gtw md:right-[-10px] right-[-5px] relative group text-black bg-[#FF8A00]  px-6 py-3 w-full font-black text-[28px]  text-center cursor-pointer transition-all"
         onClick={onDisconnect}
       >
-        <div className="w-full absolute md:top-4 top-4 md:-left-5 -left-5 lg:z-[-1] bg-transparent border-2 border-[#FF9900] rounded-[10px] h-[68px]"></div>
+        <div className="w-full absolute md:top-4 top-4 md:-left-5 -left-5 lg:z-[-1] bg-transparent border-2 border-[#FF8A00] rounded-[10px] h-[68px]"></div>
         {/* <img
           src={Copy}
           alt="Copy"

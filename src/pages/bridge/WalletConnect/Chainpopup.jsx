@@ -91,7 +91,7 @@ const ChainPopup = ({
   return (
     <div className="bg-black bg-opacity-40 backdrop-blur-sm py-10 flex justify-center items-center overflow-y-auto h-full my-auto fixed top-0 px-4 left-0 right-0 bottom-0 z-[9999] fade-in-out fade-out">
       <div className="w-full flex justify-center my-auto items-center">
-        <div className="md:max-w-[618px] w-full rounded-3xl relative py-6 md:px-10 px-4 mx-auto clip-bg">
+        <div className="md:max-w-[618px] w-full  relative py-6 md:px-10 px-4 mx-auto clip-bg">
           <svg
             onClick={() => setShowChainPopup(false)}
             className="absolute cursor-pointer md:right-10 right-7 top-14 tilt"
@@ -116,7 +116,7 @@ const ChainPopup = ({
           </h2>
 
           {/* bg-search */}
-          <div className="mt-8 relative px-[10px] h-[54px] w-full flex gap-2 items-center border border-[#FF9900] rounded-xl">
+          <div className="mt-8 relative px-[10px] h-[54px] w-full flex gap-2 items-center border border-[#FF8A00] ">
             <input
               type="text"
               placeholder="Search Chain"
@@ -153,7 +153,7 @@ const ChainPopup = ({
                     switchChain({ chainId: c.id });
                     setShowChainPopup(false);
                   }}
-                  className={`group relative mt-4 flex items-center px-1 gap-2 cursor-pointer rounded-lg py-3 w-full transition-all roboto hoverclip ${
+                  className={`group relative mt-4 flex items-center px-1 gap-2 cursor-pointer  py-3 w-full transition-all roboto hoverclip ${
                     isActive ? "" : ""
                     // sc1
                   }`}
@@ -175,7 +175,7 @@ const ChainPopup = ({
                     />
                   </div> */}
                   <span
-                    className={`font-orbitron text-2xl text-center px-3 ${
+                    className={` text-2xl text-center px-3 ${
                       isActive ? "text-[#fff]" : "text-[#fff]"
                     }`}
                   >
@@ -236,8 +236,8 @@ export default ChainPopup;
 //                   switchChain({ chainId: c.id });
 //                   setShowChainPopup(false);
 //                 }}
-//                 className={`relative w-full text-center px-6 py-3 font-orbitron font-semibold text-xl cursor-pointer hover:opacity-80 transition-all ${
-//                   isActive ? "text-black" : "text-[#FF9900]"
+//                 className={`relative w-full text-center px-6 py-3  font-semibold text-xl cursor-pointer hover:opacity-80 transition-all ${
+//                   isActive ? "text-black" : "text-[#FF8A00]"
 //                 }`}
 //               >
 //                 <img

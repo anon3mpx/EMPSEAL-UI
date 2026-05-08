@@ -556,26 +556,26 @@ const TradeDataCard = ({
     getDisplayValues();
   return (
     <>
-      <div className="lg:fixed absolute z-40 bg-white left-0 lefts mw300 2xl:bottom-[12%] lg:bottom-[5%] bottom-[100px] scale8 border-4 border-l-2 border-[#FF9900] md:p-6 p-4 rounded-xl-view">
-        <h6 className="font-orbitron text-sm">
+      <div className="lg:fixed absolute z-40 bg-white left-0 lefts mw300 2xl:bottom-[12%] lg:bottom-[5%] bottom-[100px] scale8 border-4 border-l-2 border-[#FF8A00] md:p-6 p-4 -view">
+        <h6 className=" text-sm">
           <span>
             <span className="font-extrabold">Min Received</span> :{" "}
-            <span className="rigamesh">{formatNumber(minReceived)}</span>{" "}
+            <span className="">{formatNumber(minReceived)}</span>{" "}
             {tokenB.symbol}
           </span>
         </h6>
-        <h6 className="font-orbitron text-sm py-2">
+        <h6 className=" text-sm py-2">
           <span>
             <span className="font-extrabold">Price in :</span>{" "}
-            <span className="rigamesh">
+            <span className="">
               {usdAmount} {"$"}
             </span>
           </span>
         </h6>
-        <h6 className="font-orbitron text-sm">
+        <h6 className=" text-sm">
           <span>
             <span className="font-extrabold">Price Impact :</span>{" "}
-            <span className="rigamesh">{priceImpact} %</span>
+            <span className="">{priceImpact} %</span>
           </span>
         </h6>
       </div>

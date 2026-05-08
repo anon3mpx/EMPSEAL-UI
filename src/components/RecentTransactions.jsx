@@ -3,7 +3,7 @@ const RecentTransactions = ({ transactions, clearTransactions }) => {
     return (
       <div className="lg:mt-4 mt-4 text-white">
         <div className="flex justify-between items-center flex-wrap gap-4 mb-5">
-          <div className="font-orbitron md:text-4xl text-2xl font-extrabold text-[#FF9900]">
+          <div className=" md:text-4xl text-2xl font-extrabold text-[#FF8A00]">
             Bridge Transactions
           </div>
         </div>
@@ -51,56 +51,56 @@ const RecentTransactions = ({ transactions, clearTransactions }) => {
   return (
     <div className="lg:mt-4 mt-4 text-white">
       <div className="flex justify-between items-center flex-wrap gap-4 mb-5">
-        <div className="font-orbitron md:text-4xl text-2xl font-extrabold text-[#FF9900]">
+        <div className=" md:text-4xl text-2xl font-extrabold text-[#FF8A00]">
           Bridge Transactions
         </div>
         <button
           onClick={clearTransactions}
-          className="text-sm text-white hover:text-[#FF9900] font-orbitron"
+          className="text-sm text-white hover:text-[#FF8A00] "
         >
           Clear recent txs
         </button>
       </div>
 
       {/* Desktop Table View */}
-      <div className="hidden lg:block bg_swap_box_chain w-full rounded-tr-2xl rounded-2xl lg:p-7 overflow-x-auto font-orbitron">
+      <div className="hidden lg:block bg_swap_box_chain w-full rounded-tr-2xl rounded-2xl lg:p-7 overflow-x-auto ">
         <div className="max-h-[350px] overflow-y-auto px-2 chain_scroll">
         <table className="w-full text-sm ">
           <thead>
-            <tr className="border-b border-[#FF9900]/30">
-              {/* <th className="font-semibold text-base text-[#FF9900]">Status</th> */}
-              <th className="font-semibold text-base text-[#FF9900]">
+            <tr className="border-b border-[#FF8A00]/30">
+              {/* <th className="font-semibold text-base text-[#FF8A00]">Status</th> */}
+              <th className="font-semibold text-base text-[#FF8A00]">
                 Source Chain
               </th>
-              <th className="font-semibold text-base text-[#FF9900]">
+              <th className="font-semibold text-base text-[#FF8A00]">
                 Source Hash
               </th>
-              <th className="font-semibold text-base text-[#FF9900]">From</th>
-              <th className="font-semibold text-base text-[#FF9900]">
+              <th className="font-semibold text-base text-[#FF8A00]">From</th>
+              <th className="font-semibold text-base text-[#FF8A00]">
                 Destination Chain
               </th>
-              <th className="font-semibold text-base text-[#FF9900]">
+              <th className="font-semibold text-base text-[#FF8A00]">
                 Date/Time
               </th>
-              <th className="font-semibold text-base text-[#FF9900]">Action</th>
+              <th className="font-semibold text-base text-[#FF8A00]">Action</th>
             </tr>
           </thead>
           <tbody>
             {transactions.map((tx, idx) => (
               <tr
                 key={tx.hash || idx}
-                className="border-b border-[#FF9900]/10 hover:bg-[#FF9900]/5 transition-all font-orbitron"
+                className="border-b border-[#FF8A00]/10 hover:bg-[#FF8A00]/5 transition-all "
               >
                 <td className="py-4 px-4">
                   <span
-                    className={`${getStatusColor(tx.status)} font-medium font-orbitron text-white`}
+                    className={`${getStatusColor(tx.status)} font-medium  text-white`}
                   >
                     {tx.fromChainName || "In Flight"}
                   </span>
                   {/* Progress bar for visual indication */}
                   {/* <div className="w-20 h-1 bg-gray-700 rounded-full mt-1">
                     <div 
-                      className="h-full bg-[#FF9900] rounded-full" 
+                      className="h-full bg-[#FF8A00] rounded-full" 
                       style={{ width: tx.progress || getProgressFromStatus(tx.status) }}
                     />
                   </div> */}
@@ -110,7 +110,7 @@ const RecentTransactions = ({ transactions, clearTransactions }) => {
                     href={`${tx.explorerUrl || "https://scan.vialabs.io"}/tx/${tx.hash || tx.sourceHash}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-[#FF9900] hover:underline  "
+                    className="text-[#FF8A00] hover:underline  "
                   >
                     {`${(tx.hash || tx.sourceHash || "").slice(0, 6)}...${(tx.hash || tx.sourceHash || "").slice(-8)}`}
                   </a>
@@ -126,7 +126,7 @@ const RecentTransactions = ({ transactions, clearTransactions }) => {
                 </td>
                 <td className="py-4 px-4">
                   <span
-                    className={`${getStatusColor(tx.status)} font-medium font-orbitron text-white`}
+                    className={`${getStatusColor(tx.status)} font-medium  text-white`}
                   >
                     {tx.toChainName || "In Flight"}
                   </span>
@@ -145,7 +145,7 @@ const RecentTransactions = ({ transactions, clearTransactions }) => {
                     href={`https://scan.vialabs.io/transaction/${tx.hash || tx.sourceHash}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-[#FF9900] hover:text-[#FFB84D] transition-colors"
+                    className="inline-flex items-center gap-1 text-[#FF8A00] hover:text-[#FFB84D] transition-colors"
                   >
                     <span>Track</span>
                     <svg
@@ -175,17 +175,17 @@ const RecentTransactions = ({ transactions, clearTransactions }) => {
         {transactions.map((tx, idx) => (
           <div
             key={tx.hash || idx}
-            className="border border-[#FF9900] bg-black rounded-xl px-5 py-5 hover:bg-[#FF9900]/10 transition-all"
+            className="border border-[#FF8A00] bg-black  px-5 py-5 hover:bg-[#FF8A00]/10 transition-all"
           >
             <div className="flex justify-between items-start mb-3">
-              {/* <span className={`${getStatusColor(tx.status)} text-white font-medium px-3 py-1 rounded-full bg-[#402806] border border-[#FF9900]`}>
+              {/* <span className={`${getStatusColor(tx.status)} text-white font-medium px-3 py-1 rounded-full bg-[#402806] border border-[#FF8A00]`}>
                 {tx.status || 'In Flight'}
               </span> */}
               <a
                 href={`https://scan.vialabs.io/transaction/${tx.hash || tx.sourceHash}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-[#FF9900] hover:text-[#FFB84D] text-sm flex items-center gap-1"
+                className="text-[#FF8A00] hover:text-[#FFB84D] text-sm flex items-center gap-1"
               >
                 Track
                 <svg
@@ -215,7 +215,7 @@ const RecentTransactions = ({ transactions, clearTransactions }) => {
                   href={`${tx.explorerUrl || "https://scan.vialabs.io"}/tx/${tx.hash || tx.sourceHash}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-[#FF9900] hover:underline "
+                  className="text-[#FF8A00] hover:underline "
                 >
                   {`${(tx.hash || tx.sourceHash || "").slice(0, 6)}...${(tx.hash || tx.sourceHash || "").slice(-4)}`}
                 </a>
@@ -244,7 +244,7 @@ const RecentTransactions = ({ transactions, clearTransactions }) => {
                     href={`https://scan.vialabs.io/transaction/${tx.destinationHash}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-[#FF9900] hover:underline "
+                    className="text-[#FF8A00] hover:underline "
                   >
                     {`${tx.destinationHash.slice(0, 6)}...${tx.destinationHash.slice(-4)}`}
                   </a>
@@ -263,11 +263,11 @@ const RecentTransactions = ({ transactions, clearTransactions }) => {
               {/* <div className="mt-2">
                 <div className="flex justify-between  mb-1">
                   <span className="text-gray-400">Progress</span>
-                  <span className="text-[#FF9900]">{tx.progress || getProgressFromStatus(tx.status)}</span>
+                  <span className="text-[#FF8A00]">{tx.progress || getProgressFromStatus(tx.status)}</span>
                 </div>
                 <div className="w-full h-1.5 bg-gray-700 rounded-full">
                   <div
-                    className="h-full bg-[#FF9900] rounded-full"
+                    className="h-full bg-[#FF8A00] rounded-full"
                     style={{ width: tx.progress || getProgressFromStatus(tx.status) }}
                   />
                 </div>
@@ -279,7 +279,7 @@ const RecentTransactions = ({ transactions, clearTransactions }) => {
 
       {/* Bridge Transaction Submitted Banner */}
       {transactions.some((tx) => tx.status === "In Flight") && (
-        <div className="mt-4 bg_swap_box_chain p-4 w-full font-orbitron rounded-xl">
+        <div className="mt-4 bg_swap_box_chain p-4 w-full  ">
           <p className="text-lg text-[#FBB025] font-bold mb-2">
             Bridge transaction submitted!
           </p>

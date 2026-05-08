@@ -560,7 +560,7 @@ const Amount = ({
         <div className="w-full flex justify-center my-auto items-center">
           <div
             ref={modalRef}
-            className="md:max-w-[600px] w-full bg-black clip-bg rounded-3xl relative py-6 px-6 mx-auto"
+            className="md:max-w-[600px] w-full bg-black clip-bg  relative py-6 px-6 mx-auto"
           >
             <svg
               onClick={onClose}
@@ -676,18 +676,18 @@ const Amount = ({
               <button
                 onClick={handleClick}
                 disabled={disabled || isLoading}
-                className="gtw relative w-full rounded-xl w-pro bg-search-padd py-4 bg-[#FF9900] flex gap-4 items-center mt-6 justify-center border border-[#FF9900] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                className="gtw relative w-full  w-pro bg-search-padd py-4 bg-[#FF8A00] flex gap-4 items-center mt-6 justify-center border border-[#FF8A00] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
               >
-                <div className="group-hover:opacity-80 w-full absolute md:top-2 top-2 md:-left-3 -left-3 z-[1] bg-transparent border-2 border-[#FF9900] rounded-xl h-[58px]"></div>
+                <div className="group-hover:opacity-80 w-full absolute md:top-2 top-2 md:-left-3 -left-3 z-[1] bg-transparent border-2 border-[#FF8A00]  h-[58px]"></div>
                 {isLoading ? (
                   <div className="flex items-center gap-2">
                     <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    <span className="md:text-xl text-base font-black font-orbitron">
+                    <span className="md:text-xl text-base font-black ">
                       Processing...
                     </span>
                   </div>
                 ) : (
-                  <div className="md:text-xl text-base font-black text-center leading-normal uppercase font-orbitron">
+                  <div className="md:text-xl text-base font-black text-center leading-normal uppercase ">
                     Proceed
                   </div>
                 )}

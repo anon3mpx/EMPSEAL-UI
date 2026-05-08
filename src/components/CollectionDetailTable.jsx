@@ -87,7 +87,7 @@ const CollectionDetailTable = () => {
           <button
             className={`flex items-center px-4 py-2 text-sm font-semibold rounded ${
               activeTab === 'items'
-                ? 'bg-[#FF9900] text-black'
+                ? 'bg-[#FF8A00] text-black'
                 : 'bg-[#222222] text-white'
             }`}
             onClick={() => setActiveTab('items')}
@@ -98,7 +98,7 @@ const CollectionDetailTable = () => {
           <button
             className={`flex items-center px-4 py-2 text-sm font-semibold rounded ${
               activeTab === 'bids'
-                ? 'bg-[#FF9900] text-black'
+                ? 'bg-[#FF8A00] text-black'
                 : 'bg-[#222222] text-white'
             }`}
             onClick={() => setActiveTab('bids')}
@@ -109,7 +109,7 @@ const CollectionDetailTable = () => {
           <button
             className={`flex items-center px-4 py-2 text-sm font-semibold rounded ${
               activeTab === 'loans'
-                ? 'bg-[#FF9900] text-black'
+                ? 'bg-[#FF8A00] text-black'
                 : 'bg-[#222222] text-white'
             }`}
             onClick={() => setActiveTab('loans')}
@@ -142,7 +142,7 @@ const CollectionDetailTable = () => {
             id="table-search"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            class="block py-1.5 ps-10 text-sm text-white border border-gray-300 rounded-lg w-[100px] bg-transparent placeholder-white text-sm"
+            class="block py-1.5 ps-10 text-sm text-white border border-gray-300  w-[100px] bg-transparent placeholder-white text-sm"
             placeholder="Item ID"
           />
           <button
@@ -236,7 +236,7 @@ const CollectionDetailTable = () => {
               {filteredData.slice(0, rowsToShow).map((item) => (
                 <div
                   key={item.id}
-                  className="bg-[#222222] rounded-lg overflow-hidden text-white shadow-md hover:shadow-lg transition-shadow relative z-10"
+                  className="bg-[#222222]  overflow-hidden text-white shadow-md hover:shadow-lg transition-shadow relative z-10"
                 >
                   <div className="relative">
                     <img
@@ -249,7 +249,7 @@ const CollectionDetailTable = () => {
                     </div>
                   </div>
                   <div className="py-4 px-3">
-                    <h3 className="text-sm font-semibold mb-2 roboto text-[#FF9900]">
+                    <h3 className="text-sm font-semibold mb-2 roboto text-[#FF8A00]">
                       {item.name}
                     </h3>
                     <div className="flex justify-between text-sm opacity-80 roboto">
@@ -346,7 +346,7 @@ const CollectionDetailTable = () => {
               {filteredData.slice(0, rowsToShow).map((item) => (
                 <div
                   key={item.id}
-                  className="bg-[#222222] rounded-lg overflow-hidden text-white shadow-md hover:shadow-lg transition-shadow relative z-10"
+                  className="bg-[#222222]  overflow-hidden text-white shadow-md hover:shadow-lg transition-shadow relative z-10"
                 >
                   <div className="relative">
                     <img
@@ -359,7 +359,7 @@ const CollectionDetailTable = () => {
                     </div>
                   </div>
                   <div className="py-4 px-3">
-                    <h3 className="text-sm font-semibold mb-2 roboto text-[#FF9900]">
+                    <h3 className="text-sm font-semibold mb-2 roboto text-[#FF8A00]">
                       {item.name}
                     </h3>
                     <div className="flex justify-between text-sm opacity-80 roboto">

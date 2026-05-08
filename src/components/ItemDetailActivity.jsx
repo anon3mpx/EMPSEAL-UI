@@ -110,7 +110,7 @@ const ItemDetailActivity = () => {
         <span className="text-white">📄 Listing</span>
       </td>
       <td className="py-2 px-4 text-center text-white">{item.listingPrice}</td>
-      <td className="py-2 px-4 text-center text-[#FF9900]">{item.from}</td>
+      <td className="py-2 px-4 text-center text-[#FF8A00]">{item.from}</td>
       <td className="py-2 px-4 text-center text-white">-</td>
       <td className="py-2 px-4 text-center text-[#0CDD2E]">{item.listedTime}</td>
     </tr>
