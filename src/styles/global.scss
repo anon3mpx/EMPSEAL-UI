@@ -1935,6 +1935,53 @@ input[type="range"]::-moz-range-track {
 .widget-accent-active {
   outline-offset: 2px;
 }
+
+.widget-embed-mode {
+  background: var(--bg-color, #000000);
+}
+
+.widget-embed-mode .bg-gradient {
+  background: radial-gradient(
+    ellipse 60% 40% at 50% 0%,
+    rgba(var(--widget-primary-rgb, 255, 138, 0), 0.08) 0%,
+    transparent 60%
+  );
+}
+
+.widget-embed-mode .bg_swap_box,
+.widget-embed-mode .bg_swap_box_black,
+.widget-embed-mode .separator,
+.widget-embed-mode .border-top {
+  border-color: var(--border-color, rgba(255, 255, 255, 0.07)) !important;
+}
+
+.widget-embed-mode .v1-connect-btn {
+  background: rgba(var(--widget-primary-rgb, 255, 138, 0), 0.08);
+  border-color: rgba(var(--widget-primary-rgb, 255, 138, 0), 0.3);
+  color: var(--widget-primary, #ff8a00);
+}
+
+.widget-theme-dark .bg_swap_box,
+.widget-theme-dark .bg_swap_box_black,
+.widget-theme-dark .separator {
+  background: rgba(6, 6, 14, 0.98) !important;
+}
+
+.widget-theme-darker .bg_swap_box,
+.widget-theme-darker .bg_swap_box_black,
+.widget-theme-darker .separator {
+  background: rgba(2, 2, 8, 0.99) !important;
+}
+
+.widget-theme-midnight .bg_swap_box,
+.widget-theme-midnight .bg_swap_box_black,
+.widget-theme-midnight .separator {
+  background: linear-gradient(
+    180deg,
+    rgba(8, 12, 24, 0.98) 0%,
+    rgba(4, 6, 18, 0.98) 100%
+  ) !important;
+}
 .bg-new-gray {
   background: rgba(255, 255, 255, 0.04);
 }
