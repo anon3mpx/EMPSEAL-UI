@@ -11,6 +11,7 @@ import ItemDetail from "../pages/Home/ItemDetail";
 import Bridge from "../pages/bridge/Main";
 import NativeBridge from "../pages/nativeBridge";
 import Widget from "../pages/widget/Main";
+import WidgetSwapPage from "../pages/widget/SwapEmbed";
 import Cross from "../pages/cross/Main";
 import BridgeWrapper from "../components/BridgeWrapper";
 import WagmiProviderWrapper from "../Wagmi/WagmiProvider";
@@ -144,6 +145,14 @@ function MyRoutes() {
               element={
                 <SwapWrapper>
                   <Widget />
+                </SwapWrapper>
+              }
+            />
+            <Route
+              path="/widget/swap"
+              element={
+                <SwapWrapper>
+                  <WidgetSwapPage />
                 </SwapWrapper>
               }
             />
