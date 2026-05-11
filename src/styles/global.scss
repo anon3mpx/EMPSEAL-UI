@@ -1914,8 +1914,10 @@ input[type="range"]::-moz-range-track {
   font-size: 18px;
   font-weight: 200;
   color: white;
-  letter-spacing: -0.03em;
+  letter-spacing: 0;
   margin-bottom: 2px;
+  overflow-wrap: anywhere;
+  white-space: nowrap;
 }
 
 .gas-chain-meta {

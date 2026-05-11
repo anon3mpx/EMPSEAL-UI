@@ -298,7 +298,7 @@ export default function WidgetPage() {
                   placeholder="0x..."
                 />
                 <p className="text-[10px] text-[rgba(255,255,255,0.35)] mt-2">
-                  To enable rewards tracking,{" "}
+                  Join our integrator program,{" "}
                   <a
                     href="https://docs.empx.io/docs/developers/widget-integration"
                     target="_blank"
@@ -332,7 +332,7 @@ export default function WidgetPage() {
                     value={borderColor}
                     onChange={(e) => setBorderColor(e.target.value)}
                     className="w-full bg-new-gray-1 border-new-gray px-[10px] py-2 text-[13px] font-normal text-white outline-none widget-input"
-                    placeholder="#e49c01ff"
+                    placeholder="#000000"
                   />
                 </div>
               </div>

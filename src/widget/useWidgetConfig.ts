@@ -26,7 +26,7 @@ export const DEFAULT_WIDGET_CONFIG = {
   theme: "dark",
   background: "#000000",
   primaryColor: "#e49c01ff",
-  borderColor: "#e49c01ff",
+  borderColor: "#000000",
   integratorId: null as string | null,
 };
 
