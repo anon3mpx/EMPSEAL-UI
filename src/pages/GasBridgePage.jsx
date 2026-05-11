@@ -26,7 +26,7 @@ export default function GasBridgePage() {
       </HelmetProvider>
       <BreadCrumb />
       <div className="min-h-[calc(100vh-52px)] flex flex-col items-center px-4 py-20 bg-gradient max-w-[960px] mx-auto">
-        <div className="md:max-w-[1100px] w-full mx-auto p-4 text-white">
+        <div className="md:max-w-[1100px] w-full mx-auto md:p-4 text-white">
           {/* <Wallet allowUnsupported={true} /> */}
           <div className={!isChainModalOpen ? "scales8 top70" : ""}>
             <p className="text-[9px] font-bold tracking-[0.4em] text-[rgba(255,138,0,0.45)] mb-2">

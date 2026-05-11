@@ -202,7 +202,7 @@ const ItemDetails = () => {
                       <span
                         className={
                           item.size < 0
-                            ? 'text-red-500'
+                            ? 'text-white'
                             : 'text-[#0CDD2E]'
                         }
                       >

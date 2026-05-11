@@ -1988,7 +1988,7 @@ export function CreateOrderForm({
                 data-testid="trade-error-message"
               >
                 <div className="flex items-center justify-center gap-2">
-                  <InfoIcon size={16} className="text-red-500" />
+                  <InfoIcon size={16} className="text-white" />
                   <p className="text-sm font-semibold text-red-400 ">
                     {tradeError}
                   </p>

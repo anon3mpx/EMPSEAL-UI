@@ -26,7 +26,7 @@ const RecentTransactions = ({ transactions, clearTransactions }) => {
       case "active":
         return "text-blue-500";
       case "cancelled":
-        return "text-red-500";
+        return "text-white";
       default:
         return "text-gray-400";
     }

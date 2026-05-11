@@ -284,7 +284,7 @@ export const Graph = ({ padding }) => {
         <div className="text-white roboto text-center">Loading...</div>
       )}
       {error && (
-        <div className="flex items-center justify-center py-4 text-red-500">
+        <div className="flex items-center justify-center py-4 text-white">
           <svg
             xmlns="http://www.w3.org/2000/svg"
             className="h-6 w-6 mr-2"

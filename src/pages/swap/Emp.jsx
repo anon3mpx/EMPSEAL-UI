@@ -1244,7 +1244,7 @@ const Emp = ({
     const value = parseFloat(impact);
     // Green for positive (profit), Red for negative (loss)
     if (value > 0) return "text-green-500";
-    if (value < 0) return "text-red-500";
+    if (value < 0) return "text-white";
     return "text-white";
   };
   //

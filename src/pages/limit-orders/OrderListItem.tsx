@@ -271,7 +271,7 @@ export function OrderListItem({
             {isSellOrder ? (
               <ArrowUp className="text-green-500" />
             ) : (
-              <ArrowDown className="text-red-500" />
+              <ArrowDown className="text-white" />
             )}
           </div>
           {hoveredCell === "price" && (
