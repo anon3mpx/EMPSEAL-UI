@@ -11,6 +11,7 @@ import ItemDetail from "../pages/Home/ItemDetail";
 import Bridge from "../pages/bridge/Main";
 import NativeBridge from "../pages/nativeBridge";
 import Widget from "../pages/widget/Main";
+import WidgetSwapPage from "../pages/widget/SwapEmbed";
 import Cross from "../pages/cross/Main";
 import Limit from "../pages/limit/Main";
 import BridgeWrapper from "../components/BridgeWrapper";
@@ -149,6 +150,14 @@ function MyRoutes() {
               }
             />
             <Route
+              path="/widget/swap"
+              element={
+                <SwapWrapper>
+                  <WidgetSwapPage />
+                </SwapWrapper>
+              }
+            />
+            <Route
               path="/cross"
               element={
                 <SwapWrapper>
@@ -186,15 +195,15 @@ function MyRoutes() {
                   <Bridge />
                 </BridgeWrapper>
               }
-            />
-            <Route
+            /> 
+            {/* <Route
               path="/native-bridge"
               element={
                 <BridgeWrapper>
                   <NativeBridge />
                 </BridgeWrapper>
               }
-            />
+            /> */}
             {/* via-bridge disabled — coming soon */}
             <Route
               path="/via-bridge"

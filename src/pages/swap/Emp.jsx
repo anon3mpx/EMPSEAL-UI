@@ -23,11 +23,11 @@ import { useChainConfig } from "../../hooks/useChainConfig";
 // import ProvidersListNew from "../bridge/ProvidersList-new";
 // import { SmartRouter } from "../../utils/services/SmartRouter";
 import {
-  checkAllowance,
-  callApprove,
+  checkAllowance as defaultCheckAllowance,
+  callApprove as defaultCallApprove,
   EMPTY_ADDRESS,
 } from "../../utils/contractCalls";
-import { swapTokens } from "../../utils/contractCalls";
+import { swapTokens as defaultSwapTokens } from "../../utils/contractCalls";
 import { useConnectPopup } from "../../hooks/ConnectPopupContext";
 import {
   PLS_ROUTER_ABI,
@@ -134,7 +134,26 @@ const getRouterABI = (chainId) => {
   }
 };
 
-const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
+const defaultDisplayConfig = {
+  isWidgetMode: false,
+  theme: "dark",
+  primaryColor: "#FF8A00",
+  background: "#000000",
+  borderColor: "#FF8A00",
+  showSlippage: true,
+  showPoweredBy: true,
+};
+
+const Emp = ({
+  setPadding,
+  setBestRoute,
+  onTokensChange,
+  activeTab,
+  initialConfig = {},
+  displayConfig = defaultDisplayConfig,
+  runtimeConfig,
+  contractApi,
+}) => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [isAmountVisible, setAmountVisible] = useState(false);
   const [isSlippageVisible, setSlippageVisible] = useState(false);
@@ -174,7 +193,7 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
   const [swapHash, setSwapHash] = useState("");
   const [swapSuccess, setSwapSuccess] = useState(false);
   const [selectedPercentage, setSelectedPercentage] = useState("");
-  const { address, chain } = useAccount();
+  const { address } = useAccount();
   const { openConnectPopup } = useConnectPopup();
   const [balanceAddress, setBalanceAddress] = useState(null);
   const { data: datas } = useBalance({ address });
@@ -235,6 +254,42 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
     stableTokens,
   } = useChainConfig();
 
+  const effectiveRouterAddress =
+    runtimeConfig?.routerAddress || routerAddress;
+  const effectiveWethAddress = runtimeConfig?.wethAddress || wethAddress;
+  const isWidgetMode = !!displayConfig?.isWidgetMode;
+  const showSlippage = displayConfig?.showSlippage ?? true;
+  const showPoweredBy = displayConfig?.showPoweredBy ?? false;
+  const widgetPrimaryColor = displayConfig?.primaryColor || "#FF8A00";
+  const normalizedWidgetPrimary = widgetPrimaryColor.replace("#", "");
+  const widgetPrimaryHex = normalizedWidgetPrimary.length >= 6
+    ? normalizedWidgetPrimary.slice(0, 6)
+    : "FF8A00";
+  const widgetPrimaryRgb = [
+    Number.parseInt(widgetPrimaryHex.slice(0, 2), 16),
+    Number.parseInt(widgetPrimaryHex.slice(2, 4), 16),
+    Number.parseInt(widgetPrimaryHex.slice(4, 6), 16),
+  ].join(", ");
+  const widgetAccentTextStyle = isWidgetMode
+    ? { color: widgetPrimaryColor }
+    : undefined;
+  const widgetPrimaryButtonStyle = isWidgetMode
+    ? {
+        backgroundColor: widgetPrimaryColor,
+        borderColor: widgetPrimaryColor,
+        color: "#03030a",
+      }
+    : undefined;
+
+  const swapContractApi = useMemo(
+    () => ({
+      checkAllowance: contractApi?.checkAllowance || defaultCheckAllowance,
+      callApprove: contractApi?.callApprove || defaultCallApprove,
+      swapTokens: contractApi?.swapTokens || defaultSwapTokens,
+    }),
+    [contractApi],
+  );
+
   const publicClient = usePublicClient({ chainId });
 
   const convertToBigInt = (amount, decimals) => {
@@ -262,18 +317,18 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
   const isSameAddress = (a, b) => normalizeAddress(a) === normalizeAddress(b);
   const getQuoteTokenAddress = (tokenAddress) =>
     isSameAddress(tokenAddress, EMPTY_ADDRESS)
-      ? wethAddress || EMPTY_ADDRESS
+      ? effectiveWethAddress || EMPTY_ADDRESS
       : tokenAddress || EMPTY_ADDRESS;
 
   // Check if it's a direct route (native to wrapped or wrapped to native)
   const isDirectRoute = useMemo(() => {
     return (
       (isSameAddress(selectedTokenA?.address, EMPTY_ADDRESS) &&
-        isSameAddress(selectedTokenB?.address, wethAddress)) ||
-      (isSameAddress(selectedTokenA?.address, wethAddress) &&
+        isSameAddress(selectedTokenB?.address, effectiveWethAddress)) ||
+      (isSameAddress(selectedTokenA?.address, effectiveWethAddress) &&
         isSameAddress(selectedTokenB?.address, EMPTY_ADDRESS))
     );
-  }, [selectedTokenA?.address, selectedTokenB?.address, wethAddress]);
+  }, [selectedTokenA?.address, selectedTokenB?.address, effectiveWethAddress]);
 
   // Get the appropriate router ABI based on chainId
   const routerABI = useMemo(() => getRouterABI(chainId), [chainId]);
@@ -310,7 +365,7 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
     error: primaryQuoteError,
   } = useReadContract({
     abi: routerABI,
-    address: routerAddress,
+    address: effectiveRouterAddress,
     functionName: "findBestPath",
     chainId,
     args: [
@@ -328,7 +383,7 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
     error: fallbackQuoteError,
   } = useReadContract({
     abi: routerABI,
-    address: routerAddress,
+    address: effectiveRouterAddress,
     functionName: "findBestPath",
     chainId,
     args: [
@@ -351,7 +406,7 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
     error: fallbackQuoteErrorOne,
   } = useReadContract({
     abi: routerABI,
-    address: routerAddress,
+    address: effectiveRouterAddress,
     functionName: "findBestPath",
     chainId,
     args: [
@@ -389,7 +444,7 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
     error: primarySingleTokenError,
   } = useReadContract({
     abi: routerABI,
-    address: routerAddress,
+    address: effectiveRouterAddress,
     functionName: "findBestPath",
     chainId,
     args: [
@@ -404,7 +459,7 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
   const { data: fallbackSingleToken, error: fallbackSingleTokenError } =
     useReadContract({
       abi: routerABI,
-      address: routerAddress,
+      address: effectiveRouterAddress,
       functionName: "findBestPath",
       chainId,
       args: [
@@ -423,7 +478,7 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
 
   const { data: fallbackSingleTokenOne } = useReadContract({
     abi: routerABI,
-    address: routerAddress,
+    address: effectiveRouterAddress,
     functionName: "findBestPath",
     chainId,
     args: [
@@ -515,6 +570,47 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
     setTradeInfo(undefined);
   }, [chainId]);
 
+  useEffect(() => {
+    if (!isWidgetMode || !tokenList || tokenList.length === 0) {
+      return;
+    }
+
+    const getTokenByAddress = (address) => {
+      if (!address) return null;
+      return (
+        tokenList.find(
+          (token) => token.address.toLowerCase() === address.toLowerCase(),
+        ) || null
+      );
+    };
+
+    const fromConfig = getTokenByAddress(initialConfig.defaultTokenIn);
+    const toConfig = getTokenByAddress(initialConfig.defaultTokenOut);
+
+    setSelectedTokenA((prev) => {
+      if (fromConfig) return fromConfig;
+      if (!prev) return null;
+      const stillExists = tokenList.some(
+        (token) => token.address.toLowerCase() === prev.address.toLowerCase(),
+      );
+      return stillExists ? prev : null;
+    });
+
+    setSelectedTokenB((prev) => {
+      if (toConfig) return toConfig;
+      if (!prev) return null;
+      const stillExists = tokenList.some(
+        (token) => token.address.toLowerCase() === prev.address.toLowerCase(),
+      );
+      return stillExists ? prev : null;
+    });
+  }, [
+    initialConfig.defaultTokenIn,
+    initialConfig.defaultTokenOut,
+    isWidgetMode,
+    tokenList,
+  ]);
+
   // Dynamic Fee Update
   useEffect(() => {
     if (selectedTokenA && selectedTokenB) {
@@ -546,6 +642,14 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
     }, 600);
     return () => clearTimeout(timer);
   }, [amountIn]);
+
+  useEffect(() => {
+    if (!isWidgetMode) {
+      return;
+    }
+    setSelectedPercentage("");
+    setAmountIn(initialConfig.defaultAmountIn?.trim() || "");
+  }, [initialConfig.defaultAmountIn, isWidgetMode, selectedTokenA]);
 
   // Helper Functions
   const handleEmptyData = () => {
@@ -648,7 +752,7 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
           debouncedAmountIn,
           selectedTokenA.decimal,
         );
-        const allowance = await checkAllowance(
+        const allowance = await swapContractApi.checkAllowance(
           chainId,
           selectedTokenA.address,
           address,
@@ -661,17 +765,27 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
     };
 
     checkApproval();
-  }, [chainId, address, selectedTokenA, debouncedAmountIn]);
+  }, [
+    chainId,
+    address,
+    selectedTokenA,
+    debouncedAmountIn,
+    swapContractApi,
+  ]);
 
   const handleApprove = async () => {
     try {
       setSwapStatus("APPROVING");
       const amountInBigInt = convertToBigInt(amountIn, selectedTokenA.decimal);
 
-      await callApprove(chainId, selectedTokenA.address, amountInBigInt);
+      await swapContractApi.callApprove(
+        chainId,
+        selectedTokenA.address,
+        amountInBigInt,
+      );
 
       // Re-check allowance to update UI immediately
-      const allowance = await checkAllowance(
+      const allowance = await swapContractApi.checkAllowance(
         chainId,
         selectedTokenA.address,
         address,
@@ -806,8 +920,8 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
         }
 
         const addressToFetch =
-          selectedTokenA?.address === EMPTY_ADDRESS && wethAddress
-            ? wethAddress?.toLowerCase()
+          selectedTokenA?.address === EMPTY_ADDRESS && effectiveWethAddress
+            ? effectiveWethAddress?.toLowerCase()
             : selectedTokenA?.address?.toLowerCase();
 
         const tokenPrice = await fetchTokenPrice(symbol, addressToFetch);
@@ -824,7 +938,7 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
     };
 
     fetchConversionRateTokenA();
-  }, [chainId, selectedTokenA?.address, wethAddress]);
+  }, [chainId, selectedTokenA?.address, effectiveWethAddress]);
 
   useEffect(() => {
     const fetchConversionRateTokenB = async () => {
@@ -835,8 +949,8 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
         }
 
         const addressToFetch =
-          selectedTokenB?.address === EMPTY_ADDRESS && wethAddress
-            ? wethAddress?.toLowerCase()
+          selectedTokenB?.address === EMPTY_ADDRESS && effectiveWethAddress
+            ? effectiveWethAddress?.toLowerCase()
             : selectedTokenB?.address?.toLowerCase();
 
         const tokenPrice = await fetchTokenPrice(symbol, addressToFetch);
@@ -853,7 +967,7 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
     };
 
     fetchConversionRateTokenB();
-  }, [chainId, selectedTokenB?.address, wethAddress]);
+  }, [chainId, selectedTokenB?.address, effectiveWethAddress]);
 
   useEffect(() => {
     if (conversionRate && !isNaN(conversionRate)) {
@@ -885,7 +999,7 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
     if (selectedTokenA.address == selectedTokenB.address) {
       return null;
     }
-    await swapTokens(
+    await swapContractApi.swapTokens(
       (_swapStatus) => {
         setSwapStatus(_swapStatus);
       },
@@ -1211,7 +1325,20 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
 
   return (
     <>
-      <div className={`w-full`}>
+      <div
+        className={`w-full ${isWidgetMode ? `widget-embed-mode widget-theme-${displayConfig.theme || "dark"}` : ""}`}
+        style={
+          isWidgetMode
+            ? {
+                "--primary": widgetPrimaryColor,
+                "--widget-primary": widgetPrimaryColor,
+                "--widget-primary-rgb": widgetPrimaryRgb,
+                "--bg-color": displayConfig.background,
+                "--border-color": displayConfig.borderColor,
+              }
+            : undefined
+        }
+      >
         <div
           className={`min-h-[calc(100vh-52px)] flex flex-col items-center px-4 py-20 bg-gradient`}
         >
@@ -1219,7 +1346,10 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
             <p className="text-[9px] font-bold tracking-[0.4em] text-[rgba(255,138,0,0.45)] mb-2">
               MULTI-CHAIN SWAP
             </p>
-            <h1 className="text-[26px] text-center text-[#FF8A00]  font-bold md:mb-2">
+            <h1
+              className="text-[26px] text-center text-[#FF8A00]  font-bold md:mb-2"
+              style={widgetAccentTextStyle}
+            >
               {!order ? (
                 <>
                   <span className="text-white">Best Rates.</span>
@@ -1245,19 +1375,21 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
                         <div className="live-dot" />
                         <span className="live-text">LIVE</span>
                       </div>
-                      <button
-                        onClick={() => {
-                          setSlippageVisible((prev) => !prev);
-                          setTokenVisible(false);
-                        }}
-                        className="slippage-btn"
-                      >
-                        {selectedSlippage}% SLIP
-                      </button>
+                      {showSlippage && (
+                        <button
+                          onClick={() => {
+                            setSlippageVisible((prev) => !prev);
+                            setTokenVisible(false);
+                          }}
+                          className="slippage-btn"
+                        >
+                          {selectedSlippage}% SLIP
+                        </button>
+                      )}
                     </div>
                   </div>
                   <div>
-                    {isSlippageVisible && !order && (
+                    {isSlippageVisible && !order && showSlippage && (
                       <SlippageCalculator
                         inputAmount={tradeInfo?.amountOut}
                         selectedSlippage={selectedSlippage}
@@ -1271,10 +1403,16 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
                     <div className="flex justify-between gap-3 items-center">
                       <div className="you_pay_heading">You Sell</div>
                       <div className="md:text-xs text-[10px] ">
-                        <span className="font-normal leading-normal text-[#FF8A00]">
+                        <span
+                          className="font-normal leading-normal text-[#FF8A00]"
+                          style={widgetAccentTextStyle}
+                        >
                           BAL
                         </span>
-                        <span className="font-normal leading-normal text-[#FF8A00]">
+                        <span
+                          className="font-normal leading-normal text-[#FF8A00]"
+                          style={widgetAccentTextStyle}
+                        >
                           {" "}
                           :{" "}
                         </span>
@@ -1412,6 +1550,21 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
                 ? "!text-[#FF8A00]/80 !bg-[#FF8A00]/5 !border !border-[#FF8A00]/80"
                 : "text-[#FF8A00]/80 hover:text-[#FF8A00]/80 hover:border-[#FF8A00]/80 hover:bg-[#FF8A00]/5"
             }`}
+                            style={
+                              isWidgetMode
+                                ? {
+                                    color: widgetPrimaryColor,
+                                    borderColor:
+                                      selectedPercentage === value
+                                        ? widgetPrimaryColor
+                                        : `rgba(${widgetPrimaryRgb}, 0.4)`,
+                                    backgroundColor:
+                                      selectedPercentage === value
+                                        ? `rgba(${widgetPrimaryRgb}, 0.12)`
+                                        : "transparent",
+                                  }
+                                : undefined
+                            }
                             onClick={() => handlePercentageChange(value)}
                             disabled={isLoading}
                           >
@@ -1483,10 +1636,16 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
                     <div className="flex justify-between gap-3 items-center">
                       <div className="you_pay_heading">You Buy</div>
                       <div className="md:text-xs text-[10px] ">
-                        <span className="font-normal leading-normal text-[#FF8A00]">
+                        <span
+                          className="font-normal leading-normal text-[#FF8A00]"
+                          style={widgetAccentTextStyle}
+                        >
                           BAL
                         </span>{" "}
-                        <span className="font-normal leading-normal text-[#FF8A00]">
+                        <span
+                          className="font-normal leading-normal text-[#FF8A00]"
+                          style={widgetAccentTextStyle}
+                        >
                           {" "}
                           :{" "}
                         </span>
@@ -1702,7 +1861,10 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
                             >
                               Price Impact
                             </div>
-                            <div className="text-[9px] text-[#FF8A00] tracking-[0.04em]">
+                            <div
+                              className="text-[9px] text-[#FF8A00] tracking-[0.04em]"
+                              style={widgetAccentTextStyle}
+                            >
                               {priceImpact} %
                             </div>
                             <div className="text-[9px] text-white/20 tracking-[0.04em]">
@@ -1745,13 +1907,16 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
                             ? "opacity-50 cursor-not-allowed"
                             : " "
                         }  text-xs`}
+                        style={widgetPrimaryButtonStyle}
                       >
                         <span>{getButtonText()}</span>
                       </button>
                     </div>
-                    <p className="text-center text-[9px] text-white/10 mb-3 font-medium tracking-[0.14em]">
-                      POWERED BY EMPX · 100+ DEXS · ZERO FEES
-                    </p>
+                    {showPoweredBy && (
+                      <p className="text-center text-[9px] text-white/10 mb-3 font-medium tracking-[0.14em]">
+                        POWERED BY EMPX · 100+ DEXS · ZERO FEES
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useAccount, useBalance } from "wagmi";
 import { useGasBridgeStore } from "../../redux/store/gasBridgeStore";
 import { useGetCalldataQuote } from "../../hooks/useGasBridgeAPI";
@@ -9,6 +9,12 @@ import ChainSelector from "../../components/gas/ChainSelector";
 import UpDownAr from "../../assets/images/reverse.svg";
 import TransactionHistory from "./TransactionHistory";
 import { useGetChains } from "../../hooks/useGasBridgeAPI";
+import {
+  filterDisplayGasChains,
+  formatBridgeFee,
+  formatGasChainPrice,
+  GAS_CHAIN_PAGE_SIZE,
+} from "./gasPriceHelpers";
 
 // Chain ID to network symbol mapping for GeckoTerminal API
 const CHAIN_SYMBOLS = {
@@ -142,6 +148,7 @@ const TransferPanel = () => {
     const expectedAmountInEth = formatEther(BigInt(expectedAmountInWei));
     formattedExpectedAmount = parseFloat(expectedAmountInEth).toFixed(6);
   }
+  const bridgeFeeLabel = formatBridgeFee(quoteData?.quotes?.[0]);
   const switchRef = useRef(null);
 
   const [selectedPercentage, setSelectedPercentage] = useState(null);
@@ -413,13 +420,21 @@ const TransferPanel = () => {
     if (digits >= 11) return "2.4rem";
     return "clamp(2.2rem, 5vw, 3rem)";
   };
-  const ITEMS_PER_PAGE = 6;
   const [page, setPage] = useState(0);
-  const totalPages = Math.ceil(chains.length / ITEMS_PER_PAGE);
-  const paginatedChains = chains.slice(
-    page * ITEMS_PER_PAGE,
-    (page + 1) * ITEMS_PER_PAGE,
+  const displayGasChains = useMemo(
+    () => filterDisplayGasChains(chains),
+    [chains],
   );
+  const totalPages = Math.ceil(displayGasChains.length / GAS_CHAIN_PAGE_SIZE);
+  const safeTotalPages = Math.max(totalPages, 1);
+  const paginatedChains = displayGasChains.slice(
+    page * GAS_CHAIN_PAGE_SIZE,
+    (page + 1) * GAS_CHAIN_PAGE_SIZE,
+  );
+
+  useEffect(() => {
+    setPage((currentPage) => Math.min(currentPage, safeTotalPages - 1));
+  }, [safeTotalPages]);
   //
   return (
     <>
@@ -427,7 +442,7 @@ const TransferPanel = () => {
         <p className="gas-header-title">LIVE GAS PRICES</p>
         <div className="flex items-center gap-2">
           <span className="gas-page-indicator">
-            {page + 1} / {totalPages || 1}
+            {page + 1} / {safeTotalPages}
           </span>
           <button
             className={`gas-nav-btn ${page === 0 ? "disabled" : ""}`}
@@ -440,10 +455,10 @@ const TransferPanel = () => {
           </button>
           <button
             className={`gas-nav-btn ${
-              page === totalPages - 1 ? "disabled" : ""
+              page >= safeTotalPages - 1 ? "disabled" : ""
             }`}
-            onClick={() => setPage((p) => Math.min(p + 1, totalPages - 1))}
-            disabled={page === totalPages - 1}
+            onClick={() => setPage((p) => Math.min(p + 1, safeTotalPages - 1))}
+            disabled={page >= safeTotalPages - 1}
           >
             <svg width={10} height={10} viewBox="0 0 24 24">
               <path d="m9 18 6-6-6-6" />
@@ -454,31 +469,36 @@ const TransferPanel = () => {
       <div className="gas-chain-grid">
         {chainsLoading ? (
           <p className="text-white text-xs">Loading chains...</p>
+        ) : paginatedChains.length === 0 ? (
+          <p className="text-white text-xs">No gas data available.</p>
         ) : (
-          paginatedChains.map((chain) => (
-            <button
-              key={chain.chain}
-              onClick={() => setToChain(chain.chain)}
-              className={`gas-chain-card ${
-                toChainId === chain.chain ? "active" : ""
-              }`}
-            >
-              <div className="gas-chain-top">
-                <div className="gas-chain-icon uppercase">{chain.symbol?.[0] || "?"}</div>
-                <div className="gas-chain-status" />
-              </div>
-              <p className="gas-chain-name">{chain.name}</p>
-              {/* Replace with real gas data later */}
-              <p className="gas-chain-price">--</p>
-              <p className="gas-chain-meta">avg transfer · -- gwei</p>
-            </button>
-          ))
+          paginatedChains.map((chain) => {
+            const gasPrice = formatGasChainPrice(chain);
+
+            return (
+              <button
+                key={chain.chain}
+                onClick={() => setToChain(chain.chain)}
+                className={`gas-chain-card ${
+                  toChainId === chain.chain ? "active" : ""
+                }`}
+              >
+                <div className="gas-chain-top">
+                  <div className="gas-chain-icon uppercase">
+                    {chain.symbol?.[0] || "?"}
+                  </div>
+                  <div className="gas-chain-status" />
+                </div>
+                <p className="gas-chain-name">{chain.name}</p>
+                <p className="gas-chain-price">{gasPrice.transferCost}</p>
+                <p className="gas-chain-meta">
+                  avg transfer · {gasPrice.gasUnit}
+                </p>
+              </button>
+            );
+          })
         )}
       </div>
-      <p className="text-[9px] font-bold tracking-[0.25em] text-white/20 mb-[10px]">
-        RECENT GAS TRANSFERS
-      </p>
-      <TransactionHistory />
       <div className="w-full md:px-0 px-1">
         {/*  */}
         <div className="w-full">
@@ -663,7 +683,7 @@ const TransferPanel = () => {
             <div className="mb-[14px] py-[10px] border-t border-white/[0.05]">
               <div className="flex justify-between py-[4px] border-b border-white/[0.04]">
                 <div className="text-[10px] text-white/[0.22] whitespace-nowrap">
-                  DESTINATION CHAI
+                  DESTINATION CHAIN
                 </div>
                 <div className="text-[10px] font-semibold text-white/[0.55] w-full text-right">
                   <div className="w-full text-right">
@@ -691,14 +711,16 @@ const TransferPanel = () => {
                   </div>
                 </div>
               </div>
-              <div className="flex justify-between py-[4px] border-b border-white/[0.04]">
-                <span className="text-[10px] text-white/[0.22]">
-                  Bridge Fee
-                </span>
-                <span className="text-[10px] font-semibold text-white/[0.55]">
-                  $1.42
-                </span>
-              </div>
+              {bridgeFeeLabel ? (
+                <div className="flex justify-between py-[4px] border-b border-white/[0.04]">
+                  <span className="text-[10px] text-white/[0.22]">
+                    Bridge Fee
+                  </span>
+                  <span className="text-[10px] font-semibold text-white/[0.55]">
+                    {bridgeFeeLabel}
+                  </span>
+                </div>
+              ) : null}
 
               {/* <div className="flex justify-between py-[4px] border-b border-white/[0.04]">
                 <span className="text-[10px] text-white/[0.22]">
@@ -765,6 +787,10 @@ const TransferPanel = () => {
           </div>
         </div>
       </div>
+      <p className="text-[9px] font-bold tracking-[0.25em] text-white/20 mb-[10px]">
+        RECENT GAS TRANSFERS
+      </p>
+      <TransactionHistory />
       {/*  */}
     </>
   );
