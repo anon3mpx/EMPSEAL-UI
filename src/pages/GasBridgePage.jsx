@@ -4,7 +4,7 @@ import TransactionHistory from "../components/gas/TransactionHistory";
 import Wallet from "./swap/Wallet";
 import BG from "../assets/images/empx-bg1.webp";
 import { useState } from "react";
-import { Helmet } from "react-helmet";
+import { HelmetProvider } from "react-helmet-async";
 import BreadCrumb from "../components/BreadCrumb";
 import { motion } from "framer-motion";
 
@@ -13,7 +13,7 @@ export default function GasBridgePage() {
 
   return (
     <>
-      <Helmet>
+      <HelmetProvider>
         <title>EMPX | Gas Bridge - Gasless Cross-Chain Transfers</title>
         <meta
           name="description"
@@ -23,7 +23,7 @@ export default function GasBridgePage() {
           name="keywords"
           content="EMPX, DeFi, decentralized finance, crypto trading, multi-chain bridge, DEX aggregator, limit orders, Web3, blockchain, cryptocurrency, on-chain trading"
         />
-      </Helmet>
+      </HelmetProvider>
       <BreadCrumb />
       <div className="min-h-[calc(100vh-52px)] flex flex-col items-center px-4 py-20 bg-gradient max-w-[960px] mx-auto">
         <div className="md:max-w-[1100px] w-full mx-auto p-4 text-white">

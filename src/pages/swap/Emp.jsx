@@ -20,7 +20,7 @@ import { useStore } from "../../redux/store/routeStore";
 import Transaction from "./Transaction";
 import { Copy, Check, InfoIcon } from "lucide-react";
 import { useChainConfig } from "../../hooks/useChainConfig";
-import ProvidersListNew from "../bridge/ProvidersList-new";
+// import ProvidersListNew from "../bridge/ProvidersList-new";
 // import { SmartRouter } from "../../utils/services/SmartRouter";
 import {
   checkAllowance,

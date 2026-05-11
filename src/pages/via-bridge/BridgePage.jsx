@@ -5,7 +5,7 @@ import Wallet from "./components/Wallet";
 // import { Link } from "react-router-dom";
 // import { useLocation } from "react-router-dom";
 import BG from "../../assets/images/empx-bg1.webp";
-import { Helmet } from "react-helmet";
+import { HelmetProvider } from "react-helmet-async";
 import BreadCrumb from "../../components/BreadCrumb";
 
 const BridgePage = () => {
@@ -22,7 +22,7 @@ const BridgePage = () => {
 
   return (
     <>
-      <Helmet>
+      <HelmetProvider>
         <title>EMPX | Via Bridge - Cross-Chain Asset Bridge</title>
         <meta
           name="description"
@@ -32,7 +32,7 @@ const BridgePage = () => {
           name="keywords"
           content="EMPX, DeFi, decentralized finance, crypto trading, multi-chain bridge, DEX aggregator, limit orders, Web3, blockchain, cryptocurrency, on-chain trading"
         />
-      </Helmet>
+      </HelmetProvider>
       <BreadCrumb />
       <div className="relative">
         <BridgeInterface />
