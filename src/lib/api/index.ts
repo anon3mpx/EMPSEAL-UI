@@ -1,18 +1,21 @@
 // Main API Aggregator
-// Cycles between multiple data sources: CoinGecko, DeBank, Zapper, CoinPaprika
-// Handles RPC failover and rate limiting
+// Portfolio balances are fetched on-chain through wagmi/viem multicall.
+// Pricing is supplied by the configured market-data provider.
 
 import { getTokenPricesWithHistory, getCoinGeckoId, COMMON_TOKEN_IDS } from "./coingecko";
-import { getPortfolio, getChainBalances, getMockPortfolio, getMockChainBalances, DeBankToken } from "./debank";
-import { getNfts, getMockNfts, ZapperNft } from "./zapper";
 import { getPrice, getPaprikaId, PAPRIKA_IDS } from "./coinpaprika";
 import { CHAIN_CONFIG, ChainId, CHAIN_LIST } from "./chains";
+import { fetchOnchainPortfolio } from "./onchainPortfolio";
 
 export interface PortfolioToken {
+  id?: string;
+  address?: string;
+  chainId?: number;
   symbol: string;
   name: string;
   logo: string;
   chain: string;
+  chainName?: string;
   chainColor: string;
   amount: number;
   value: number;
@@ -51,100 +54,37 @@ export interface PortfolioData {
   nfts: NftHolding[];
   sparklines: Record<string, number[]>;
   chartData: number[];
+  lastUpdated?: number;
+}
+
+export interface FetchPortfolioOptions {
+  forceRefresh?: boolean;
 }
 
 // Aggregated portfolio data fetcher
-export async function fetchPortfolio(address: string): Promise<PortfolioData> {
+export async function fetchPortfolio(
+  address: string,
+  options: FetchPortfolioOptions = {},
+): Promise<PortfolioData> {
   // If no address, return mock data for demo
   if (!address) {
     return getMockData();
   }
 
   try {
-    // Fetch from multiple sources in parallel
-    const [debankData, nfts] = await Promise.all([
-      getPortfolio(address),
-      getNfts(address),
-    ]);
-
-    // If DeBank fails, fall back to mock
-    if (!debankData) {
-      console.warn("DeBank unavailable, using mock data");
-      return getMockData();
-    }
-
-    // Get price changes from CoinGecko
-    const coinIds = debankData.token_list
-      .map(t => COMMON_TOKEN_IDS[t.symbol.toUpperCase()] || t.symbol.toLowerCase())
-      .filter(Boolean);
-
-    const priceData = await getTokenPricesWithHistory(coinIds);
-
-    // Transform DeBank tokens to portfolio format
-    const tokens = debankData.token_list.map((token, i, arr) => {
-      const cgId = COMMON_TOKEN_IDS[token.symbol.toUpperCase()] || token.symbol.toLowerCase();
-      const chainConfig = CHAIN_CONFIG[token.chain as ChainId] || CHAIN_CONFIG.ethereum;
-      const totalValue = arr.reduce((sum, t) => sum + t.value, 0);
-
-      return {
-        symbol: token.symbol,
-        name: token.name,
-        logo: token.logo_url || chainConfig.logo,
-        chain: token.chain,
-        chainColor: chainConfig.color,
-        amount: token.balance,
-        value: token.value,
-        price: token.price,
-        change24h: priceData.changes24h[cgId] || 0,
-        change7d: priceData.changes7d[cgId] || 0,
-        allocation: Math.round((token.value / totalValue) * 100),
-        coinGeckoId: cgId,
-      };
-    });
-
-    // Get chain balances
-    const chainBalances = await getChainBalances(address);
-    const chains: ChainBalance[] = chainBalances.map(cb => {
-      const chainConfig = CHAIN_CONFIG[cb.chain as ChainId] || CHAIN_CONFIG.ethereum;
-      return {
-        chain: cb.chain,
-        chainName: chainConfig.name,
-        logo: chainConfig.logo,
-        value: cb.usd_value,
-        tokens: cb.token_count,
-        color: chainConfig.color,
-      };
-    });
-
-    // Transform NFTs
-    const nftHoldings: NftHolding[] = nfts.map((nft, i) => ({
-      id: i + 1,
-      name: nft.name,
-      collection: nft.collectionName,
-      chain: nft.network,
-      icon: getNftIcon(nft.collectionName),
-      floor: nft.floorPrice ? `${nft.floorPrice} ETH` : "—",
-      rare: getNftRarity(nft.floorPrice),
-    }));
-
-    // Calculate total and changes
-    const totalValue = debankData.total_networth_usd;
-    const change24h = tokens.reduce((sum, t) => sum + (t.value * t.change24h / 100), 0) / totalValue * 100;
-    const change7d = tokens.reduce((sum, t) => sum + (t.value * t.change7d / 100), 0) / totalValue * 100;
-
-    return {
-      totalValue,
-      change24h,
-      change7d,
-      tokens,
-      chains,
-      nfts: nftHoldings,
-      sparklines: generateSparklines(tokens),
-      chartData: generateChartData(totalValue),
-    };
+    return await fetchOnchainPortfolio(address, options);
   } catch (error) {
     console.error("Portfolio fetch failed:", error);
-    return getMockData();
+    return {
+      totalValue: 0,
+      change24h: 0,
+      change7d: 0,
+      tokens: [],
+      chains: [],
+      nfts: [],
+      sparklines: {},
+      chartData: [],
+    };
   }
 }
 
@@ -246,7 +186,8 @@ function getNftRarity(floorPrice?: number): string {
 
 // Export individual API modules for direct access
 export { getTokenPricesWithHistory, getCoinGeckoId, COMMON_TOKEN_IDS } from "./coingecko";
-export { getPortfolio, getChainBalances, getMockPortfolio, getMockChainBalances } from "./debank";
-export { getNfts, getMockNfts } from "./zapper";
+export { fetchOnchainPortfolio } from "./onchainPortfolio";
+export { getGeckoTerminalTokenPrices } from "./geckoTerminal";
+export { getDexScreenerTokenPrices } from "./dexScreener";
 export { getPrice, getPaprikaId, PAPRIKA_IDS } from "./coinpaprika";
 export type { CHAIN_CONFIG, CHAIN_LIST, ChainId } from "./chains";

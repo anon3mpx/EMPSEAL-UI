@@ -85,6 +85,20 @@ export const CHAIN_CONFIG = {
     explorer: "https://scan.pulsechain.com",
     coinGeckoId: "pulsechain",
   },
+  rootstock: {
+    id: "rootstock",
+    name: "Rootstock",
+    symbol: "RBTC",
+    logo: "http://api-assets.rubic.exchange/assets/coingecko/rootstock/0x0000000000000000000000000000000000000000/logo.png",
+    color: "#FF8A00",
+    rpc: [
+      "https://public-node.rsk.co",
+      "https://rootstock-mainnet.public.blastapi.io",
+      "https://rootstock.drpc.org",
+    ],
+    explorer: "https://explorer.rsk.co",
+    coinGeckoId: "rootstock-rbtc",
+  },
   optimism: {
     id: "optimism",
     name: "Optimism",
