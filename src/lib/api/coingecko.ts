@@ -7,8 +7,15 @@ interface CoinGeckoPrice {
   [coinId: string]: {
     usd: number;
     usd_24h_change?: number;
-    usd_7d_inverse?: number;
+    usd_7d_change?: number;
+    last_updated_at?: number;
   };
+}
+
+export interface CoinGeckoTokenPrice {
+  usd: number;
+  usd_24h_change?: number;
+  last_updated_at?: number;
 }
 
 interface CoinGeckoCoin {
@@ -37,7 +44,16 @@ async function rateLimitedFetch(url: string, options?: RequestInit): Promise<Res
   }
   
   lastRequestTime = Date.now();
-  return fetch(url, options);
+
+  const headers = new Headers(options?.headers);
+  const env = (import.meta as unknown as { env?: Record<string, string | undefined> }).env;
+  const proKey = env?.VITE_COINGECKO_PRO_API_KEY;
+  const demoKey = env?.VITE_COINGECKO_API_KEY || env?.VITE_COINGECKO_DEMO_API_KEY;
+
+  if (proKey) headers.set("x-cg-pro-api-key", proKey);
+  else if (demoKey) headers.set("x-cg-demo-api-key", demoKey);
+
+  return fetch(url, { ...options, headers });
 }
 
 export async function getTokenPrices(coinIds: string[]): Promise<Record<string, number>> {
@@ -84,13 +100,53 @@ export async function getTokenPricesWithHistory(coinIds: string[]): Promise<{
     for (const [id, info] of Object.entries(data)) {
       prices[id] = info.usd;
       changes24h[id] = info.usd_24h_change || 0;
-      changes7d[id] = info.usd_7d_inverse || 0;
+      changes7d[id] = info.usd_7d_change || 0;
     }
     
     return { prices, changes24h, changes7d };
   } catch (error) {
     console.error("CoinGecko price fetch failed:", error);
     return { prices: {}, changes24h: {}, changes7d: {} };
+  }
+}
+
+export async function getTokenPricesByContract(
+  assetPlatformId: string,
+  contractAddresses: string[],
+): Promise<Record<string, CoinGeckoTokenPrice>> {
+  const uniqueAddresses = [
+    ...new Set(contractAddresses.map((address) => address.toLowerCase())),
+  ].filter(Boolean);
+
+  if (!assetPlatformId || uniqueAddresses.length === 0) return {};
+
+  try {
+    const results: Record<string, CoinGeckoTokenPrice> = {};
+    const batchSize = 100;
+
+    for (let i = 0; i < uniqueAddresses.length; i += batchSize) {
+      const batch = uniqueAddresses.slice(i, i + batchSize);
+      const params = new URLSearchParams({
+        contract_addresses: batch.join(","),
+        vs_currencies: "usd",
+        include_24hr_change: "true",
+        include_last_updated_at: "true",
+      });
+      const url = `${CG_BASE}/simple/token_price/${assetPlatformId}?${params.toString()}`;
+
+      const res = await rateLimitedFetch(url);
+      if (!res.ok) throw new Error(`CG token price error: ${res.status}`);
+
+      const data: Record<string, CoinGeckoTokenPrice> = await res.json();
+      for (const [address, price] of Object.entries(data)) {
+        results[address.toLowerCase()] = price;
+      }
+    }
+
+    return results;
+  } catch (error) {
+    console.error("CoinGecko contract price fetch failed:", error);
+    return {};
   }
 }
 
@@ -144,6 +200,7 @@ export const COMMON_TOKEN_IDS: Record<string, string> = {
   USDT: "tether",
   DAI: "dai",
   MATIC: "matic-network",
+  POL: "polygon-ecosystem-token",
   ARB: "arbitrum",
   OP: "optimism",
   BNB: "binancecoin",

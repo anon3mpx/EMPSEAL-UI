@@ -1,10 +1,36 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { useAccount } from "wagmi";
 import { motion } from "framer-motion";
 import { Link } from "wouter";
 // import WalletConnectModal from "../landing/dapp/WalletConnectModal";
-import { fetchPortfolio, PortfolioData, ChainBalance } from "../../lib/api";
+import {
+  fetchPortfolio,
+  getTokenPricesWithHistory,
+  PortfolioData,
+  ChainBalance,
+} from "../../lib/api";
 import BreadCrumb from "../../components/BreadCrumb";
+
+const REFRESH_COOLDOWN_MS = 60_000;
+const MARKET_CACHE_TTL_MS = 10 * 60 * 1000;
+const MARKET_CACHE_KEY = "empx_portfolio_market_assets_v1";
+
+type MarketAsset = {
+  id: "bitcoin" | "ethereum";
+  label: string;
+  sym: string;
+  price: number;
+  change24h: number;
+  change7d: number;
+  data: number[];
+};
+
+type MarketAssetCacheEntry = {
+  data: MarketAsset[];
+  expiry: number;
+};
+
+let marketAssetCache: MarketAssetCacheEntry | null = null;
 
 function Sparkline({ data, up }: { data: number[]; up: boolean }) {
   const min = Math.min(...data);
@@ -36,9 +62,18 @@ function Sparkline({ data, up }: { data: number[]; up: boolean }) {
 function PortfolioChart({ data }: { data: number[] }) {
   const min = Math.min(...data);
   const max = Math.max(...data);
-  const range = max - min;
+  const range = max - min || 1;
   const W = 600;
   const H = 140;
+  const labelDates = Array.from({ length: 7 }, (_, index) => {
+    const date = new Date();
+    date.setDate(date.getDate() - (6 - index) * 5);
+
+    return date.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+    });
+  });
   const pts = data
     .map(
       (v, i) =>
@@ -87,15 +122,7 @@ function PortfolioChart({ data }: { data: number[] }) {
         <circle cx={lx} cy={ly} r="7" fill="rgba(255,138,0,0.1)" />
       </svg>
       <div className="flex justify-between mt-2">
-        {[
-          "Mar 12",
-          "Mar 17",
-          "Mar 22",
-          "Mar 27",
-          "Apr 1",
-          "Apr 6",
-          "Apr 11",
-        ].map((d) => (
+        {labelDates.map((d) => (
           <span
             key={d}
             style={{
@@ -122,6 +149,200 @@ const Skel = ({ w = "100%", h = 20 }: { w?: string | number; h?: number }) => (
     }}
   />
 );
+
+function LogoMark({
+  value,
+  fallback,
+  size,
+}: {
+  value?: string;
+  fallback: string;
+  size: number;
+}) {
+  const [failed, setFailed] = useState(false);
+  const label = typeof value === "string" ? value.trim() : "";
+  const fallbackLabel = (fallback || "?").slice(0, 3).toUpperCase();
+  const isRemoteImage = /^https?:\/\//i.test(label);
+
+  if (isRemoteImage && !failed) {
+    return (
+      <img
+        src={label}
+        alt=""
+        aria-hidden="true"
+        onError={() => setFailed(true)}
+        style={{
+          width: size,
+          height: size,
+          objectFit: "contain",
+          display: "block",
+        }}
+      />
+    );
+  }
+
+  return <>{fallbackLabel}</>;
+}
+
+const formatUsd = (value: number, minimumFractionDigits = 2) =>
+  `$${value.toLocaleString("en-US", {
+    minimumFractionDigits,
+    maximumFractionDigits: 2,
+  })}`;
+
+const formatPercent = (value: number) =>
+  `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
+
+const formatSignedUsd = (value: number) =>
+  `${value >= 0 ? "+" : "-"}${formatUsd(Math.abs(value))}`;
+
+const formatTokenAmount = (value: number) =>
+  value.toLocaleString("en-US", {
+    maximumFractionDigits: value >= 1 ? 4 : 8,
+  });
+
+const formatLastUpdated = (timestamp?: number) => {
+  if (!timestamp) return "Not refreshed yet";
+
+  return `Updated ${new Date(timestamp).toLocaleTimeString("en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+  })}`;
+};
+
+function generateMarketSparkline(
+  seed: string,
+  price: number,
+  changePercent: number,
+): number[] {
+  const points = 10;
+  const startPrice =
+    price > 0 ? price / (1 + (changePercent || 0) / 100) : 0;
+  let hash = 0;
+
+  for (let i = 0; i < seed.length; i += 1) {
+    hash = (hash * 31 + seed.charCodeAt(i)) % 997;
+  }
+
+  return Array.from({ length: points }, (_, index) => {
+    const progress = index / (points - 1);
+    const trend = startPrice + (price - startPrice) * progress;
+    const wave =
+      price *
+      Math.sin(progress * Math.PI * 2 + (hash % 17)) *
+      0.0018;
+    const curve = price * Math.sin(progress * Math.PI) * 0.0012;
+
+    return Math.max(0, trend + wave + curve);
+  });
+}
+
+function readStoredMarketAssetCache(): MarketAssetCacheEntry | null {
+  if (typeof window === "undefined") return null;
+
+  try {
+    const raw = window.localStorage.getItem(MARKET_CACHE_KEY);
+    if (!raw) return null;
+
+    return JSON.parse(raw) as MarketAssetCacheEntry;
+  } catch (error) {
+    console.warn("Failed to read market asset cache:", error);
+    return null;
+  }
+}
+
+function writeStoredMarketAssetCache(entry: MarketAssetCacheEntry) {
+  if (typeof window === "undefined") return;
+
+  try {
+    window.localStorage.setItem(MARKET_CACHE_KEY, JSON.stringify(entry));
+  } catch (error) {
+    console.warn("Failed to write market asset cache:", error);
+  }
+}
+
+function getCachedMarketAssets(): MarketAsset[] | null {
+  const now = Date.now();
+  const cached = marketAssetCache || readStoredMarketAssetCache();
+
+  if (!cached || cached.expiry <= now) return null;
+
+  marketAssetCache = cached;
+  return cached.data;
+}
+
+async function fetchMarketAssets(): Promise<MarketAsset[]> {
+  const cached = getCachedMarketAssets();
+  if (cached) return cached;
+
+  const priceData = await getTokenPricesWithHistory(["bitcoin", "ethereum"]);
+  const assets: MarketAsset[] = [
+    {
+      id: "bitcoin",
+      label: "BITCOIN",
+      sym: "BTC",
+      price: priceData.prices.bitcoin || 0,
+      change24h: priceData.changes24h.bitcoin || 0,
+      change7d: priceData.changes7d.bitcoin || 0,
+      data: generateMarketSparkline(
+        "bitcoin",
+        priceData.prices.bitcoin || 0,
+        priceData.changes7d.bitcoin || priceData.changes24h.bitcoin || 0,
+      ),
+    },
+    {
+      id: "ethereum",
+      label: "ETHEREUM",
+      sym: "ETH",
+      price: priceData.prices.ethereum || 0,
+      change24h: priceData.changes24h.ethereum || 0,
+      change7d: priceData.changes7d.ethereum || 0,
+      data: generateMarketSparkline(
+        "ethereum",
+        priceData.prices.ethereum || 0,
+        priceData.changes7d.ethereum || priceData.changes24h.ethereum || 0,
+      ),
+    },
+  ];
+  const entry = {
+    data: assets,
+    expiry: Date.now() + MARKET_CACHE_TTL_MS,
+  };
+
+  marketAssetCache = entry;
+  writeStoredMarketAssetCache(entry);
+
+  return assets;
+}
+
+function ChangePill({
+  change,
+  value,
+}: {
+  change: number;
+  value: number;
+}) {
+  const positive = change >= 0;
+  const color = positive ? "#4ade80" : "#f87171";
+  const bg = positive ? "rgba(74,222,128,0.07)" : "rgba(248,113,113,0.07)";
+  const border = positive ? "rgba(74,222,128,0.12)" : "rgba(248,113,113,0.12)";
+
+  return (
+    <span
+      style={{
+        fontSize: 11,
+        fontWeight: 600,
+        padding: "3px 8px",
+        borderRadius: 0,
+        background: bg,
+        color,
+        border: `1px solid ${border}`,
+      }}
+    >
+      {positive ? "▲" : "▼"} {formatSignedUsd(value)} · {formatPercent(change)}
+    </span>
+  );
+}
 
 function ChainBreakdown({
   chains,
@@ -239,7 +460,11 @@ function ChainBreakdown({
                       borderRadius: 0,
                     }}
                   >
-                    {c.logo}
+                    <LogoMark
+                      value={c.logo}
+                      fallback={c.chainName[0] || c.chain}
+                      size={16}
+                    />
                   </div>
                   <span
                     style={{
@@ -258,9 +483,9 @@ function ChainBreakdown({
                     color: "white",
                     letterSpacing: "-0.03em",
                     marginBottom: 2,
-                  }}
-                >
-                  ${c.value.toLocaleString()}
+                }}
+              >
+                  {c.value > 0 ? formatUsd(c.value, 0) : "Unpriced"}
                 </p>
                 <p
                   style={{
@@ -299,46 +524,131 @@ export default function PortfolioPage() {
   const [walletOpen, setWalletOpen] = useState(false);
   const { address, isConnected } = useAccount();
   const [portfolio, setPortfolio] = useState<PortfolioData | null>(null);
+  const [portfolioLoading, setPortfolioLoading] = useState(false);
+  const [portfolioError, setPortfolioError] = useState<string | null>(null);
+  const [refreshCooldownUntil, setRefreshCooldownUntil] = useState(0);
+  const [now, setNow] = useState(() => Date.now());
+  const [marketAssets, setMarketAssets] = useState<MarketAsset[]>([]);
   const [sortBy, setSortBy] = useState<SortKey>("value");
   const [sortDir, setSortDir] = useState<1 | -1>(-1);
   const [period, setPeriod] = useState<"24H" | "7D" | "30D" | "ALL">("30D");
 
+  const loadPortfolio = useCallback(
+    async (walletAddress: string, forceRefresh = false) => {
+      if (!walletAddress) return;
+
+      if (forceRefresh) {
+        const refreshedAt = Date.now();
+        setNow(refreshedAt);
+        setRefreshCooldownUntil(refreshedAt + REFRESH_COOLDOWN_MS);
+      }
+
+      setPortfolioLoading(true);
+      setPortfolioError(null);
+
+      try {
+        const data = await fetchPortfolio(walletAddress, { forceRefresh });
+        setPortfolio(data);
+      } catch (error) {
+        console.error("Failed to fetch portfolio:", error);
+        setPortfolioError("Failed to fetch portfolio");
+      } finally {
+        setPortfolioLoading(false);
+      }
+    },
+    [],
+  );
+
   // Handle wallet connection from the local demo modal
   const handleConnect = async (wallet: string, addr: string) => {
     try {
-      const data = await fetchPortfolio(addr);
-      setPortfolio(data);
+      await loadPortfolio(addr);
     } catch (error) {
       console.error("Failed to fetch portfolio:", error);
+      setPortfolioError("Failed to fetch portfolio");
     }
   };
 
   useEffect(() => {
-    if (!isConnected || !address) return;
+    if (refreshCooldownUntil <= Date.now()) return;
 
-    const loadPortfolio = async () => {
-      try {
-        const data = await fetchPortfolio(address);
-        setPortfolio(data);
-      } catch (error) {
-        console.error("Failed to fetch portfolio:", error);
+    const interval = window.setInterval(() => {
+      const currentTime = Date.now();
+      setNow(currentTime);
+
+      if (currentTime >= refreshCooldownUntil) {
+        window.clearInterval(interval);
       }
-    };
+    }, 1000);
 
-    loadPortfolio();
-  }, [address, isConnected]);
+    return () => window.clearInterval(interval);
+  }, [refreshCooldownUntil]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    fetchMarketAssets()
+      .then((assets) => {
+        if (!cancelled) setMarketAssets(assets);
+      })
+      .catch((error) => {
+        console.warn("Failed to fetch market assets:", error);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isConnected || !address) {
+      setPortfolio(null);
+      setPortfolioLoading(false);
+      setPortfolioError(null);
+      setRefreshCooldownUntil(0);
+      return;
+    }
+
+    loadPortfolio(address);
+  }, [address, isConnected, loadPortfolio]);
 
   const connected = isConnected || Boolean(portfolio);
+  const portfolioReady = Boolean(portfolio);
 
   // Get data from portfolio or use defaults
-  const totalValue = portfolio?.totalValue ?? 11551.1;
-  const change24h = portfolio?.change24h ?? 2.52;
-  const change7d = portfolio?.change7d ?? 7.87;
+  const totalValue = portfolio?.totalValue ?? 0;
+  const change24h = portfolio?.change24h ?? 0;
+  const change7d = portfolio?.change7d ?? 0;
   const tokens = portfolio?.tokens ?? [];
   const chains = portfolio?.chains ?? [];
   const nfts = portfolio?.nfts ?? [];
   const sparklines = portfolio?.sparklines ?? {};
   const chartData = portfolio?.chartData ?? [];
+  const pricedTokens = useMemo(
+    () => tokens.filter((token) => token.price > 0 && token.value > 0),
+    [tokens],
+  );
+  const hasPricedPortfolio = totalValue > 0 && pricedTokens.length > 0;
+  const portfolioValueChange24h = (totalValue * change24h) / 100;
+  const portfolioValueChange7d = (totalValue * change7d) / 100;
+  const bestPerformer = pricedTokens.reduce<PortfolioData["tokens"][number] | null>(
+    (best, token) => (!best || token.change7d > best.change7d ? token : best),
+    null,
+  );
+  const refreshSecondsRemaining = Math.max(
+    0,
+    Math.ceil((refreshCooldownUntil - now) / 1000),
+  );
+  const canRefresh =
+    Boolean(address) &&
+    portfolioReady &&
+    !portfolioLoading &&
+    refreshSecondsRemaining === 0;
+
+  const handleRefresh = () => {
+    if (!address || !canRefresh) return;
+    loadPortfolio(address, true);
+  };
 
   const toggleSort = (key: SortKey) => {
     if (sortBy === key) setSortDir((d) => (d === -1 ? 1 : -1));
@@ -351,8 +661,27 @@ export default function PortfolioPage() {
   // Sort tokens
   const sortedTokens = useMemo(() => {
     if (!tokens.length) return [];
-    return [...tokens].sort((a, b) => sortDir * (b[sortBy] - a[sortBy]));
+    return [...tokens].sort((a, b) => {
+      const aValue = a[sortBy];
+      const bValue = b[sortBy];
+
+      if (aValue !== bValue) return sortDir * (bValue - aValue);
+      return b.amount - a.amount;
+    });
   }, [tokens, sortBy, sortDir]);
+  const marketCards: Array<
+    Partial<MarketAsset> & {
+      id: MarketAsset["id"];
+      label: string;
+      sym: string;
+    }
+  > =
+    marketAssets.length > 0
+      ? marketAssets
+      : [
+          { id: "bitcoin", label: "BITCOIN", sym: "BTC" },
+          { id: "ethereum", label: "ETHEREUM", sym: "ETH" },
+        ];
   // const sorted = [...TOKENS].sort((a, b) => sortDir * (b[sortBy] - a[sortBy]));
 
   return (
@@ -377,7 +706,7 @@ export default function PortfolioPage() {
               >
                 PORTFOLIO OVERVIEW
               </p>
-              {connected ? (
+              {portfolioReady ? (
                 <>
                   <h1
                     style={{
@@ -388,11 +717,7 @@ export default function PortfolioPage() {
                       lineHeight: 1,
                     }}
                   >
-                    $
-                    {totalValue.toLocaleString("en-US", {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}
+                    {formatUsd(totalValue)}
                     <span
                       style={{
                         color: "rgba(255,255,255,0.2)",
@@ -405,20 +730,26 @@ export default function PortfolioPage() {
                     className="flex items-center gap-2"
                     style={{ marginTop: 8 }}
                   >
-                    <span
-                      style={{
-                        fontSize: 11,
-                        fontWeight: 600,
-                        padding: "3px 8px",
-                        borderRadius: 0,
-                        background: "rgba(74,222,128,0.07)",
-                        color: "#4ade80",
-                        border: "1px solid rgba(74,222,128,0.12)",
-                      }}
-                    >
-                      ▲ ${((totalValue * change24h) / 100).toFixed(2)} · +
-                      {change24h.toFixed(2)}%
-                    </span>
+                    {hasPricedPortfolio ? (
+                      <ChangePill
+                        change={change24h}
+                        value={portfolioValueChange24h}
+                      />
+                    ) : (
+                      <span
+                        style={{
+                          fontSize: 11,
+                          fontWeight: 600,
+                          padding: "3px 8px",
+                          borderRadius: 0,
+                          background: "rgba(255,255,255,0.04)",
+                          color: "rgba(255,255,255,0.35)",
+                          border: "1px solid rgba(255,255,255,0.08)",
+                        }}
+                      >
+                        Pricing unavailable
+                      </span>
+                    )}
                     <span
                       style={{
                         fontSize: 10,
@@ -440,11 +771,56 @@ export default function PortfolioPage() {
                       marginTop: 10,
                     }}
                   >
-                    Connect wallet to view portfolio
+                    {portfolioLoading
+                      ? "Fetching on-chain balances..."
+                      : portfolioError || "Connect wallet to view portfolio"}
                   </p>
                 </>
               )}
             </div>
+            <div className="flex flex-col items-start md:items-end gap-2">
+              {portfolioReady && (
+                <p
+                  style={{
+                    fontSize: 10,
+                    color: "rgba(255,255,255,0.2)",
+                    letterSpacing: "0.04em",
+                  }}
+                >
+                  {formatLastUpdated(portfolio.lastUpdated)}
+                </p>
+              )}
+              {connected && (
+                <button
+                  onClick={handleRefresh}
+                  disabled={!canRefresh}
+                  className="transition-opacity"
+                  style={{
+                    padding: "8px 14px",
+                    borderRadius: 0,
+                    fontSize: 10,
+                    fontWeight: 700,
+                    letterSpacing: "0.08em",
+                    textTransform: "uppercase",
+                    background: canRefresh
+                      ? "rgba(255,138,0,0.12)"
+                      : "rgba(255,255,255,0.04)",
+                    color: canRefresh ? "#FF8A00" : "rgba(255,255,255,0.28)",
+                    border: `1px solid ${
+                      canRefresh
+                        ? "rgba(255,138,0,0.28)"
+                        : "rgba(255,255,255,0.08)"
+                    }`,
+                    cursor: canRefresh ? "pointer" : "not-allowed",
+                  }}
+                >
+                  {portfolioLoading
+                    ? "Refreshing"
+                    : refreshSecondsRemaining > 0
+                      ? `Wait ${refreshSecondsRemaining}s`
+                      : "Refresh"}
+                </button>
+              )}
             {/* <div className="flex items-center gap-2">
               <div
                 className="flex"
@@ -499,6 +875,7 @@ export default function PortfolioPage() {
                 </button>
               )}
             </div> */}
+            </div>
           </div>
           <motion.div
             initial={{ opacity: 0, y: 8 }}
@@ -513,33 +890,47 @@ export default function PortfolioPage() {
             {[
               {
                 label: "TOTAL VALUE",
-                val: `$${totalValue.toLocaleString()}`,
-                sub: `+${change24h.toFixed(2)}% today`,
-                subColor: "#4ade80",
+                val: formatUsd(totalValue, 0),
+                sub: hasPricedPortfolio
+                  ? `${formatPercent(change24h)} today`
+                  : "pricing unavailable",
+                subColor: hasPricedPortfolio
+                  ? change24h >= 0
+                    ? "#4ade80"
+                    : "#f87171"
+                  : "rgba(255,255,255,0.28)",
               },
               {
                 label: "24H P&L",
-                val: `+$${((totalValue * change24h) / 100).toFixed(2)}`,
+                val: hasPricedPortfolio
+                  ? formatSignedUsd(portfolioValueChange24h)
+                  : "—",
                 sub: "vs yesterday",
-                subColor: "#4ade80",
+                subColor: hasPricedPortfolio
+                  ? change24h >= 0
+                    ? "#4ade80"
+                    : "#f87171"
+                  : "rgba(255,255,255,0.28)",
               },
               {
                 label: "7D P&L",
-                val: `+$${((totalValue * change7d) / 100).toFixed(2)}`,
+                val: hasPricedPortfolio
+                  ? formatSignedUsd(portfolioValueChange7d)
+                  : "—",
                 sub: "vs last week",
-                subColor: "#4ade80",
+                subColor: hasPricedPortfolio
+                  ? change7d >= 0
+                    ? "#4ade80"
+                    : "#f87171"
+                  : "rgba(255,255,255,0.28)",
               },
               {
                 label: "BEST PERFORMER",
-                val:
-                  tokens.length > 0
-                    ? tokens.reduce(
-                        (best, t) => (t.change7d > best.change7d ? t : best),
-                        tokens[0],
-                      ).symbol
-                    : "PLS",
-                sub: `+${tokens.length > 0 ? Math.max(...tokens.map((t) => t.change7d)).toFixed(1) : "12.4"}% (7d)`,
-                subColor: "#FF8A00",
+                val: bestPerformer?.symbol || "—",
+                sub: bestPerformer
+                  ? `${formatPercent(bestPerformer.change7d)} (7d)`
+                  : "needs priced token",
+                subColor: bestPerformer ? "#FF8A00" : "rgba(255,255,255,0.28)",
               },
             ].map((s, i) => (
               <div
@@ -562,7 +953,7 @@ export default function PortfolioPage() {
                 >
                   {s.label}
                 </p>
-                {connected ? (
+                {portfolioReady ? (
                   <>
                     <p
                       style={{
@@ -635,7 +1026,7 @@ export default function PortfolioPage() {
                   >
                     PORTFOLIO VALUE · {period}
                   </p>
-                  {connected ? (
+                  {portfolioReady ? (
                     <p
                       style={{
                         fontSize: 22,
@@ -644,28 +1035,37 @@ export default function PortfolioPage() {
                         letterSpacing: "-0.03em",
                       }}
                     >
-                      $11,551.10
+                      {formatUsd(totalValue)}
                     </p>
                   ) : (
                     <Skel w={130} h={24} />
                   )}
                 </div>
-                <span
-                  style={{
-                    fontSize: 10,
-                    fontWeight: 700,
-                    padding: "4px 10px",
-                    borderRadius: 0,
-                    background: "rgba(74,222,128,0.07)",
-                    color: "#4ade80",
-                    border: "1px solid rgba(74,222,128,0.12)",
-                    letterSpacing: "0.06em",
-                  }}
-                >
-                  +{change7d.toFixed(2)}%
-                </span>
+                {hasPricedPortfolio && (
+                  <span
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 700,
+                      padding: "4px 10px",
+                      borderRadius: 0,
+                      background:
+                        change7d >= 0
+                          ? "rgba(74,222,128,0.07)"
+                          : "rgba(248,113,113,0.07)",
+                      color: change7d >= 0 ? "#4ade80" : "#f87171",
+                      border: `1px solid ${
+                        change7d >= 0
+                          ? "rgba(74,222,128,0.12)"
+                          : "rgba(248,113,113,0.12)"
+                      }`,
+                      letterSpacing: "0.06em",
+                    }}
+                  >
+                    {formatPercent(change7d)}
+                  </span>
+                )}
               </div>
-              {connected && chartData.length > 0 ? (
+              {portfolioReady && hasPricedPortfolio && chartData.length > 0 ? (
                 <PortfolioChart data={chartData} />
               ) : (
                 <div
@@ -674,48 +1074,40 @@ export default function PortfolioPage() {
                     height: 164,
                     background: "rgba(255,255,255,0.02)",
                     borderRadius: 0,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "rgba(255,255,255,0.22)",
+                    fontSize: 11,
+                    letterSpacing: "0.08em",
                   }}
-                />
+                >
+                  {portfolioReady
+                    ? "PRICE DATA UNAVAILABLE"
+                    : ""}
+                </div>
               )}
             </motion.div>
 
             {/* BTC + ETH stacked in the 3rd col */}
             <div className="flex flex-col gap-3">
-              {[
-                {
-                  label: "BITCOIN",
-                  sym: "BTC",
-                  price: "$67,533",
-                  change: "+2.8%",
-                  up: true,
-                  data: [
-                    60000, 62000, 61000, 64000, 63500, 65000, 66500, 65800,
-                    67000, 67533,
-                  ],
-                },
-                {
-                  label: "ETHEREUM",
-                  sym: "ETH",
-                  price: "$2,455",
-                  change: "+1.2%",
-                  up: true,
-                  data: [
-                    2100, 2200, 2300, 2280, 2350, 2400, 2380, 2420, 2440, 2455,
-                  ],
-                },
-              ].map((asset) => {
-                const min = Math.min(...asset.data),
-                  max = Math.max(...asset.data),
+              {marketCards.map((asset) => {
+                const assetData = asset.data || [];
+                const hasMarketPrice = Boolean(asset.price && assetData.length);
+                const min = assetData.length ? Math.min(...assetData) : 0,
+                  max = assetData.length ? Math.max(...assetData) : 0,
                   range = max - min || 1;
                 const W = 300,
                   H = 44;
-                const pts = asset.data
+                const pts = assetData
                   .map(
                     (v, i) =>
-                      `${(i / (asset.data.length - 1)) * W},${H - ((v - min) / range) * (H - 8) - 4}`,
+                      `${(i / (assetData.length - 1)) * W},${H - ((v - min) / range) * (H - 8) - 4}`,
                   )
                   .join(" ");
                 const fill = `0,${H} ` + pts + ` ${W},${H}`;
+                const positive = (asset.change24h || 0) >= 0;
+                const chartColor = positive ? "#4ade80" : "#f87171";
                 return (
                   <motion.div
                     key={asset.sym}
@@ -754,7 +1146,9 @@ export default function PortfolioPage() {
                             letterSpacing: "-0.03em",
                           }}
                         >
-                          {asset.price}
+                          {hasMarketPrice
+                            ? formatUsd(asset.price || 0, 0)
+                            : "—"}
                         </p>
                       </div>
                       <span
@@ -763,51 +1157,75 @@ export default function PortfolioPage() {
                           fontWeight: 700,
                           padding: "3px 8px",
                           borderRadius: 0,
-                          background: "rgba(74,222,128,0.07)",
-                          color: "#4ade80",
-                          border: "1px solid rgba(74,222,128,0.12)",
+                          background: hasMarketPrice
+                            ? positive
+                              ? "rgba(74,222,128,0.07)"
+                              : "rgba(248,113,113,0.07)"
+                            : "rgba(255,255,255,0.04)",
+                          color: hasMarketPrice
+                            ? chartColor
+                            : "rgba(255,255,255,0.28)",
+                          border: `1px solid ${
+                            hasMarketPrice
+                              ? positive
+                                ? "rgba(74,222,128,0.12)"
+                                : "rgba(248,113,113,0.12)"
+                              : "rgba(255,255,255,0.08)"
+                          }`,
                         }}
                       >
-                        {asset.change}
+                        {hasMarketPrice
+                          ? formatPercent(asset.change24h || 0)
+                          : "—"}
                       </span>
                     </div>
-                    <svg
-                      viewBox={`0 0 ${W} ${H}`}
-                      preserveAspectRatio="none"
-                      width="100%"
-                      height={H}
-                    >
-                      <defs>
-                        <linearGradient
-                          id={`gc-${asset.sym}`}
-                          x1="0"
-                          y1="0"
-                          x2="0"
-                          y2="1"
-                        >
-                          <stop
-                            offset="0%"
-                            stopColor="#4ade80"
-                            stopOpacity="0.1"
-                          />
-                          <stop
-                            offset="100%"
-                            stopColor="#4ade80"
-                            stopOpacity="0"
-                          />
-                        </linearGradient>
-                      </defs>
-                      <polygon points={fill} fill={`url(#gc-${asset.sym})`} />
-                      <polyline
-                        fill="none"
-                        stroke="#4ade80"
-                        strokeWidth="1.5"
-                        points={pts}
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        opacity="0.7"
+                    {hasMarketPrice ? (
+                      <svg
+                        viewBox={`0 0 ${W} ${H}`}
+                        preserveAspectRatio="none"
+                        width="100%"
+                        height={H}
+                      >
+                        <defs>
+                          <linearGradient
+                            id={`gc-${asset.sym}`}
+                            x1="0"
+                            y1="0"
+                            x2="0"
+                            y2="1"
+                          >
+                            <stop
+                              offset="0%"
+                              stopColor={chartColor}
+                              stopOpacity="0.1"
+                            />
+                            <stop
+                              offset="100%"
+                              stopColor={chartColor}
+                              stopOpacity="0"
+                            />
+                          </linearGradient>
+                        </defs>
+                        <polygon points={fill} fill={`url(#gc-${asset.sym})`} />
+                        <polyline
+                          fill="none"
+                          stroke={chartColor}
+                          strokeWidth="1.5"
+                          points={pts}
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          opacity="0.7"
+                        />
+                      </svg>
+                    ) : (
+                      <div
+                        style={{
+                          width: "100%",
+                          height: H,
+                          background: "rgba(255,255,255,0.02)",
+                        }}
                       />
-                    </svg>
+                    )}
                   </motion.div>
                 );
               })}
@@ -816,61 +1234,8 @@ export default function PortfolioPage() {
 
           {/* ── By Chain breakdown ── */}
           <ChainBreakdown
-            chains={
-              chains.length > 0
-                ? chains
-                : [
-                    {
-                      chain: "eth",
-                      chainName: "Ethereum",
-                      logo: "Ξ",
-                      value: 6942,
-                      tokens: 4,
-                      color: "#FF8A00",
-                    },
-                    {
-                      chain: "base",
-                      chainName: "Base",
-                      logo: "B",
-                      value: 2400,
-                      tokens: 1,
-                      color: "#FF8A00",
-                    },
-                    {
-                      chain: "pls",
-                      chainName: "PulseChain",
-                      logo: "P",
-                      value: 540,
-                      tokens: 1,
-                      color: "#FF8A00",
-                    },
-                    {
-                      chain: "arb",
-                      chainName: "Arbitrum",
-                      logo: "A",
-                      value: 175,
-                      tokens: 1,
-                      color: "#FF8A00",
-                    },
-                    {
-                      chain: "matic",
-                      chainName: "Polygon",
-                      logo: "M",
-                      value: 294,
-                      tokens: 1,
-                      color: "#F5AC37",
-                    },
-                    {
-                      chain: "bsc",
-                      chainName: "BNB Chain",
-                      logo: "B",
-                      value: 200,
-                      tokens: 2,
-                      color: "#F3BA2F",
-                    },
-                  ]
-            }
-            connected={connected}
+            chains={portfolioReady ? chains : []}
+            connected={portfolioReady}
           />
 
           {/* ── Allocation bar ── */}
@@ -897,10 +1262,10 @@ export default function PortfolioPage() {
             >
               TOKEN ALLOCATION
             </p>
-            {connected ? (
+            {portfolioReady && hasPricedPortfolio ? (
               <div className="grid grid-cols-2 md:grid-cols-4 gap-x-8 gap-y-3">
                 {sortedTokens.slice(0, 8).map((t) => (
-                  <div key={t.symbol}>
+                  <div key={t.id || `${t.chain}-${t.symbol}`}>
                     <div
                       className="flex items-center justify-between"
                       style={{ marginBottom: 5 }}
@@ -960,6 +1325,18 @@ export default function PortfolioPage() {
                     </div>
                   </div>
                 ))}
+              </div>
+            ) : portfolioReady ? (
+              <div
+                style={{
+                  padding: "10px 0 2px",
+                  color: "rgba(255,255,255,0.24)",
+                  fontSize: 11,
+                  letterSpacing: "0.06em",
+                }}
+              >
+                Value allocation appears when pricing is available for the
+                detected balances.
               </div>
             ) : (
               <div className="grid grid-cols-2 md:grid-cols-4 gap-x-8 gap-y-3">
@@ -1033,7 +1410,7 @@ export default function PortfolioPage() {
 
             {sortedTokens.map((token, i) => (
               <motion.div
-                key={token.symbol}
+                key={token.id || `${token.chain}-${token.symbol}`}
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.03 + i * 0.02 }}
@@ -1058,7 +1435,7 @@ export default function PortfolioPage() {
                 }}
               >
                 {/* Asset */}
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3" style={{ minWidth: 0 }}>
                   <div className="relative shrink-0">
                     <div
                       style={{
@@ -1074,7 +1451,11 @@ export default function PortfolioPage() {
                         borderRadius: 0,
                       }}
                     >
-                      {token.logo}
+                      <LogoMark
+                        value={token.logo}
+                        fallback={token.symbol[0] || token.name[0] || "?"}
+                        size={24}
+                      />
                     </div>
                     <div
                       style={{
@@ -1098,13 +1479,16 @@ export default function PortfolioPage() {
                       {token.chain[0].toUpperCase()}
                     </div>
                   </div>
-                  <div>
+                  <div style={{ minWidth: 0 }}>
                     <p
                       style={{
                         fontSize: 14,
                         fontWeight: 600,
                         color: "white",
                         lineHeight: 1.2,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
                       }}
                     >
                       {token.symbol}
@@ -1114,9 +1498,12 @@ export default function PortfolioPage() {
                         fontSize: 10,
                         color: "rgba(255,255,255,0.22)",
                         letterSpacing: "0.02em",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
                       }}
                     >
-                      {token.amount.toLocaleString()}
+                      {formatTokenAmount(token.amount)}
                     </p>
                   </div>
                 </div>
@@ -1128,9 +1515,9 @@ export default function PortfolioPage() {
                     color: "rgba(255,255,255,0.7)",
                   }}
                 >
-                  {connected
-                    ? `$${token.value.toLocaleString("en-US", { minimumFractionDigits: 2 })}`
-                    : "—"}
+                  {portfolioReady && token.price > 0
+                    ? formatUsd(token.value)
+                    : "Unpriced"}
                 </p>
                 <p
                   style={{
@@ -1139,7 +1526,7 @@ export default function PortfolioPage() {
                     color: token.change24h >= 0 ? "#4ade80" : "#f87171",
                   }}
                 >
-                  {connected
+                  {portfolioReady && token.price > 0
                     ? `${token.change24h >= 0 ? "+" : ""}${token.change24h.toFixed(2)}%`
                     : "—"}
                 </p>
@@ -1150,7 +1537,7 @@ export default function PortfolioPage() {
                     color: token.change7d >= 0 ? "#4ade80" : "#f87171",
                   }}
                 >
-                  {connected
+                  {portfolioReady && token.price > 0
                     ? `${token.change7d >= 0 ? "+" : ""}${token.change7d.toFixed(2)}%`
                     : "—"}
                 </p>
@@ -1161,12 +1548,12 @@ export default function PortfolioPage() {
                     color: "rgba(255,255,255,0.3)",
                   }}
                 >
-                  {connected ? `${token.allocation}%` : "—"}
+                  {portfolioReady && token.price > 0 ? `${token.allocation}%` : "—"}
                 </p>
                 <div>
-                  {connected && sparklines[token.symbol] ? (
+                  {portfolioReady && token.price > 0 && sparklines[token.id || token.symbol] ? (
                     <Sparkline
-                      data={sparklines[token.symbol]}
+                      data={sparklines[token.id || token.symbol]}
                       up={token.change7d >= 0}
                     />
                   ) : (
@@ -1200,6 +1587,18 @@ export default function PortfolioPage() {
                 </div>
               </motion.div>
             ))}
+            {portfolioReady && sortedTokens.length === 0 && (
+              <div
+                style={{
+                  padding: "28px 20px",
+                  color: "rgba(255,255,255,0.26)",
+                  fontSize: 12,
+                  textAlign: "center",
+                }}
+              >
+                No balances found in the supported token lists.
+              </div>
+            )}
           </motion.div>
 
           {/* ── NFT Holdings ── */}
@@ -1246,7 +1645,7 @@ export default function PortfolioPage() {
                     fontWeight: 700,
                   }}
                 >
-                  VIA DEBANK/ZAPPER
+                  TOKENS ONLY
                 </span>
               </div>
               <span
@@ -1256,7 +1655,7 @@ export default function PortfolioPage() {
                   letterSpacing: "0.06em",
                 }}
               >
-                {nfts.length > 0 ? nfts.length : 4} NFTs
+                {nfts.length} NFTs
               </span>
             </div>
             {!connected ? (
@@ -1268,52 +1667,21 @@ export default function PortfolioPage() {
                   Connect wallet to view NFTs
                 </p>
               </div>
+            ) : nfts.length === 0 ? (
+              <div
+                className="flex items-center justify-center"
+                style={{ padding: "32px 20px" }}
+              >
+                <p style={{ fontSize: 12, color: "rgba(255,255,255,0.2)" }}>
+                  NFT holdings are not fetched without an NFT indexer.
+                </p>
+              </div>
             ) : (
               <div
                 className="grid grid-cols-2 md:grid-cols-4 gap-3"
                 style={{ padding: "16px 20px" }}
               >
-                {(nfts.length > 0
-                  ? nfts
-                  : [
-                      {
-                        id: 1,
-                        name: "EMPX SEAL #142",
-                        collection: "EMPX Seals",
-                        chain: "ETH",
-                        icon: "⬡",
-                        floor: "0.42 ETH",
-                        rare: "LEGENDARY",
-                      },
-                      {
-                        id: 2,
-                        name: "Punk #8904",
-                        collection: "CryptoPunks",
-                        chain: "ETH",
-                        icon: "◈",
-                        floor: "54 ETH",
-                        rare: "RARE",
-                      },
-                      {
-                        id: 3,
-                        name: "Ape #2291",
-                        collection: "BAYC",
-                        chain: "ETH",
-                        icon: "⬟",
-                        floor: "12.8 ETH",
-                        rare: "RARE",
-                      },
-                      {
-                        id: 4,
-                        name: "Base Seal #77",
-                        collection: "Base Seals",
-                        chain: "BASE",
-                        icon: "◉",
-                        floor: "0.08 ETH",
-                        rare: "COMMON",
-                      },
-                    ]
-                ).map((nft) => (
+                {nfts.map((nft) => (
                   <div
                     key={nft.id}
                     style={{
