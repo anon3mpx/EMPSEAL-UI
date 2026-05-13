@@ -1836,8 +1836,8 @@ input[type="range"]::-moz-range-track {
 }
 @media (max-width: 768px) {
   .v1-connect-btn {
-  padding: 5px 8px!important;
-}
+    padding: 5px 8px !important;
+  }
 }
 
 .gas-chain-card {
@@ -2018,4 +2018,12 @@ input[type="range"]::-moz-range-track {
 
 .crosschain-live-dot {
   box-shadow: 0 0 6px rgba(74, 222, 128, 0.5);
+}
+.dropdown-css {
+  background: rgba(6, 6, 14, 0.99);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0px;
+  box-shadow: rgba(0, 0, 0, 0.5) 0px 16px 40px;
+  opacity: 1;
+  transform: none;
 }

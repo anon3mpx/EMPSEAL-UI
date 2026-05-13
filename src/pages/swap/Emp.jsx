@@ -20,7 +20,7 @@ import { useStore } from "../../redux/store/routeStore";
 import Transaction from "./Transaction";
 import { Copy, Check, InfoIcon } from "lucide-react";
 import { useChainConfig } from "../../hooks/useChainConfig";
-import ProvidersListNew from "../bridge/ProvidersList-new";
+// import ProvidersListNew from "../bridge/ProvidersList-new";
 // import { SmartRouter } from "../../utils/services/SmartRouter";
 import {
   checkAllowance as defaultCheckAllowance,
@@ -1244,7 +1244,7 @@ const Emp = ({
     const value = parseFloat(impact);
     // Green for positive (profit), Red for negative (loss)
     if (value > 0) return "text-green-500";
-    if (value < 0) return "text-red-500";
+    if (value < 0) return "text-white";
     return "text-white";
   };
   //

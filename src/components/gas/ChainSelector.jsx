@@ -208,7 +208,7 @@ const ChainSelector = ({ onSwitch, setIsChainModalOpen }) => {
 
   if (error)
     return (
-      <div className="md:text-xs text-[10px] text-red-500 uppercase">
+      <div className="md:text-xs text-[10px] text-white uppercase">
         Error fetching chains.
       </div>
     );

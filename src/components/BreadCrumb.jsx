@@ -14,8 +14,8 @@ const NAV_ITEMS = [
   { label: "Portfolio", href: "/portfolio" },
   { label: "Swap", href: "/swap" },
   { label: "Cross", href: "/cross" },
-  { label: "Bridge", href: "/native-bridge" },
-  { label: "Limit", href: "/orders" },
+  { label: "Bridge", href: "/bridge" },
+  { label: "Limit", href: "/limit" },
   { label: "Widget", href: "/widget" },
   { label: "Gas", href: "/gas" },
 ];
@@ -438,7 +438,7 @@ const BreadCrumb = () => {
               borderRadius: 0,
               cursor: "pointer",
               alignItems: "center",
-              padding: "0 8px",
+              padding: "0 5px",
             }}
           >
             <span
@@ -500,7 +500,7 @@ const BreadCrumb = () => {
           </button>
         </div>
       </nav>
-      <div className="fixed top-3 md:right-4 right-0 z-50 flex md:gap-3 gap-2 items-center">
+      <div className="fixed top-3 md:right-4 right-[2px] z-50 flex md:gap-3 gap-2 items-center">
         <WalletConnect />
       </div>
 

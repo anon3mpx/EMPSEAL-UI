@@ -3,7 +3,7 @@ import { CreateOrderForm } from "./CreateOrderForm";
 import { OrderList } from "./OrderList";
 import { useAccount } from "wagmi";
 import { toast } from "../../utils/toastHelper";
-import { Helmet } from "react-helmet";
+import { HelmetProvider } from "react-helmet-async";
 
 const ToastContent = ({ message }) => (
   <div className="space-y-1">
@@ -50,7 +50,7 @@ export default function LimitOrder({ slippage, onOpenSlippage = () => {} }) {
   return (
     // lg:pb-16 pb-[20rem]
     <div className="w-full pt-2 pb-2 text-white  ">
-      <Helmet>
+      <HelmetProvider>
         <title>EMPX | Limit Orders - Advanced Crypto Order Management</title>
         <meta
           name="description"
@@ -60,7 +60,7 @@ export default function LimitOrder({ slippage, onOpenSlippage = () => {} }) {
           name="keywords"
           content="EMPX, DeFi, decentralized finance, crypto trading, multi-chain bridge, DEX aggregator, limit orders, Web3, blockchain, cryptocurrency, on-chain trading"
         />
-      </Helmet>
+      </HelmetProvider>
       <div className="space-y-8">
         {isConnected && address ? (
           <>

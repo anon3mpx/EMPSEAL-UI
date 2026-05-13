@@ -154,7 +154,7 @@ const TransactionHistory = () => {
                         <div className="text-right">
                           <button
                             onClick={() => handleRemoveTx(tx.deposit.hash)}
-                            className="text-gray-200 hover:text-red-500"
+                            className="text-gray-200 hover:text-white"
                           >
                             <Trash2 size={15} />
                           </button>

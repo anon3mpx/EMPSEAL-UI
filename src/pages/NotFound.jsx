@@ -1,17 +1,17 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Helmet } from 'react-helmet';
+import { HelmetProvider } from "react-helmet-async";
 
 const NotFound = () => {
   return (
     <>
-      <Helmet>
+      <HelmetProvider>
         <title>Page Not Found | EMPX</title>
         <meta
           name='description'
           content='The page you are looking for does not exist.'
         />
-      </Helmet>
+      </HelmetProvider>
       <div className='bg-black min-h-screen flex items-center justify-center py-12 px-4'>
         <div className='max-w-md w-full text-center'>
           <div className='mb-8'>

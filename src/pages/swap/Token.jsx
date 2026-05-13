@@ -546,7 +546,7 @@ const Token = ({ onClose, onSelect }) => {
             )}
 
             {error && (
-              <div className="text-red-500 text-center text-xs mt-4">
+              <div className="text-white text-center text-xs mt-4">
                 {error}
               </div>
             )}

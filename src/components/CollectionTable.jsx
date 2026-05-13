@@ -432,7 +432,7 @@ const CollectionTable = () => {
               <td className="text-center py-2 px-4">
                 <span
                   className={
-                    item.change < 0 ? 'text-red-500' : 'text-[#0CDD2E]'
+                    item.change < 0 ? 'text-white' : 'text-[#0CDD2E]'
                   }
                 >
                   {item.change}

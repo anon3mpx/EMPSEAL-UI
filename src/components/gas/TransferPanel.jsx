@@ -787,7 +787,7 @@ const TransferPanel = () => {
           </div>
         </div>
       </div>
-      <p className="text-[9px] font-bold tracking-[0.25em] text-white/20 mb-[10px]">
+      <p className="text-[9px] font-bold tracking-[0.25em] text-white/20 my-[10px]">
         RECENT GAS TRANSFERS
       </p>
       <TransactionHistory />

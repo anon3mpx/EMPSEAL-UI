@@ -13,6 +13,7 @@ import NativeBridge from "../pages/nativeBridge";
 import Widget from "../pages/widget/Main";
 import WidgetSwapPage from "../pages/widget/SwapEmbed";
 import Cross from "../pages/cross/Main";
+import Limit from "../pages/limit/Main";
 import BridgeWrapper from "../components/BridgeWrapper";
 import WagmiProviderWrapper from "../Wagmi/WagmiProvider";
 import { Provider } from "react-redux";
@@ -164,6 +165,14 @@ function MyRoutes() {
                 </SwapWrapper>
               }
             />
+            <Route
+              path="/limit"
+              element={
+                <SwapWrapper>
+                  <Limit />
+                </SwapWrapper>
+              }
+            />
             {/* <Route path="/" element={<Navigate to="/swap" replace />} /> */}
             <Route
               path="/swap"
@@ -179,14 +188,14 @@ function MyRoutes() {
             />
             <Route path="/nft-marketplace" element={<NFTMarketplace />} />
             <Route path="/item-detail" element={<ItemDetail />} />
-            {/* <Route
+            <Route
               path="/bridge"
               element={
                 <BridgeWrapper>
                   <Bridge />
                 </BridgeWrapper>
               }
-            /> */}
+            /> 
             {/* <Route
               path="/native-bridge"
               element={

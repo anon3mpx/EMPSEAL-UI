@@ -218,7 +218,7 @@ const CollectionDetailTable = () => {
                       <span
                         className={
                           item.floorDifference < 0
-                            ? 'text-red-500'
+                            ? 'text-white'
                             : 'text-[#0CDD2E]'
                         }
                       >
@@ -328,7 +328,7 @@ const CollectionDetailTable = () => {
                       <span
                         className={
                           item.floorDifference < 0
-                            ? 'text-red-500'
+                            ? 'text-white'
                             : 'text-[#0CDD2E]'
                         }
                       >
