@@ -1342,7 +1342,7 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange }) => {
                                   src={selectedTokenA.image || selectedTokenA.logoURI}
                                   alt={selectedTokenA.name}
                                 />
-                                <div className="text-[#FF8A00] lg:text-3xl text-sm font-bold  leading-normal bg-black appearance-none outline-none">
+                                <div className="text-[#FF8A00] lg:text-3xl text-sm font-bold  leading-normal appearance-none outline-none">
                                   {selectedTokenA.ticker || selectedTokenA.symbol}
                                 </div>
                               </>

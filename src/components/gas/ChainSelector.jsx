@@ -7,7 +7,7 @@ import { Search } from "lucide-react";
 /* ---------------------------------
    Chain Logo Component
 ---------------------------------- */
-const ChainLogo = ({ chain, className }) => {
+export const ChainLogo = ({ chain, className }) => {
   const [srcIndex, setSrcIndex] = useState(0);
 
   const sources = [
@@ -259,7 +259,7 @@ const ChainSelector = ({ onSwitch, setIsChainModalOpen }) => {
               />
               {/* lg:text-xl text-sm */}
               <span
-                className={`text-white font-bold  leading-normal bg-black appearance-none outline-none ${getFontSizeClass(
+                className={`text-white font-bold  leading-normal appearance-none outline-none ${getFontSizeClass(
                   fromChain.name,
                 )}`}
               >
@@ -287,7 +287,7 @@ const ChainSelector = ({ onSwitch, setIsChainModalOpen }) => {
                 className="md:w-5 md:h-5 w-4 h-4 rounded-full"
               />
               <span
-                className={`text-white font-bold  leading-normal bg-black appearance-none outline-none ${getFontSizeClass(
+                className={`text-white font-bold  leading-normal appearance-none outline-none ${getFontSizeClass(
                   toChain.name,
                 )}`}
               >
