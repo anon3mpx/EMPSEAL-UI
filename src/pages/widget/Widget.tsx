@@ -31,6 +31,7 @@ const WIDGET_FORM_DEFAULTS = {
   integratorId: "",
   background: DEFAULT_WIDGET_CONFIG.background,
   borderColor: DEFAULT_WIDGET_CONFIG.borderColor,
+  showBackground: DEFAULT_WIDGET_CONFIG.showBackground,
   showSlip: true,
   showPowered: true,
   width: "440",
@@ -48,6 +49,7 @@ export default function WidgetPage() {
   const [integratorId, setIntegratorId] = useState(WIDGET_FORM_DEFAULTS.integratorId);
   const [background, setBackground] = useState(WIDGET_FORM_DEFAULTS.background);
   const [borderColor, setBorderColor] = useState(WIDGET_FORM_DEFAULTS.borderColor);
+  const [showBackground, setShowBackground] = useState(WIDGET_FORM_DEFAULTS.showBackground);
   const [showSlip, setShowSlip] = useState(WIDGET_FORM_DEFAULTS.showSlip);
   const [showPowered, setShowPowered] = useState(WIDGET_FORM_DEFAULTS.showPowered);
   const [width, setWidth] = useState(WIDGET_FORM_DEFAULTS.width);
@@ -61,6 +63,7 @@ export default function WidgetPage() {
     params.set("primaryColor", accent);
     params.set("background", background);
     params.set("borderColor", borderColor);
+    params.set("showBackground", showBackground ? "true" : "false");
     params.set("showSlippage", showSlip ? "true" : "false");
     params.set("showPoweredBy", showPowered ? "true" : "false");
 
@@ -79,7 +82,7 @@ export default function WidgetPage() {
 
     const baseUrl = window.location.origin;
     return `${baseUrl}/widget/swap?${params.toString()}`;
-  }, [accent, background, borderColor, chain, defaultAmount, defaultFrom, defaultTo, integratorId, showSlip, showPowered, theme]);
+  }, [accent, background, borderColor, chain, defaultAmount, defaultFrom, defaultTo, integratorId, showBackground, showSlip, showPowered, theme]);
 
   const embedCode = useMemo(
     () => `<iframe
@@ -109,6 +112,7 @@ export default function WidgetPage() {
     setIntegratorId(WIDGET_FORM_DEFAULTS.integratorId);
     setBackground(WIDGET_FORM_DEFAULTS.background);
     setBorderColor(WIDGET_FORM_DEFAULTS.borderColor);
+    setShowBackground(WIDGET_FORM_DEFAULTS.showBackground);
     setShowSlip(WIDGET_FORM_DEFAULTS.showSlip);
     setShowPowered(WIDGET_FORM_DEFAULTS.showPowered);
     setWidth(WIDGET_FORM_DEFAULTS.width);
@@ -319,6 +323,7 @@ export default function WidgetPage() {
                     type="text"
                     value={background}
                     onChange={(e) => setBackground(e.target.value)}
+                    disabled={!showBackground}
                     className="w-full bg-new-gray-1 border-new-gray px-[10px] py-2 text-[13px] font-normal text-white outline-none widget-input"
                     placeholder="#000000"
                   />
@@ -364,6 +369,11 @@ export default function WidgetPage() {
               </div>
               <div className="mb-5">
                 {[
+                  {
+                    label: "Use widget background",
+                    value: showBackground,
+                    set: setShowBackground,
+                  },
                   {
                     label: "Show slippage settings",
                     value: showSlip,

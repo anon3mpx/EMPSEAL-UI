@@ -16,6 +16,7 @@ export type WidgetConfig = {
   defaultTokenOut: string | null;
   defaultAmountIn: string | null;
   integratorId: string | null;
+  showBackground: boolean;
   showSlippage: boolean;
   showPoweredBy: boolean;
   isWidgetMode: boolean;
@@ -28,6 +29,7 @@ export const DEFAULT_WIDGET_CONFIG = {
   primaryColor: "#e49c01ff",
   borderColor: "#000000",
   integratorId: null as string | null,
+  showBackground: true,
 };
 
 const WIDGET_PARAM_KEYS = [
@@ -40,6 +42,7 @@ const WIDGET_PARAM_KEYS = [
   "to",
   "amountIn",
   "theme",
+  "showBackground",
   "showSlippage",
   "showPoweredBy",
 ] as const;
@@ -67,6 +70,8 @@ export const parseWidgetConfig = (params: URLSearchParams): WidgetConfig => {
     defaultAmountIn: params.get("amountIn")?.trim() || null,
     integratorId:
       params.get("integratorId")?.trim() || DEFAULT_WIDGET_CONFIG.integratorId,
+    showBackground:
+      (params.get("showBackground")?.trim().toLowerCase() || "true") !== "false",
     showSlippage:
       (params.get("showSlippage")?.trim().toLowerCase() || "true") !== "false",
     showPoweredBy:

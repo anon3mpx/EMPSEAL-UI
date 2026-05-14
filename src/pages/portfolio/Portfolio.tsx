@@ -33,6 +33,8 @@ const chainLogoMap: Record<string, string> = {
   berachain: berachainIcon,
   pulsechain: pulseIcon,
   sonic: sonicIcon,
+  sei: "https://raw.githubusercontent.com/Cryptorubic/rubic-app/refs/heads/master/src/assets/images/icons/coins/sei.svg",
+  rootstock: "https://rootstock.blockscout.com/assets/favicon/favicon.ico",
   "cronos mainnet":
     "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQK7JCGpwklwB4QMz4g7NoNTd1Epuyi48zgS91loU1-b2RHCK5W",
   monad:
@@ -245,9 +247,12 @@ function LogoMark({
   const [failed, setFailed] = useState(false);
   const label = typeof value === "string" ? value.trim() : "";
   const fallbackLabel = (fallback || "?").slice(0, 3).toUpperCase();
-  const isRemoteImage = /^https?:\/\//i.test(label);
+  const isImageSource =
+    /^https?:\/\//i.test(label) ||
+    label.startsWith("/") ||
+    label.startsWith("data:image/");
 
-  if (isRemoteImage && !failed) {
+  if (isImageSource && !failed) {
     return (
       <img
         src={label}
@@ -503,9 +508,9 @@ function ChainBreakdown({
         )}
       </div>
       <div className="grid grid-cols-2 md:grid-cols-4">
-        {connected
-          ? visible.map((c, i) => (
-              <div
+	        {connected
+	          ? visible.map((c, i) => (
+	              <div
                 key={c.chain}
                 style={{
                   padding: "16px 20px",
@@ -532,12 +537,18 @@ function ChainBreakdown({
                       fontWeight: 700,
                       color: "rgba(255,255,255,0.7)",
                       borderRadius: 0,
-                    }}
-                  >
-                    <LogoMark
-                      value={c.logo}
-                      fallback={c.chainName[0] || c.chain}
-                      size={16}
+	                    }}
+	                  >
+	                    {/* Prefer this page's local chainLogoMap so stale cached
+	                        portfolio rows still render proper chain icons. */}
+	                    <LogoMark
+	                      value={
+	                        chainLogoMap[c.chain] ||
+	                        chainLogoMap[c.chainName.toLowerCase()] ||
+	                        c.logo
+	                      }
+	                      fallback={c.chainName[0] || c.chain}
+	                      size={16}
                     />
                   </div>
                   <span
