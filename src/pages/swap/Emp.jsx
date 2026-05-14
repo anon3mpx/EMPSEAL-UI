@@ -1490,7 +1490,7 @@ const Emp = ({
                                       className={`${getFontSizeClass(
                                         selectedTokenA.ticker ||
                                           selectedTokenA.symbol,
-                                      )} text-white font-bold  leading-normal bg-black appearance-none outline-none`}
+                                      )} text-white font-bold  leading-normal appearance-none outline-none`}
                                     >
                                       {selectedTokenA.ticker ||
                                         selectedTokenA.symbol}
@@ -1573,10 +1573,10 @@ const Emp = ({
                         ))}
                       </div>
                     </div>
-                    <div className="text-right relative text-white text-[9px] text-white/20 tracking-[0.04em] truncate mt-2 flex justify-end gap-1">
+                    <div className="text-right relative text-white text-xs tracking-[0.04em] truncate mt-2 flex justify-end gap-1">
                       <div className="relative inline-block">
                         <InfoIcon
-                          size={9}
+                          size={12}
                           className="md:mt-[1.5px] mt-[1.1px] cursor-pointer"
                           onMouseEnter={() => setDollarInfo(true)}
                           onMouseLeave={() => setDollarInfo(false)}
@@ -1744,7 +1744,7 @@ const Emp = ({
                                       className={`${getFontSizeClass(
                                         selectedTokenB.ticker ||
                                           selectedTokenB.symbol,
-                                      )} text-white font-bold  leading-normal bg-black appearance-none outline-none`}
+                                      )} text-white font-bold  leading-normal appearance-none outline-none`}
                                     >
                                       {selectedTokenB.ticker ||
                                         selectedTokenB.symbol}
@@ -1793,10 +1793,10 @@ const Emp = ({
                         <span className="mt-1">Market Price</span>
                       </div>
                     </div>
-                    <div className="text-right relative text-white text-[9px] text-white/20 tracking-[0.04em] truncate mt-2 flex justify-end gap-1">
+                    <div className="text-right relative text-white text-xs tracking-[0.04em] truncate mt-2 flex justify-end gap-1">
                       <div className="relative inline-block">
                         <InfoIcon
-                          size={9}
+                          size={12}
                           className="md:mt-[1.5px] mt-[1.1px] cursor-pointer"
                           onMouseEnter={() => setDollarInfo1(true)}
                           onMouseLeave={() => setDollarInfo1(false)}
@@ -1886,9 +1886,9 @@ const Emp = ({
                       </div>
                     </div>
                   )}
-                  <div className="bg-[#06060efa] backdrop-blur-[60px]">
+                  <div className="bg-[#06060efa]">
                     <div
-                      className={`relative flex justify-center flex-row border-top p-4`}
+                      className={`relative flex justify-center flex-row bt p-4`}
                     >
                       <button
                         onClick={() => {

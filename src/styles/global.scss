@@ -943,9 +943,9 @@ body.bg-pattern {
   .swap-button {
     min-width: 23rem;
   }
-  .clip-bg {
-    scale: 0.7 !important;
-  }
+  // .clip-bg {
+  //   scale: 0.7 !important;
+  // }
 }
 @media (min-width: 768px) and (max-width: 900px) {
   .margin_left {
@@ -1675,6 +1675,9 @@ input[type="range"]::-moz-range-track {
   color: rgba(255, 255, 255, 0.6);
 }
 .border-top {
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+.bt {
   border-top: 1px solid rgba(255, 255, 255, 0.07);
 }
 .border-bottom {
