@@ -85,7 +85,7 @@ const TransactionHistory = () => {
 
   return (
     <div className="text-white w-full pb-4">
-      <div className="mt-4 clip-bg w-full lg:py-4 lg:px-4 md:px-3 px-2 py-4 space-y-3 max-h-[350px] overflow-y-auto chain_scroll">
+      <div className="mt-4 clip-bg w-full lg:py-4 lg:px-3 md:px-3 px-2 py-4 space-y-3 max-h-[350px] overflow-y-auto chain_scroll">
         <>
           {isOpen && (
             <>
@@ -108,7 +108,7 @@ const TransactionHistory = () => {
               ) : (
                 <div className="max-h-96 overflow-y-auto uppercase">
                   <div className="min-w-full space-y-1">
-                    <div className="md:grid hidden grid-cols-6 text-xs font-bold text-white/50 px-1 py-1">
+                    <div className="md:grid hidden grid-cols-6 text-[9px] font-bold text-white/20 px-1 py-1">
                       <div>Deposit Hash</div>
                       <div>Date</div>
                       <div>Status</div>
@@ -119,7 +119,7 @@ const TransactionHistory = () => {
                     {history.map((tx) => (
                       <div
                         key={tx.deposit.hash}
-                        className="grid md:grid-cols-6 md:gap-4 gap-2 md:items-center px-1 py-2 text-[11px] text-white hover:bg-[#FF8A00]/5 transition"
+                        className="grid md:grid-cols-6 md:gap-4 gap-2 md:items-center px-1 py-2 text-[9px] text-white hover:bg-[#FF8A00]/5 transition"
                       >
                         <div className="font-medium text-white">
                           <a

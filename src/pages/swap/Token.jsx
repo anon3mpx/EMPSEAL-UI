@@ -421,7 +421,7 @@ const Token = ({ onClose, onSelect }) => {
       <div className="w-full flex justify-center my-auto items-center">
         <div
           ref={modalRef}
-          className="md:max-w-[550px] w-full relative py-4 mx-auto clip-bg"
+          className="md:max-w-[420px] w-full relative py-4 mx-auto clip-bg"
         >
           <div className="flex justify-between gap-2 items-center !px-4">
             <h2 className="text-[13px] uppercase font-bold text-white tracking-widest flex gap-1 items-center justify-center">
@@ -495,7 +495,7 @@ const Token = ({ onClose, onSelect }) => {
                   <div className="relative flex justify-center items-center">
                     <TokenLogo
                       token={token}
-                      className="md:w-5 md:h-5 w-3 h-3 rounded-full relative z-10 p-[1px] object-contain flex shrink-0"
+                      className="md:w-4 md:h-4 w-3 h-3 rounded-full relative z-10 p-[1px] object-contain flex shrink-0"
                       fallbackImg={EL}
                     />
                   </div>

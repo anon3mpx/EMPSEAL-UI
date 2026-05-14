@@ -11,6 +11,89 @@ import {
 } from "../../lib/api";
 import BreadCrumb from "../../components/BreadCrumb";
 
+const ethIcon = "/icons/eth.svg";
+const baseIcon = "/icons/base.svg";
+const arbitrumIcon = "/icons/arbitrum.svg";
+const polygonIcon = "/icons/polygon.svg";
+const bscIcon = "/icons/binance.svg";
+const opIcon = "/icons/op.svg";
+const avalancheIcon = "/icons/avalanche.svg";
+const berachainIcon = "/icons/berachain.svg";
+const pulseIcon = "/icons/pls.svg";
+const sonicIcon = "/icons/sonic.png";
+
+const chainLogoMap: Record<string, string> = {
+  ethereum: ethIcon,
+  base: baseIcon,
+  arbitrum: arbitrumIcon,
+  polygon: polygonIcon,
+  bsc: bscIcon,
+  optimism: opIcon,
+  avalanche: avalancheIcon,
+  berachain: berachainIcon,
+  pulsechain: pulseIcon,
+  sonic: sonicIcon,
+  "cronos mainnet":
+    "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQK7JCGpwklwB4QMz4g7NoNTd1Epuyi48zgS91loU1-b2RHCK5W",
+  monad:
+    "https://www.geckoterminal.com/_next/image?url=https%3A%2F%2Fassets.geckoterminal.com%2Fmxy95kpjer9bgo8k4jr366qx7qyj&w=64&q=75",
+  hyperevm:
+    "https://www.geckoterminal.com/_next/image?url=https%3A%2F%2Fassets.geckoterminal.com%2Fcre8xcjrtfqah7f2sjx8whz68izg&w=64&q=75",
+  blast:
+    "https://cdn.prod.website-files.com/65a6baa1a3f8ed336f415cb4/65a6c461965bf28af43b80bc_Logo%20Yellow%20on%20Transparent%20Background.png",
+  "manta pacific mainnet":
+    "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRPaO9GeImBmVNTXZVGHaNUhp1WKKObzjDKDg&s",
+  zetachain:
+    "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQDYhJxwXa_YkqJGPOLRh64V0J8BZkYEHlZOA&s",
+  "zksync era":
+    "https://s2.coinmarketcap.com/static/img/coins/200x200/24091.png",
+  "sei network":
+    "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQ6fwxNLN1-so5tXQr4z_Z-VcgryIoKU2iaFw&s",
+  "polygon zkevm":
+    "https://www.alchemy.com/dapps/_next/image?url=https%3A%2F%2Fres.cloudinary.com%2Falchemy-website%2Fimage%2Fupload%2Fv1694675395%2Fdapp-store%2Fdapp-logos%2FPolygon%2520zkEVM.png&w=640&q=75",
+  moonriver: "https://cryptologos.cc/logos/moonriver-movr-logo.png",
+  fantom: "https://s2.coinmarketcap.com/static/img/coins/200x200/3513.png",
+  aurora:
+    "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQDrtG7a1CUnAO9IZwRPWThw71z_uLm1nyjyw&s",
+  gnosis: "https://cryptologos.cc/logos/gnosis-gno-gno-logo.png",
+  "linea mainnet":
+    "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTpHUmXshY3mPDmQmpf-VMFK_i9JxdG_FEFeg&s",
+  scroll:
+    "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTSESM97ra0eogVU9F-jgvHWyUcFFN6ZEh9SQ&s",
+  fuse: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRlWRds0-tcHOYrR8jafkXU8U5Q0MFvo56Asw&s",
+  moonbeam:
+    "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTekV-fnTPaXukurGta7NgI0gWy6z4-kj0hrg&s",
+  celo: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRADqqjgCRSQG2l648A0-x4vWeKph203JqS4w&s",
+  "boba network":
+    "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTH1xnrUkBwf1Xgfsb-zcuzc0qbq4ADIdWkww&s",
+  mantle:
+    "https://static1.tokenterminal.com//mantle/logo.png?logo_hash=eee8c4258e118b4c7d96ac52a6f83cc9b5ea8232",
+  telos: "https://s2.coinmarketcap.com/static/img/coins/200x200/4660.png",
+  "kava evm":
+    "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQC931Eoyh14rn1dPlVQiMbcLLn7o7g6UtZ7w&s",
+  "arbitrum nova":
+    "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTCsXde41ET2SnLR9qJlY3YduFS0r5BnXR1jg&s",
+  tron: "https://s2.coinmarketcap.com/static/img/coins/200x200/1958.png",
+  metis:
+    "https://s3.coinmarketcap.com/static-gravity/image/6cbb40029f714c00ab3103055cb4ed44.jpeg",
+  bahamut:
+    "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT63y2NYI8NM_NvlrJr7BSszLAVYEBb786FIg&s",
+  "mode mainnet":
+    "https://s2.coinmarketcap.com/static/img/coins/200x200/31016.png",
+  "rootstock mainnet": "https://icons.llamao.fi/icons/chains/rsz_rsk.jpg",
+  merlin:
+    "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcR0Xu_YMl9FlDCmW-gvl67pGW3fo0qxjdE61g&s",
+  "zklink nova":
+    "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRlHmpeXv7eaK5agMtNG357V4QLPvd0APew6Q&s",
+  "taiko mainnet":
+    "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSDFbe84aaBvGR_nv04FGC0XHg0pM9NhHplBQ&s",
+  fraxtal: "https://docs.frax.com/images/protocol/FRAX.png",
+  "gravity alpha mainnet":
+    "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQIKmPOe5bVW147dDpEkRGpmnceagyTOr0c-Q&s",
+  morph:
+    "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTovaGDebI_0rH6JiRXIhwUnUVRV1NmyyJWHA&s",
+};
+
 const REFRESH_COOLDOWN_MS = 60_000;
 const MARKET_CACHE_TTL_MS = 10 * 60 * 1000;
 const MARKET_CACHE_KEY = "empx_portfolio_market_assets_v1";
@@ -216,8 +299,7 @@ function generateMarketSparkline(
   changePercent: number,
 ): number[] {
   const points = 10;
-  const startPrice =
-    price > 0 ? price / (1 + (changePercent || 0) / 100) : 0;
+  const startPrice = price > 0 ? price / (1 + (changePercent || 0) / 100) : 0;
   let hash = 0;
 
   for (let i = 0; i < seed.length; i += 1) {
@@ -228,9 +310,7 @@ function generateMarketSparkline(
     const progress = index / (points - 1);
     const trend = startPrice + (price - startPrice) * progress;
     const wave =
-      price *
-      Math.sin(progress * Math.PI * 2 + (hash % 17)) *
-      0.0018;
+      price * Math.sin(progress * Math.PI * 2 + (hash % 17)) * 0.0018;
     const curve = price * Math.sin(progress * Math.PI) * 0.0012;
 
     return Math.max(0, trend + wave + curve);
@@ -315,13 +395,7 @@ async function fetchMarketAssets(): Promise<MarketAsset[]> {
   return assets;
 }
 
-function ChangePill({
-  change,
-  value,
-}: {
-  change: number;
-  value: number;
-}) {
+function ChangePill({ change, value }: { change: number; value: number }) {
   const positive = change >= 0;
   const color = positive ? "#4ade80" : "#f87171";
   const bg = positive ? "rgba(74,222,128,0.07)" : "rgba(248,113,113,0.07)";
@@ -483,8 +557,8 @@ function ChainBreakdown({
                     color: "white",
                     letterSpacing: "-0.03em",
                     marginBottom: 2,
-                }}
-              >
+                  }}
+                >
                   {c.value > 0 ? formatUsd(c.value, 0) : "Unpriced"}
                 </p>
                 <p
@@ -631,7 +705,9 @@ export default function PortfolioPage() {
   const hasPricedPortfolio = totalValue > 0 && pricedTokens.length > 0;
   const portfolioValueChange24h = (totalValue * change24h) / 100;
   const portfolioValueChange7d = (totalValue * change7d) / 100;
-  const bestPerformer = pricedTokens.reduce<PortfolioData["tokens"][number] | null>(
+  const bestPerformer = pricedTokens.reduce<
+    PortfolioData["tokens"][number] | null
+  >(
     (best, token) => (!best || token.change7d > best.change7d ? token : best),
     null,
   );
@@ -821,60 +897,6 @@ export default function PortfolioPage() {
                       : "Refresh"}
                 </button>
               )}
-            {/* <div className="flex items-center gap-2">
-              <div
-                className="flex"
-                style={{
-                  border: "1px solid rgba(255,255,255,0.07)",
-                  borderRadius: 0,
-                }}
-              >
-                {(["24H", "7D", "30D", "ALL"] as const).map((p) => (
-                  <button
-                    key={p}
-                    onClick={() => setPeriod(p)}
-                    style={{
-                      padding: "6px 12px",
-                      borderRadius: 0,
-                      fontSize: 10,
-                      fontWeight: 700,
-                      cursor: "pointer",
-                      background:
-                        period === p ? "rgba(255,138,0,0.1)" : "transparent",
-                      color:
-                        period === p ? "#FF8A00" : "rgba(255,255,255,0.25)",
-                      borderRight:
-                        p !== "ALL"
-                          ? "1px solid rgba(255,255,255,0.07)"
-                          : "none",
-                      letterSpacing: "0.06em",
-                    }}
-                  >
-                    {p}
-                  </button>
-                ))}
-              </div>
-              {!connected && (
-                <button
-                  onClick={() => setWalletOpen(true)}
-                  className="transition-opacity hover:opacity-85"
-                  style={{
-                    padding: "8px 18px",
-                    borderRadius: 0,
-                    fontSize: 11,
-                    fontWeight: 700,
-                    background: "#FF8A00",
-                    color: "#03030a",
-                    letterSpacing: "0.06em",
-                    textTransform: "uppercase",
-                    cursor: "pointer",
-                    border: "none",
-                  }}
-                >
-                  Connect Wallet
-                </button>
-              )}
-            </div> */}
             </div>
           </div>
           <motion.div
@@ -1082,9 +1104,7 @@ export default function PortfolioPage() {
                     letterSpacing: "0.08em",
                   }}
                 >
-                  {portfolioReady
-                    ? "PRICE DATA UNAVAILABLE"
-                    : ""}
+                  {portfolioReady ? "PRICE DATA UNAVAILABLE" : ""}
                 </div>
               )}
             </motion.div>
@@ -1435,22 +1455,12 @@ export default function PortfolioPage() {
                 }}
               >
                 {/* Asset */}
-                <div className="flex items-center gap-3" style={{ minWidth: 0 }}>
+                <div
+                  className="flex items-center gap-3"
+                  style={{ minWidth: 0 }}
+                >
                   <div className="relative shrink-0">
-                    <div
-                      style={{
-                        width: 36,
-                        height: 36,
-                        background: "rgba(255,255,255,0.06)",
-                        color: "rgba(255,255,255,0.85)",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        fontSize: 14,
-                        fontWeight: 600,
-                        borderRadius: 0,
-                      }}
-                    >
+                    <div className="w-9 h-9 bg-white/[0.06] text-white/85 flex items-center justify-center text-[14px] font-semibold rounded-none">
                       <LogoMark
                         value={token.logo}
                         fallback={token.symbol[0] || token.name[0] || "?"}
@@ -1458,25 +1468,20 @@ export default function PortfolioPage() {
                       />
                     </div>
                     <div
-                      style={{
-                        position: "absolute",
-                        bottom: -1,
-                        right: -1,
-                        width: 12,
-                        height: 12,
-                        background: token.chainColor,
-                        opacity: 0.7,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        fontSize: 6,
-                        fontWeight: 700,
-                        color: "white",
-                        borderRadius: 0,
-                        border: "1px solid #03030a",
-                      }}
+                      className="absolute -bottom-[4px] -right-[4px] w-4 h-4 opacity-70 flex items-center justify-center"
+                      style={{ background: token.chainColor }}
                     >
-                      {token.chain[0].toUpperCase()}
+                      {chainLogoMap[token.chain] ? (
+                        <img
+                          src={chainLogoMap[token.chain]}
+                          alt=""
+                          className="w-3 h-3 object-contain p-[1px]"
+                        />
+                      ) : (
+                        <span className="text-[6px] font-bold text-white">
+                          {token.chain[0].toUpperCase()}
+                        </span>
+                      )}
                     </div>
                   </div>
                   <div style={{ minWidth: 0 }}>
@@ -1548,10 +1553,14 @@ export default function PortfolioPage() {
                     color: "rgba(255,255,255,0.3)",
                   }}
                 >
-                  {portfolioReady && token.price > 0 ? `${token.allocation}%` : "—"}
+                  {portfolioReady && token.price > 0
+                    ? `${token.allocation}%`
+                    : "—"}
                 </p>
                 <div>
-                  {portfolioReady && token.price > 0 && sparklines[token.id || token.symbol] ? (
+                  {portfolioReady &&
+                  token.price > 0 &&
+                  sparklines[token.id || token.symbol] ? (
                     <Sparkline
                       data={sparklines[token.id || token.symbol]}
                       up={token.change7d >= 0}
@@ -1569,7 +1578,7 @@ export default function PortfolioPage() {
                 </div>
                 <div className="flex justify-end">
                   <Link
-                    href="/dapp/swap"
+                    href="/swap"
                     className="opacity-0 group-hover:opacity-100 transition-opacity duration-150"
                     style={{
                       fontSize: 9,
@@ -1773,7 +1782,7 @@ export default function PortfolioPage() {
           </motion.div>
 
           {/* ── Past Transactions ── */}
-          {[
+          {/* {[
             {
               title: "SWAP HISTORY",
               delay: 0.32,
@@ -1977,10 +1986,10 @@ export default function PortfolioPage() {
                 ))
               )}
             </motion.div>
-          ))}
+          ))} */}
 
           {/* ── Future features placeholder ── */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
+          {/* <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
             {[
               {
                 title: "YIELD POSITIONS",
@@ -2043,7 +2052,7 @@ export default function PortfolioPage() {
                 </p>
               </div>
             ))}
-          </div>
+          </div> */}
 
           <p
             className="text-center"

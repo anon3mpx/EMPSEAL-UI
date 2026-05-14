@@ -5,7 +5,7 @@ import { useGetCalldataQuote } from "../../hooks/useGasBridgeAPI";
 import { useGasBridgeTx } from "../../hooks/useGasBridgeTx";
 import { formatEther } from "viem";
 import { toast } from "../../utils/toastHelper";
-import ChainSelector from "../../components/gas/ChainSelector";
+import ChainSelector, { ChainLogo } from "../../components/gas/ChainSelector";
 import UpDownAr from "../../assets/images/reverse.svg";
 import TransactionHistory from "./TransactionHistory";
 import { useGetChains } from "../../hooks/useGasBridgeAPI";
@@ -484,8 +484,19 @@ const TransferPanel = () => {
                 }`}
               >
                 <div className="gas-chain-top">
-                  <div className="gas-chain-icon uppercase">
-                    {chain.symbol?.[0] || "?"}
+                  <div className="gas-chain-icon uppercase overflow-hidden">
+                    <ChainLogo
+                      chain={{
+                        ...chain,
+                        logoURI: chain.logo,
+                        shortName:
+                          chain.name
+                            ?.match(/^\w+/)?.[0]
+                            .toLowerCase()
+                            .replace(/[^a-z0-9]/g, "") ?? "",
+                      }}
+                      className="w-4 h-4 object-cover rounded-full"
+                    />
                   </div>
                   <div className="gas-chain-status" />
                 </div>
@@ -499,7 +510,7 @@ const TransferPanel = () => {
           })
         )}
       </div>
-      <div className="w-full md:px-0 px-1">
+      <div className="md:max-w-[480px] mx-auto w-full md:px-0 px-1">
         {/*  */}
         <div className="w-full">
           <div className="relative bg-[#070710] border border-white/10 shadow-[0_40px_80px_rgba(0,0,0,0.7)]">
@@ -709,6 +720,11 @@ const TransferPanel = () => {
                       );
                     })()}
                   </div>
+                  {quoteError && (
+                    <p className="text-[10px] text-white/[0.22] text-normal uppercase mt-2 text-right">
+                      Could not fetch quote. Please check inputs.
+                    </p>
+                  )}
                 </div>
               </div>
               {bridgeFeeLabel ? (
@@ -758,10 +774,10 @@ const TransferPanel = () => {
                 value={recipientAddress}
                 onChange={(e) => setRecipientAddress(e.target.value)}
                 placeholder="Recipient Address"
-                className="bg-transparent w-full outline-none text-white placeholder:text-white/10 md:text-base text-[10px]"
+                className="bg-transparent w-full outline-none text-white placeholder:text-white/10 md:text-xs text-[10px]"
               />
               <button
-                className={`slippage-btn md:!px-5 !px-3 uppercase !py-3 hover:!text-white hover:!bg-[#FF8A00] hover:border-[#FF8A00]`}
+                className={`slippage-btn md:!px-5 !px-3 uppercase !py-3 hover:!text-white hover:!bg-[#FF8A00]/5 hover:border-[#FF8A00]`}
                 // onClick={handleSelfButtonClick}
               >
                 Self
@@ -787,10 +803,12 @@ const TransferPanel = () => {
           </div>
         </div>
       </div>
-      <p className="text-[9px] font-bold tracking-[0.25em] text-white/20 my-[10px]">
-        RECENT GAS TRANSFERS
-      </p>
-      <TransactionHistory />
+      <div className="md:max-w-[480px] mx-auto w-full md:px-0 px-1">
+        <p className="text-[9px] font-bold tracking-[0.25em] text-white/20 my-[10px]">
+          RECENT GAS TRANSFERS
+        </p>
+        <TransactionHistory />
+      </div>
       {/*  */}
     </>
   );
