@@ -90,6 +90,26 @@ const getGeckoPriceByAddress = (tokenPrices, tokenAddress) => {
   return matchedKey ? parsePrice(tokenPrices[matchedKey]) : null;
 };
 
+const fetchJsonWithTimeout = async (url, timeoutMs = 6000) => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(url, { signal: controller.signal });
+    if (!response.ok) {
+      throw new Error(`Request failed with status ${response.status}`);
+    }
+    return await response.json();
+  } finally {
+    clearTimeout(timeoutId);
+  }
+};
+
+const normalizePositivePrice = (value) => {
+  const parsed = parsePrice(value);
+  return parsed !== null && parsed > 0 ? parsed : null;
+};
+
 export const fetchTokenPrice = async (symbol, address) => {
   try {
     if (!address) return null;
@@ -102,31 +122,28 @@ export const fetchTokenPrice = async (symbol, address) => {
       symbol?.toLowerCase() === "sei" || 
       symbol?.toLowerCase() === "polygon_pos" || symbol?.toLowerCase() === "polygon"
     ) {
-      const response = await fetch(
-        `https://api.dexscreener.com/latest/dex/tokens/${normalizedAddress}`
+      const data = await fetchJsonWithTimeout(
+        `https://api.dexscreener.com/latest/dex/tokens/${normalizedAddress}`,
       );
-
-      if (!response.ok) throw new Error("Failed to fetch from DexScreener");
-
-      const data = await response.json();
-      return getDexScreenerTokenPrice(
-        filterPairsByChain(data?.pairs, symbol),
-        normalizedAddress
+      return normalizePositivePrice(
+        getDexScreenerTokenPrice(
+          filterPairsByChain(data?.pairs, symbol),
+          normalizedAddress,
+        ),
       );
     }
 
     let price = null;
     let fetchSuccess = false;
 
-    // Default GeckoTerminal logic for all other chains.
     try {
-      const response = await fetch(
-        `https://api.geckoterminal.com/api/v2/simple/networks/${symbol}/token_price/${normalizedAddress}`
+      const data = await fetchJsonWithTimeout(
+        `https://api.geckoterminal.com/api/v2/simple/networks/${symbol}/token_price/${normalizedAddress}`,
       );
-      if (!response.ok) throw new Error("Failed to fetch from GeckoTerminal");
-      const data = await response.json();
       const tokenPrices = data?.data?.attributes?.token_prices;
-      const geckoPrice = getGeckoPriceByAddress(tokenPrices, normalizedAddress);
+      const geckoPrice = normalizePositivePrice(
+        getGeckoPriceByAddress(tokenPrices, normalizedAddress),
+      );
 
       if (geckoPrice !== null) {
         price = geckoPrice;
@@ -135,22 +152,20 @@ export const fetchTokenPrice = async (symbol, address) => {
     } catch (error) {
       console.warn(
         "GeckoTerminal failed, falling back to DexScreener:",
-        error.message
+        error.message,
       );
     }
 
-    // Fallback to DexScreener.
     if (!fetchSuccess) {
       try {
-        const response = await fetch(
-          `https://api.dexscreener.com/latest/dex/tokens/${normalizedAddress}`
+        const data = await fetchJsonWithTimeout(
+          `https://api.dexscreener.com/latest/dex/tokens/${normalizedAddress}`,
         );
-        if (!response.ok) throw new Error("Failed to fetch from DexScreener");
-        const data = await response.json();
-
-        const dexPrice = getDexScreenerTokenPrice(
-          filterPairsByChain(data?.pairs, symbol),
-          normalizedAddress
+        const dexPrice = normalizePositivePrice(
+          getDexScreenerTokenPrice(
+            filterPairsByChain(data?.pairs, symbol),
+            normalizedAddress,
+          ),
         );
         if (dexPrice !== null) {
           price = dexPrice;
@@ -160,7 +175,7 @@ export const fetchTokenPrice = async (symbol, address) => {
       }
     }
 
-    return price;
+    return normalizePositivePrice(price);
   } catch (error) {
     console.error("Error fetching token price:", error.message);
     return null;

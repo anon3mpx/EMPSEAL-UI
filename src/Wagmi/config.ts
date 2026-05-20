@@ -129,6 +129,7 @@ export const config = getDefaultConfig({
       "https://monad-mainnet.drpc.org",
     ]),
     [arbitrum.id]: chainTransport(arbitrum, [
+      "https://arb-one.api.pocket.network",
       "https://arb1.arbitrum.io/rpc",
       "https://arbitrum.lava.build",
       "https://arb-one.api.pocket.network",
