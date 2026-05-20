@@ -36,6 +36,10 @@ export const WIDGET_CHAIN_BY_KEY: Record<WidgetChainKey, WidgetChainRuntime> = {
   },
 };
 
+export const WIDGET_CHAIN_IDS = Object.values(WIDGET_CHAIN_BY_KEY).map(
+  (chain) => chain.chainId,
+);
+
 const CHAIN_ALIASES: Record<string, WidgetChainKey> = {
   pulsechain: "pulsechain",
   pulse: "pulsechain",

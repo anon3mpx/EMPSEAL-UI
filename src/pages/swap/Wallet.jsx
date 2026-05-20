@@ -12,7 +12,7 @@ import DotsMenu from "./DotsMenu";
 const truncateAddress = (address) =>
   `${address.slice(0, 6)}...${address.slice(-4)}`;
 
-const Wallet = ({ onTabChange }) => {
+const Wallet = ({ onTabChange, allowedChainIds, onSelectChain }) => {
   const [balance, setBalance] = useState(null);
   const [chainIconUrl, setChainIconUrl] = useState(undefined);
   const [chainName, setChainName] = useState(undefined);
@@ -61,6 +61,8 @@ const Wallet = ({ onTabChange }) => {
       <WalletConnect
         icon={<img src={WalletImg} alt="Wallet Icon" />}
         onChainChange={handleChainChange}
+        allowedChainIds={allowedChainIds}
+        onSelectChain={onSelectChain}
       />
       {/* //dapp */}
       {/* <DotsMenu onTabChange={onTabChange} /> */}

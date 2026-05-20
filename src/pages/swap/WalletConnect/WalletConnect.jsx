@@ -59,14 +59,27 @@ const ChainChangeHandler = ({
 export default function WalletConnect({
   onChainChange,
   allowUnsupported = false,
+  allowedChainIds,
+  onSelectChain,
 }) {
   const { address } = useAccount();
   const { disconnect } = useDisconnect();
-  const { chains, switchChain } = useSwitchChain();
+  const { switchChain } = useSwitchChain();
   const availableChains = useChains();
   const { connect, connectors } = useConnect();
   const selectedChainId = useSelectedChainId();
   const setSelectedChainId = useSetSelectedChainId();
+  const selectableChains = allowedChainIds?.length
+    ? availableChains.filter((chain) => allowedChainIds.includes(chain.id))
+    : availableChains;
+
+  const handleSelectChain = (chainId) => {
+    setSelectedChainId(chainId);
+    onSelectChain?.(chainId);
+    if (address) {
+      switchChain?.({ chainId });
+    }
+  };
 
   const [showPopup, setShowPopup] = useState(false);
   const [showChainPopup, setShowChainPopup] = useState(false);
@@ -213,10 +226,10 @@ export default function WalletConnect({
               {showChainPopup && (
                 <ChainPopup
                   setShowChainPopup={setShowChainPopup}
-                  availableChains={availableChains}
+                  availableChains={selectableChains}
                   chain={{ id: selectedChainId, name: selectedChainInfo?.name }}
                   switchChain={switchChain}
-                  onSelectChain={(chainId) => setSelectedChainId(chainId)}
+                  onSelectChain={handleSelectChain}
                 />
               )}
               {showConnectPopup && (
@@ -408,7 +421,15 @@ export default function WalletConnect({
             </>
           );
         }
-        if (chain?.unsupported && !allowUnsupported) {
+        const isChainOutsideAllowedList =
+          allowedChainIds?.length &&
+          chain?.id &&
+          !allowedChainIds.includes(chain.id);
+
+        if (
+          (chain?.unsupported || isChainOutsideAllowedList) &&
+          !allowUnsupported
+        ) {
           return (
             <>
               <button
@@ -421,9 +442,10 @@ export default function WalletConnect({
               {showChainPopup && (
                 <ChainPopup
                   setShowChainPopup={setShowChainPopup}
-                  availableChains={availableChains}
+                  availableChains={selectableChains}
                   chain={chain}
                   switchChain={switchChain}
+                  onSelectChain={handleSelectChain}
                 />
               )}
             </>
@@ -434,7 +456,7 @@ export default function WalletConnect({
             <ChainChangeHandler
               chain={chain}
               onChainChange={onChainChange}
-              chains={chains}
+              chains={selectableChains}
               switchChain={switchChain}
               allowUnsupported={allowUnsupported}
             />
@@ -498,9 +520,10 @@ export default function WalletConnect({
             {showChainPopup && (
               <ChainPopup
                 setShowChainPopup={setShowChainPopup}
-                availableChains={availableChains}
+                availableChains={selectableChains}
                 chain={chain}
                 switchChain={switchChain}
+                onSelectChain={handleSelectChain}
               />
             )}
           </>

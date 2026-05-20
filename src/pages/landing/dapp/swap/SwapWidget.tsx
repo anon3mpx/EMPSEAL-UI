@@ -461,7 +461,15 @@ export default function SwapWidget({ connected, onConnectWallet }: SwapWidgetPro
           )}
 
           <p className="text-center" style={{ fontSize: 9, color: "rgba(255,255,255,0.07)", marginTop: 10, fontWeight: 500, letterSpacing: "0.14em" }}>
-            POWERED BY EMPX · 100+ DEXS · ZERO FEES
+            <a
+              href="/"
+              target="_blank"
+              rel="noreferrer"
+              style={{ color: "inherit", textDecoration: "none", cursor: "pointer" }}
+            >
+              POWERED BY EMPX
+            </a>{" "}
+            · 100+ DEXS · ZERO FEES
           </p>
         </div>
       </div>

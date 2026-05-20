@@ -93,18 +93,22 @@ const PORTFOLIO_CHAIN_META: Record<number, PortfolioChainMeta> = {
     nativeCoinGeckoId: "binancecoin",
   },
   43114: {
+    chainKey: "avalanche",
     assetPlatformId: "avalanche",
     nativeCoinGeckoId: "avalanche-2",
   },
   146: {
+    chainKey: "sonic",
     assetPlatformId: "sonic",
     nativeCoinGeckoId: "sonic-3",
   },
   1329: {
+    chainKey: "sei",
     assetPlatformId: "sei-network",
     nativeCoinGeckoId: "sei-network",
   },
   80094: {
+    chainKey: "berachain",
     assetPlatformId: "berachain",
     nativeCoinGeckoId: "berachain-bera",
   },
@@ -114,10 +118,12 @@ const PORTFOLIO_CHAIN_META: Record<number, PortfolioChainMeta> = {
     nativeCoinGeckoId: "rootstock-rbtc",
   },
   143: {
+    chainKey: "monad",
     assetPlatformId: "monad",
     nativeCoinGeckoId: "monad",
   },
   999: {
+    chainKey: "hyperevm",
     assetPlatformId: "hyperevm",
     nativeCoinGeckoId: "hyperliquid",
   },
@@ -226,6 +232,8 @@ function getChainDisplay(chainId: number) {
   const wagmiChain = wagmiChainById.get(chainId);
 
   return {
+    // Chain cards need a chainKey-backed CHAIN_CONFIG entry; otherwise the UI
+    // can only fall back to a native-symbol letter like "A", "B", or "S".
     chainKey: chainConfig?.id || wagmiChain?.name.toLowerCase().replace(/\s+/g, "-") || String(chainId),
     chainName: chainConfig?.name || wagmiChain?.name || `Chain ${chainId}`,
     logo: chainConfig?.logo || wagmiChain?.nativeCurrency.symbol?.[0] || "?",

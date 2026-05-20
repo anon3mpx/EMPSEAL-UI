@@ -140,6 +140,7 @@ const defaultDisplayConfig = {
   primaryColor: "#FF8A00",
   background: "#000000",
   borderColor: "#FF8A00",
+  showBackground: true,
   showSlippage: true,
   showPoweredBy: true,
 };
@@ -258,6 +259,7 @@ const Emp = ({
     runtimeConfig?.routerAddress || routerAddress;
   const effectiveWethAddress = runtimeConfig?.wethAddress || wethAddress;
   const isWidgetMode = !!displayConfig?.isWidgetMode;
+  const showBackground = displayConfig?.showBackground ?? true;
   const showSlippage = displayConfig?.showSlippage ?? true;
   const showPoweredBy = displayConfig?.showPoweredBy ?? false;
   const widgetPrimaryColor = displayConfig?.primaryColor || "#FF8A00";
@@ -1326,14 +1328,22 @@ const Emp = ({
   return (
     <>
       <div
-        className={`w-full ${isWidgetMode ? `widget-embed-mode widget-theme-${displayConfig.theme || "dark"}` : ""}`}
+        className={`w-full ${
+          isWidgetMode
+            ? `widget-embed-mode widget-theme-${displayConfig.theme || "dark"} ${
+                showBackground ? "" : "widget-no-background"
+              }`
+            : ""
+        }`}
         style={
           isWidgetMode
             ? {
                 "--primary": widgetPrimaryColor,
                 "--widget-primary": widgetPrimaryColor,
                 "--widget-primary-rgb": widgetPrimaryRgb,
-                "--bg-color": displayConfig.background,
+                "--bg-color": showBackground
+                  ? displayConfig.background
+                  : "transparent",
                 "--border-color": displayConfig.borderColor,
               }
             : undefined
@@ -1914,7 +1924,15 @@ const Emp = ({
                     </div>
                     {showPoweredBy && (
                       <p className="text-center text-[9px] text-white/10 mb-3 font-medium tracking-[0.14em]">
-                        POWERED BY EMPX · 100+ DEXS · ZERO FEES
+                        <a
+                          href="/"
+                          target="_blank"
+                          rel="noreferrer"
+                          className="hover:text-white/30 transition-colors"
+                        >
+                          POWERED BY EMPX
+                        </a>{" "}
+                        · 100+ DEXS · ZERO FEES
                       </p>
                     )}
                   </div>
