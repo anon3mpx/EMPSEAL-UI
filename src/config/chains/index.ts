@@ -1,4 +1,5 @@
 import { ChainConfig } from "../types";
+import { getPrimaryRpcUrl } from "../rpc";
 
 export const SUPPORTED_CHAINS: Record<number, ChainConfig> = {
   // PulseChain
@@ -65,7 +66,7 @@ export const SUPPORTED_CHAINS: Record<number, ChainConfig> = {
     },
     blockExplorer: "https://sonicscan.org/tx/",
     blockExplorerName: "sonicscan",
-    rpcUrl: "https://rpc.soniclabs.com",
+    rpcUrl: getPrimaryRpcUrl(146, "https://rpc.soniclabs.com"),
     maxHops: 2,
     blockTime: 1,
     stableTokens: [
@@ -88,7 +89,7 @@ export const SUPPORTED_CHAINS: Record<number, ChainConfig> = {
     },
     blockExplorer: 'https://basescan.org/tx/',
     blockExplorerName: "basescan",
-    rpcUrl: 'https://mainnet.base.org',
+    rpcUrl: getPrimaryRpcUrl(8453, "https://mainnet.base.org"),
     maxHops: 3,
     blockTime: 5,
     quoteHopFallback: {
@@ -120,7 +121,7 @@ export const SUPPORTED_CHAINS: Record<number, ChainConfig> = {
     },
     blockExplorer: 'https://seitrace.com/',
     blockExplorerName: "sei trace",
-    rpcUrl: 'https://sei.drpc.org',
+    rpcUrl: getPrimaryRpcUrl(1329, "https://sei.drpc.org"),
     maxHops: 3,
     blockTime: 1,
     stableTokens: [
@@ -147,7 +148,7 @@ export const SUPPORTED_CHAINS: Record<number, ChainConfig> = {
     },
     blockExplorer: 'https://berascan.com/tx/',
     blockExplorerName: "berascan",
-    rpcUrl: 'https://berachain.drpc.org',
+    rpcUrl: getPrimaryRpcUrl(80094, "https://berachain.drpc.org"),
     maxHops: 3,
     blockTime: 5,
     stableTokens: [
@@ -173,7 +174,7 @@ export const SUPPORTED_CHAINS: Record<number, ChainConfig> = {
     },
     blockExplorer: 'https://explorer.rsk.co/tx/',
     blockExplorerName: "Rootstock Explorer",
-    rpcUrl: 'https://public-node.rsk.co',
+    rpcUrl: getPrimaryRpcUrl(30, "https://public-node.rsk.co"),
     maxHops: 3,
     blockTime: 30,
     stableTokens: [
@@ -198,7 +199,7 @@ export const SUPPORTED_CHAINS: Record<number, ChainConfig> = {
     },
     blockExplorer: "https://bscscan.com/tx/",
     blockExplorerName: "BscScan",
-    rpcUrl: "https://bsc-rpc.publicnode.com",
+    rpcUrl: getPrimaryRpcUrl(56, "https://bsc-rpc.publicnode.com"),
     maxHops: 3,
     blockTime: 3,
     stableTokens: [
@@ -222,7 +223,7 @@ export const SUPPORTED_CHAINS: Record<number, ChainConfig> = {
     },
     blockExplorer: 'https://monadvision.com/tx/',
     blockExplorerName: "Monadvision",
-    rpcUrl: 'https://rpc.monad.xyz',
+    rpcUrl: getPrimaryRpcUrl(143, "https://rpc.monad.xyz"),
     maxHops: 3,
     blockTime: 2,
     quoteHopFallback: {
@@ -253,7 +254,7 @@ export const SUPPORTED_CHAINS: Record<number, ChainConfig> = {
     },
     blockExplorer: "https://arbiscan.io/tx/",
     blockExplorerName: "Arbiscan",
-    rpcUrl: "https://arb-one.api.pocket.network",
+    rpcUrl: getPrimaryRpcUrl(42161, "https://arb-one.api.pocket.network"),
     maxHops: 3,
     blockTime: 2,
     stableTokens: [
@@ -277,7 +278,7 @@ export const SUPPORTED_CHAINS: Record<number, ChainConfig> = {
     },
     blockExplorer: "https://optimistic.etherscan.io/tx/",
     blockExplorerName: "Optimistic Etherscan",
-    rpcUrl: "https://mainnet.optimism.io",
+    rpcUrl: getPrimaryRpcUrl(10, "https://mainnet.optimism.io"),
     maxHops: 3,
     blockTime: 2,
     quoteHopFallback: {
@@ -309,7 +310,7 @@ export const SUPPORTED_CHAINS: Record<number, ChainConfig> = {
     },
     blockExplorer: "https://snowtrace.io/tx/",
     blockExplorerName: "SnowTrace",
-    rpcUrl: "https://api.avax.network/ext/bc/C/rpc",
+    rpcUrl: getPrimaryRpcUrl(43114, "https://api.avax.network/ext/bc/C/rpc"),
     maxHops: 3,
     blockTime: 2,
     stableTokens: [
@@ -336,7 +337,7 @@ export const SUPPORTED_CHAINS: Record<number, ChainConfig> = {
     },
     blockExplorer: "https://polygonscan.com/tx/",
     blockExplorerName: "PolygonScan",
-    rpcUrl: "https://polygon.drpc.org",
+    rpcUrl: getPrimaryRpcUrl(137, "https://polygon.drpc.org"),
     maxHops: 3,
     blockTime: 2,
     stableTokens: [
