@@ -2,16 +2,10 @@ import React, { useState, useEffect, useRef } from "react";
 import BG1 from "../../assets/images/bg.png";
 import EL from "../../assets/images/emp-logo.png";
 
-// Helper function to calculate slippage
 const calculateSlippage = (amountOut, slippagePercent) => {
-  if (slippagePercent < 0 || slippagePercent > 5) {
-    throw new Error("Invalid slippage percentage. Must be between 0.5 and 5");
-  }
-  // console.log("Calculated Slippage: ", amountOut, slippagePercent);
-  return (
-    (amountOut * BigInt(10000 - Math.round(slippagePercent * 100))) /
-    BigInt(10000)
-  );
+  const clampedPercent = Math.max(0, Math.min(50, Number(slippagePercent) || 0));
+  const bps = BigInt(Math.round(clampedPercent * 100));
+  return (amountOut * (10000n - bps)) / 10000n;
 };
 
 const SlippageCalculator = ({
@@ -39,11 +33,8 @@ const SlippageCalculator = ({
     }
   }, [inputAmount]);
 
-  // Store original amount when tradeInfo changes and ref is empty
   useEffect(() => {
-    if (inputAmount && !originalAmountRef.current) {
-      originalAmountRef.current = inputAmount;
-    }
+    originalAmountRef.current = inputAmount && inputAmount > 0n ? inputAmount : null;
   }, [inputAmount]);
 
   // Sync selected slippage from parent state

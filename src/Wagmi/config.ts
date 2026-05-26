@@ -8,6 +8,7 @@ import {
 } from "@rainbow-me/rainbowkit/wallets";
 import { http } from "wagmi";
 import { fallback } from "viem";
+import { prependPrimaryRpcUrl } from "../config/rpc";
 import {
   chains,
   pulsechain,
@@ -51,10 +52,16 @@ const transportOptions = {
 const uniqueUrls = (urls: string[]) => [...new Set(urls.filter(Boolean))];
 
 const chainTransport = (
+  chainId: number,
   chain: { rpcUrls: { default: { http: readonly string[] } } },
   preferredUrls: string[] = [],
 ) => {
-  const urls = uniqueUrls([...preferredUrls, ...chain.rpcUrls.default.http]);
+  const urls = uniqueUrls(
+    prependPrimaryRpcUrl(chainId, [
+      ...preferredUrls,
+      ...chain.rpcUrls.default.http,
+    ]),
+  );
   const transports = urls.map((url) => http(url, transportOptions));
 
   if (transports.length <= 1) {
@@ -70,19 +77,19 @@ export const config = getDefaultConfig({
   projectId: "YOUR_PROJECT_ID",
   chains,
   transports: {
-    [pulsechain.id]: chainTransport(pulsechain, [
+    [pulsechain.id]: chainTransport(pulsechain.id, pulsechain, [
       "https://rpc.pulsechain.com",
       "https://rpc.pulsechain.box",
       "https://pulsechain-rpc.publicnode.com",
       "https://rpc.pulsechainrpc.com",
     ]),
-    [sonic.id]: chainTransport(sonic, [
+    [sonic.id]: chainTransport(sonic.id, sonic, [
       "https://rpc.soniclabs.com",
       "https://sonic-rpc.publicnode.com",
       "https://sonic.drpc.org",
       "https://sonic.api.pocket.network",
     ]),
-    [base.id]: chainTransport(base, [
+    [base.id]: chainTransport(base.id, base, [
       "https://mainnet.base.org",
       "https://base-rpc.publicnode.com",
       "https://base.llamarpc.com",
@@ -92,43 +99,44 @@ export const config = getDefaultConfig({
       "https://base.public.blockpi.network/v1/rpc/public",
       "https://base.meowrpc.com",
     ]),
-    [sei.id]: chainTransport(sei, [
+    [sei.id]: chainTransport(sei.id, sei, [
       "https://evm-rpc.sei-apis.com",
       "https://sei.api.pocket.network",
       "https://sei.drpc.org",
       "https://sei-evm-rpc.publicnode.com",
       "https://sei.llamarpc.com",
     ]),
-    [berachain.id]: chainTransport(berachain, [
+    [berachain.id]: chainTransport(berachain.id, berachain, [
       "https://berachain.drpc.org",
       "https://berachain-rpc.publicnode.com",
       "https://rpc.berachain-apis.com",
       "https://berachain.api.pocket.network",
     ]),
-    [rootstock.id]: chainTransport(rootstock, [
+    [rootstock.id]: chainTransport(rootstock.id, rootstock, [
       "https://public-node.rsk.co",
       "https://mycrypto.rsk.co",
       "https://rootstock-mainnet.public.blastapi.io",
       "https://rootstock.drpc.org",
     ]),
-    [ethw.id]: chainTransport(ethw, [
+    [ethw.id]: chainTransport(ethw.id, ethw, [
       "https://mainnet.ethereumpow.org",
       "https://ethw.public-rpc.com",
     ]),
-    [bsc.id]: chainTransport(bsc, [
+    [bsc.id]: chainTransport(bsc.id, bsc, [
       "https://bsc-rpc.publicnode.com",
       "https://bsc.api.pocket.network",
       "https://bsc-dataseed.binance.org",
       "https://bsc.blockpi.network/v1/rpc/public",
       "https://binance.llamarpc.com",
     ]),
-    [monad.id]: chainTransport(monad, [
+    [monad.id]: chainTransport(monad.id, monad, [
       "https://rpc.monad.xyz",
       "https://rpc4.monad.xyz",
       "https://rpc3.monad.xyz",
       "https://monad-mainnet.drpc.org",
     ]),
-    [arbitrum.id]: chainTransport(arbitrum, [
+    [arbitrum.id]: chainTransport(arbitrum.id, arbitrum, [
+      "https://arb-one.api.pocket.network",
       "https://arb1.arbitrum.io/rpc",
       "https://arbitrum.lava.build",
       "https://arb-one.api.pocket.network",
@@ -136,13 +144,13 @@ export const config = getDefaultConfig({
       "https://arbitrum.blockpi.network/v1/rpc/public",
       "https://endpoints.omniatech.io/v1/arbitrum/one/public",
     ]),
-    [optimism.id]: chainTransport(optimism, [
+    [optimism.id]: chainTransport(optimism.id, optimism, [
       "https://mainnet.optimism.io",
       "https://optimism.blockpi.network/v1/rpc/public",
       "https://1rpc.io/op",
       "https://endpoints.omniatech.io/v1/op/mainnet/public",
     ]),
-    [polygon.id]: chainTransport(polygon, [
+    [polygon.id]: chainTransport(polygon.id, polygon, [
       "https://polygon.drpc.org",
       "https://polygon-rpc.com",
       "https://rpc.ankr.com/polygon",
@@ -151,14 +159,14 @@ export const config = getDefaultConfig({
       "https://polygon-mainnet.public.blastapi.io",
       "https://polygon.blockpi.network/v1/rpc/public",
     ]),
-    [avalanche.id]: chainTransport(avalanche, [
+    [avalanche.id]: chainTransport(avalanche.id, avalanche, [
       "https://api.avax.network/ext/bc/C/rpc",
       "https://avalanche.public-rpc.com",
       "https://avax.api.pocket.network",
       "https://avalanche.blockpi.network/v1/rpc/public",
       "https://endpoints.omniatech.io/v1/avax/mainnet/public",
     ]),
-    [hyperEVM.id]: chainTransport(hyperEVM, [
+    [hyperEVM.id]: chainTransport(hyperEVM.id, hyperEVM, [
       "https://hyperevm-rpc.publicnode.com",
       "https://hyperliquid-json-rpc.stakely.io",
       "https://rpc.hypurrscan.io",

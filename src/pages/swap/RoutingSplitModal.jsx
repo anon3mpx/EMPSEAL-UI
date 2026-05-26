@@ -127,8 +127,7 @@ import { useEffect, useState } from "react";
 import { useChainConfig } from "../../hooks/useChainConfig";
 
 export default function RoutingSplitModal({ isOpen, onClose, bestRoute, tokenA, tokenB }) {
-  // if (!isOpen || !bestRoute || bestRoute.type !== "SPLIT") return null;
-  if (!isOpen || !bestRoute) return null;
+  const isHidden = !isOpen || !bestRoute;
 
   const [tokenImages, setTokenImages] = useState({});
   const { chainId, tokenList, adapters, wethAddress } = useChainConfig();
@@ -271,6 +270,8 @@ export default function RoutingSplitModal({ isOpen, onClose, bestRoute, tokenA, 
 
     setTokenImages(newTokenImages);
   }, [bestRoute, chainId]);
+
+  if (isHidden) return null;
 
   return (
     <div

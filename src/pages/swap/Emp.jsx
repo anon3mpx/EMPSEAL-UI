@@ -49,6 +49,19 @@ import { toast } from "../../utils/toastHelper";
 import { usePriceMonitor } from "../../hooks/usePriceMonitor";
 import TokenLogo from "../../components/TokenLogo.jsx";
 import { fetchTokenPrice } from "../../utils/priceFetcher";
+import { convertToBigInt } from "../../utils/utils";
+import {
+  HIGH_PRICE_IMPACT_BLOCK_PERCENT,
+  HIGH_PRICE_IMPACT_WARNING_PERCENT,
+  calculateMinOut,
+  calculateMinReceived,
+  calculateRoutePriceImpactPercent,
+  calculateUsdPriceImpactPercent,
+  formatImpactPercent,
+  getEffectiveSlippagePercent,
+  hasUsableRouteQuote,
+  shouldSuppressQuoteDetails,
+} from "../../utils/swapMath";
 import { getQuoteHopFallbackPlan } from "../../config/quoteFallback";
 
 import { WPLS } from "../../utils/abis/wplsABI";
@@ -199,7 +212,6 @@ const Emp = ({
   const [balanceAddress, setBalanceAddress] = useState(null);
   const { data: datas } = useBalance({ address });
   const [fees, setFees] = useState(0);
-  const [minAmountOut, setMinAmountOut] = useState("0");
   const [copySuccess, setCopySuccess] = useState(false);
   const [activeTokenAddress, setActiveTokenAddress] = useState(null);
   const [usdValue, setUsdValue] = useState("0.00");
@@ -221,8 +233,6 @@ const Emp = ({
 
   // Debounce and request tracking for quote fetching
   const [debouncedAmountIn, setDebouncedAmountIn] = useState("0");
-  // const quoteRequestIdRef = useRef(0);
-  // const lastCompletedIdRef = useRef(0); // Track last completed request
 
   // Price monitor state
   const [initialQuote, setInitialQuote] = useState("");
@@ -233,6 +243,9 @@ const Emp = ({
   // New state variables
   const [lastUpdated, setLastUpdated] = useState(null);
   const [isSell, setIsSell] = useState(true);
+  const [quoteTimeRemaining, setQuoteTimeRemaining] = useState(30);
+  const [isRefreshingQuote, setIsRefreshingQuote] = useState(false);
+  const [highImpactMessage, setHighImpactMessage] = useState("");
 
   const { writeContractAsync } = useWriteContract();
   // Toggle function
@@ -294,27 +307,6 @@ const Emp = ({
 
   const publicClient = usePublicClient({ chainId });
 
-  const convertToBigInt = (amount, decimals) => {
-    // Add input validation
-    if (!amount || isNaN(amount) || !decimals || isNaN(decimals)) {
-      return BigInt(0);
-    }
-
-    try {
-      const parsedAmount = parseFloat(amount);
-      const parsedAmountIn = BigInt(Math.floor(parsedAmount * Math.pow(10, 6)));
-
-      if (decimals >= 6) {
-        return parsedAmountIn * BigInt(10) ** BigInt(decimals - 6);
-      } else {
-        return parsedAmountIn / BigInt(10) ** BigInt(6 - decimals);
-      }
-    } catch (error) {
-      console.error("Error converting to BigInt:", error);
-      return BigInt(0);
-    }
-  };
-
   const normalizeAddress = (address) => address?.toLowerCase?.() || "";
   const isSameAddress = (a, b) => normalizeAddress(a) === normalizeAddress(b);
   const getQuoteTokenAddress = (tokenAddress) =>
@@ -347,12 +339,12 @@ const Emp = ({
     !isDirectRoute &&
     !!selectedTokenA &&
     !!selectedTokenB &&
-    !!amountIn &&
-    parseFloat(amountIn) > 0;
+    !!debouncedAmountIn &&
+    parseFloat(debouncedAmountIn) > 0;
   const quoteAmountInWei =
-    amountIn && selectedTokenA && !isNaN(parseFloat(amountIn))
+    debouncedAmountIn && selectedTokenA && !isNaN(parseFloat(debouncedAmountIn))
       ? convertToBigInt(
-          parseFloat(amountIn),
+          debouncedAmountIn,
           parseInt(selectedTokenA.decimal) || 18,
         )
       : BigInt(0);
@@ -397,8 +389,8 @@ const Emp = ({
     enabled:
       quoteFallbackPlan.enabled &&
       quoteEnabled &&
-      !primaryQuoteData &&
-      !!primaryQuoteError &&
+      !primaryQuoteLoading &&
+      !hasUsableRouteQuote(primaryQuoteData) &&
       !!quoteFallbackPlan.secondStep,
   });
 
@@ -420,15 +412,21 @@ const Emp = ({
     enabled:
       quoteFallbackPlan.enabled &&
       quoteEnabled &&
-      !primaryQuoteData &&
-      !fallbackQuoteData &&
+      !primaryQuoteLoading &&
+      !fallbackQuoteLoading &&
+      !hasUsableRouteQuote(primaryQuoteData) &&
+      !hasUsableRouteQuote(fallbackQuoteData) &&
       !!quoteFallbackPlan.thirdStep &&
-      !!fallbackQuoteError,
+      (!!fallbackQuoteError || !hasUsableRouteQuote(primaryQuoteData)),
   });
 
-  const data = quoteFallbackPlan.enabled
-    ? (primaryQuoteData ?? fallbackQuoteData ?? fallbackQuoteDataOne)
-    : primaryQuoteData;
+  const data = hasUsableRouteQuote(primaryQuoteData)
+    ? primaryQuoteData
+    : hasUsableRouteQuote(fallbackQuoteData)
+      ? fallbackQuoteData
+      : hasUsableRouteQuote(fallbackQuoteDataOne)
+        ? fallbackQuoteDataOne
+        : primaryQuoteData ?? fallbackQuoteData ?? fallbackQuoteDataOne;
   const quoteLoading = quoteFallbackPlan.enabled
     ? primaryQuoteLoading || fallbackQuoteLoading || fallbackQuoteLoadingOne
     : primaryQuoteLoading;
@@ -473,8 +471,7 @@ const Emp = ({
       enabled:
         quoteFallbackPlan.enabled &&
         singleTokenEnabled &&
-        !primarySingleToken &&
-        !!primarySingleTokenError &&
+        !hasUsableRouteQuote(primarySingleToken) &&
         !!quoteFallbackPlan.secondStep,
     });
 
@@ -492,15 +489,19 @@ const Emp = ({
     enabled:
       quoteFallbackPlan.enabled &&
       singleTokenEnabled &&
-      !primarySingleToken &&
-      !fallbackSingleToken &&
+      !hasUsableRouteQuote(primarySingleToken) &&
+      !hasUsableRouteQuote(fallbackSingleToken) &&
       !!quoteFallbackPlan.thirdStep &&
-      !!fallbackSingleTokenError,
+      (!!fallbackSingleTokenError || !hasUsableRouteQuote(primarySingleToken)),
   });
 
-  const singleToken = quoteFallbackPlan.enabled
-    ? (primarySingleToken ?? fallbackSingleToken ?? fallbackSingleTokenOne)
-    : primarySingleToken;
+  const singleToken = hasUsableRouteQuote(primarySingleToken)
+    ? primarySingleToken
+    : hasUsableRouteQuote(fallbackSingleToken)
+      ? fallbackSingleToken
+      : hasUsableRouteQuote(fallbackSingleTokenOne)
+        ? fallbackSingleTokenOne
+        : primarySingleToken ?? fallbackSingleToken ?? fallbackSingleTokenOne;
 
   // Update quoting state based on loading
   useEffect(() => {
@@ -508,7 +509,24 @@ const Emp = ({
   }, [quoteLoading]);
 
   const DEADLINE_MINUTES = 10;
+  const QUOTE_TTL_SECONDS = 30;
   const deadline = Math.floor(Date.now() / 1000) + DEADLINE_MINUTES * 60;
+
+  const refreshQuotes = async () => {
+    setIsRefreshingQuote(true);
+    try {
+      await Promise.all([
+        quoteRefresh?.(),
+        singleTokenRefresh?.(),
+      ]);
+      setLastUpdated(Date.now());
+      setQuoteTimeRemaining(QUOTE_TTL_SECONDS);
+    } catch (error) {
+      console.error("Quote refresh failed:", error);
+    } finally {
+      setIsRefreshingQuote(false);
+    }
+  };
 
   // Process findBestPath data to update quotes
   useEffect(() => {
@@ -517,20 +535,7 @@ const Emp = ({
       return;
     }
 
-    if (!data || !data.amounts || data.amounts.length === 0) {
-      handleEmptyData();
-      return;
-    }
-
-    // Check if router found a valid path (needs at least 2 amounts and 2 path elements)
-    if (data.amounts.length < 2 || !data.path || data.path.length < 2) {
-      console.warn("Router could not find a valid path for this token pair", {
-        amounts: data.amounts,
-        path: data.path,
-        adapters: data.adapters,
-        tokenIn: selectedTokenA?.address,
-        tokenOut: selectedTokenB?.address,
-      });
+    if (!hasUsableRouteQuote(data)) {
       handleEmptyData();
       return;
     }
@@ -542,23 +547,66 @@ const Emp = ({
     }
 
     setCalculatedRoute();
-  }, [data, selectedTokenA, selectedTokenB, amountIn, isDirectRoute]);
+  }, [data, selectedTokenA, selectedTokenB, isDirectRoute, selectedSlippage]);
 
   // Refresh quotes when tokens or amount changes
   useEffect(() => {
-    if (quoteRefresh) {
-      quoteRefresh();
-    }
-    if (singleTokenRefresh) {
-      singleTokenRefresh();
-    }
     setPath([selectedTokenA?.address, selectedTokenB?.address]);
+  }, [selectedTokenA, selectedTokenB]);
+
+  useEffect(() => {
+    if (amountIn !== debouncedAmountIn) {
+      setQuoteTimeRemaining(QUOTE_TTL_SECONDS);
+      return;
+    }
+
+    if (!lastUpdated || isDirectRoute || !quoteEnabled) {
+      setQuoteTimeRemaining(QUOTE_TTL_SECONDS);
+      return;
+    }
+
+    const updateRemaining = () => {
+      const remaining = Math.max(
+        0,
+        Math.ceil((lastUpdated + QUOTE_TTL_SECONDS * 1000 - Date.now()) / 1000),
+      );
+      setQuoteTimeRemaining(remaining);
+    };
+
+    updateRemaining();
+    const intervalId = setInterval(updateRemaining, 1000);
+    return () => clearInterval(intervalId);
   }, [
     amountIn,
-    selectedTokenA,
-    selectedTokenB,
-    quoteRefresh,
-    singleTokenRefresh,
+    debouncedAmountIn,
+    isDirectRoute,
+    lastUpdated,
+    quoteEnabled,
+  ]);
+
+  useEffect(() => {
+    if (
+      !quoteEnabled ||
+      isDirectRoute ||
+      isQuoting ||
+      isRefreshingQuote ||
+      amountIn !== debouncedAmountIn ||
+      !lastUpdated ||
+      quoteTimeRemaining > 0
+    ) {
+      return;
+    }
+
+    refreshQuotes();
+  }, [
+    amountIn,
+    debouncedAmountIn,
+    isDirectRoute,
+    isQuoting,
+    isRefreshingQuote,
+    lastUpdated,
+    quoteEnabled,
+    quoteTimeRemaining,
   ]);
 
   // Reset selected tokens and quoting state when chain changes
@@ -570,6 +618,9 @@ const Emp = ({
     setIsQuoting(false);
     setIsRoutingLoading(false);
     setTradeInfo(undefined);
+    setLastUpdated(null);
+    setQuoteTimeRemaining(QUOTE_TTL_SECONDS);
+    setIsRefreshingQuote(false);
   }, [chainId]);
 
   useEffect(() => {
@@ -657,6 +708,8 @@ const Emp = ({
   const handleEmptyData = () => {
     setAmountOut("0");
     setTradeInfo(undefined);
+    setLastUpdated(null);
+    setQuoteTimeRemaining(QUOTE_TTL_SECONDS);
     setRoute([selectedTokenA?.address, selectedTokenB?.address]);
   };
 
@@ -682,7 +735,7 @@ const Emp = ({
     const amountInBigInt =
       amountIn && selectedTokenA && !isNaN(parseFloat(amountIn))
         ? convertToBigInt(
-            parseFloat(amountIn),
+            amountIn,
             parseInt(selectedTokenA.decimal) || 18,
           )
         : BigInt(0);
@@ -698,26 +751,28 @@ const Emp = ({
 
     setTradeInfo(trade);
     setIsSlippageApplied(false);
+    setLastUpdated(Date.now());
+    setQuoteTimeRemaining(QUOTE_TTL_SECONDS);
   };
 
   // Process the findBestPath result and set the calculated route
   const setCalculatedRoute = () => {
     if (isDirectRoute) return;
-    if (!data || !data.amounts || data.amounts.length === 0) {
+    if (!hasUsableRouteQuote(data)) {
       console.error("Invalid swap data received");
       return;
     }
 
+    const quotedOut = data.amounts[data.amounts.length - 1];
     const amountOutValue = formatUnits(
-      data.amounts[data.amounts.length - 1],
+      quotedOut,
       parseInt(selectedTokenB.decimal),
     );
     setAmountOut(amountOutValue);
 
     const trade = {
       amountIn: data.amounts[0],
-      amountOut:
-        (data.amounts[data.amounts.length - 1] * BigInt(98)) / BigInt(100),
+      amountOut: calculateMinOut(quotedOut, selectedSlippage),
       amounts: data.amounts,
       path: data.path,
       pathTokens: data.path.map(
@@ -733,6 +788,8 @@ const Emp = ({
     setAdapter(data.adapters);
     setTradeInfo(trade);
     setIsSlippageApplied(false);
+    setLastUpdated(Date.now());
+    setQuoteTimeRemaining(QUOTE_TTL_SECONDS);
   };
 
   // Check approval status whenever token or amount changes
@@ -902,15 +959,9 @@ const Emp = ({
   };
 
   const handleSlippageCalculated = (adjustedAmount) => {
-    const tokenDecimals = selectedTokenB.decimal;
-    const decimalAdjusted = Number(adjustedAmount) / 10 ** tokenDecimals;
-
-    // Update states
-    setMinAmountOut(adjustedAmount);
-    setAmountOut(decimalAdjusted.toString());
-
-    // Reset minAmountOut if needed
-    setMinAmountOut("0");
+    if (adjustedAmount >= 0n) {
+      setIsSlippageApplied(true);
+    }
   };
 
   useEffect(() => {
@@ -932,6 +983,8 @@ const Emp = ({
           setConversionRate(tokenPrice);
         } else {
           setConversionRate(null);
+          setUsdValue("0.00");
+          setUsdValueTokenA("0.00");
           console.error("Token A price could not be established.");
         }
       } catch (error) {
@@ -961,6 +1014,7 @@ const Emp = ({
           setConversionRateTokenB(tokenPrice);
         } else {
           setConversionRateTokenB(null);
+          setUsdValueTokenB("0.00");
           console.error("Token B price could not be established.");
         }
       } catch (error) {
@@ -979,7 +1033,8 @@ const Emp = ({
       setUsdValue(valueInUSD);
       setUsdValueTokenA(valueInUSD);
     } else {
-      console.error("Missing or invalid conversion rate:", conversionRate);
+      setUsdValue("0.00");
+      setUsdValueTokenA("0.00");
     }
   }, [amountIn, conversionRate]);
 
@@ -990,14 +1045,16 @@ const Emp = ({
       ).toFixed(2);
       setUsdValueTokenB(valueInUSD);
     } else {
-      console.error(
-        "Missing or invalid conversion rate:",
-        conversionRateTokenB,
-      );
+      setUsdValueTokenB("0.00");
     }
   }, [amountOut, conversionRateTokenB]);
 
   const confirmSwap = async () => {
+    if (amountIn !== debouncedAmountIn || isRefreshingQuote) {
+      toast.error("Refreshing quote. Please wait.");
+      return null;
+    }
+
     if (selectedTokenA.address == selectedTokenB.address) {
       return null;
     }
@@ -1024,6 +1081,19 @@ const Emp = ({
         setSwapSuccess(false);
       });
   };
+
+  const effectiveSlippage = getEffectiveSlippagePercent(selectedSlippage);
+  const isQuoteExpired =
+    quoteEnabled &&
+    !isDirectRoute &&
+    !!lastUpdated &&
+    quoteTimeRemaining <= 0;
+  const isQuoteStale = shouldSuppressQuoteDetails({
+    amountIn,
+    debouncedAmountIn,
+    isQuoting: isQuoting || isRefreshingQuote,
+    isQuoteExpired,
+  });
 
   // const getRateDisplay = () => {
   //   if (!singleToken?.amounts || singleToken.amounts.length < 2) {
@@ -1057,6 +1127,18 @@ const Emp = ({
       return "0";
     }
 
+    if (
+      amountIn &&
+      amountOut &&
+      parseFloat(amountIn) > 0 &&
+      parseFloat(amountOut) > 0
+    ) {
+      const rate = parseFloat(amountOut) / parseFloat(amountIn);
+      if (!isNaN(rate) && rate > 0) {
+        return isRateReversed ? (1 / rate).toFixed(6) : rate.toFixed(6);
+      }
+    }
+
     // Use the singleToken data for accurate 1 token price
     if (
       singleToken?.amounts &&
@@ -1070,19 +1152,6 @@ const Emp = ({
         ),
       );
 
-      if (!isNaN(rate) && rate > 0) {
-        return isRateReversed ? (1 / rate).toFixed(6) : rate.toFixed(6);
-      }
-    }
-
-    // Fallback: calculate from current amounts
-    if (
-      amountIn &&
-      amountOut &&
-      parseFloat(amountIn) > 0 &&
-      parseFloat(amountOut) > 0
-    ) {
-      const rate = parseFloat(amountOut) / parseFloat(amountIn);
       if (!isNaN(rate) && rate > 0) {
         return isRateReversed ? (1 / rate).toFixed(6) : rate.toFixed(6);
       }
@@ -1125,11 +1194,26 @@ const Emp = ({
   const getButtonText = () => {
     if (!address) return "Connect Wallet";
     if (isInsufficientBalance()) return "Insufficient Balance";
+    if (amountIn !== debouncedAmountIn || isRefreshingQuote || isQuoteExpired) {
+      return "Refreshing Quote...";
+    }
     if (isQuoting) return "Loading...";
+    if (isHighImpactBlocked) return "Trade Blocked";
     if (needsApproval) return "Approve";
     if (order) return "Place Order";
     return "Swap";
   };
+
+  const isSwapDisabled = () =>
+    isInsufficientBalance() ||
+    isHighImpactBlocked ||
+    amountIn !== debouncedAmountIn ||
+    isRefreshingQuote ||
+    isQuoteExpired ||
+    isQuoting ||
+    !tradeInfo ||
+    !amountOut ||
+    parseFloat(amountOut) <= 0;
 
   // Function to format the number with commas
   const formatNumber = (value) => {
@@ -1159,8 +1243,10 @@ const Emp = ({
     setAmountIn(rawValue); // Update the state with the raw number
   };
 
-  const minToReceive = amountOut * 0.0024;
-  const minToReceiveAfterFee = amountOut - minToReceive;
+  const minToReceiveAfterFee = calculateMinReceived(
+    amountOut,
+    selectedSlippage,
+  );
 
   // effect to clear amountOut and quotes when tokens are swapped
   useEffect(() => {
@@ -1168,6 +1254,9 @@ const Emp = ({
     setInitialQuote("");
     setNewQuote("");
     setShowPriceAlert(false);
+    setLastUpdated(null);
+    setQuoteTimeRemaining(QUOTE_TTL_SECONDS);
+    setHighImpactMessage("");
   }, [selectedTokenA, selectedTokenB]);
 
   // Use price monitor hook
@@ -1232,21 +1321,52 @@ const Emp = ({
   const handleOutputChange = () => {
     // This input is read-only, so we don't need an onChange handler
   };
-  // For Price Impact
-  const priceImpact =
-    usdValueTokenA > 0
-      ? (
-          ((parseFloat(usdValueTokenB) - parseFloat(usdValueTokenA)) /
-            parseFloat(usdValueTokenA)) *
-          100
-        ).toFixed(2)
-      : 0;
+  const routePriceImpactValue = calculateRoutePriceImpactPercent({
+    amountIn,
+    amountOut,
+    singleTokenOut:
+      singleToken?.amounts?.length >= 2 && selectedTokenB
+        ? formatUnits(
+            singleToken.amounts[singleToken.amounts.length - 1],
+            parseInt(selectedTokenB.decimal),
+          )
+        : null,
+  });
+  const usdPriceImpactValue = calculateUsdPriceImpactPercent({
+    usdValueTokenA,
+    usdValueTokenB,
+  });
+  const priceImpactValue = isQuoteStale
+    ? null
+    : usdPriceImpactValue ?? routePriceImpactValue;
+  const priceImpact = formatImpactPercent(priceImpactValue);
+  const isHighImpactWarning =
+    priceImpactValue !== null &&
+    priceImpactValue <= -HIGH_PRICE_IMPACT_WARNING_PERCENT;
+  const isHighImpactBlocked =
+    priceImpactValue !== null &&
+    priceImpactValue <= -HIGH_PRICE_IMPACT_BLOCK_PERCENT;
+
+  useEffect(() => {
+    if (isHighImpactBlocked) {
+      setHighImpactMessage(
+        `Trade blocked. Price impact ${priceImpact}% is too high for this amount.`,
+      );
+    } else if (isHighImpactWarning) {
+      setHighImpactMessage(
+        `High price impact detected: ${priceImpact}%. Review the route before swapping.`,
+      );
+    } else {
+      setHighImpactMessage("");
+    }
+  }, [isHighImpactBlocked, isHighImpactWarning, priceImpact]);
+
   // Determine color based on value
   const getPriceImpactColor = (impact) => {
     const value = parseFloat(impact);
     // Green for positive (profit), Red for negative (loss)
     if (value > 0) return "text-green-500";
-    if (value < 0) return "text-white";
+    if (value < 0) return "text-red-400";
     return "text-white";
   };
   //
@@ -1856,7 +1976,7 @@ const Emp = ({
                               =
                               <span className="text-[9px] text-white/20 tracking-[0.04em] font-bold mr-1">
                                 {" "}
-                                {getRateDisplay()}
+                                {isQuoteStale ? "..." : getRateDisplay()}
                               </span>
                               {isRateReversed
                                 ? selectedTokenA.ticker
@@ -1875,7 +1995,7 @@ const Emp = ({
                               className="text-[9px] text-[#FF8A00] tracking-[0.04em]"
                               style={widgetAccentTextStyle}
                             >
-                              {priceImpact} %
+                              {isQuoteStale ? "..." : `${priceImpact} %`}
                             </div>
                             <div className="text-[9px] text-white/20 tracking-[0.04em]">
                               ROUTE
@@ -1884,16 +2004,31 @@ const Emp = ({
                         </div>
                       )}
                       <Routing isLoading={isRoutingLoading} />
-                      <div className="text-[9px] text-white/20 tracking-[0.04em] text-right">
-                        Min :
-                        <span className="text-[9px] text-white/20 tracking-[0.04em] font-bold mr-1">
-                          {" "}
-                          {formatNumber(
-                            parseFloat(minToReceiveAfterFee).toFixed(6),
-                          )}
-                        </span>
-                        {selectedTokenB.ticker}
+                      <div className="flex justify-between gap-2 items-end md:flex-nowrap flex-wrap">
+                        <div className="text-[9px] text-white/20 tracking-[0.04em]">
+                          Min Received :
+                          <span className="text-[9px] text-white/20 tracking-[0.04em] font-bold ml-1">
+                            {isQuoteStale
+                              ? "..."
+                              : formatNumber(
+                                  parseFloat(minToReceiveAfterFee).toFixed(6),
+                                )}{" "}
+                            {!isQuoteStale ? selectedTokenB.ticker : ""}
+                          </span>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-[9px] text-white/20 tracking-[0.04em]">
+                            {isQuoteStale
+                              ? "Refreshing quote..."
+                              : `Quote refreshes in ${quoteTimeRemaining}s`}
+                          </div>
+                        </div>
                       </div>
+                      {highImpactMessage && (
+                        <div className="mt-3 text-[9px] text-red-400 tracking-[0.04em]">
+                          {highImpactMessage}
+                        </div>
+                      )}
                     </div>
                   )}
                   <div className="bg-[#06060efa]">
@@ -1906,14 +2041,14 @@ const Emp = ({
                             openConnectPopup();
                             return;
                           }
-                          if (amountOut && parseFloat(amountOut) > 0) {
+                          if (!isSwapDisabled()) {
                             setInitialQuote(amountOut);
                             setAmountVisible(true);
                           }
                         }}
-                        disabled={address ? isInsufficientBalance() : false}
+                        disabled={address ? isSwapDisabled() : false}
                         className={`gtw relative z-50 w-full uppercase md:h-12 h-11 bg-[#FF8A00] mx-auto font-bold button-trans h- flex justify-center items-center transition-all ${
-                          address && isInsufficientBalance()
+                          address && isSwapDisabled()
                             ? "opacity-50 cursor-not-allowed"
                             : " "
                         }  text-xs`}
@@ -1988,15 +2123,20 @@ const Emp = ({
             }}
             amountIn={amountIn}
             amountOut={parseFloat(amountOut).toFixed(6)}
+            minReceived={parseFloat(minToReceiveAfterFee).toFixed(6)}
             tokenA={selectedTokenA}
             tokenB={selectedTokenB}
             refresh={() => {}}
             confirm={confirmSwap}
             handleApprove={handleApprove}
             needsApproval={needsApproval}
+            disabled={isSwapDisabled()}
             usdValueTokenA={usdValueTokenA}
             usdValueTokenB={usdValueTokenB}
             rate={getRateDisplay()}
+            priceImpact={priceImpact}
+            selectedSlippage={selectedSlippage}
+            effectiveSlippage={effectiveSlippage}
             showPriceAlert={showPriceAlert}
             newQuote={newQuote}
             initialQuote={initialQuote}

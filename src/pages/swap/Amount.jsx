@@ -9,6 +9,7 @@ const Amount = ({
   onClose,
   amountIn,
   amountOut,
+  minReceived,
   tokenA,
   singleToken,
   tokenB,
@@ -27,6 +28,9 @@ const Amount = ({
   onAcceptNewQuote,
   onRejectNewQuote,
   swapStatus,
+  priceImpact,
+  selectedSlippage,
+  effectiveSlippage,
 }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [isConfirm, setConfirm] = useState(false);
@@ -69,14 +73,9 @@ const Amount = ({
       : formattedInteger;
   };
 
-  const priceImpact =
-    usdValueTokenA > 0
-      ? (
-          ((parseFloat(usdValueTokenB) - parseFloat(usdValueTokenA)) /
-            parseFloat(usdValueTokenA)) *
-          100
-        ).toFixed(2)
-      : 0;
+  const displayedMinReceived = minReceived || amountOut;
+  const displayedSlippage =
+    effectiveSlippage ?? selectedSlippage ?? null;
 
   return (
     <>
@@ -124,8 +123,8 @@ const Amount = ({
             </div>
             <div className="mt-4 text-white/50 text-xs font-normal ">
               Output is estimated. You will receive at least{" "}
-              {formatNumber(amountOut)} {tokenB?.ticker} or the transaction will
-              revert.
+              {formatNumber(displayedMinReceived)} {tokenB?.ticker}
+              {" "}or the transaction will revert.
             </div>
             <div className="flex justify-between items-center w-full mt-6">
               <div className="text-white text-xs">Price</div>
@@ -141,7 +140,7 @@ const Amount = ({
                 <img src={Info} alt="info" />
               </div>
               <div className="text-white text-xs">
-                {formatNumber(amountOut)} {tokenB?.ticker}
+                {formatNumber(displayedMinReceived)} {tokenB?.ticker}
               </div>
             </div>
             <div className="flex justify-between items-center w-full mt-2">
