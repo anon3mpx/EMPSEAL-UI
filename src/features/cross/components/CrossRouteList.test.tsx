@@ -115,6 +115,31 @@ describe("CrossRouteList", () => {
     expect(onIncludeDestinationGasChange).toHaveBeenCalledWith(true);
   });
 
+  it("keeps gas toggle visible before gas offers are returned", () => {
+    const onIncludeDestinationGasChange = vi.fn();
+
+    render(
+      <CrossRouteList
+        offers={[
+          {
+            offerId: "offer-1",
+            rail: "cctp",
+            economics: { settlementTimeSeconds: 120 },
+          } as any,
+        ]}
+        selectedOfferId="offer-1"
+        onSelect={() => {}}
+        expiresAt={1740000000000}
+        gasOffers={[]}
+        includeDestinationGas={false}
+        onIncludeDestinationGasChange={onIncludeDestinationGasChange}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /add gas/i }));
+    expect(onIncludeDestinationGasChange).toHaveBeenCalledWith(true);
+  });
+
   it("shows THORChain provider-direct review detail", () => {
     render(
       <CrossRouteList

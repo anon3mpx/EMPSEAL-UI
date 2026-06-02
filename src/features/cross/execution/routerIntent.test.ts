@@ -13,6 +13,7 @@ describe("router intent execution helpers", () => {
       to: "0x10c9db3761056d752bc41ac817f730f9e4348bb0",
       data: "0xdeadbeef",
       value: 36314496077702n,
+      gas: 1_200_000n,
     });
   });
 
@@ -27,6 +28,23 @@ describe("router intent execution helpers", () => {
       to: "0x10c9db3761056d752bc41ac817f730f9e4348bb0",
       data: "0xdeadbeef",
       value: 0n,
+      gas: 1_200_000n,
+    });
+  });
+
+  it("uses an API-provided gas limit when present", () => {
+    expect(
+      (routerIntent as any).toSendTransactionArgs({
+        contractAddress: "0x10c9db3761056d752bc41ac817f730f9e4348bb0",
+        calldata: "0xdeadbeef",
+        value: "1",
+        gasLimit: "900000",
+      }),
+    ).toEqual({
+      to: "0x10c9db3761056d752bc41ac817f730f9e4348bb0",
+      data: "0xdeadbeef",
+      value: 2n,
+      gas: 900_000n,
     });
   });
 

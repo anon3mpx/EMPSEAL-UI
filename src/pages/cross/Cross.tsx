@@ -41,6 +41,8 @@ import {
   findMatchingRefreshedOffer,
   getCrossTokensForChain,
   getCrossUiChains,
+  getThorchainTokensForChain,
+  getThorchainUiChains,
   getOfferOutputAmount,
   getQuotedOutputDisplay,
   getLayerZeroStepMessage,
@@ -50,16 +52,20 @@ import {
   loadCrossSession,
   mergeLayerZeroUserSteps,
   mapCrossApiError,
+  mergeCrossTokens,
   normalizeOfferSet,
   pickDefaultToken,
+  requiresThorchainNativeDestinationAddress,
   saveCrossSession,
   toSendTransactionArgs,
   useCrossExecutionSession,
   useCrossIntentTracking,
   useCrossQuote,
   useCrossRecovery,
+  useThorchainPools,
 } from "@/features/cross";
 import { toast } from "@/utils/toastHelper";
+import Logo from "../../assets/images/empx-new.svg";
 
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 
@@ -85,9 +91,22 @@ const getProviderDirectTx = (integration: any) => {
 };
 
 export default function CrossChainPage() {
-  const chains = useMemo(() => getCrossUiChains(), []);
+  const sourceChains = useMemo(() => getCrossUiChains(), []);
+  const destinationChains = useMemo(
+    () => {
+      const seen = new Set<number>();
+      return [...sourceChains, ...getThorchainUiChains()].filter((chain) => {
+        if (seen.has(chain.chainId)) return false;
+        seen.add(chain.chainId);
+        return true;
+      });
+    },
+    [sourceChains],
+  );
+  const chains = destinationChains;
   const defaultFromToken = pickDefaultToken(getCrossTokensForChain(8453));
   const defaultToToken = pickDefaultToken(getCrossTokensForChain(42161));
+  const thorchainPools = useThorchainPools();
 
   const { address, isConnected } = useAccount();
   const currentChainId = useChainId();
@@ -143,8 +162,12 @@ export default function CrossChainPage() {
     [fromChainId],
   );
   const toTokens = useMemo(
-    () => getCrossTokensForChain(toChainId),
-    [toChainId],
+    () =>
+      mergeCrossTokens(
+        getCrossTokensForChain(toChainId),
+        getThorchainTokensForChain(toChainId, thorchainPools.data ?? []),
+      ),
+    [thorchainPools.data, toChainId],
   );
 
   useEffect(() => {
@@ -179,6 +202,11 @@ export default function CrossChainPage() {
     return parseUnitsSafe(destinationGasAmount, 18).toString();
   }, [destinationGasAmount]);
 
+  const requiresNativeDstAddress = requiresThorchainNativeDestinationAddress(toChainId);
+  const resolvedNativeDstAddress = requiresNativeDstAddress
+    ? nativeDstAddress.trim() || undefined
+    : address || undefined;
+
   const quoteRequest = useMemo(
     () => ({
       tokenIn: fromTokenAddress,
@@ -187,7 +215,7 @@ export default function CrossChainPage() {
       srcChainId: fromChainId,
       dstChainId: toChainId,
       userAddress: address,
-      nativeDstAddress: nativeDstAddress || undefined,
+      nativeDstAddress: resolvedNativeDstAddress,
       urgency: "fast" as const,
       destinationGas:
         includeDestinationGas && destinationGasWei !== "0"
@@ -207,7 +235,7 @@ export default function CrossChainPage() {
       fromChainId,
       fromTokenAddress,
       includeDestinationGas,
-      nativeDstAddress,
+      resolvedNativeDstAddress,
       toChainId,
       toTokenAddress,
     ],
@@ -219,7 +247,8 @@ export default function CrossChainPage() {
       fromTokenAddress &&
       toTokenAddress &&
       fromChainId !== toChainId &&
-      amountInBaseUnits !== "0",
+      amountInBaseUnits !== "0" &&
+      (!requiresNativeDstAddress || Boolean(nativeDstAddress.trim())),
   );
 
   const quote = useCrossQuote(quoteEnabled, quoteRequest);
@@ -393,11 +422,16 @@ export default function CrossChainPage() {
   });
 
   const handleFlip = useCallback(() => {
+    if (!sourceChains.some((chain) => chain.chainId === toChainId)) {
+      toast.warning("Selected destination chain cannot be used as a source.");
+      return;
+    }
+
     setFromChainId(toChainId);
     setToChainId(fromChainId);
     setFromTokenAddress(toTokenAddress);
     setToTokenAddress(fromTokenAddress);
-  }, [fromChainId, fromTokenAddress, toChainId, toTokenAddress]);
+  }, [fromChainId, fromTokenAddress, sourceChains, toChainId, toTokenAddress]);
 
   const ensureChain = useCallback(
     async (targetChainId: number) => {
@@ -458,6 +492,11 @@ export default function CrossChainPage() {
         to: tx.to as Address,
         data: (tx.data ?? tx.calldata ?? "0x") as `0x${string}`,
         value: BigInt(tx.value ?? "0"),
+        ...(tx.gas !== undefined && tx.gas !== null
+          ? { gas: BigInt(tx.gas) }
+          : tx.gasLimit !== undefined && tx.gasLimit !== null
+            ? { gas: BigInt(tx.gasLimit) }
+            : {}),
       });
     },
     [address, ensureChain],
@@ -881,7 +920,7 @@ export default function CrossChainPage() {
       : undefined;
   const singleRouterValue =
     session?.mode === "single" && session.integration?.mode === "router_intent"
-      ? BigInt(session.integration?.integration?.value ?? "0")
+      ? toSendTransactionArgs(session.integration.integration).value
       : 0n;
   const hasRouterNativeValueRequirement = singleRouterValue > 0n;
   const hasSufficientRouterNativeValue =
@@ -900,7 +939,7 @@ export default function CrossChainPage() {
         })} ${fromToken.symbol}`
       : undefined;
   const quoteErrorMessage = quote.error ? mapCrossApiError(quote.error) : null;
-  const showNativeDstAddress = false;
+  const showNativeDstAddress = requiresNativeDstAddress;
   const singleRouteNeedsApproval =
     Boolean(singleApprovalRequest) && !hasRequiredApproval;
   const singleExecutionBlockedForNativeValue =
@@ -939,8 +978,7 @@ export default function CrossChainPage() {
               <span className="text-[#FF8A00]">Smart Routing.</span>
             </h1>
             <p className="mt-2 text-[12px] text-white/25">
-              Powered by EMPX cross-chain routing at{" "}
-              <span className="text-white/40">crosschain.empx.io</span>
+              Powered by EMPX cross-chain routing
             </p>
           </div>
 
@@ -960,6 +998,8 @@ export default function CrossChainPage() {
             <div className="space-y-5 p-5">
               <CrossTradeForm
                 chains={chains}
+                fromChains={sourceChains}
+                toChains={destinationChains}
                 fromChainId={fromChainId}
                 toChainId={toChainId}
                 fromTokens={fromTokens}
@@ -1072,8 +1112,9 @@ export default function CrossChainPage() {
                 </button>
               ) : null}
 
-              <p className="text-center text-[9px] tracking-[0.14em] text-white/[0.07]">
-                CCTP · LAYERZERO · THORCHAIN · GAS.ZIP · POWERED BY EMPX
+              <p className="flex items-center justify-center gap-2 text-center text-[9px] tracking-[0.14em] text-white/[0.07]">
+                <span>CCTP · LAYERZERO · THORCHAIN · GAS.ZIP · POWERED BY</span>
+                <img src={Logo} alt="EmpX" className="h-[9px] w-auto object-contain opacity-70" />
               </p>
             </div>
           </div>

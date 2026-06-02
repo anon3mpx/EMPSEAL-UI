@@ -150,11 +150,14 @@ export function CrossRouteList({
   onDestinationGasAmountChange,
 }: CrossRouteListProps) {
   const [showDetails, setShowDetails] = useState(false);
+  
   const expiresInSeconds = expiresAt
     ? Math.max(0, Math.floor((expiresAt - Date.now()) / 1000))
     : null;
+
   const selectedOffer =
     offers.find((offer) => offer.offerId === selectedOfferId) ?? offers[0] ?? null;
+
   const selectedOfferOutput = selectedOffer
     ? getQuotedOutputDisplay(
         getOfferOutputAmount(selectedOffer),
@@ -169,6 +172,7 @@ export function CrossRouteList({
         selectedOffer,
       )
     : null;
+  const hasGasOffers = gasOffers.length > 0;
 
   if (errorMessage) {
     return (
@@ -196,7 +200,7 @@ export function CrossRouteList({
         <div className="flex items-center gap-3">
           {expiresInSeconds !== null ? (
             <p className="text-[10px] text-white/20">
-              {expiresInSeconds}s
+              {/* {expiresInSeconds}s */}
             </p>
           ) : null}
           {selectedOffer ? (
@@ -378,49 +382,49 @@ export function CrossRouteList({
         </div>
       ) : null}
 
-      {gasOffers.length > 0 ? (
-        <div className="space-y-3 border border-white/[0.05] bg-white/[0.015] px-4 py-4">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div>
-              <p className="text-[9px] font-bold tracking-[0.2em] text-white/20">
-                DESTINATION GAS RAIL
-              </p>
-              <p className="mt-2 text-[11px] text-white/35">
-                Optional second leg executed after the primary bridge route.
-              </p>
-            </div>
-
-            <div className="flex items-center gap-3">
-              {includeDestinationGas ? (
-                <input
-                  type="text"
-                  inputMode="decimal"
-                  value={destinationGasAmount}
-                  onChange={(event) =>
-                    onDestinationGasAmountChange?.(
-                      sanitizeNumeric(event.target.value),
-                    )
-                  }
-                  className="w-[118px] border border-white/[0.08] bg-transparent px-3 py-2 text-[12px] text-white outline-none placeholder:text-white/18"
-                />
-              ) : null}
-
-              <button
-                type="button"
-                onClick={() =>
-                  onIncludeDestinationGasChange?.(!includeDestinationGas)
-                }
-                className={`border px-3 py-2 text-[10px] font-bold uppercase tracking-[0.12em] transition-colors ${
-                  includeDestinationGas
-                    ? "border-[#FF8A00]/35 bg-[#FF8A00]/12 text-[#FF8A00]"
-                    : "border-white/[0.08] bg-white/[0.03] text-white/35"
-                }`}
-              >
-                {includeDestinationGas ? "Included" : "Add Gas"}
-              </button>
-            </div>
+      <div className="space-y-3 border border-white/[0.05] bg-white/[0.015] px-4 py-4">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <p className="text-[9px] font-bold tracking-[0.2em] text-white/20">
+              DESTINATION GAS RAIL
+            </p>
+            <p className="mt-2 text-[11px] text-white/35">
+              Optional second leg executed after the primary bridge route.
+            </p>
           </div>
 
+          <div className="flex items-center gap-3">
+            {includeDestinationGas ? (
+              <input
+                type="text"
+                inputMode="decimal"
+                value={destinationGasAmount}
+                onChange={(event) =>
+                  onDestinationGasAmountChange?.(
+                    sanitizeNumeric(event.target.value),
+                  )
+                }
+                className="w-[118px] border border-white/[0.08] bg-transparent px-3 py-2 text-[12px] text-white outline-none placeholder:text-white/18"
+              />
+            ) : null}
+
+            <button
+              type="button"
+              onClick={() =>
+                onIncludeDestinationGasChange?.(!includeDestinationGas)
+              }
+              className={`border px-3 py-2 text-[10px] font-bold uppercase tracking-[0.12em] transition-colors ${
+                includeDestinationGas
+                  ? "border-[#FF8A00]/35 bg-[#FF8A00]/12 text-[#FF8A00]"
+                  : "border-white/[0.08] bg-white/[0.03] text-white/35"
+              }`}
+            >
+              {includeDestinationGas ? "Included" : "Add Gas"}
+            </button>
+          </div>
+        </div>
+
+        {hasGasOffers ? (
           <div className="grid gap-3 md:grid-cols-2">
             {gasOffers.map((offer) => {
               const active =
@@ -483,8 +487,12 @@ export function CrossRouteList({
               );
             })}
           </div>
-        </div>
-      ) : null}
+        ) : includeDestinationGas ? (
+          <p className="text-[11px] text-white/35">
+            No destination gas quote available for this route yet.
+          </p>
+        ) : null}
+      </div>
     </div>
   );
 }

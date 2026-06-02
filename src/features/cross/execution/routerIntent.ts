@@ -2,6 +2,7 @@ const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 const MILLIS_THRESHOLD = 1_000_000_000_000;
 const ROUTER_INTENT_VALUE_BUFFER_BPS = 200n;
 const BPS_DENOMINATOR = 10_000n;
+const DEFAULT_ROUTER_INTENT_GAS_LIMIT = 1_200_000n;
 
 function addRouterIntentValueBuffer(value: bigint) {
   if (value <= 0n) return value;
@@ -17,13 +18,22 @@ export function toSendTransactionArgs(integration: {
   contractAddress: string;
   calldata: string;
   value: string;
+  gas?: string | number | bigint;
+  gasLimit?: string | number | bigint;
 }) {
   const value = BigInt(integration.value ?? "0");
+  const gasLimit =
+    integration.gasLimit !== undefined && integration.gasLimit !== null
+      ? BigInt(integration.gasLimit)
+      : integration.gas !== undefined && integration.gas !== null
+        ? BigInt(integration.gas)
+        : DEFAULT_ROUTER_INTENT_GAS_LIMIT;
 
   return {
     to: integration.contractAddress as `0x${string}`,
     data: integration.calldata as `0x${string}`,
     value: addRouterIntentValueBuffer(value),
+    gas: gasLimit,
   };
 }
 
