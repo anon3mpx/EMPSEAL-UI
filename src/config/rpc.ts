@@ -1,18 +1,35 @@
-const DRPC_PUBLIC_KEY = "Alj6-PidlEmLn_S7Ly5es5HretM-VDoR8a-xtiKh6MJI";
-
-export const DRPC_BROWSER_RPC_URLS: Partial<Record<number, string>> = {
-  143: `https://lb.drpc.live/monad-mainnet/${DRPC_PUBLIC_KEY}`,
-  56: `https://lb.drpc.live/bsc/${DRPC_PUBLIC_KEY}`,
-  8453: `https://lb.drpc.live/base/${DRPC_PUBLIC_KEY}`,
-  137: `https://lb.drpc.live/polygon/${DRPC_PUBLIC_KEY}`,
-  10: `https://lb.drpc.live/optimism/${DRPC_PUBLIC_KEY}`,
-  42161: `https://lb.drpc.live/arbitrum/${DRPC_PUBLIC_KEY}`,
-  43114: `https://lb.drpc.live/avalanche/${DRPC_PUBLIC_KEY}`,
-  146: `https://lb.drpc.live/sonic/${DRPC_PUBLIC_KEY}`,
-  1329: `https://lb.drpc.live/sei/${DRPC_PUBLIC_KEY}`,
-  80094: `https://lb.drpc.live/berachain/${DRPC_PUBLIC_KEY}`,
-  30: `https://lb.drpc.live/rootstock/${DRPC_PUBLIC_KEY}`,
+const DRPC_NETWORKS: Record<number, string> = {
+  143: "monad-mainnet",
+  56: "bsc",
+  8453: "base",
+  137: "polygon",
+  10: "optimism",
+  42161: "arbitrum",
+  43114: "avalanche",
+  146: "sonic",
+  1329: "sei",
+  80094: "berachain",
+  30: "rootstock",
 };
+
+export function buildDrpcBrowserRpcUrls(
+  publicKey: string,
+): Partial<Record<number, string>> {
+  const trimmedKey = publicKey.trim();
+  if (!trimmedKey) return {};
+
+  return Object.fromEntries(
+    Object.entries(DRPC_NETWORKS).map(([chainId, network]) => [
+      Number(chainId),
+      `https://lb.drpc.live/${network}/${trimmedKey}`,
+    ]),
+  );
+}
+
+const env = (import.meta as unknown as { env?: Record<string, string | undefined> }).env;
+const DRPC_BROWSER_RPC_URLS = buildDrpcBrowserRpcUrls(
+  env?.VITE_DRPC_PUBLIC_KEY ?? "",
+);
 
 export const getPrimaryRpcUrl = (
   chainId: number,
