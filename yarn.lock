@@ -3315,6 +3315,11 @@ emoji-regex@^9.2.2:
   resolved "https://registry.npmjs.org/emoji-regex/-/emoji-regex-9.2.2.tgz"
   integrity sha512-L18DaJsXSUk2+42pv8mLs5jJT2hqFkFE4j21wOmgbUqsZ2hL72NsUU785g9RXgo3s0ZNgVl42TiHp3ZtOv/Vyg==
 
+empx-swap-sdk-beta@1.0.2:
+  version "1.0.2"
+  resolved "https://registry.yarnpkg.com/empx-swap-sdk-beta/-/empx-swap-sdk-beta-1.0.2.tgz#cadabf37f9e6ffa7f47bafc110659da1d619f246"
+  integrity sha512-s4sul2JCq7MRxH9mMfcszQhK77boiu5TbCTue5UAn4dp9bMPdIFhSWMGnQO7O/xE3dO8NtOYwm4es+VqpK+tMw==
+
 encode-utf8@^1.0.3:
   version "1.0.3"
   resolved "https://registry.npmjs.org/encode-utf8/-/encode-utf8-1.0.3.tgz"
