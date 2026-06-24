@@ -1,0 +1,19 @@
+{
+  "extends": "./tsconfig.json",
+  "include": [
+    "src/design-system/data/empxRegistry.ts",
+    "src/design-system/data/explorers.ts",
+    "src/design-system/data/logoRegistry.ts",
+    "src/design-system/data/priceService.ts",
+    "src/design-system/data/v2ChainView.ts",
+    "src/design-system/data/v2RuntimeViews.test.ts",
+    "src/design-system/data/v2TokenView.ts",
+    "src/design-system/hooks/useUnifiedPrice.ts",
+    "src/design-system/hooks/useV2Balances.ts",
+    "src/config/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist"
+  ]
+}

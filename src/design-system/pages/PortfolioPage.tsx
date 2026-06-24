@@ -35,7 +35,10 @@ import {
   type WalletOption,
 } from "../components";
 import { useWalletConnection } from "../hooks/useWalletConnection";
+import { useV2Balances } from "../hooks/useV2Balances";
 import { EMPX_SOCIALS } from "./SwapPage";
+import { getExplorerAddressUrl } from "../data/explorers";
+import { V2_ALL_CHAINS } from "../data/v2ChainView";
 import EmpxPortfolioPanel, {
   type PortfolioAsset,
   type MarketCard,
@@ -53,17 +56,13 @@ const SONIC = { id: 146, name: "Sonic",     color: "#FE9A4D" };
 const BTC = { id: 0, name: "Bitcoin",       color: "#F7931A", kind: "BTC" as const };
 const SOL = { id: 900, name: "Solana",      color: "#9945FF", kind: "SOL" as const };
 
-const ALL_CHAINS: PickerChain[] = [
-  { ...ETH_MAIN, ticker: "ETH" },
-  { ...ARB, ticker: "ETH" },
-  { ...BASE, ticker: "ETH" },
-  { ...OP, ticker: "ETH" },
-  { ...POLY, ticker: "POL" },
-  { ...BSC, ticker: "BNB" },
-  { ...SONIC, ticker: "S" },
-  { ...BTC, ticker: "BTC" },
-  { ...SOL, ticker: "SOL" },
-];
+const ALL_CHAINS: PickerChain[] = V2_ALL_CHAINS.map((chain) => ({
+  id: chain.id,
+  name: chain.name,
+  color: chain.color,
+  ticker: chain.ticker,
+  kind: chain.kind,
+}));
 
 
 // ─── Demo data (will be swapped for real SDK / VPS fetch) ─────────────────
@@ -105,6 +104,7 @@ export default function PortfolioPage() {
   const isMobile = useIsMobile();
   const { walletState, walletOptions, onSelectWallet, disconnect, switchChain, currentChain } =
     useWalletConnection();
+  const connectedBalance = useV2Balances();
   const [tab, setTab] = useState<PageTab>("overview");
   const [showWalletModal, setShowWalletModal] = useState(false);
   const [showChainPicker, setShowChainPicker] = useState(false);
@@ -322,23 +322,26 @@ export default function PortfolioPage() {
           providerName={walletState.providerName}
           chainName={walletState.chain.name}
           chainColor={walletState.chain.color}
-          balanceUSD={portfolioData?.totalUSD ?? 0}
-          nativeBalance="12.45"
-          nativeTicker="ETH"
-          explorerUrl={`https://arbiscan.io/address/${walletState.address}`}
-          activity={[
-            { id: 1, kind: "SWAP",    summary: "0.5 ETH → 1,591 USDT",     status: "confirmed", timeLabel: "2m ago",  txHashShort: "0xab…3f9" },
-            { id: 2, kind: "CROSS",   summary: "5,000 USDC Arb → Base",   status: "pending",   timeLabel: "5m ago",  txHashShort: "0x4e…c12" },
-            { id: 3, kind: "APPROVE", summary: "USDC ↔ Router",            status: "confirmed", timeLabel: "1h ago",  txHashShort: "0xa1…b07" },
+          balanceUSD={connectedBalance.nativeBalanceUSD ?? undefined}
+          nativeBalance={connectedBalance.nativeBalance}
+          nativeTicker={connectedBalance.nativeTicker}
+          explorerUrl={getExplorerAddressUrl(walletState.chain.id, walletState.address) ?? undefined}
+          tokens={[
+            {
+              ticker: connectedBalance.nativeTicker,
+              chainName: walletState.chain.name,
+              chainColor: walletState.chain.color,
+              balance: connectedBalance.nativeBalance,
+              balanceUSD: connectedBalance.nativeBalanceUSD ?? undefined,
+            },
           ]}
-          tokens={(portfolioData?.assets ?? []).map((a) => ({
-            ticker: a.ticker, chainName: a.chainName, chainColor: a.chainColor,
-            balance: a.balance, balanceUSD: a.balanceUSD,
-          }))}
           networks={[
-            { chainName: ARB.name, chainColor: ARB.color, balanceUSD: 48583.89, nativeBalance: "12.45 ETH" },
-            { chainName: BASE.name, chainColor: BASE.color, balanceUSD: 1862.50, nativeBalance: "0.04 ETH", lowGas: true },
-            { chainName: ETH_MAIN.name, chainColor: ETH_MAIN.color, balanceUSD: 2120.40, nativeBalance: "0.21 ETH" },
+            {
+              chainName: walletState.chain.name,
+              chainColor: walletState.chain.color,
+              balanceUSD: connectedBalance.nativeBalanceUSD ?? 0,
+              nativeBalance: `${connectedBalance.nativeBalance} ${connectedBalance.nativeTicker}`,
+            },
           ]}
           onCopy={() => toast.success("Address copied")}
           onReceive={() => toast.info("Receive flow")}

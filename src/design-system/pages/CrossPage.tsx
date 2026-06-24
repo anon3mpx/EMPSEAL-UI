@@ -53,8 +53,12 @@ import {
   type WalletOption,
 } from "../components";
 import { useWalletConnection } from "../hooks/useWalletConnection";
+import { useV2Balances } from "../hooks/useV2Balances";
 import EmpxCrossWidget from "../EmpxCrossWidget";
 import { EMPX_SOCIALS } from "./SwapPage";
+import { getExplorerAddressUrl } from "../data/explorers";
+import { V2_ALL_CHAINS, getV2Chain } from "../data/v2ChainView";
+import { getTokensForChain, type V2TokenConfig } from "../data/v2TokenView";
 import {
   AGG_CHAIN_IDS,
   PAYMASTER_CHAIN_IDS,
@@ -82,30 +86,7 @@ interface ChainDef {
   kind?: "EVM" | "BTC" | "SOL" | "OTHER";
 }
 
-const CHAIN_CATALOG: ChainDef[] = [
-  // T1 — aggregator-deployed EVM
-  { id: 1,     name: "Ethereum",   color: "#627EEA", ticker: "ETH" },
-  { id: 42161, name: "Arbitrum",   color: "#28A0F0", ticker: "ETH" },
-  { id: 8453,  name: "Base",       color: "#0052FF", ticker: "ETH" },
-  { id: 10,    name: "Optimism",   color: "#FF0420", ticker: "ETH" },
-  { id: 137,   name: "Polygon",    color: "#7B3FE4", ticker: "POL" },
-  { id: 56,    name: "BSC",        color: "#F0B90B", ticker: "BNB" },
-  { id: 43114, name: "Avalanche",  color: "#E84142", ticker: "AVAX" },
-  { id: 369,   name: "PulseChain", color: "#FF66C4", ticker: "PLS" },
-  { id: 146,   name: "Sonic",      color: "#FE9A4D", ticker: "S" },
-  { id: 1329,  name: "Sei",        color: "#9B1B30", ticker: "SEI" },
-  { id: 80094, name: "Berachain",  color: "#F47834", ticker: "BERA" },
-  { id: 30,    name: "Rootstock",  color: "#00B520", ticker: "RBTC" },
-  { id: 143,   name: "Monad",      color: "#836EF9", ticker: "MON" },
-  { id: 999,   name: "HyperEVM",   color: "#00D1AB", ticker: "HYPE" },
-  { id: 10001, name: "EthereumPOW",color: "#86939B", ticker: "ETHW" },
-  // T3 — non-EVM (gated to Mode B rails)
-  { id: 0,     name: "Bitcoin",    color: "#F7931A", ticker: "BTC",  kind: "BTC" },
-  { id: 900,   name: "Solana",     color: "#9945FF", ticker: "SOL",  kind: "SOL" },
-  { id: 901,   name: "Dogecoin",   color: "#C2A633", ticker: "DOGE", kind: "OTHER" },
-  { id: 902,   name: "Litecoin",   color: "#345D9D", ticker: "LTC",  kind: "OTHER" },
-  { id: 903,   name: "BitcoinCash",color: "#0AC18E", ticker: "BCH",  kind: "OTHER" },
-];
+const V2_CHAIN_OPTIONS: ChainDef[] = V2_ALL_CHAINS;
 
 // ─── Token catalog — per-chain ────────────────────────────────────────────
 // On T1 chains we'd hydrate from the aggregator (full token list with search).
@@ -120,34 +101,28 @@ interface Token {
   badge?: PickerToken["badge"];
 }
 
-const STABLE_USDC: Token = { ticker: "USDC", name: "USD Coin",        category: "stable", badge: "VERIFIED" };
-const STABLE_USDT: Token = { ticker: "USDT", name: "Tether",          category: "stable", badge: "VERIFIED" };
+function tokenCategory(token: V2TokenConfig): Token["category"] {
+  const ticker = token.ticker.toUpperCase();
+  if (token.isNative) return "native";
+  if (["USDC", "USDT", "DAI", "HONEY"].includes(ticker)) return "stable";
+  if (ticker.startsWith("W")) return "wrapped";
+  return "other";
+}
 
-// T1 chains — full liquidity surface (would come from the aggregator's
-// chain token registry; sample here mirrors typical top-volume entries).
-const T1_TOKENS_BY_CHAIN: Record<number, Token[]> = {
-  1:     [STABLE_USDC, STABLE_USDT, { ticker: "ETH",  name: "Ether",         category: "native" }, { ticker: "WBTC", name: "Wrapped BTC", category: "wrapped" }, { ticker: "DAI",  name: "Dai",     category: "stable" }, { ticker: "PEPE", name: "Pepe",  category: "other" }],
-  42161: [STABLE_USDC, STABLE_USDT, { ticker: "ETH",  name: "Ether",         category: "native" }, { ticker: "ARB",  name: "Arbitrum",    category: "other"   }, { ticker: "WBTC", name: "Wrapped BTC", category: "wrapped" }, { ticker: "GMX", name: "GMX",  category: "other" }],
-  8453:  [STABLE_USDC,              { ticker: "ETH",  name: "Ether",         category: "native" }, { ticker: "DEGEN", name: "Degen",      category: "other"   }, { ticker: "AERO", name: "Aerodrome",   category: "other"  }],
-  10:    [STABLE_USDC, STABLE_USDT, { ticker: "ETH",  name: "Ether",         category: "native" }, { ticker: "OP",   name: "Optimism",    category: "other"   }],
-  137:   [STABLE_USDC, STABLE_USDT, { ticker: "POL",  name: "Polygon Ecosystem Token", category: "native" }, { ticker: "WETH", name: "Wrapped Ether", category: "wrapped" }],
-  56:    [STABLE_USDT, STABLE_USDC, { ticker: "BNB",  name: "BNB",           category: "native" }, { ticker: "CAKE", name: "PancakeSwap", category: "other"   }],
-  43114: [STABLE_USDC, STABLE_USDT, { ticker: "AVAX", name: "Avalanche",     category: "native" }, { ticker: "JOE",  name: "Trader Joe",  category: "other"   }],
-  369:   [STABLE_USDC,              { ticker: "PLS",  name: "Pulse",         category: "native" }, { ticker: "HEX",  name: "HEX",         category: "other"   }, { ticker: "PLSX", name: "PulseX",   category: "other"  }],
-  146:   [STABLE_USDC,              { ticker: "S",    name: "Sonic",         category: "native" }],
-  1329:  [STABLE_USDC,              { ticker: "SEI",  name: "Sei",           category: "native" }],
-  80094: [STABLE_USDC,              { ticker: "BERA", name: "Berachain",     category: "native" }, { ticker: "HONEY", name: "Honey",      category: "stable"  }],
-  30:    [                          { ticker: "RBTC", name: "Rootstock BTC", category: "native" }, { ticker: "RIF",  name: "RSK Infra",   category: "other"   }],
-  143:   [STABLE_USDC,              { ticker: "MON",  name: "Monad",         category: "native" }],
-  999:   [STABLE_USDC,              { ticker: "HYPE", name: "Hyperliquid",   category: "native" }],
-  10001: [                          { ticker: "ETHW", name: "EthereumPOW",   category: "native" }],
-  // T3 native source
-  0:     [{ ticker: "BTC",  name: "Bitcoin",  category: "native" }],
-  900:   [{ ticker: "SOL",  name: "Solana",   category: "native" }, STABLE_USDC],
-  901:   [{ ticker: "DOGE", name: "Dogecoin", category: "native" }],
-  902:   [{ ticker: "LTC",  name: "Litecoin", category: "native" }],
-  903:   [{ ticker: "BCH",  name: "BitcoinCash", category: "native" }],
-};
+function configTokensForChain(chainId: number): Token[] {
+  const configured = getTokensForChain(chainId).map<Token>((t) => ({
+    ticker: t.ticker,
+    name: t.name,
+    category: tokenCategory(t),
+    badge: t.badge,
+  }));
+  if (configured.length > 0) return configured;
+
+  const chain = getV2Chain(chainId);
+  return chain
+    ? [{ ticker: chain.ticker, name: chain.name, category: "native" }]
+    : [];
+}
 
 // Token list for a given (chain, role, eligibleRails).
 // SOURCE→FROM rules:
@@ -164,7 +139,7 @@ function tokensFor(
   eligibleRails: RailEntry[],
 ): { tokens: Token[]; restrictedReason?: string } {
   const tier = tierForChainId(chainId);
-  const full = T1_TOKENS_BY_CHAIN[chainId] ?? [];
+  const full = configTokensForChain(chainId);
 
   if (tier === 1) {
     // Full token list (any token; aggregator handles input/output legs).
@@ -245,6 +220,7 @@ export default function CrossPage() {
 
   const { walletState, walletOptions, onSelectWallet, disconnect, switchChain, currentChain } =
     useWalletConnection();
+  const connectedBalance = useV2Balances();
   const [showWalletModal, setShowWalletModal] = useState(false);
   const [chainPickerTarget, setChainPickerTarget] = useState<ChainPickerTarget | null>(null);
   const [tokenPickerTarget, setTokenPickerTarget] = useState<TokenPickerTarget | null>(null);
@@ -271,11 +247,11 @@ export default function CrossPage() {
 
   // Resolve chain defs
   const fromChain = useMemo(
-    () => CHAIN_CATALOG.find((c) => c.id === fromChainId) ?? CHAIN_CATALOG[1],
+    () => V2_CHAIN_OPTIONS.find((c) => c.id === fromChainId) ?? V2_CHAIN_OPTIONS[1],
     [fromChainId],
   );
   const toChain = useMemo(
-    () => CHAIN_CATALOG.find((c) => c.id === toChainId) ?? CHAIN_CATALOG[2],
+    () => V2_CHAIN_OPTIONS.find((c) => c.id === toChainId) ?? V2_CHAIN_OPTIONS[2],
     [toChainId],
   );
 
@@ -345,7 +321,7 @@ export default function CrossPage() {
   useEffect(() => {
     if (toTier === 3) {
       // Force native L1
-      const native = T1_TOKENS_BY_CHAIN[toChainId]?.find((t) => t.category === "native");
+      const native = configTokensForChain(toChainId).find((t) => t.category === "native");
       if (native && toTicker !== native.ticker) setToTicker(native.ticker);
     } else if (toTier === 2) {
       // Force to a settlement stable if the current ticker isn't supported
@@ -380,7 +356,7 @@ export default function CrossPage() {
 
   // Pickers — chain & token lists with tier badging
   const chainPickerList: PickerChain[] = useMemo(() => {
-    return CHAIN_CATALOG.map((c) => {
+    return V2_CHAIN_OPTIONS.map((c) => {
       const tier = tierForChainId(c.id);
       return {
         id: c.id,
@@ -402,8 +378,8 @@ export default function CrossPage() {
     // rail set; for source filtering we just need any eligible rail.
     const eligible = eligibleRailsFor(fromChainId, toChainId, undefined);
     const { tokens, restrictedReason } = tokensFor(chainId, role, eligible);
-    const chainName = CHAIN_CATALOG.find((c) => c.id === chainId)?.name ?? "";
-    const chainColor = CHAIN_CATALOG.find((c) => c.id === chainId)?.color;
+    const chainName = V2_CHAIN_OPTIONS.find((c) => c.id === chainId)?.name ?? "";
+    const chainColor = V2_CHAIN_OPTIONS.find((c) => c.id === chainId)?.color;
     return {
       tokens: tokens.map<PickerToken>((t) => ({
         ticker: t.ticker,
@@ -411,15 +387,16 @@ export default function CrossPage() {
         chainName,
         chainColor,
         badge: t.badge,
-        // Demo balance — only on source side, only for sample tickers
-        balance: role === "from" && (t.ticker === "ETH" || t.ticker === "USDC")
-          ? (t.ticker === "ETH" ? "12.45" : "8,420.10")
+        balance: role === "from" && t.ticker === connectedBalance.nativeTicker
+          ? connectedBalance.nativeBalance
           : undefined,
-        balanceUSD: role === "from" && t.ticker === "ETH" ? 39625.20 : role === "from" && t.ticker === "USDC" ? 8420.10 : undefined,
+        balanceUSD: role === "from" && t.ticker === connectedBalance.nativeTicker
+          ? connectedBalance.nativeBalanceUSD ?? undefined
+          : undefined,
       })),
       restrictedReason,
     };
-  }, [tokenPickerTarget, fromChainId, toChainId]);
+  }, [tokenPickerTarget, fromChainId, toChainId, connectedBalance.nativeBalance, connectedBalance.nativeBalanceUSD, connectedBalance.nativeTicker]);
 
   // Demo route (uses selected offer's rail)
   const routeHops: RouteHop[] = useMemo(() => {
@@ -472,7 +449,7 @@ export default function CrossPage() {
             <WalletButton
               connected={walletState.status === "connected"}
               address={walletState.status === "connected" ? walletState.address : undefined}
-              balanceUSD={walletState.status === "connected" ? 51570 : undefined}
+              balanceUSD={walletState.status === "connected" ? connectedBalance.nativeBalanceUSD ?? undefined : undefined}
               onConnect={() => setShowWalletModal(true)}
               onClick={() => setShowAccountModal(true)}
             />
@@ -524,12 +501,12 @@ export default function CrossPage() {
               fromChain={fromChain}
               fromToken={{ ticker: fromTicker }}
               fromAmount={fromAmount}
-              fromBalance={fromTicker === "ETH" ? "12.45" : undefined}
+              fromBalance={fromTicker === connectedBalance.nativeTicker ? connectedBalance.nativeBalance : undefined}
               fromUsdValue={Number(fromAmount.replace(/,/g, "")) * priceOf(fromTicker, fromChainId)}
               onFromAmountChange={setFromAmount}
               onSelectFromToken={() => setTokenPickerTarget("from")}
               onSelectFromChain={() => setChainPickerTarget("from")}
-              onPercentClick={(pct) => setFromAmount(String((12.45 * pct) / 100))}
+              onPercentClick={(pct) => setFromAmount(String(((Number(connectedBalance.nativeBalance) || 0) * pct) / 100))}
 
               toChain={toChain}
               toToken={{ ticker: toTicker }}
@@ -656,7 +633,7 @@ export default function CrossPage() {
               const newFromTier = tierForChainId(c.id);
               // Reset source ticker to a safe default on new tier
               if (newFromTier === 3) {
-                const native = T1_TOKENS_BY_CHAIN[c.id]?.find((t) => t.category === "native");
+                const native = configTokensForChain(c.id).find((t) => t.category === "native");
                 if (native) setFromTicker(native.ticker);
               }
             } else {
@@ -740,10 +717,7 @@ export default function CrossPage() {
           { label: "Rail settlement",      description: `${selectedOffer?.rail.name || "Rail"} relay completed`, state: "complete", timeLabel: "0:42" },
           { label: "Destination delivery", description: `${toTicker} delivered on ${toChain.name}`,              state: "complete", timeLabel: "0:58" },
         ]}
-        txHashes={[
-          { label: "Source",      chainName: fromChain.name, chainColor: fromChain.color, hashShort: "0xab12…3f9d", url: "https://etherscan.io" },
-          { label: "Destination", chainName: toChain.name,   chainColor: toChain.color,   hashShort: "0x4e8a…c124", url: "https://basescan.org" },
-        ]}
+        txHashes={[]}
         onNewTrade={() => setShowSuccess(false)}
         onViewPortfolio={() => { setShowSuccess(false); toast.info("Navigate to /portfolio-v2"); }}
       />
@@ -756,10 +730,10 @@ export default function CrossPage() {
           providerName={walletState.providerName}
           chainName={walletState.chain.name}
           chainColor={walletState.chain.color}
-          balanceUSD={51570.49}
-          nativeBalance="12.45"
-          nativeTicker="ETH"
-          explorerUrl={`https://arbiscan.io/address/${walletState.address}`}
+          balanceUSD={connectedBalance.nativeBalanceUSD ?? undefined}
+          nativeBalance={connectedBalance.nativeBalance}
+          nativeTicker={connectedBalance.nativeTicker}
+          explorerUrl={getExplorerAddressUrl(fromChainId, walletState.address) ?? undefined}
           onCopy={() => toast.success("Address copied")}
           onSwitchNetwork={() => { setShowAccountModal(false); setChainPickerTarget("from"); }}
           onSwitchWallet={() => { setShowAccountModal(false); setShowWalletModal(true); }}

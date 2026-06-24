@@ -49,8 +49,12 @@ import {
   type WalletOption,
 } from "../components";
 import { useWalletConnection } from "../hooks/useWalletConnection";
+import { useV2Balances } from "../hooks/useV2Balances";
 import EmpxBridgeWidget from "../EmpxBridgeWidget";
 import { EMPX_SOCIALS } from "./SwapPage";
+import { getExplorerAddressUrl } from "../data/explorers";
+import { V2_AGGREGATOR_CHAINS } from "../data/v2ChainView";
+import { getTokensForChain } from "../data/v2TokenView";
 import {
   formatEtaSeconds,
   tierForChainId,
@@ -62,16 +66,7 @@ import {
 // ROADMAP-via-labs-bridge.md reference material).  When the new SDK lands
 // this will be sourced from ViaLabsRailPlugin.supportsRoute().
 
-const BRIDGE_CHAINS: { id: number; name: string; color: string; ticker: string }[] = [
-  { id: 369,   name: "PulseChain", color: "#FF66C4", ticker: "PLS" },
-  { id: 1,     name: "Ethereum",   color: "#627EEA", ticker: "ETH" },
-  { id: 42161, name: "Arbitrum",   color: "#28A0F0", ticker: "ETH" },
-  { id: 8453,  name: "Base",       color: "#0052FF", ticker: "ETH" },
-  { id: 10,    name: "Optimism",   color: "#FF0420", ticker: "ETH" },
-  { id: 137,   name: "Polygon",    color: "#7B3FE4", ticker: "POL" },
-  { id: 56,    name: "BSC",        color: "#F0B90B", ticker: "BNB" },
-  { id: 43114, name: "Avalanche",  color: "#E84142", ticker: "AVAX" },
-];
+const BRIDGE_CHAINS = V2_AGGREGATOR_CHAINS;
 
 const TIER_STATUS: { tier: number; title: string; status: "queued" | "in_progress" | "done"; oneLine: string }[] = [
   { tier: 1, title: "Feasibility",     status: "queued", oneLine: "Read Via Labs docs, map onto IRailPlugin" },
@@ -86,6 +81,7 @@ export default function BridgePage() {
   const isMobile = useIsMobile();
   const { walletState, walletOptions, onSelectWallet, disconnect, switchChain, currentChain } =
     useWalletConnection();
+  const connectedBalance = useV2Balances();
   const [showWalletModal, setShowWalletModal] = useState(false);
   const [showAccountModal, setShowAccountModal] = useState(false);
 
@@ -103,6 +99,19 @@ export default function BridgePage() {
 
   const fromChain = useMemo(() => BRIDGE_CHAINS.find((c) => c.id === fromChainId) ?? BRIDGE_CHAINS[0], [fromChainId]);
   const toChain   = useMemo(() => BRIDGE_CHAINS.find((c) => c.id === toChainId) ?? BRIDGE_CHAINS[1], [toChainId]);
+  const tokenPickerTokens: PickerToken[] = useMemo(() => {
+    const tokens = getTokensForChain(fromChainId);
+    const source = tokens.length > 0
+      ? tokens
+      : [{ ticker: fromChain.ticker, name: fromChain.ticker, badge: undefined }];
+    return source.slice(0, 12).map((t) => ({
+      ticker: t.ticker,
+      name: t.name,
+      chainName: fromChain.name,
+      chainColor: fromChain.color,
+      badge: t.badge === "WARNING" ? undefined : t.badge,
+    }));
+  }, [fromChain, fromChainId]);
 
   const amountNum = Number(amount.replace(/,/g, "")) || 0;
   // Demo fee/eta — production sources from ViaLabsSolver.quote()
@@ -354,18 +363,8 @@ export default function BridgePage() {
       <TokenPicker
         open={tokenPickerOpen}
         onClose={() => setTokenPickerOpen(false)}
-        tokens={[
-          { ticker: "USDC", name: "USD Coin",       chainName: fromChain.name, chainColor: fromChain.color, badge: "VERIFIED" },
-          { ticker: "USDT", name: "Tether",         chainName: fromChain.name, chainColor: fromChain.color, badge: "VERIFIED" },
-          { ticker: "WETH", name: "Wrapped Ether",  chainName: fromChain.name, chainColor: fromChain.color },
-          { ticker: "PLS",  name: "Pulse",          chainName: fromChain.name, chainColor: fromChain.color },
-          { ticker: "HEX",  name: "HEX",            chainName: fromChain.name, chainColor: fromChain.color },
-          { ticker: "PLSX", name: "PulseX",         chainName: fromChain.name, chainColor: fromChain.color },
-        ]}
-        recent={[
-          { ticker: "USDC", name: "USD Coin", chainName: fromChain.name, chainColor: fromChain.color },
-          { ticker: "PLS",  name: "Pulse",    chainName: fromChain.name, chainColor: fromChain.color },
-        ]}
+        tokens={tokenPickerTokens}
+        recent={tokenPickerTokens.slice(0, 4)}
         selected={token}
         onSelect={(t) => { setToken(t.ticker); setTokenPickerOpen(false); toast.info(`Token → ${t.ticker}`); }}
       />
@@ -378,10 +377,10 @@ export default function BridgePage() {
           providerName={walletState.providerName}
           chainName={fromChain.name}
           chainColor={fromChain.color}
-          balanceUSD={51570.49}
-          nativeBalance="12.45"
-          nativeTicker={fromChain.ticker}
-          explorerUrl={`https://etherscan.io/address/${walletState.address}`}
+          balanceUSD={connectedBalance.nativeBalanceUSD ?? undefined}
+          nativeBalance={connectedBalance.nativeBalance}
+          nativeTicker={connectedBalance.nativeTicker}
+          explorerUrl={getExplorerAddressUrl(fromChainId, walletState.address) ?? undefined}
           onCopy={() => toast.success("Address copied")}
           onSwitchNetwork={() => { setShowAccountModal(false); setChainPickerTarget("from"); }}
           onSwitchWallet={() => { setShowAccountModal(false); setShowWalletModal(true); }}

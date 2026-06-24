@@ -58,8 +58,11 @@ import {
   type WalletOption,
 } from "../components";
 import { useWalletConnection } from "../hooks/useWalletConnection";
+import { useV2Balances } from "../hooks/useV2Balances";
 import EmpxGasWidget from "../EmpxGasWidget";
 import { EMPX_SOCIALS } from "./SwapPage";
+import { getExplorerAddressUrl, getExplorerTxUrl } from "../data/explorers";
+import { V2_AGGREGATOR_CHAINS } from "../data/v2ChainView";
 import {
   formatEtaSeconds,
   tierForChainId,
@@ -73,17 +76,21 @@ const PER_DEST_USD_PRESETS = [5, 10, 20, 50];
 
 // Chain set Gas.zip supports — production sources this from
 // useGetChains().  Demo seed is a representative subset.
-const GAS_CHAINS: { id: number; name: string; color: string; ticker: string; nativeUsd: number; gasUsdPerSwap: number }[] = [
-  { id: 1,     name: "Ethereum",   color: "#627EEA", ticker: "ETH",  nativeUsd: 3184,   gasUsdPerSwap: 8.20 },
-  { id: 42161, name: "Arbitrum",   color: "#28A0F0", ticker: "ETH",  nativeUsd: 3184,   gasUsdPerSwap: 0.28 },
-  { id: 8453,  name: "Base",       color: "#0052FF", ticker: "ETH",  nativeUsd: 3184,   gasUsdPerSwap: 0.18 },
-  { id: 10,    name: "Optimism",   color: "#FF0420", ticker: "ETH",  nativeUsd: 3184,   gasUsdPerSwap: 0.22 },
-  { id: 137,   name: "Polygon",    color: "#7B3FE4", ticker: "POL",  nativeUsd: 0.72,   gasUsdPerSwap: 0.04 },
-  { id: 56,    name: "BSC",        color: "#F0B90B", ticker: "BNB",  nativeUsd: 612,    gasUsdPerSwap: 0.30 },
-  { id: 43114, name: "Avalanche",  color: "#E84142", ticker: "AVAX", nativeUsd: 38,     gasUsdPerSwap: 0.16 },
-  { id: 369,   name: "PulseChain", color: "#FF66C4", ticker: "PLS",  nativeUsd: 0.00007,gasUsdPerSwap: 0.001 },
-  { id: 146,   name: "Sonic",      color: "#FE9A4D", ticker: "S",    nativeUsd: 0.42,   gasUsdPerSwap: 0.02 },
-];
+const GAS_CHAIN_ESTIMATES: Record<number, { nativeUsd: number; gasUsdPerSwap: number }> = {
+  1: { nativeUsd: 3184, gasUsdPerSwap: 8.20 },
+  42161: { nativeUsd: 3184, gasUsdPerSwap: 0.28 },
+  8453: { nativeUsd: 3184, gasUsdPerSwap: 0.18 },
+  10: { nativeUsd: 3184, gasUsdPerSwap: 0.22 },
+  137: { nativeUsd: 0.72, gasUsdPerSwap: 0.04 },
+  56: { nativeUsd: 612, gasUsdPerSwap: 0.30 },
+  43114: { nativeUsd: 38, gasUsdPerSwap: 0.16 },
+  369: { nativeUsd: 0.00007, gasUsdPerSwap: 0.001 },
+  146: { nativeUsd: 0.42, gasUsdPerSwap: 0.02 },
+};
+
+const GAS_CHAINS = V2_AGGREGATOR_CHAINS
+  .filter((c) => GAS_CHAIN_ESTIMATES[c.id])
+  .map((c) => ({ ...c, ...GAS_CHAIN_ESTIMATES[c.id] }));
 
 // ─── Page state ───────────────────────────────────────────────────────────
 
@@ -106,6 +113,7 @@ export default function GasPage() {
   const isMobile = useIsMobile();
   const { walletState, walletOptions, onSelectWallet, disconnect, switchChain, currentChain } =
     useWalletConnection();
+  const connectedBalance = useV2Balances();
   const [showWalletModal, setShowWalletModal] = useState(false);
   const [showAccountModal, setShowAccountModal] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
@@ -518,7 +526,7 @@ export default function GasPage() {
             chainName: c.name,
             chainColor: c.color,
             hashShort: "0x4e8a…c124",
-            url: `https://blockscan.com/tx/0x…`,
+            url: getExplorerTxUrl(d.chainId, "0x4e8a") ?? "#",
           };
         })}
         onNewTrade={() => setShowSuccess(false)}
@@ -533,10 +541,10 @@ export default function GasPage() {
           providerName={walletState.providerName}
           chainName={sourceChain.name}
           chainColor={sourceChain.color}
-          balanceUSD={51570.49}
-          nativeBalance="12.45"
-          nativeTicker={sourceChain.ticker}
-          explorerUrl={`https://arbiscan.io/address/${walletState.address}`}
+          balanceUSD={connectedBalance.nativeBalanceUSD ?? undefined}
+          nativeBalance={connectedBalance.nativeBalance}
+          nativeTicker={connectedBalance.nativeTicker}
+          explorerUrl={getExplorerAddressUrl(sourceChainId, walletState.address) ?? undefined}
           onCopy={() => toast.success("Address copied")}
           onSwitchNetwork={() => { setShowAccountModal(false); setChainPickerTarget({ kind: "source" }); }}
           onSwitchWallet={() => { setShowAccountModal(false); setShowWalletModal(true); }}
@@ -587,7 +595,7 @@ function LookupStub() {
         sourceChain:   { name: "Arbitrum", color: "#28A0F0", ticker: "ETH" },
         sourceTxShort: "0xab12…3f9d",
         sourceTxFull:  "0xab12cd34ef567890abcdef0123456789abcdef01234567890abcdef0123f9d",
-        sourceExplorer:"https://arbiscan.io/tx/0x…",
+        sourceExplorer: getExplorerTxUrl(42161, "0xab12") ?? undefined,
         sentAt:        "2026-06-07 14:32 UTC",
         sentUsd:       30.42,
         bridgeFeeUsd:  0.15,
@@ -599,7 +607,7 @@ function LookupStub() {
             status:   "delivered",
             txShort:  "0x4e8a…c124",
             txFull:   "0x4e8a99201bc20ed8401923cf72e16e3ab2390c91c124",
-            explorer: "https://basescan.org/tx/0x…",
+            explorer: getExplorerTxUrl(8453, "0x4e8a") ?? undefined,
             etaSecondsToDelivery: 41,
           },
           {
@@ -609,7 +617,7 @@ function LookupStub() {
             status:   "delivered",
             txShort:  "0x71c2…bd09",
             txFull:   "0x71c2e3ad9b5e108f02f3a781bc902bd09",
-            explorer: "https://polygonscan.com/tx/0x…",
+            explorer: getExplorerTxUrl(137, "0x71c2") ?? undefined,
             etaSecondsToDelivery: 78,
           },
           {

@@ -45,19 +45,25 @@ import {
   type WalletOption,
 } from "../components";
 import { useWalletConnection } from "../hooks/useWalletConnection";
+import { useV2Balances } from "../hooks/useV2Balances";
 import { EMPX_SOCIALS } from "./SwapPage";
 import { tierForChainId, tierLabel } from "../data/empxRegistry";
+import { getExplorerAddressUrl } from "../data/explorers";
+import { getV2Chain } from "../data/v2ChainView";
+import { WIDGET_CHAIN_BY_KEY, type WidgetChainKey } from "../../widget/chains";
 
 // ─── Widget chain registry — mirrors src/widget/chains.ts ──────────────────
 
-type WidgetChainKey = "pulsechain" | "sonic" | "base" | "monad";
-
-const WIDGET_CHAINS: { key: WidgetChainKey; chainId: number; name: string; color: string; ticker: string }[] = [
-  { key: "pulsechain", chainId: 369,  name: "PulseChain", color: "#FF66C4", ticker: "PLS" },
-  { key: "sonic",      chainId: 146,  name: "Sonic",      color: "#FE9A4D", ticker: "S"   },
-  { key: "base",       chainId: 8453, name: "Base",       color: "#0052FF", ticker: "ETH" },
-  { key: "monad",      chainId: 143,  name: "Monad",      color: "#836EF9", ticker: "MON" },
-];
+const WIDGET_CHAINS = Object.values(WIDGET_CHAIN_BY_KEY).map((runtime) => {
+  const chain = getV2Chain(runtime.chainId);
+  return {
+    key: runtime.key,
+    chainId: runtime.chainId,
+    name: chain?.name ?? runtime.key,
+    color: chain?.color ?? "#888888",
+    ticker: chain?.ticker ?? "ETH",
+  };
+});
 
 // ─── Form state ────────────────────────────────────────────────────────────
 
@@ -159,6 +165,7 @@ export default function WidgetPage() {
   const isMobile = useIsMobile();
   const { walletState, walletOptions, onSelectWallet, disconnect, switchChain, currentChain } =
     useWalletConnection();
+  const connectedBalance = useV2Balances();
   const [showWalletModal, setShowWalletModal] = useState(false);
   const [showAccountModal, setShowAccountModal] = useState(false);
 
@@ -559,10 +566,10 @@ export default function WidgetPage() {
           providerName={walletState.providerName}
           chainName={chain.name}
           chainColor={chain.color}
-          balanceUSD={51570.49}
-          nativeBalance="12.45"
-          nativeTicker={chain.ticker}
-          explorerUrl={`https://etherscan.io/address/${walletState.address}`}
+          balanceUSD={connectedBalance.nativeBalanceUSD ?? undefined}
+          nativeBalance={connectedBalance.nativeBalance}
+          nativeTicker={connectedBalance.nativeTicker}
+          explorerUrl={getExplorerAddressUrl(chain.chainId, walletState.address) ?? undefined}
           onCopy={() => toast.success("Address copied")}
           onSwitchNetwork={() => { setShowAccountModal(false); setChainPickerOpen(true); }}
           onSwitchWallet={() => { setShowAccountModal(false); setShowWalletModal(true); }}

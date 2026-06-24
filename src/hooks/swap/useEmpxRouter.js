@@ -37,7 +37,7 @@
 
 import { useMemo } from "react";
 import { useAccount, useChainId, useWalletClient } from "wagmi";
-import { createRouter } from "empx-swap-sdk-beta";
+import { createRouter } from "empx-swap-sdk";
 import { walletClientToEthersSigner } from "../../utils/swap/wagmiEthersAdapter";
 
 // Read once at module-load time — env vars don't change at runtime in Vite builds.

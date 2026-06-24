@@ -25,7 +25,7 @@
 //   • `skipped` legs from BasketQuote are explicit in the review panel
 //   • Wallet-liquidator scan caps shown to the user (5 chains × 50 tokens)
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   AccountModal,
   BrandMark,
@@ -53,7 +53,9 @@ import {
   type WalletOption,
 } from "../components";
 import { useWalletConnection } from "../hooks/useWalletConnection";
+import { useV2Balances } from "../hooks/useV2Balances";
 import { EMPX_SOCIALS } from "./SwapPage";
+import { getExplorerAddressUrl } from "../data/explorers";
 import {
   defaultSettlementTicker,
   formatEtaSeconds,
@@ -201,6 +203,7 @@ export default function MultiPage() {
   const isMobile = useIsMobile();
   const { walletState, walletOptions, onSelectWallet, disconnect, switchChain, currentChain } =
     useWalletConnection();
+  const connectedBalance = useV2Balances();
   const [showWalletModal, setShowWalletModal] = useState(false);
   const [showAccountModal, setShowAccountModal] = useState(false);
 
@@ -225,7 +228,7 @@ export default function MultiPage() {
 
   // ── Inputs / outputs state ──────────────────────────────────────────────
   const [inputs, setInputs] = useState<InputLeg[]>(() => [
-    { id: nextId(), chainId: 42161, ticker: "ETH", amount: "0.5", usdPrice: PRICE_USD.ETH },
+    { id: nextId(), chainId: 42161, ticker: "ETH", amount: "0.5", usdPrice: priceOf("ETH") },
   ]);
   const [outputs, setOutputs] = useState<OutputLeg[]>(() => [
     { id: nextId(), chainId: 8453, ticker: "USDC", allocationBps: 10_000 },
@@ -759,12 +762,12 @@ export default function MultiPage() {
           onClose={() => setShowAccountModal(false)}
           address={walletState.address}
           providerName={walletState.providerName}
-          chainName="Arbitrum"
-          chainColor="#28A0F0"
-          balanceUSD={51570.49}
-          nativeBalance="12.45"
-          nativeTicker="ETH"
-          explorerUrl={`https://arbiscan.io/address/${walletState.address}`}
+          chainName={walletState.chain.name}
+          chainColor={walletState.chain.color}
+          balanceUSD={connectedBalance.nativeBalanceUSD ?? undefined}
+          nativeBalance={connectedBalance.nativeBalance}
+          nativeTicker={connectedBalance.nativeTicker}
+          explorerUrl={getExplorerAddressUrl(walletState.chain.id, walletState.address) ?? undefined}
           onCopy={() => toast.success("Address copied")}
           onSwitchNetwork={() => toast.info("Per-leg chain control in panels below")}
           onSwitchWallet={() => { setShowAccountModal(false); setShowWalletModal(true); }}
@@ -815,7 +818,7 @@ function LegsPanel({
   const addLeg = () => {
     if (legs.length >= maxAdd) return;
     const next: AnyLeg = isInput
-      ? { id: nextId(), chainId: 42161, ticker: "ETH", amount: "0", usdPrice: PRICE_USD.ETH }
+      ? { id: nextId(), chainId: 42161, ticker: "ETH", amount: "0", usdPrice: priceOf("ETH", 42161) }
       : { id: nextId(), chainId: 8453, ticker: "USDC", allocationBps: 0 };
     setLegs([...legs, next]);
   };

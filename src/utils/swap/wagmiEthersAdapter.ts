@@ -28,8 +28,8 @@ export function walletClientToEthersSigner(
   if (!account || !chain) return null;
 
   const network = {
-    chainId: chain.id,
-    name: chain.name,
+    chainId: (chain as { id: number }).id,
+    name: (chain as { name: string }).name,
     ensAddress:
       (chain as { contracts?: { ensRegistry?: { address?: string } } })
         .contracts?.ensRegistry?.address,
@@ -40,5 +40,5 @@ export function walletClientToEthersSigner(
     transport as unknown as ConstructorParameters<typeof BrowserProvider>[0],
     network,
   );
-  return new JsonRpcSigner(provider, account.address);
+  return new JsonRpcSigner(provider, (account as { address: string }).address);
 }

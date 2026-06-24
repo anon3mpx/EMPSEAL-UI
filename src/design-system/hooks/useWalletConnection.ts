@@ -99,7 +99,7 @@ export function useWalletConnection() {
             name: c.name,
             description: CONNECTOR_DESCRIPTIONS[id] ?? `Connect with ${c.name}`,
             kind: "evm" as WalletKind,
-            installed: c.ready ?? true,
+            installed: !!c.ready,
           };
         })
         .sort((a, b) => {

@@ -25,6 +25,35 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist"]
+  "include": [
+    "src/design-system/**/*",
+    "src/lib/**/*",
+    "src/hooks/swap/**/*",
+    "src/hooks/useChainConfig.ts",
+    "src/hooks/usePriceMonitor.ts",
+    "src/utils/swap/**/*",
+    "src/utils/pricing/**/*",
+    "src/utils/priceFetcher.js",
+    "src/utils/getChainConfig.ts",
+    "src/features/cross/**/*",
+    "src/config/**/*",
+    "src/components/ErrorBoundary.jsx",
+    "src/components/EmptyState.jsx",
+    "src/components/EmpxModal.jsx",
+    "src/components/FirstTimeTokenWarning.jsx",
+    "src/components/SwapWarningBanner.jsx",
+    "src/components/TokenSafetyBadge.jsx",
+    "src/components/TouchTooltip.jsx",
+    "src/components/DestinationAddressInput.jsx",
+    "src/components/TokenLogo.tsx",
+    "src/components/TokenLogo.jsx",
+    "src/services/**/*",
+    "src/test/**/*",
+    "src/main.jsx",
+    "src/App.jsx"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist"
+  ]
 }

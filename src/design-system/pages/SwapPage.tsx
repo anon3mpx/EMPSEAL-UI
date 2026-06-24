@@ -45,6 +45,12 @@ import {
 } from "../components";
 
 import { useWalletConnection } from "../hooks/useWalletConnection";
+import { useV2Balances } from "../hooks/useV2Balances";
+import { V2_AGGREGATOR_CHAINS, getV2Chain } from "../data/v2ChainView";
+import { getTokensForChain } from "../data/v2TokenView";
+import { getExplorerAddressUrl } from "../data/explorers";
+import { formatUSD } from "../hooks/useUnifiedPrice";
+import { classifyPair, modeAFeeBps } from "../data/empxRegistry";
 
 // Shared social link set — referenced from every page navbar
 export const EMPX_SOCIALS = [
@@ -55,73 +61,12 @@ export const EMPX_SOCIALS = [
 ];
 import EmpxSwapWidget from "../EmpxSwapWidget";
 
-// ─── Chain registry (sourced from SDK in production) ──────────────────────
-
-const ARB      = { id: 42161, name: "Arbitrum",  color: "#28A0F0" };
-const BASE     = { id: 8453,  name: "Base",       color: "#0052FF" };
-const ETH_MAIN = { id: 1,     name: "Ethereum",  color: "#627EEA" };
-const OP       = { id: 10,    name: "Optimism",  color: "#FF0420" };
-const POLY     = { id: 137,   name: "Polygon",   color: "#7B3FE4" };
-const BSC      = { id: 56,    name: "BSC",        color: "#F0B90B" };
-const AVAX     = { id: 43114, name: "Avalanche", color: "#E84142" };
-const SONIC    = { id: 146,   name: "Sonic",      color: "#FE9A4D" };
-const BERA     = { id: 80094, name: "Berachain", color: "#814625" };
-const SEI      = { id: 1329,  name: "Sei",        color: "#9D1F1F" };
-const HYPE     = { id: 999,   name: "HyperEVM",  color: "#97FBE5" };
-const PLS      = { id: 369,   name: "PulseChain",color: "#FF008F" };
-const RSK      = { id: 30,    name: "Rootstock", color: "#FF9900" };
-const MONAD    = { id: 143,   name: "Monad",      color: "#7C5CFC" };
-
-const SWAP_CHAINS: PickerChain[] = [
-  { ...ARB,      ticker: "ETH" },
-  { ...BASE,     ticker: "ETH" },
-  { ...ETH_MAIN, ticker: "ETH" },
-  { ...OP,       ticker: "ETH" },
-  { ...POLY,     ticker: "POL" },
-  { ...BSC,      ticker: "BNB" },
-  { ...AVAX,     ticker: "AVAX" },
-  { ...SONIC,    ticker: "S" },
-  { ...BERA,     ticker: "BERA" },
-  { ...SEI,      ticker: "SEI" },
-  { ...HYPE,     ticker: "HYPE" },
-  { ...PLS,      ticker: "PLS" },
-  { ...RSK,      ticker: "RBTC" },
-  { ...MONAD,    ticker: "MON" },
-];
-
-// ─── Demo token book (sourced from SDK getChainConfig in production) ──────
-
-const TOKENS_BY_CHAIN: Record<number, PickerToken[]> = {
-  [ARB.id]: [
-    { ticker: "ETH",  name: "Ether",            chainName: ARB.name, chainColor: ARB.color, balance: "12.45",    balanceUSD: 39625.20 },
-    { ticker: "USDC", name: "USD Coin",         chainName: ARB.name, chainColor: ARB.color, balance: "8,420.10", balanceUSD: 8420.10, badge: "VERIFIED" },
-    { ticker: "USDT", name: "Tether",           chainName: ARB.name, chainColor: ARB.color, balance: "1,250.00", balanceUSD: 1250.00 },
-    { ticker: "ARB",  name: "Arbitrum",         chainName: ARB.name, chainColor: ARB.color, balance: "452.18",   balanceUSD: 538.59, badge: "TRENDING" },
-    { ticker: "WBTC", name: "Wrapped BTC",      chainName: ARB.name, chainColor: ARB.color, balance: "0.0312",   balanceUSD: 2120.40 },
-    { ticker: "DAI",  name: "Dai Stablecoin",   chainName: ARB.name, chainColor: ARB.color, balance: "0",        balanceUSD: 0 },
-    { ticker: "LINK", name: "Chainlink",        chainName: ARB.name, chainColor: ARB.color, balance: "0",        balanceUSD: 0 },
-  ],
-  [BASE.id]: [
-    { ticker: "ETH",  name: "Ether",            chainName: BASE.name, chainColor: BASE.color, balance: "0.42",     balanceUSD: 1337.30 },
-    { ticker: "USDC", name: "USD Coin",         chainName: BASE.name, chainColor: BASE.color, balance: "245.00",   balanceUSD: 245.00, badge: "VERIFIED" },
-    { ticker: "AERO", name: "Aerodrome",        chainName: BASE.name, chainColor: BASE.color, balance: "245.00",   balanceUSD: 612.50, badge: "TRENDING" },
-    { ticker: "DEGEN",name: "Degen",            chainName: BASE.name, chainColor: BASE.color, balance: "12,000",   balanceUSD: 84.00 },
-  ],
-};
-
-// Pair-type classification — would come from SDK enablePairTypeFees() in prod
-function classifyPair(from: string, to: string): "V/V" | "V/S" | "S/S" {
-  const STABLES = new Set(["USDC", "USDT", "DAI"]);
-  const f = STABLES.has(from);
-  const t = STABLES.has(to);
-  if (f && t) return "S/S";
-  if (f || t) return "V/S";
-  return "V/V";
-}
-
-function feeForPair(pairType: "V/V" | "V/S" | "S/S"): number {
-  return pairType === "S/S" ? 9 : pairType === "V/S" ? 15 : 28;
-}
+const SWAP_CHAINS: PickerChain[] = V2_AGGREGATOR_CHAINS.map((c) => ({
+  id: c.id,
+  name: c.name,
+  color: c.color,
+  ticker: c.ticker,
+}));
 
 // ─── Page state ───────────────────────────────────────────────────────────
 
@@ -135,6 +80,7 @@ export default function SwapPage() {
   // Wallet — uses wagmi v2 via the design-system bridge hook
   const { walletState, walletOptions, onSelectWallet, disconnect, switchChain, currentChain } =
     useWalletConnection();
+  const { nativeBalance, nativeTicker, nativeBalanceUSD } = useV2Balances();
   const [showWalletModal, setShowWalletModal] = useState(false);
   const [showChainPicker, setShowChainPicker] = useState(false);
   const [showAccountModal, setShowAccountModal] = useState(false);
@@ -143,23 +89,37 @@ export default function SwapPage() {
   const [showSuccess, setShowSuccess] = useState(false);
   const [quoteIssuedAt, setQuoteIssuedAt] = useState(Date.now());
 
-  // Active chain — driven by wallet connection
-  const activeChain = walletState.status === "connected" ? walletState.chain : ARB;
+  // Active chain — driven by wallet connection, defaults to Arbitrum
+  const defaultChain = SWAP_CHAINS[0]; // Arbitrum (42161) — first in V2_AGGREGATOR_CHAINS
+  const activeChain = walletState.status === "connected" ? walletState.chain : defaultChain;
 
   // Settings tab
   const [settingsTab, setSettingsTab] = useState<SettingsTab>("slippage");
   const [slippageBps, setSlippageBps] = useState(50);
   const [mevEnabled, setMevEnabled] = useState(true);
 
-  // Swap state
-  const tokensForChain = TOKENS_BY_CHAIN[activeChain.id] ?? [];
-  const [fromToken, setFromToken] = useState<PickerToken | null>(tokensForChain[0] ?? null);
-  const [toToken,   setToToken]   = useState<PickerToken | null>(tokensForChain[1] ?? null);
+  // Swap state — tokens sourced from shared V2 registry (balances are live)
+  const tokensForChain: PickerToken[] = useMemo(() => {
+    const configs = getTokensForChain(activeChain.id);
+    const chain = getV2Chain(activeChain.id);
+    return configs.map((t) => ({
+      ticker: t.ticker,
+      name: t.name,
+      chainName: chain?.name ?? activeChain.name,
+      chainColor: chain?.color ?? activeChain.color,
+      badge: t.badge,
+      address: t.address,
+      balance: undefined,     // live balance not yet wired in token picker
+      balanceUSD: undefined,  // live price not yet wired in token picker
+    }));
+  }, [activeChain.id, activeChain.name, activeChain.color]);
+  const [fromToken, setFromToken] = useState<PickerToken | null>(null);
+  const [toToken,   setToToken]   = useState<PickerToken | null>(null);
   const [fromAmount, setFromAmount] = useState("1");
 
   // Reset tokens when chain changes
   useEffect(() => {
-    const toks = TOKENS_BY_CHAIN[activeChain.id] ?? [];
+    const toks = tokensForChain;
     setFromToken(toks[0] ?? null);
     setToToken(toks[1] ?? null);
     setFromAmount("1");
@@ -178,7 +138,7 @@ export default function SwapPage() {
   }, [fromAmount, fromToken, toToken]);
 
   const pairType = fromToken && toToken ? classifyPair(fromToken.ticker, toToken.ticker) : "V/V";
-  const feeBps = feeForPair(pairType);
+  const feeBps = modeAFeeBps(pairType);
   const fromUSDValue = useMemo(() => {
     const amt = Number(fromAmount.replace(/,/g, ""));
     if (!Number.isFinite(amt) || !fromToken) return 0;
@@ -531,7 +491,6 @@ export default function SwapPage() {
         onClose={() => setShowChainPicker(false)}
         chains={SWAP_CHAINS.map((c) => ({
           ...c,
-          balanceUSD: c.id === ARB.id ? 48583.89 : c.id === BASE.id ? 1862.50 : undefined,
         }))}
         selectedId={activeChain.id}
         mode="swap"
@@ -605,9 +564,7 @@ export default function SwapPage() {
           { label: "DEX execution",        description: "Best route across 3 pools",     state: "complete", timeLabel: "0:04" },
           { label: "Tokens delivered",     description: "USDC in wallet, ready to use",  state: "complete", timeLabel: "0:08" },
         ]}
-        txHashes={[
-          { label: "Swap tx", chainName: activeChain.name, chainColor: activeChain.color, hashShort: "0xab12…3f9d", url: "https://arbiscan.io" },
-        ]}
+        txHashes={[]}
         onNewTrade={() => setShowSuccess(false)}
         onViewPortfolio={() => { setShowSuccess(false); toast.info("Navigate to /portfolio-v2"); }}
       />
@@ -620,10 +577,10 @@ export default function SwapPage() {
           providerName={walletState.providerName}
           chainName={activeChain.name}
           chainColor={activeChain.color}
-          balanceUSD={51570.49}
-          nativeBalance="12.45"
-          nativeTicker="ETH"
-          explorerUrl={`https://arbiscan.io/address/${walletState.address}`}
+          balanceUSD={nativeBalanceUSD ?? undefined}
+          nativeBalance={nativeBalance}
+          nativeTicker={nativeTicker}
+          explorerUrl={getExplorerAddressUrl(activeChain.id, walletState.address) ?? undefined}
           onCopy={() => toast.success("Address copied")}
           onSwitchNetwork={() => { setShowAccountModal(false); setShowChainPicker(true); }}
           onSwitchWallet={() => { setShowAccountModal(false); setShowWalletModal(true); }}
