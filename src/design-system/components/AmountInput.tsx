@@ -15,6 +15,7 @@ interface AmountInputProps {
   ticker: string;
   tokenLogo?: ReactNode;
   onSelectToken?: () => void;
+  tokenSelectLabel?: string;
   accent?: boolean;
   /** Meta rendered next to the LABEL row (top-right of the input). */
   topMeta?: ReactNode;
@@ -56,6 +57,7 @@ export default function AmountInput({
   ticker,
   tokenLogo,
   onSelectToken,
+  tokenSelectLabel,
   accent = false,
   topMeta,
   bottomMeta,
@@ -185,6 +187,7 @@ export default function AmountInput({
           ticker={ticker}
           logo={tokenLogo}
           onClick={onSelectToken}
+          ariaLabel={tokenSelectLabel}
           accent={accent}
         />
       </div>

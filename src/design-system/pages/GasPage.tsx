@@ -27,11 +27,14 @@
 //   • hooks/useGasBridgeTx.js     — wagmi send + status polling
 //   • redux/store/gasBridgeStore.js — zustand (fromChainId, toChainId, amount, recipient)
 //
-// THIS FILE IS A STYLED DEMO (per user direction 2026-06-07):
-//   Quote + send are stubbed.  Chain list + history would be live in
-//   production — easy switch to the React Query hooks above.
+// Phase 4 wiring:
+//   Quote, calldata, send/status, history, and lookup are now wired to the
+//   existing Gas.zip hooks. Local chain estimates remain only as display
+//   fallbacks when the live API omits fiat/gas affordability metadata.
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { formatEther, type Address } from "viem";
+import { useBalance } from "wagmi";
 import {
   AccountModal,
   BrandMark,
@@ -55,19 +58,38 @@ import {
   type FeeRow,
   type NavLink,
   type PickerChain,
-  type WalletOption,
 } from "../components";
 import { useWalletConnection } from "../hooks/useWalletConnection";
 import { useV2Balances } from "../hooks/useV2Balances";
 import EmpxGasWidget from "../EmpxGasWidget";
-import { EMPX_SOCIALS } from "./SwapPage";
 import { getExplorerAddressUrl, getExplorerTxUrl } from "../data/explorers";
 import { V2_AGGREGATOR_CHAINS } from "../data/v2ChainView";
+import {
+  buildGasDestinationDisplays,
+  buildGasQuoteSummary,
+  buildGasTxRequest,
+  formatGasHistoryRows,
+  formatGasLookupResult,
+  normalizeGasChains,
+  shortHash,
+  type GasLookupDelivery,
+  type GasLookupResult,
+  type GasV2Chain,
+  type GasV2Destination,
+} from "../data/gasV2Adapters";
 import {
   formatEtaSeconds,
   tierForChainId,
   tierLabel,
 } from "../data/empxRegistry";
+import {
+  useGetCalldataQuote,
+  useGetChains,
+  useGetUserHistory,
+  useSearchTransaction,
+} from "../../hooks/useGasBridgeAPI";
+import { useGasBridgeTx } from "../../hooks/useGasBridgeTx";
+import { useGasBridgeStore } from "../../redux/store/gasBridgeStore";
 
 // ─── Constants ────────────────────────────────────────────────────────────
 
@@ -92,6 +114,13 @@ const GAS_CHAINS = V2_AGGREGATOR_CHAINS
   .filter((c) => GAS_CHAIN_ESTIMATES[c.id])
   .map((c) => ({ ...c, ...GAS_CHAIN_ESTIMATES[c.id] }));
 
+const EMPX_SOCIALS = [
+  { kind: "x" as const,        href: "https://x.com/empx" },
+  { kind: "telegram" as const, href: "https://t.me/empx" },
+  { kind: "docs" as const,     href: "https://docs.empx.network" },
+  { kind: "github" as const,   href: "https://github.com/empx" },
+];
+
 // ─── Page state ───────────────────────────────────────────────────────────
 
 interface Destination {
@@ -111,9 +140,16 @@ function nextId() { return Math.random().toString(36).slice(2, 9); }
 
 export default function GasPage() {
   const isMobile = useIsMobile();
-  const { walletState, walletOptions, onSelectWallet, disconnect, switchChain, currentChain } =
-    useWalletConnection();
+  const { walletState, walletOptions, onSelectWallet, disconnect } = useWalletConnection();
+  const connectedAddress =
+    walletState.status === "connected" ? (walletState.address as Address) : undefined;
   const connectedBalance = useV2Balances();
+  const {
+    setFromChain,
+    setToChain,
+    setAmount: setStoreAmount,
+    setRecipientAddress,
+  } = useGasBridgeStore();
   const [showWalletModal, setShowWalletModal] = useState(false);
   const [showAccountModal, setShowAccountModal] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
@@ -135,30 +171,122 @@ export default function GasPage() {
   const [chainPickerTarget, setChainPickerTarget] = useState<ChainPickerTarget | null>(null);
 
   const [quoteIssuedAt, setQuoteIssuedAt] = useState(Date.now());
+  const [submittedTxHash, setSubmittedTxHash] = useState<string | null>(null);
+  const gasChainsQuery = useGetChains();
+  const tx = useGasBridgeTx();
 
   // ── Derived ─────────────────────────────────────────────────────────────
-  const sourceChain = useMemo(
-    () => GAS_CHAINS.find((c) => c.id === sourceChainId) ?? GAS_CHAINS[1],
-    [sourceChainId],
+  const liveGasChains = useMemo<GasV2Chain[]>(
+    () => normalizeGasChains(gasChainsQuery.data ?? []),
+    [gasChainsQuery.data],
   );
+  const supportedGasChains = liveGasChains.length > 0 ? liveGasChains : GAS_CHAINS;
+  const sourceChain = useMemo(
+    () => supportedGasChains.find((c) => c.id === sourceChainId) ?? supportedGasChains[0] ?? GAS_CHAINS[0],
+    [sourceChainId, supportedGasChains],
+  );
+  const recipientAddress = useDifferentRecipient
+    ? recipient.trim()
+    : connectedAddress;
 
   // Total USD across destinations
   const totalDestUSD = destinations.reduce((s, d) => s + (d.usd || 0), 0);
-  // Bridge fee = 0.5% flat in Gas.zip's pricing (typical floor) — production
-  // returns the real value via useGetQuote(...).fee.
-  const bridgeFeeUSD = totalDestUSD * 0.005;
+  // The V2 UI keeps destination USD targets; Gas.zip quotes take a single
+  // source-native amount. This estimate is only the request seed. The rendered
+  // fee/send amount below switches to the live quote when available.
+  const estimatedBridgeFeeUSD = totalDestUSD * 0.005;
+  const estimatedTotalCostUSD = totalDestUSD + estimatedBridgeFeeUSD;
+  const estimatedSourceAmountNative = sourceChain.nativeUsd > 0
+    ? estimatedTotalCostUSD / sourceChain.nativeUsd
+    : 0;
+  const sourceAmountInput = estimatedSourceAmountNative > 0
+    ? estimatedSourceAmountNative.toFixed(estimatedSourceAmountNative < 0.01 ? 8 : 6)
+    : "";
+  const destinationChainIds = destinations.map((d) => d.chainId);
+  const destinationChainParam = destinationChainIds.join(",");
+  const quote = useGetCalldataQuote({
+    fromChain: sourceChainId,
+    toChain: destinationChainParam,
+    amount: sourceAmountInput,
+    toAddress: recipientAddress,
+    fromAddress: connectedAddress,
+  });
+  const quoteSummary = useMemo(
+    () => buildGasQuoteSummary(quote.data, sourceChain.ticker),
+    [quote.data, sourceChain.ticker],
+  );
+  const txRequest = useMemo(() => buildGasTxRequest(quote.data), [quote.data]);
+  const bridgeFeeUSD = quoteSummary.bridgeFeeUSD || estimatedBridgeFeeUSD;
   const totalCostUSD = totalDestUSD + bridgeFeeUSD;
-  const sourceAmountNative = totalCostUSD / sourceChain.nativeUsd;
+  const sourceAmountNative = Number(quoteSummary.sourceAmount || sourceAmountInput || 0);
+  const sourceAmountDisplay = sourceAmountNative > 0
+    ? sourceAmountNative.toFixed(sourceAmountNative < 0.01 ? 8 : 6)
+    : "0";
+  const estimatedTimeSeconds = quoteSummary.estimatedTimeSeconds ?? 75;
 
   // Validity
   const destsValid = destinations.length > 0
     && destinations.every((d) => d.usd > 0 && d.chainId !== sourceChainId);
   const recipientValid = !useDifferentRecipient || /^0x[0-9a-fA-F]{40}$/.test(recipient.trim());
-  const canSubmit = destsValid && recipientValid && walletState.status === "connected";
+  const canSubmit = Boolean(
+    destsValid &&
+      recipientValid &&
+      connectedAddress &&
+      txRequest &&
+      quoteSummary.ready &&
+      !tx.isSending &&
+      !tx.isConfirming,
+  );
+
+  const { data: sourceBalance } = useBalance({
+    address: connectedAddress,
+    chainId: sourceChainId as any,
+    query: { enabled: Boolean(connectedAddress) },
+  });
+
+  useEffect(() => {
+    setFromChain(sourceChainId);
+    setToChain(destinations[0]?.chainId ?? null);
+    setStoreAmount(sourceAmountInput);
+    setRecipientAddress(recipientAddress ?? "");
+  }, [
+    destinations,
+    recipientAddress,
+    setFromChain,
+    setRecipientAddress,
+    setStoreAmount,
+    setToChain,
+    sourceAmountInput,
+    sourceChainId,
+  ]);
+
+  useEffect(() => {
+    if (quote.data) {
+      setQuoteIssuedAt(Date.now());
+    }
+  }, [quote.data]);
+
+  useEffect(() => {
+    if (tx.txHash) {
+      setSubmittedTxHash(tx.txHash);
+    }
+  }, [tx.txHash]);
+
+  useEffect(() => {
+    if (tx.backendStatus?.deposit?.status === "CONFIRMED") {
+      setShowSuccess(true);
+    }
+  }, [tx.backendStatus]);
+
+  useEffect(() => {
+    if (!supportedGasChains.some((chain) => chain.id === sourceChainId)) {
+      setSourceChainId(supportedGasChains[0]?.id ?? 42161);
+    }
+  }, [sourceChainId, supportedGasChains]);
 
   // Chain picker list — apply tier badging
   const chainPickerList: PickerChain[] = useMemo(() => {
-    return GAS_CHAINS.map((c) => {
+    return supportedGasChains.map((c) => {
       const tier = tierForChainId(c.id);
       return {
         id: c.id,
@@ -169,14 +297,14 @@ export default function GasPage() {
         tierLabel: tierLabel(tier),
       };
     });
-  }, []);
+  }, [supportedGasChains]);
 
   // ── Mutators ────────────────────────────────────────────────────────────
   const addDestination = () => {
     if (destinations.length >= MAX_DESTINATIONS) return;
     // Pick a chain that's not source + not already a destination
     const usedIds = new Set([sourceChainId, ...destinations.map((d) => d.chainId)]);
-    const available = GAS_CHAINS.find((c) => !usedIds.has(c.id)) ?? GAS_CHAINS[2];
+    const available = supportedGasChains.find((c) => !usedIds.has(c.id)) ?? supportedGasChains[0] ?? GAS_CHAINS[0];
     setDestinations([...destinations, { id: nextId(), chainId: available.id, usd: 10 }]);
   };
   const removeDestination = (id: string) => {
@@ -189,11 +317,56 @@ export default function GasPage() {
     setDestinations(destinations.map((d) => (d.id === id ? { ...d, chainId } : d)));
   };
 
+  const gasDestinations = useMemo(
+    () =>
+      buildGasDestinationDisplays({
+        destinations: destinations.map<GasV2Destination>((destination) => {
+          const chain = supportedGasChains.find((item) => item.id === destination.chainId);
+          const amount = chain?.nativeUsd
+            ? String(destination.usd / chain.nativeUsd)
+            : "0";
+          return { id: destination.id, chainId: destination.chainId, amount };
+        }),
+        chains: supportedGasChains,
+        expectedAmount: quoteSummary.expectedAmount,
+        expectedAmounts: Array.isArray(quote.data?.quotes)
+          ? quote.data.quotes.map((item: any) => {
+              try {
+                return formatEther(BigInt(item?.expected ?? 0));
+              } catch {
+                return "0";
+              }
+            })
+          : undefined,
+      }),
+    [destinations, quote.data, quoteSummary.expectedAmount, supportedGasChains],
+  );
+  const backendLookupResult = useMemo(
+    () => formatGasLookupResult(tx.backendStatus, supportedGasChains),
+    [supportedGasChains, tx.backendStatus],
+  );
+
   const onSubmit = () => {
     if (walletState.status !== "connected") { setShowWalletModal(true); return; }
-    if (!canSubmit) return;
+    if (!canSubmit) {
+      toast.error(quote.isLoading ? "Waiting for Gas.zip quote." : "Gas.zip route is not ready yet.");
+      return;
+    }
     setQuoteIssuedAt(Date.now());
     setShowConfirm(true);
+  };
+
+  const onConfirmSend = () => {
+    if (!txRequest) {
+      toast.error("Gas.zip calldata is not ready yet.");
+      return;
+    }
+
+    // `useGasBridgeTx` owns wallet chain switching, sending, receipt waiting,
+    // and backend status polling. Success UI opens only when polling confirms.
+    void tx.executeBridge(txRequest);
+    setShowConfirm(false);
+    setTab("lookup");
   };
 
   const navLinks: NavLink[] = [
@@ -272,7 +445,7 @@ export default function GasPage() {
               { value: "lookup" as const,  label: "Tx lookup" },
             ]}
             active={tab}
-            onChange={setTab}
+            onChange={(value) => setTab(value as ActiveTab)}
             variant="underline"
           />
         </div>
@@ -290,20 +463,11 @@ export default function GasPage() {
             <div style={{ display: "flex", justifyContent: "center" }}>
               <EmpxGasWidget
                 sourceChain={{ id: sourceChain.id, name: sourceChain.name, color: sourceChain.color, ticker: sourceChain.ticker }}
-                sourceAmount={sourceAmountNative > 0 ? sourceAmountNative.toFixed(sourceAmountNative < 0.01 ? 6 : 4) : "0"}
+                sourceAmount={sourceAmountDisplay}
                 sourceUsdValue={totalCostUSD}
-                sourceBalance={undefined}
+                sourceBalance={sourceBalance ? `${Number(sourceBalance.formatted).toLocaleString(undefined, { maximumFractionDigits: 6 })} ${sourceChain.ticker}` : undefined}
                 onSelectSourceChain={() => setChainPickerTarget({ kind: "source" })}
-                destinations={destinations.map((d) => {
-                  const c = GAS_CHAINS.find((g) => g.id === d.chainId) ?? GAS_CHAINS[2];
-                  return {
-                    id: d.id,
-                    chain: { id: c.id, name: c.name, color: c.color, ticker: c.ticker },
-                    usd: d.usd,
-                    nativeOut: c.nativeUsd > 0 ? d.usd / c.nativeUsd : 0,
-                    swapsBuyable: Math.floor(d.usd / c.gasUsdPerSwap),
-                  };
-                })}
+                destinations={gasDestinations}
                 maxDestinations={MAX_DESTINATIONS}
                 onSelectDestinationChain={(destId) => setChainPickerTarget({ kind: "destination", destId })}
                 onSetDestinationUsd={setDestUsd}
@@ -311,14 +475,20 @@ export default function GasPage() {
                 onAddDestination={addDestination}
                 presets={PER_DEST_USD_PRESETS}
                 bridgeFeeUSD={bridgeFeeUSD}
-                estimatedTime={formatEtaSeconds(75)}
+                estimatedTime={formatEtaSeconds(estimatedTimeSeconds)}
                 useDifferentRecipient={useDifferentRecipient}
                 onToggleRecipient={() => setUseDifferentRecipient(!useDifferentRecipient)}
                 recipient={recipient}
                 onSetRecipient={setRecipient}
                 recipientValid={recipientValid}
-                canSubmit={destsValid && recipientValid}
-                swapLabel={destinations.length === 1 ? `Send gas to ${GAS_CHAINS.find((c) => c.id === destinations[0].chainId)?.name ?? "destination"}` : `Send gas to ${destinations.length} chains`}
+                canSubmit={Boolean(destsValid && recipientValid && (!connectedAddress || canSubmit))}
+                swapLabel={
+                  quote.isLoading
+                    ? "Fetching Gas.zip route..."
+                    : destinations.length === 1
+                      ? `Send gas to ${supportedGasChains.find((c) => c.id === destinations[0].chainId)?.name ?? "destination"}`
+                      : `Send gas to ${destinations.length} chains`
+                }
                 onSubmit={onSubmit}
                 walletConnected={walletState.status === "connected"}
                 onConnect={() => setShowWalletModal(true)}
@@ -341,7 +511,11 @@ export default function GasPage() {
                     <QuoteCountdown
                       totalMs={30000}
                       issuedAt={quoteIssuedAt}
-                      onRefresh={() => { setQuoteIssuedAt(Date.now()); toast.info("Quote refreshed"); }}
+                      onRefresh={() => {
+                        setQuoteIssuedAt(Date.now());
+                        void quote.refetch();
+                        toast.info("Quote refreshed");
+                      }}
                       compact
                     />
                   )}
@@ -352,9 +526,9 @@ export default function GasPage() {
                     const rows: FeeRow[] = [
                       { label: "Destinations",     value: `${destinations.length} chain${destinations.length === 1 ? "" : "s"}` },
                       { label: "Total to deliver", value: `$${totalDestUSD.toFixed(2)}` },
-                      { label: "Bridge fee",       value: `$${bridgeFeeUSD.toFixed(2)}`, sub: "0.5% demo", accent: true },
-                      { label: `You send`,         value: `${sourceAmountNative.toFixed(6)} ${sourceChain.ticker}`, sub: `~$${totalCostUSD.toFixed(2)}` },
-                      { label: "Est. delivery",    value: formatEtaSeconds(75), muted: true },
+                      { label: "Bridge fee",       value: bridgeFeeUSD <= 0.005 ? "FREE" : `$${bridgeFeeUSD.toFixed(2)}`, sub: quote.data ? "Gas.zip quote" : "estimate", accent: true },
+                      { label: `You send`,         value: `${sourceAmountDisplay} ${sourceChain.ticker}`, sub: `~$${totalCostUSD.toFixed(2)}` },
+                      { label: "Est. delivery",    value: formatEtaSeconds(estimatedTimeSeconds), muted: true },
                     ];
                     return rows;
                   })()}
@@ -373,11 +547,13 @@ export default function GasPage() {
                 )}
 
                 <div style={{ marginTop: 14 }}>
-                  <PrimaryButton onClick={onSubmit} disabled={!destsValid || !recipientValid}>
+                  <PrimaryButton onClick={onSubmit} disabled={walletState.status === "connected" ? !canSubmit : false}>
                     {walletState.status !== "connected"
                       ? "Connect wallet"
+                      : quote.isLoading
+                      ? "Fetching Gas.zip route..."
                       : destinations.length === 1
-                      ? `Send gas to ${GAS_CHAINS.find((c) => c.id === destinations[0].chainId)?.name ?? "destination"}`
+                      ? `Send gas to ${supportedGasChains.find((c) => c.id === destinations[0].chainId)?.name ?? "destination"}`
                       : `Send gas to ${destinations.length} chains`}
                   </PrimaryButton>
                 </div>
@@ -424,8 +600,18 @@ export default function GasPage() {
           </div>
         )}
 
-        {tab === "history" && <HistoryStub />}
-        {tab === "lookup"  && <LookupStub />}
+        {tab === "history" && (
+          <HistoryPanel
+            address={connectedAddress}
+            chains={supportedGasChains}
+          />
+        )}
+        {tab === "lookup"  && (
+          <LookupPanel
+            chains={supportedGasChains}
+            initialHash={submittedTxHash ?? tx.txHash ?? ""}
+          />
+        )}
       </main>
 
       {/* Wallet modal */}
@@ -468,29 +654,33 @@ export default function GasPage() {
       <ConfirmTradeModal
         open={showConfirm}
         onClose={() => setShowConfirm(false)}
-        onConfirm={() => { setShowConfirm(false); setShowSuccess(true); }}
+        onConfirm={onConfirmSend}
+        confirming={tx.isSending || tx.isConfirming}
         eyebrow="REVIEW · GAS BUNDLE"
         title="Confirm gas top-up"
         fromTicker={sourceChain.ticker}
-        fromAmount={sourceAmountNative.toFixed(6)}
+        fromAmount={sourceAmountDisplay}
         fromChainName={sourceChain.name}
         toTicker={destinations.length === 1
-          ? (GAS_CHAINS.find((c) => c.id === destinations[0].chainId)?.ticker ?? "GAS")
+          ? (supportedGasChains.find((c) => c.id === destinations[0].chainId)?.ticker ?? "GAS")
           : `${destinations.length} chains`}
         toAmount={`$${totalDestUSD.toFixed(2)}`}
         toChainName={destinations.length === 1
-          ? (GAS_CHAINS.find((c) => c.id === destinations[0].chainId)?.name ?? "")
+          ? (supportedGasChains.find((c) => c.id === destinations[0].chainId)?.name ?? "")
           : "multi-destination"}
         feeRows={[
           { label: "Destinations",     value: `${destinations.length} chain${destinations.length === 1 ? "" : "s"}` },
           { label: "Total to deliver", value: `$${totalDestUSD.toFixed(2)}` },
-          { label: "Bridge fee",       value: `$${bridgeFeeUSD.toFixed(2)}`, sub: "0.5%", accent: true },
-          { label: "Source amount",    value: `${sourceAmountNative.toFixed(6)} ${sourceChain.ticker}` },
-          { label: "Est. delivery",    value: formatEtaSeconds(75), muted: true },
+          { label: "Bridge fee",       value: bridgeFeeUSD <= 0.005 ? "FREE" : `$${bridgeFeeUSD.toFixed(2)}`, sub: quote.data ? "Gas.zip quote" : "estimate", accent: true },
+          { label: "Source amount",    value: `${sourceAmountDisplay} ${sourceChain.ticker}` },
+          { label: "Est. delivery",    value: formatEtaSeconds(estimatedTimeSeconds), muted: true },
         ]}
         quoteIssuedAt={quoteIssuedAt}
         quoteValidMs={30000}
-        onRefreshQuote={() => setQuoteIssuedAt(Date.now())}
+        onRefreshQuote={() => {
+          setQuoteIssuedAt(Date.now());
+          void quote.refetch();
+        }}
         warning={destinations.length > 1
           ? "One source tx fans out to all destinations. Each landing is independent — partial fills possible if a rail stalls."
           : undefined}
@@ -502,33 +692,59 @@ export default function GasPage() {
         onClose={() => setShowSuccess(false)}
         kind="GAS BUNDLE"
         fromTicker={sourceChain.ticker}
-        fromAmount={sourceAmountNative.toFixed(6)}
+        fromAmount={sourceAmountDisplay}
         fromChainName={sourceChain.name}
         toTicker={destinations.length === 1
-          ? (GAS_CHAINS.find((c) => c.id === destinations[0].chainId)?.ticker ?? "GAS")
+          ? (supportedGasChains.find((c) => c.id === destinations[0].chainId)?.ticker ?? "GAS")
           : `${destinations.length} chains`}
         toAmount={`$${totalDestUSD.toFixed(2)}`}
         toChainName={destinations.length === 1
-          ? (GAS_CHAINS.find((c) => c.id === destinations[0].chainId)?.name ?? "")
+          ? (supportedGasChains.find((c) => c.id === destinations[0].chainId)?.name ?? "")
           : "multi-destination"}
         message={destinations.length === 1
-          ? `Gas delivered on ${GAS_CHAINS.find((c) => c.id === destinations[0].chainId)?.name}`
+          ? `Gas delivered on ${supportedGasChains.find((c) => c.id === destinations[0].chainId)?.name}`
           : `Gas delivered across ${destinations.length} chains`}
         timeline={[
-          { label: "Source confirmation", description: `${sourceChain.name} tx mined`, state: "complete", timeLabel: "0:00" },
-          { label: "Gas.zip relay",       description: "Bundle routed",                 state: "complete", timeLabel: "0:30" },
-          { label: "Delivery",            description: `Native gas delivered`,          state: "complete", timeLabel: "1:15" },
+          {
+            label: "Source confirmation",
+            description: submittedTxHash ?? tx.txHash ?? `${sourceChain.name} tx mined`,
+            state: tx.isConfirmed || backendLookupResult ? "complete" : "active",
+          },
+          {
+            label: "Gas.zip relay",
+            description: tx.backendStatus?.deposit?.status ?? "Polling backend status",
+            state: backendLookupResult ? "complete" : tx.isConfirmed ? "active" : "pending",
+          },
+          {
+            label: "Delivery",
+            description: backendLookupResult
+              ? `${backendLookupResult.deliveries.filter((d) => d.status === "delivered").length} destination delivery record${backendLookupResult.deliveries.length === 1 ? "" : "s"}`
+              : "Destination delivery pending",
+            state: backendLookupResult ? "complete" : "pending",
+          },
         ]}
-        txHashes={destinations.map((d) => {
-          const c = GAS_CHAINS.find((g) => g.id === d.chainId) ?? GAS_CHAINS[2];
-          return {
-            label: c.name,
-            chainName: c.name,
-            chainColor: c.color,
-            hashShort: "0x4e8a…c124",
-            url: getExplorerTxUrl(d.chainId, "0x4e8a") ?? "#",
-          };
-        })}
+        txHashes={[
+          ...((submittedTxHash ?? tx.txHash)
+            ? [{
+                label: "Source tx",
+                chainName: sourceChain.name,
+                chainColor: sourceChain.color,
+                hashShort: shortHash(submittedTxHash ?? tx.txHash),
+                url: getExplorerTxUrl(sourceChainId, submittedTxHash ?? tx.txHash) ?? undefined,
+              }]
+            : []),
+          ...(backendLookupResult?.deliveries ?? []).flatMap((delivery) =>
+            delivery.txFull
+              ? [{
+                  label: delivery.chain.name,
+                  chainName: delivery.chain.name,
+                  chainColor: delivery.chain.color,
+                  hashShort: delivery.txShort ?? shortHash(delivery.txFull),
+                  url: delivery.explorer,
+                }]
+              : [],
+          ),
+        ]}
         onNewTrade={() => setShowSuccess(false)}
         onViewPortfolio={() => { setShowSuccess(false); toast.info("Navigate to /portfolio-v2"); }}
       />
@@ -556,9 +772,21 @@ export default function GasPage() {
     </div>
   );
 }
-// ─── History tab (stub) ──────────────────────────────────────────────────
+// ─── History + lookup tabs ───────────────────────────────────────────────
 
-function HistoryStub() {
+function HistoryPanel({
+  address,
+  chains,
+}: {
+  address?: Address;
+  chains: GasV2Chain[];
+}) {
+  const history = useGetUserHistory({ address });
+  const rows = useMemo(
+    () => formatGasHistoryRows(history.data ?? [], chains),
+    [chains, history.data],
+  );
+
   return (
     <Card style={{ padding: 22, position: "relative", overflow: "hidden" }}>
       <div style={{ position: "absolute", top: -16, right: -16, opacity: 0.05, pointerEvents: "none" }}>
@@ -567,73 +795,85 @@ function HistoryStub() {
       <p style={{ margin: 0, fontSize: 10, letterSpacing: "0.40em", color: "rgba(255,255,255,0.50)", textTransform: "uppercase", fontWeight: 700 }}>
         Your gas history
       </p>
-      <p style={{ margin: "8px 0 0", fontSize: 12.5, color: "rgba(255,255,255,0.65)", lineHeight: 1.6, maxWidth: 540 }}>
-        Connect your wallet to load past gas-bridge transactions. Production wires to{" "}
-        <code style={{ color: "rgba(255,255,255,0.85)" }}>useGetUserHistory(address)</code> — Gas.zip's{" "}
-        <code style={{ color: "rgba(255,255,255,0.85)" }}>/v2/user/&lt;addr&gt;</code> endpoint.
-      </p>
-      <p style={{ margin: "10px 0 0", fontSize: 11, color: "rgba(255,255,255,0.45)", lineHeight: 1.55 }}>
-        Each row will show source chain, destination chain(s), USD value delivered, status, and explorer links for both source and destination tx hashes.
-      </p>
+      {!address ? (
+        <p style={{ margin: "12px 0 0", fontSize: 12.5, color: "rgba(255,255,255,0.55)", lineHeight: 1.6 }}>
+          Connect your wallet to load past Gas.zip transactions.
+        </p>
+      ) : history.isLoading ? (
+        <p style={{ margin: "12px 0 0", fontSize: 12.5, color: "rgba(255,255,255,0.55)" }}>
+          Loading history...
+        </p>
+      ) : history.error ? (
+        <p style={{ margin: "12px 0 0", fontSize: 12.5, color: "#F87171" }}>
+          Could not fetch transaction history from Gas.zip.
+        </p>
+      ) : rows.length === 0 ? (
+        <p style={{ margin: "12px 0 0", fontSize: 12.5, color: "rgba(255,255,255,0.55)" }}>
+          No past gas top-ups found for this wallet.
+        </p>
+      ) : (
+        <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 8 }}>
+          {rows.map((row) => (
+            <div
+              key={row.sourceHash}
+              style={{
+                display: "grid",
+                gridTemplateColumns: "minmax(0, 1fr) 0.7fr 0.8fr 0.8fr",
+                alignItems: "center",
+                gap: 10,
+                padding: "10px 12px",
+                background: "rgba(255,255,255,0.02)",
+                border: "1px solid rgba(255,255,255,0.06)",
+                borderRadius: 4,
+                fontSize: 11,
+              }}
+            >
+              <a
+                href={row.sourceExplorer}
+                target="_blank"
+                rel="noreferrer"
+                style={{ color: "#fff", textDecoration: "none", fontFamily: "'Space Grotesk', sans-serif" }}
+              >
+                {row.sourceHashShort}
+              </a>
+              <span style={{ color: "rgba(255,255,255,0.55)" }}>{row.sourceChainName}</span>
+              <span style={{ color: row.status === "failed" ? "#F87171" : row.status === "delivered" ? "#34D399" : "#FF8A00", textTransform: "uppercase", fontWeight: 700, letterSpacing: "0.12em" }}>
+                {row.status}
+              </span>
+              <span style={{ color: "rgba(255,255,255,0.60)", textAlign: "right" }}>{row.value || row.destinationsLabel}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </Card>
   );
 }
 
-function LookupStub() {
-  const [hash, setHash] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<LookupResult | null>(null);
+function LookupPanel({
+  chains,
+  initialHash,
+}: {
+  chains: GasV2Chain[];
+  initialHash?: string;
+}) {
+  const [hash, setHash] = useState(initialHash ?? "");
+  const [lookupHash, setLookupHash] = useState(initialHash ?? "");
+  const lookup = useSearchTransaction({ hash: lookupHash });
+  const result = useMemo(
+    () => formatGasLookupResult(lookup.data, chains),
+    [chains, lookup.data],
+  );
 
-  const lookup = () => {
+  useEffect(() => {
+    if (initialHash && !hash) {
+      setHash(initialHash);
+      setLookupHash(initialHash);
+    }
+  }, [hash, initialHash]);
+
+  const runLookup = () => {
     if (hash.length < 10) return;
-    setLoading(true);
-    setResult(null);
-    // Demo result — production wires to useSearchTransaction(hash) which
-    // calls Gas.zip's /v2/tx/<hash> endpoint and returns the same shape.
-    setTimeout(() => {
-      setResult({
-        sourceChain:   { name: "Arbitrum", color: "#28A0F0", ticker: "ETH" },
-        sourceTxShort: "0xab12…3f9d",
-        sourceTxFull:  "0xab12cd34ef567890abcdef0123456789abcdef01234567890abcdef0123f9d",
-        sourceExplorer: getExplorerTxUrl(42161, "0xab12") ?? undefined,
-        sentAt:        "2026-06-07 14:32 UTC",
-        sentUsd:       30.42,
-        bridgeFeeUsd:  0.15,
-        deliveries: [
-          {
-            chain:    { name: "Base",     color: "#0052FF", ticker: "ETH" },
-            usdValue: 10.00,
-            native:   "0.003142",
-            status:   "delivered",
-            txShort:  "0x4e8a…c124",
-            txFull:   "0x4e8a99201bc20ed8401923cf72e16e3ab2390c91c124",
-            explorer: getExplorerTxUrl(8453, "0x4e8a") ?? undefined,
-            etaSecondsToDelivery: 41,
-          },
-          {
-            chain:    { name: "Polygon",  color: "#7B3FE4", ticker: "POL" },
-            usdValue: 10.00,
-            native:   "13.89",
-            status:   "delivered",
-            txShort:  "0x71c2…bd09",
-            txFull:   "0x71c2e3ad9b5e108f02f3a781bc902bd09",
-            explorer: getExplorerTxUrl(137, "0x71c2") ?? undefined,
-            etaSecondsToDelivery: 78,
-          },
-          {
-            chain:    { name: "Avalanche",color: "#E84142", ticker: "AVAX" },
-            usdValue: 10.00,
-            native:   "0.2632",
-            status:   "in_flight",
-            txShort:  undefined,
-            txFull:   undefined,
-            explorer: undefined,
-            etaSecondsToDelivery: null,
-          },
-        ],
-      });
-      setLoading(false);
-    }, 900);
+    setLookupHash(hash.trim());
   };
 
   return (
@@ -666,13 +906,20 @@ function LookupStub() {
           }}
         />
         <div style={{ marginTop: 12 }}>
-          <PrimaryButton onClick={lookup} disabled={hash.length < 10 || loading}>
-            {loading ? "Searching…" : "Look up"}
+          <PrimaryButton onClick={runLookup} disabled={hash.length < 10 || lookup.isFetching}>
+            {lookup.isFetching ? "Searching..." : "Look up"}
           </PrimaryButton>
         </div>
-        <p style={{ margin: "10px 0 0", fontSize: 10.5, color: "rgba(255,255,255,0.45)", lineHeight: 1.5 }}>
-          Mock result wires to <code style={{ color: "rgba(255,255,255,0.65)" }}>useSearchTransaction(hash)</code> in production.
-        </p>
+        {lookupHash && !lookup.isFetching && !result && (
+          <p style={{ margin: "10px 0 0", fontSize: 10.5, color: "rgba(255,255,255,0.45)", lineHeight: 1.5 }}>
+            No Gas.zip status was found for this hash yet.
+          </p>
+        )}
+        {lookup.error && (
+          <p style={{ margin: "10px 0 0", fontSize: 10.5, color: "#F87171", lineHeight: 1.5 }}>
+            Lookup failed. Check the hash and try again.
+          </p>
+        )}
       </Card>
 
       {/* RIGHT — result */}
@@ -681,44 +928,22 @@ function LookupStub() {
   );
 }
 
-// ─── Lookup result types + panel ──────────────────────────────────────────
+// ─── Lookup result panel ─────────────────────────────────────────────────
 
-interface LookupChain { name: string; color: string; ticker: string }
-interface LookupDelivery {
-  chain: LookupChain;
-  usdValue: number;
-  native: string;
-  status: "delivered" | "in_flight" | "stuck" | "failed";
-  txShort?: string;
-  txFull?: string;
-  explorer?: string;
-  etaSecondsToDelivery: number | null;
-}
-interface LookupResult {
-  sourceChain: LookupChain;
-  sourceTxShort: string;
-  sourceTxFull: string;
-  sourceExplorer: string;
-  sentAt: string;
-  sentUsd: number;
-  bridgeFeeUsd: number;
-  deliveries: LookupDelivery[];
-}
-
-const STATUS_COLOR: Record<LookupDelivery["status"], string> = {
+const STATUS_COLOR: Record<GasLookupDelivery["status"], string> = {
   delivered:  "#34D399",
   in_flight:  "#FF8A00",
   stuck:      "#FBBF24",
   failed:     "#F87171",
 };
-const STATUS_LABEL: Record<LookupDelivery["status"], string> = {
+const STATUS_LABEL: Record<GasLookupDelivery["status"], string> = {
   delivered:  "Delivered",
   in_flight:  "In flight",
   stuck:      "Stuck",
   failed:     "Failed",
 };
 
-function LookupResultPanel({ result }: { result: LookupResult }) {
+function LookupResultPanel({ result }: { result: GasLookupResult }) {
   const deliveredCount = result.deliveries.filter((d) => d.status === "delivered").length;
   const allDelivered   = deliveredCount === result.deliveries.length;
 
@@ -751,7 +976,7 @@ function LookupResultPanel({ result }: { result: LookupResult }) {
         <TxHashChip
           chain={result.sourceChain}
           hashShort={result.sourceTxShort}
-          explorer={result.sourceExplorer}
+          explorer={result.sourceExplorer ?? "#"}
           label="Source tx"
         />
 
@@ -776,7 +1001,7 @@ function LookupResultPanel({ result }: { result: LookupResult }) {
   );
 }
 
-function DeliveryRow({ delivery: d }: { delivery: LookupDelivery }) {
+function DeliveryRow({ delivery: d }: { delivery: GasLookupDelivery }) {
   return (
     <div
       style={{
@@ -851,7 +1076,7 @@ function DeliveryRow({ delivery: d }: { delivery: LookupDelivery }) {
 function TxHashChip({
   chain, hashShort, explorer, label, compact,
 }: {
-  chain: LookupChain;
+  chain: GasLookupDelivery["chain"];
   hashShort: string;
   explorer: string;
   label?: string;

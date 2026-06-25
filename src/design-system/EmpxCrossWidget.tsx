@@ -218,6 +218,7 @@ export default function EmpxCrossWidget({
         ticker={fromToken?.ticker || "Select"}
         tokenLogo={fromToken?.logo}
         onSelectToken={onSelectFromToken}
+        tokenSelectLabel={`Select from token${fromToken?.ticker ? `, current ${fromToken.ticker}` : ""}`}
         usdValue={fromUsdValue}
         topMeta={
           <ChainSwitcher
@@ -268,6 +269,7 @@ export default function EmpxCrossWidget({
         ticker={toToken?.ticker || "Select"}
         tokenLogo={toToken?.logo}
         onSelectToken={onSelectToToken}
+        tokenSelectLabel={`Select to token${toToken?.ticker ? `, current ${toToken.ticker}` : ""}`}
         usdValue={toUsdValue}
         accent
         topMeta={

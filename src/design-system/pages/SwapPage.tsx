@@ -11,23 +11,19 @@
 // Wallet connection wired through useWalletConnection() — bridges wagmi v2
 // with the design-system WalletModal / WalletButton components.
 
-import { useEffect, useMemo, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import {
   AccountModal,
   Card,
   ChainPicker,
   ConfirmTradeModal,
   DappNavbar,
-  EmptyState,
-  LogoTile,
   NetworkSelector,
   Pill,
   PrimaryButton,
   QuoteCountdown,
   RouteVisualization,
-  Skeleton,
   SocialTray,
-  SplitRouteVisualization,
   Tabs,
   Toaster,
   TokenPicker,
@@ -38,19 +34,29 @@ import {
   toast,
   type NavLink,
   type PickerChain,
-  type PickerToken,
   type RouteHop,
-  type SplitBranch,
-  type WalletOption,
 } from "../components";
 
 import { useWalletConnection } from "../hooks/useWalletConnection";
 import { useV2Balances } from "../hooks/useV2Balances";
 import { V2_AGGREGATOR_CHAINS, getV2Chain } from "../data/v2ChainView";
 import { getTokensForChain } from "../data/v2TokenView";
-import { getExplorerAddressUrl } from "../data/explorers";
+import { getExplorerAddressUrl, getExplorerTxUrl } from "../data/explorers";
 import { formatUSD } from "../hooks/useUnifiedPrice";
 import { classifyPair, modeAFeeBps } from "../data/empxRegistry";
+import { SUPPORTED_CHAINS } from "../../config/chains";
+import { useSwapBalances } from "../../hooks/swap/useSwapBalances";
+import { useSwapExecution } from "../../hooks/swap/useSwapExecution";
+import { useSwapQuoteFetch } from "../../hooks/swap/useSwapQuoteFetch";
+import {
+  EMPTY_SWAP_TOKEN_ADDRESS,
+  buildDirectSwapTradeInfo,
+  buildSwapRouteHops,
+  buildSwapTradeInfo,
+  formatSwapQuoteOutput,
+  toSwapHookToken,
+  type SwapHookToken,
+} from "../data/swapV2Adapters";
 
 // Shared social link set — referenced from every page navbar
 export const EMPX_SOCIALS = [
@@ -72,13 +78,18 @@ const SWAP_CHAINS: PickerChain[] = V2_AGGREGATOR_CHAINS.map((c) => ({
 
 type SettingsTab = "slippage" | "route" | "mev";
 
+function shortHash(hash: string): string {
+  if (!hash || hash.length < 12) return hash;
+  return `${hash.slice(0, 6)}…${hash.slice(-4)}`;
+}
+
 // ─── Page component ──────────────────────────────────────────────────────
 
 export default function SwapPage() {
   const isMobile = useIsMobile();
 
   // Wallet — uses wagmi v2 via the design-system bridge hook
-  const { walletState, walletOptions, onSelectWallet, disconnect, switchChain, currentChain } =
+  const { walletState, walletOptions, onSelectWallet, disconnect, switchChain } =
     useWalletConnection();
   const { nativeBalance, nativeTicker, nativeBalanceUSD } = useV2Balances();
   const [showWalletModal, setShowWalletModal] = useState(false);
@@ -88,34 +99,28 @@ export default function SwapPage() {
   const [showConfirm, setShowConfirm] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [quoteIssuedAt, setQuoteIssuedAt] = useState(Date.now());
+  const [executionError, setExecutionError] = useState<string | null>(null);
 
   // Active chain — driven by wallet connection, defaults to Arbitrum
   const defaultChain = SWAP_CHAINS[0]; // Arbitrum (42161) — first in V2_AGGREGATOR_CHAINS
   const activeChain = walletState.status === "connected" ? walletState.chain : defaultChain;
+  const activeV2Chain = getV2Chain(activeChain.id) ?? V2_AGGREGATOR_CHAINS.find((chain) => chain.id === activeChain.id) ?? V2_AGGREGATOR_CHAINS[0];
+  const activeChainConfig = SUPPORTED_CHAINS[activeChain.id];
 
   // Settings tab
   const [settingsTab, setSettingsTab] = useState<SettingsTab>("slippage");
   const [slippageBps, setSlippageBps] = useState(50);
   const [mevEnabled, setMevEnabled] = useState(true);
 
-  // Swap state — tokens sourced from shared V2 registry (balances are live)
-  const tokensForChain: PickerToken[] = useMemo(() => {
+  // Swap state — tokens sourced from shared V2 registry.
+  const tokensForChain: SwapHookToken[] = useMemo(() => {
     const configs = getTokensForChain(activeChain.id);
-    const chain = getV2Chain(activeChain.id);
-    return configs.map((t) => ({
-      ticker: t.ticker,
-      name: t.name,
-      chainName: chain?.name ?? activeChain.name,
-      chainColor: chain?.color ?? activeChain.color,
-      badge: t.badge,
-      address: t.address,
-      balance: undefined,     // live balance not yet wired in token picker
-      balanceUSD: undefined,  // live price not yet wired in token picker
-    }));
-  }, [activeChain.id, activeChain.name, activeChain.color]);
-  const [fromToken, setFromToken] = useState<PickerToken | null>(null);
-  const [toToken,   setToToken]   = useState<PickerToken | null>(null);
+    return configs.map((token) => toSwapHookToken(token, activeV2Chain));
+  }, [activeChain.id, activeV2Chain]);
+  const [fromToken, setFromToken] = useState<SwapHookToken | null>(null);
+  const [toToken,   setToToken]   = useState<SwapHookToken | null>(null);
   const [fromAmount, setFromAmount] = useState("1");
+  const deferredFromAmount = useDeferredValue(fromAmount);
 
   // Reset tokens when chain changes
   useEffect(() => {
@@ -123,47 +128,116 @@ export default function SwapPage() {
     setFromToken(toks[0] ?? null);
     setToToken(toks[1] ?? null);
     setFromAmount("1");
-  }, [activeChain.id]);
+  }, [activeChain.id, tokensForChain]);
 
-  // Simulate quote calc — would be router.findBestPath() in prod
-  const toAmount = useMemo(() => {
-    if (!fromToken || !toToken) return "0";
-    const fromUSDPrice = (fromToken.balanceUSD ?? 0) / Math.max(1e-9, Number(fromToken.balance?.replace(/,/g, "") || 1));
-    const toUSDPrice = (toToken.balanceUSD ?? 0) / Math.max(1e-9, Number(toToken.balance?.replace(/,/g, "") || 1));
-    if (!Number.isFinite(fromUSDPrice) || !Number.isFinite(toUSDPrice) || toUSDPrice <= 0) return "0";
-    const rate = fromUSDPrice / toUSDPrice;
-    const amt = Number(fromAmount.replace(/,/g, "")) * rate;
-    if (!Number.isFinite(amt)) return "0";
-    return amt.toFixed(toToken.ticker === "USDC" || toToken.ticker === "USDT" || toToken.ticker === "DAI" ? 2 : 6);
-  }, [fromAmount, fromToken, toToken]);
+  const connectedAddress = walletState.status === "connected" ? walletState.address : undefined;
+  const {
+    formattedBalance,
+    formattedChainBalance,
+    formattedChainBalanceTokenB,
+    isTokenBalanceLoading,
+  } = useSwapBalances({
+    address: connectedAddress,
+    selectedTokenA: fromToken,
+    selectedTokenB: toToken,
+  });
+
+  const fromBalance = useMemo(() => {
+    if (!walletState.status || walletState.status !== "connected" || !fromToken) return undefined;
+    return fromToken.address === EMPTY_SWAP_TOKEN_ADDRESS ? formattedBalance : formattedChainBalance;
+  }, [formattedBalance, formattedChainBalance, fromToken, walletState.status]);
+  const toBalance = useMemo(() => {
+    if (!walletState.status || walletState.status !== "connected" || !toToken) return undefined;
+    return toToken.address === EMPTY_SWAP_TOKEN_ADDRESS ? formattedBalance : formattedChainBalanceTokenB;
+  }, [formattedBalance, formattedChainBalanceTokenB, toToken, walletState.status]);
+
+  const selectedFromToken = fromToken ? { ...fromToken, balance: fromBalance } : null;
+  const selectedToToken = toToken ? { ...toToken, balance: toBalance } : null;
+
+  const {
+    data: quoteData,
+    quoteLoading,
+    isQuoteEnabled,
+    isDirectRoute,
+    refreshQuotes,
+  } = useSwapQuoteFetch({
+    chainId: activeChain.id,
+    routerAddress: activeChainConfig?.routerAddress,
+    wethAddress: activeChainConfig?.wethAddress,
+    maxHops: activeChainConfig?.maxHops ?? 3,
+    selectedTokenA: fromToken,
+    selectedTokenB: toToken,
+    debouncedAmountIn: deferredFromAmount,
+  });
 
   const pairType = fromToken && toToken ? classifyPair(fromToken.ticker, toToken.ticker) : "V/V";
   const feeBps = modeAFeeBps(pairType);
-  const fromUSDValue = useMemo(() => {
-    const amt = Number(fromAmount.replace(/,/g, ""));
-    if (!Number.isFinite(amt) || !fromToken) return 0;
-    const price = (fromToken.balanceUSD ?? 0) / Math.max(1e-9, Number(fromToken.balance?.replace(/,/g, "") || 1));
-    return amt * price;
-  }, [fromAmount, fromToken]);
-  const protocolFeeUSD = fromUSDValue * (feeBps / 10_000);
-
-  // Demo route — would come from router.findBestPath() + splitSolver
-  const routeHops: RouteHop[] | undefined = useMemo(() => {
-    if (!fromToken || !toToken) return undefined;
-    return [
-      { ticker: fromToken.ticker, chainName: activeChain.name, chainColor: activeChain.color, via: "Uniswap V3" },
-      { ticker: toToken.ticker,   chainName: activeChain.name, chainColor: activeChain.color },
-    ];
-  }, [activeChain.color, activeChain.name, fromToken, toToken]);
-
-  const splitRoute: SplitBranch[] = useMemo(
-    () => [
-      { via: "Uniswap V3", pct: 62, intermediateTickers: fromToken?.ticker === toToken?.ticker ? undefined : ["WETH"] },
-      { via: "Curve",      pct: 23 },
-      { via: "Velodrome",  pct: 15 },
-    ],
-    [fromToken?.ticker, toToken?.ticker]
+  const fromUSDValue = null;
+  const protocolFeeUSD = null;
+  const quoteTradeInfo = useMemo(
+    () =>
+      isDirectRoute
+        ? buildDirectSwapTradeInfo({
+            amountIn: deferredFromAmount,
+            selectedTokenA: fromToken,
+            selectedTokenB: toToken,
+          })
+        : buildSwapTradeInfo({
+            quote: quoteData,
+            selectedTokenA: fromToken,
+            selectedTokenB: toToken,
+            tokenOptions: tokensForChain,
+            slippageBps,
+          }),
+    [deferredFromAmount, fromToken, isDirectRoute, quoteData, slippageBps, toToken, tokensForChain],
   );
+  const toAmount = useMemo(
+    () => (isDirectRoute ? fromAmount : formatSwapQuoteOutput(quoteData, toToken?.decimal ?? 18)),
+    [fromAmount, isDirectRoute, quoteData, toToken?.decimal],
+  );
+  const minimumReceived = useMemo(
+    () => formatSwapQuoteOutput(
+      quoteTradeInfo
+        ? { amounts: [quoteTradeInfo.amountIn, quoteTradeInfo.amountOut], path: quoteTradeInfo.path, adapters: quoteTradeInfo.adapters }
+        : null,
+      toToken?.decimal ?? 18,
+    ),
+    [quoteTradeInfo, toToken?.decimal],
+  );
+  const routeHops: RouteHop[] | undefined = useMemo(
+    () => buildSwapRouteHops(quoteTradeInfo, activeV2Chain),
+    [activeV2Chain, quoteTradeInfo],
+  );
+  const bestRoute = useMemo(
+    () => quoteTradeInfo?.adapters?.length ? quoteTradeInfo.adapters.join(" · ") : isDirectRoute ? "Native wrap" : undefined,
+    [isDirectRoute, quoteTradeInfo?.adapters],
+  );
+
+  const isRefreshingQuote = deferredFromAmount !== fromAmount || quoteLoading;
+  const {
+    swapStatus,
+    swapHash,
+    needsApproval,
+    handleApprove,
+    confirmSwap,
+  } = useSwapExecution({
+    chainId: activeChain.id,
+    address: connectedAddress,
+    selectedTokenA: fromToken,
+    selectedTokenB: toToken,
+    amountIn: fromAmount,
+    debouncedAmountIn: deferredFromAmount,
+    tradeInfo: quoteTradeInfo,
+    protocolFee: feeBps,
+    isRefreshingQuote,
+    onSwapSubmitted: () => {
+      setShowConfirm(false);
+      setShowSuccess(true);
+      setExecutionError(null);
+    },
+  });
+  const isExecuting = ["APPROVING", "WAITING_FOR_CONFIRMATION", "SWAPPING"].includes(swapStatus);
+  const canOpenConfirm = !!quoteTradeInfo && Number(fromAmount) > 0 && (isDirectRoute || !!quoteData);
 
   // Flip
   const flipTokens = () => {
@@ -178,9 +252,20 @@ export default function SwapPage() {
       setShowWalletModal(true);
       return;
     }
+    if (!canOpenConfirm) {
+      toast.error(quoteLoading ? "Quote is still loading" : "No executable quote available");
+      return;
+    }
     setQuoteIssuedAt(Date.now());
+    setExecutionError(null);
     setShowConfirm(true);
   };
+
+  useEffect(() => {
+    if (swapStatus === "ERROR") {
+      setExecutionError("Swap failed. Check wallet status, quote freshness, and token approval, then retry.");
+    }
+  }, [swapStatus]);
 
   const navLinks: NavLink[] = [
     { label: "Swap",      href: "/swap-v2", active: true },
@@ -207,7 +292,7 @@ export default function SwapPage() {
             <WalletButton
               connected={walletState.status === "connected"}
               address={walletState.status === "connected" ? walletState.address : undefined}
-              balanceUSD={undefined}
+              balanceUSD={nativeBalanceUSD ?? undefined}
               onConnect={() => setShowWalletModal(true)}
               onClick={() => setShowAccountModal(true)}
             />
@@ -274,32 +359,34 @@ export default function SwapPage() {
           <div style={{ display: "flex", justifyContent: "center" }}>
             <EmpxSwapWidget
               chain={activeChain}
-              fromToken={fromToken ? { ticker: fromToken.ticker, logo: fromToken.logo } : null}
+              fromToken={fromToken ? { ticker: fromToken.ticker, address: fromToken.address, decimals: fromToken.decimal } : null}
               fromAmount={fromAmount}
-              fromBalance={fromToken?.balance}
+              fromBalance={isTokenBalanceLoading ? "Loading..." : selectedFromToken?.balance}
               fromUsdValue={fromUSDValue || null}
               onFromAmountChange={setFromAmount}
               onSelectFromToken={() => setShowTokenPicker("from")}
               onPercentClick={(pct) => {
-                const bal = Number((fromToken?.balance || "0").replace(/,/g, ""));
+                const bal = Number((selectedFromToken?.balance || "0").replace(/,/g, ""));
                 if (Number.isFinite(bal)) setFromAmount(String((bal * pct) / 100));
               }}
-              toToken={toToken ? { ticker: toToken.ticker, logo: toToken.logo } : null}
+              toToken={toToken ? { ticker: toToken.ticker, address: toToken.address, decimals: toToken.decimal } : null}
               toAmount={toAmount}
-              toUsdValue={Number(toAmount.replace(/,/g, "")) * ((toToken?.balanceUSD ?? 0) / Math.max(1e-9, Number((toToken?.balance || "1").replace(/,/g, ""))))}
+              toUsdValue={null}
               onSelectToToken={() => setShowTokenPicker("to")}
               pairType={pairType}
               protocolFeeBps={feeBps}
-              protocolFeeUSD={protocolFeeUSD}
-              minimumReceived={`${(Number(toAmount.replace(/,/g, "")) * (1 - slippageBps / 10_000)).toFixed(2)} ${toToken?.ticker || ""}`}
+              protocolFeeUSD={protocolFeeUSD ?? undefined}
+              bestRoute={bestRoute}
+              minimumReceived={`${minimumReceived} ${toToken?.ticker || ""}`}
               slippageBps={slippageBps}
-              priceImpactBps={12}
               routeHops={routeHops}
+              swapDisabled={!canOpenConfirm || isRefreshingQuote}
+              swapLoading={quoteLoading}
               walletConnected={walletState.status === "connected"}
               onConnect={() => setShowWalletModal(true)}
               onSwap={onSwap}
               onFlip={flipTokens}
-              swapLabel={walletState.status === "connected" ? "Swap" : "Connect wallet"}
+              swapLabel={walletState.status === "connected" ? quoteLoading ? "Fetching quote..." : "Swap" : "Connect wallet"}
             />
           </div>
 
@@ -324,11 +411,23 @@ export default function SwapPage() {
                   <QuoteCountdown
                     totalMs={30000}
                     issuedAt={quoteIssuedAt}
-                    onRefresh={() => { setQuoteIssuedAt(Date.now()); toast.info("Quote refreshed"); }}
+                    onRefresh={() => {
+                      setQuoteIssuedAt(Date.now());
+                      void refreshQuotes();
+                      toast.info("Quote refreshed");
+                    }}
                     compact
                   />
-                  <Pill variant="info">Live RPC</Pill>
+                  <Pill variant={quoteLoading ? "accent" : isQuoteEnabled ? "info" : "ghost"}>
+                    {quoteLoading ? "Quoting" : isQuoteEnabled ? "SDK quote" : "Quote idle"}
+                  </Pill>
+                  {executionError && <Pill variant="danger">Execution error</Pill>}
                 </div>
+                {executionError && (
+                  <p style={{ margin: "10px 0 0", fontSize: 11, color: "#F87171", lineHeight: 1.45 }}>
+                    {executionError}
+                  </p>
+                )}
               </Card>
             )}
 
@@ -346,21 +445,17 @@ export default function SwapPage() {
                       fontWeight: 700,
                     }}
                   >
-                    Routing · Split across 3
+                    Routing
                   </p>
                   <Pill variant="accent">{pairType}</Pill>
                 </div>
-                <SplitRouteVisualization
-                  fromTicker={fromToken.ticker}
-                  fromChainName={activeChain.name}
-                  fromChainColor={activeChain.color}
-                  toTicker={toToken.ticker}
-                  toChainName={activeChain.name}
-                  toChainColor={activeChain.color}
-                  branches={splitRoute}
-                  animated
-                  compact
-                />
+                {routeHops && routeHops.length > 1 ? (
+                  <RouteVisualization hops={routeHops} animated compact />
+                ) : (
+                  <p style={{ margin: 0, fontSize: 12, color: "rgba(255,255,255,0.55)", lineHeight: 1.55 }}>
+                    {quoteLoading ? "Finding the best SDK route..." : "No route available for the current pair and amount."}
+                  </p>
+                )}
               </Card>
             )}
 
@@ -511,8 +606,9 @@ export default function SwapPage() {
           chains={[{ name: activeChain.name, color: activeChain.color }]}
           selected={(showTokenPicker === "from" ? fromToken : toToken)?.address || ""}
           onSelect={(t) => {
-            if (showTokenPicker === "from") setFromToken(t);
-            else setToToken(t);
+            const nextToken = tokensForChain.find((token) => token.address === t.address || token.ticker === t.ticker);
+            if (showTokenPicker === "from") setFromToken(nextToken ?? null);
+            else setToToken(nextToken ?? null);
             setShowTokenPicker(null);
           }}
         />
@@ -522,30 +618,37 @@ export default function SwapPage() {
         open={showConfirm}
         onClose={() => setShowConfirm(false)}
         onConfirm={() => {
-          setShowConfirm(false);
-          setShowSuccess(true);
+          setExecutionError(null);
+          void (needsApproval ? handleApprove() : confirmSwap());
         }}
+        confirming={isExecuting}
         eyebrow="REVIEW · SWAP"
         title="Confirm trade"
+        confirmLabel={needsApproval ? "Approve and swap" : "Confirm swap"}
         fromTicker={fromToken?.ticker || ""}
         fromAmount={fromAmount}
-        fromUsdValue={fromUSDValue}
+        fromUsdValue={fromUSDValue ?? undefined}
         fromChainName={activeChain.name}
         toTicker={toToken?.ticker || ""}
         toAmount={toAmount}
-        toUsdValue={Number(toAmount.replace(/,/g, ""))}
+        toUsdValue={undefined}
         toChainName={activeChain.name}
         routeHops={routeHops}
         feeRows={[
           { label: "Pair type",     value: pairType.replace("/", " / ") },
-          { label: "Protocol fee",  value: `${feeBps} bps`, sub: `· $${protocolFeeUSD.toFixed(4)}`, accent: true },
-          { label: "Best route",    value: "Uniswap V3 · 62% · Curve · 23% · Velodrome · 15%" },
-          { label: "Min. received", value: `${(Number(toAmount.replace(/,/g, "")) * (1 - slippageBps / 10_000)).toFixed(2)} ${toToken?.ticker || ""}`, muted: true },
+          { label: "Protocol fee",  value: `${feeBps} bps`, sub: protocolFeeUSD == null ? undefined : `· ${formatUSD(protocolFeeUSD)}`, accent: true },
+          { label: "Best route",    value: bestRoute ?? "SDK route unavailable" },
+          { label: "Min. received", value: `${minimumReceived} ${toToken?.ticker || ""}`, muted: true },
           { label: "Slippage",      value: `${(slippageBps / 100).toFixed(2)}%`, muted: true },
+          ...(needsApproval ? [{ label: "Approval", value: `${fromToken?.ticker ?? "Token"} approval required`, accent: true as const }] : []),
         ]}
         quoteIssuedAt={quoteIssuedAt}
         quoteValidMs={30000}
-        onRefreshQuote={() => setQuoteIssuedAt(Date.now())}
+        onRefreshQuote={() => {
+          setQuoteIssuedAt(Date.now());
+          void refreshQuotes();
+        }}
+        warning={executionError ?? undefined}
       />
 
       <TradeSuccessModal
@@ -560,11 +663,19 @@ export default function SwapPage() {
         toChainName={activeChain.name}
         message={`${toToken?.ticker || "Tokens"} arrived in your wallet`}
         timeline={[
-          { label: "Source confirmation",  description: `${activeChain.name} tx mined`, state: "complete", timeLabel: "0:00" },
-          { label: "DEX execution",        description: "Best route across 3 pools",     state: "complete", timeLabel: "0:04" },
-          { label: "Tokens delivered",     description: "USDC in wallet, ready to use",  state: "complete", timeLabel: "0:08" },
+          { label: "Wallet confirmation", description: `${activeChain.name} transaction submitted`, state: "complete" },
+          { label: "DEX execution",       description: bestRoute ?? "SDK route executed",             state: "complete" },
+          { label: "Tokens delivered",    description: `${toToken?.ticker || "Tokens"} in wallet`,   state: "complete" },
         ]}
-        txHashes={[]}
+        txHashes={swapHash ? [
+          {
+            label: "Swap tx",
+            chainName: activeChain.name,
+            chainColor: activeChain.color,
+            hashShort: shortHash(swapHash),
+            url: getExplorerTxUrl(activeChain.id, swapHash) ?? undefined,
+          },
+        ] : []}
         onNewTrade={() => setShowSuccess(false)}
         onViewPortfolio={() => { setShowSuccess(false); toast.info("Navigate to /portfolio-v2"); }}
       />

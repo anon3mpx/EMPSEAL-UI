@@ -26,7 +26,16 @@
 //   4. Gas-on-destination toggle (Gas.zip side-leg).
 //   5. Gasless-source Paymaster toggle (only on Paymaster-deployed chains).
 
-import { useEffect, useMemo, useState } from "react";
+import {
+  readContract,
+  sendTransaction,
+  waitForTransactionReceipt,
+  writeContract,
+} from "@wagmi/core";
+import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
+import { erc20Abi, formatUnits, type Address } from "viem";
+import { useBalance, useChainId, useSignMessage, useSwitchChain } from "wagmi";
+import { config } from "../../Wagmi/config";
 import {
   AccountModal,
   Card,
@@ -50,22 +59,58 @@ import {
   type PickerToken,
   type RouteHop,
   type TradeTimelineStep,
-  type WalletOption,
 } from "../components";
+import { crossApi } from "../../features/cross/api/crossApi";
+import { CrossExecutionPanel } from "../../features/cross/components/CrossExecutionPanel";
+import { CrossTrackingPanel } from "../../features/cross/components/CrossTrackingPanel";
+import {
+  classifyProviderDirectAction,
+  getLayerZeroStepMessage,
+  getLayerZeroStepTx,
+  mergeLayerZeroUserSteps,
+} from "../../features/cross/execution/providerDirect";
+import {
+  getRequiredRouterIntentApproval,
+  isRouterIntentExpired,
+  toSendTransactionArgs,
+} from "../../features/cross/execution/routerIntent";
+import { useCrossExecutionSession } from "../../features/cross/hooks/useCrossExecutionSession";
+import { useCrossIntentTracking } from "../../features/cross/hooks/useCrossIntentTracking";
+import { useCrossQuote } from "../../features/cross/hooks/useCrossQuote";
+import { useCrossRecovery } from "../../features/cross/hooks/useCrossRecovery";
+import {
+  findMatchingRefreshedOffer,
+  getPrimaryOffers,
+  normalizeOfferSet,
+} from "../../features/cross/model/quotes";
+import { mapCrossApiError } from "../../features/cross/utils/errors";
+import {
+  clearCrossSession,
+  loadCrossSession,
+  saveCrossSession,
+} from "../../features/cross/utils/session";
+import {
+  buildCancelMessage,
+  buildRefundMessage,
+  buildSubmittedMessage,
+} from "../../features/cross/utils/signatures";
 import { useWalletConnection } from "../hooks/useWalletConnection";
 import { useV2Balances } from "../hooks/useV2Balances";
 import EmpxCrossWidget from "../EmpxCrossWidget";
-import { EMPX_SOCIALS } from "./SwapPage";
-import { getExplorerAddressUrl } from "../data/explorers";
+import { getExplorerAddressUrl, getExplorerTxUrl } from "../data/explorers";
 import { V2_ALL_CHAINS, getV2Chain } from "../data/v2ChainView";
 import { getTokensForChain, type V2TokenConfig } from "../data/v2TokenView";
 import {
-  AGG_CHAIN_IDS,
+  buildCrossQuoteRequest,
+  buildCrossRouteHops,
+  buildCrossTimeline,
+  formatCrossOffer,
+  shortHash,
+  type CrossV2OfferDisplay,
+} from "../data/crossV2Adapters";
+import {
   PAYMASTER_CHAIN_IDS,
   RAILS,
-  MODE_B_FEE_BPS,
-  classifyPair,
-  modeAFeeBps,
   defaultSettlementTicker,
   eligibleRailsFor,
   formatEtaSeconds,
@@ -205,6 +250,17 @@ function _prefetchPrices(pairs: { chainId: number; ticker: string }[]) {
   void getTokenPrices(pairs); // fire-and-forget; cache picks up the result
 }
 
+const getProviderDirectTx = (integration: any) => {
+  const action = integration?.action ?? integration;
+  return (
+    action?.tx ??
+    integration?.tx ??
+    integration?.integration?.tx ??
+    action?.transaction ??
+    null
+  );
+};
+
 // ─── Page-level constants ─────────────────────────────────────────────────
 
 type ChainPickerTarget = "from" | "to";
@@ -215,11 +271,22 @@ type SidePanelTab = "offers" | "settings" | "rails" | "lifecycle";
 // from DestinationGasAutoFund.ts policy).
 const GAS_DROP_USD = 2.5;
 
+const EMPX_SOCIALS = [
+  { kind: "x" as const,        href: "https://x.com/empx" },
+  { kind: "telegram" as const, href: "https://t.me/empx" },
+  { kind: "docs" as const,     href: "https://docs.empx.network" },
+  { kind: "github" as const,   href: "https://github.com/empx" },
+];
+
 export default function CrossPage() {
   const isMobile = useIsMobile();
 
-  const { walletState, walletOptions, onSelectWallet, disconnect, switchChain, currentChain } =
-    useWalletConnection();
+  const { walletState, walletOptions, onSelectWallet, disconnect } = useWalletConnection();
+  const currentChainId = useChainId();
+  const { switchChainAsync } = useSwitchChain();
+  const { signMessageAsync } = useSignMessage();
+  const connectedAddress =
+    walletState.status === "connected" ? (walletState.address as Address) : undefined;
   const connectedBalance = useV2Balances();
   const [showWalletModal, setShowWalletModal] = useState(false);
   const [chainPickerTarget, setChainPickerTarget] = useState<ChainPickerTarget | null>(null);
@@ -227,23 +294,49 @@ export default function CrossPage() {
   const [showAccountModal, setShowAccountModal] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [shownSuccessIntentId, setShownSuccessIntentId] = useState<string | null>(null);
   const [quoteIssuedAt, setQuoteIssuedAt] = useState(Date.now());
 
   // Cross-chain pair state — default Arbitrum ETH → Base USDC
   const [fromChainId, setFromChainId] = useState(42161);
   const [toChainId,   setToChainId]   = useState(8453);
-  const [fromTicker, setFromTicker] = useState("ETH");
-  const [toTicker,   setToTicker]   = useState(defaultSettlementTicker(8453));
-  const [fromAmount, setFromAmount] = useState("0.5");
+  const [fromTicker, setFromTicker] = useState<string>("ETH");
+  const [toTicker,   setToTicker]   = useState<string>(defaultSettlementTicker(8453));
+  const [fromAmount, setFromAmount] = useState<string>("0.5");
 
-  // Rail selection — null means "use best output"
-  const [selectedRailName, setSelectedRailName] = useState<string | null>(null);
+  const [selectedOfferId, setSelectedOfferId] = useState<string | null>(null);
+  const [selectedGasOfferId, setSelectedGasOfferId] = useState<string | null>(null);
+  const [session, setSession] = useState<any>(() => {
+    const restored = loadCrossSession<any>();
+
+    if (
+      restored?.mode === "single" &&
+      restored?.status === "SELECTED" &&
+      restored?.integration?.mode === "router_intent" &&
+      isRouterIntentExpired(restored.integration)
+    ) {
+      return null;
+    }
+
+    return restored;
+  });
+  const [isExecuting, setIsExecuting] = useState(false);
+  const [isCheckingApproval, setIsCheckingApproval] = useState(false);
+  const [isApproving, setIsApproving] = useState(false);
+  const [hasRequiredApproval, setHasRequiredApproval] = useState(true);
+  const [now, setNow] = useState(Date.now());
 
   // Gas settings
   const [gasDropOnDestination, setGasDropOnDestination] = useState(false);
   const [payInToken, setPayInToken] = useState(false); // Paymaster path
 
   const [sidePanel, setSidePanel] = useState<SidePanelTab>("offers");
+  const deferredFromAmount = useDeferredValue(fromAmount);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(interval);
+  }, []);
 
   // Resolve chain defs
   const fromChain = useMemo(
@@ -265,57 +358,152 @@ export default function CrossPage() {
     [fromChainId, toChainId, toTicker],
   );
 
-  // Offers — compute output for each eligible rail
-  const offers = useMemo(() => {
-    const amountIn = Number(fromAmount.replace(/,/g, "")) || 0;
-    const fromPrice = priceOf(fromTicker, fromChainId);
-    const toPrice = priceOf(toTicker, toChainId);
-    const amountInUSD = amountIn * fromPrice;
-    const pairType = classifyPair(fromTicker, toTicker);
+  const fromTokenConfig = useMemo(
+    () => getTokensForChain(fromChainId).find((t) => t.ticker === fromTicker) ?? null,
+    [fromChainId, fromTicker],
+  );
+  const toTokenConfig = useMemo(
+    () => getTokensForChain(toChainId).find((t) => t.ticker === toTicker) ?? null,
+    [toChainId, toTicker],
+  );
+  const toTokenDecimals = Number(toTokenConfig?.decimals ?? 18);
 
-    return eligibleRails
-      .map((r) => {
-        const feeBps = r.mode === "A" ? modeAFeeBps(pairType) : MODE_B_FEE_BPS;
-        const protocolFeeUSD = amountInUSD * (feeBps / 10_000);
-        const railFeeUSD = r.baseFeeUSD;
-        const gasDropFeeUSD = gasDropOnDestination ? GAS_DROP_USD : 0;
-        const totalFeeUSD = protocolFeeUSD + railFeeUSD + gasDropFeeUSD;
-        const outUSD = Math.max(0, amountInUSD - totalFeeUSD);
-        const outAmount = toPrice > 0 ? outUSD / toPrice : 0;
-        // quotedEtaSeconds is populated from RailSolver.quote().etaSeconds
-        // in production.  Demo build: null → UI falls back to baseline.
-        const quotedEtaSeconds: number | null = null;
-        const displayEtaSeconds = quotedEtaSeconds ?? r.etaSecondsBaseline;
-        return {
-          rail: r,
-          pairType,
-          feeBps,
-          protocolFeeUSD,
-          railFeeUSD,
-          gasDropFeeUSD,
-          totalFeeUSD,
-          outAmount,
-          outUSD,
-          quotedEtaSeconds,
-          displayEtaSeconds,
-          etaSource: quotedEtaSeconds != null ? ("live" as const) : ("baseline" as const),
-        };
-      })
-      .sort((a, b) => b.outUSD - a.outUSD);
-  }, [eligibleRails, fromAmount, fromTicker, toTicker, gasDropOnDestination]);
+  const quoteRequest = useMemo(
+    () =>
+      // Keep the page on shared V2 registries; only this adapter knows how
+      // to express the selected chain/token/amount as the cross API contract.
+      buildCrossQuoteRequest({
+        fromToken: fromTokenConfig,
+        toToken: toTokenConfig,
+        fromAmount: deferredFromAmount,
+        fromChainId,
+        toChainId,
+        userAddress: connectedAddress,
+        includeDestinationGas: gasDropOnDestination,
+        destinationGasAmount: "0.001",
+      }),
+    [
+      connectedAddress,
+      deferredFromAmount,
+      fromChainId,
+      fromTokenConfig,
+      gasDropOnDestination,
+      toChainId,
+      toTokenConfig,
+    ],
+  );
+  const quoteEnabled = Boolean(
+    connectedAddress &&
+      quoteRequest &&
+      fromChainId !== toChainId &&
+      quoteRequest.amountIn !== "0",
+  );
+  const quote = useCrossQuote(quoteEnabled, quoteRequest);
+  const execution = useCrossExecutionSession();
 
-  const bestOffer = offers[0];
-  const selectedOffer = useMemo(() => {
-    if (!selectedRailName) return bestOffer;
-    return offers.find((o) => o.rail.name === selectedRailName) ?? bestOffer;
-  }, [offers, selectedRailName, bestOffer]);
-
-  // Reset rail selection if the previously-pinned rail is no longer eligible
-  useEffect(() => {
-    if (selectedRailName && !offers.some((o) => o.rail.name === selectedRailName)) {
-      setSelectedRailName(null);
+  const effectiveQuote = useMemo(() => {
+    if (execution.fallbackOfferSet) {
+      // A select can return 409 + fallbackOfferSet when the chosen offer
+      // expires. Render that refreshed set instead of leaving stale routes.
+      return normalizeOfferSet({ offerSet: execution.fallbackOfferSet });
     }
-  }, [offers, selectedRailName]);
+
+    return quote.data;
+  }, [execution.fallbackOfferSet, quote.data]);
+
+  const gasOffers = useMemo(() => {
+    const composition = effectiveQuote?.gasZipComposition;
+    if (!composition) return [];
+
+    // Destination gas is quoted as a separate Gas.zip offer and selected via
+    // the composed-intent endpoint, not mixed into the primary transfer offer.
+    return Array.isArray(composition.destinationGasOffers)
+      ? composition.destinationGasOffers
+      : composition.gasZipDestinationGasOffer
+        ? [composition.gasZipDestinationGasOffer]
+        : [];
+  }, [effectiveQuote?.gasZipComposition]);
+
+  const displayOffers = useMemo(
+    () => getPrimaryOffers(effectiveQuote),
+    [effectiveQuote],
+  );
+  const offerEntries = useMemo<CrossOfferEntry[]>(() => {
+    return displayOffers.map((offer: any) => ({
+      ...formatCrossOffer(offer, toTokenDecimals),
+      rawOffer: offer,
+      railBadge: offer.railVariant ?? offer.executionMode ?? offer.deliveryShape,
+      executionMode: offer.executionMode,
+      deliveryShape: offer.deliveryShape,
+    }));
+  }, [displayOffers, toTokenDecimals]);
+  const selectedOffer = useMemo(
+    () =>
+      displayOffers.find((offer: any) => offer.offerId === selectedOfferId) ??
+      displayOffers.find((offer: any) => offer.offerId === effectiveQuote?.bestOfferId) ??
+      displayOffers[0] ??
+      null,
+    [displayOffers, effectiveQuote?.bestOfferId, selectedOfferId],
+  );
+  const selectedOfferDisplay = useMemo(
+    () => (selectedOffer ? formatCrossOffer(selectedOffer, toTokenDecimals) : null),
+    [selectedOffer, toTokenDecimals],
+  );
+
+  useEffect(() => {
+    if (!displayOffers.length) {
+      setSelectedOfferId(null);
+      return;
+    }
+
+    if (
+      !selectedOfferId ||
+      !displayOffers.some((offer: any) => offer.offerId === selectedOfferId)
+    ) {
+      setSelectedOfferId(
+        displayOffers.find((offer: any) => offer.offerId === effectiveQuote?.bestOfferId)
+          ?.offerId ??
+          displayOffers[0]?.offerId ??
+          null,
+      );
+    }
+  }, [displayOffers, effectiveQuote?.bestOfferId, selectedOfferId]);
+
+  useEffect(() => {
+    if (!gasOffers.length) {
+      setSelectedGasOfferId(null);
+      return;
+    }
+
+    if (
+      !selectedGasOfferId ||
+      !gasOffers.some((offer: any) => offer.offerId === selectedGasOfferId)
+    ) {
+      setSelectedGasOfferId(gasOffers[0]?.offerId ?? null);
+    }
+  }, [gasOffers, selectedGasOfferId]);
+
+  useEffect(() => {
+    if (session) {
+      // Execution can span wallet confirmations and polling intervals. Persist
+      // the selected intent so reloads do not strand the lifecycle panel.
+      saveCrossSession(session);
+    } else {
+      clearCrossSession();
+    }
+  }, [session]);
+
+  useEffect(() => {
+    if (execution.fallbackOfferSet) {
+      toast.info("Selected route expired. Please choose an updated route.");
+    }
+  }, [execution.fallbackOfferSet]);
+
+  useEffect(() => {
+    if (quote.data) {
+      setQuoteIssuedAt(Date.now());
+    }
+  }, [quote.data]);
 
   // Reset destination ticker when destination chain tier changes
   useEffect(() => {
@@ -353,6 +541,131 @@ export default function CrossPage() {
       { chainId: toChainId,   ticker: toTicker   },
     ]);
   }, [fromChainId, fromTicker, toChainId, toTicker]);
+
+  const tracking = useCrossIntentTracking(
+    session?.mode === "single" ? session.intentId : undefined,
+    session?.mode === "composed" ? session.composedIds : undefined,
+  );
+
+  const singleApprovalRequest = useMemo(
+    () =>
+      session?.mode === "single"
+        ? getRequiredRouterIntentApproval(session)
+        : null,
+    [session],
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const checkAllowance = async () => {
+      if (!connectedAddress || !singleApprovalRequest) {
+        setHasRequiredApproval(true);
+        setIsCheckingApproval(false);
+        return;
+      }
+
+      setIsCheckingApproval(true);
+
+      try {
+        // Router-intent routes may need ERC20 approval before execute. This is
+        // a read-only guard; the actual approve action refreshes the quote.
+        const allowance = await (readContract as any)(config, {
+          address: singleApprovalRequest.tokenAddress as Address,
+          abi: erc20Abi,
+          functionName: "allowance",
+          args: [connectedAddress, singleApprovalRequest.spender as Address],
+          chainId: singleApprovalRequest.chainId as any,
+        });
+
+        if (!cancelled) {
+          setHasRequiredApproval(allowance >= singleApprovalRequest.amount);
+        }
+      } catch {
+        if (!cancelled) {
+          setHasRequiredApproval(false);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsCheckingApproval(false);
+        }
+      }
+    };
+
+    checkAllowance();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [connectedAddress, singleApprovalRequest]);
+
+  const recoveryIntentId =
+    session?.mode === "single"
+      ? session.intentId ?? ""
+      : session?.primaryTransfer?.intentId ?? "";
+  const recovery = useCrossRecovery(recoveryIntentId);
+
+  const { data: fromTokenBalance } = useBalance({
+    address: connectedAddress,
+    chainId: fromChainId as any,
+    token:
+      fromTokenConfig && !fromTokenConfig.isNative
+        ? (fromTokenConfig.address as Address)
+        : undefined,
+    query: {
+      enabled: Boolean(connectedAddress && fromTokenConfig),
+    },
+  });
+
+  const { data: sourceNativeBalance } = useBalance({
+    address: connectedAddress,
+    chainId: (
+      session?.mode === "single"
+        ? (session.sourceChainId ?? session.quote?.srcChainId ?? fromChainId)
+        : fromChainId
+    ) as any,
+    query: {
+      enabled: Boolean(connectedAddress),
+    },
+  });
+
+  useEffect(() => {
+    if (
+      session?.mode === "single" &&
+      session?.status === "SELECTED" &&
+      session?.integration?.mode === "router_intent" &&
+      isRouterIntentExpired(session.integration, now)
+    ) {
+      setSession(null);
+    }
+  }, [now, session]);
+
+  const quoteErrorMessage = quote.error ? mapCrossApiError(quote.error) : null;
+  const trackingData = tracking.data as any;
+  const fromBalanceLabel =
+    walletState.status === "connected" && fromTokenBalance
+      ? `${Number(fromTokenBalance.formatted).toLocaleString(undefined, {
+          maximumFractionDigits: 6,
+        })} ${fromTicker}`
+      : undefined;
+  const fromBalanceNumeric = Number(fromTokenBalance?.formatted ?? 0);
+  const toAmountDisplay =
+    selectedOfferDisplay?.outputAmount ??
+    (quote.isFetching ? "..." : "0");
+  const toUsdValue =
+    selectedOfferDisplay && Number.isFinite(Number(selectedOfferDisplay.outputAmount))
+      ? Number(selectedOfferDisplay.outputAmount) * priceOf(toTicker, toChainId)
+      : undefined;
+  const sourceTxHash =
+    trackingData?.srcTxHash ??
+    trackingData?.sourceTxHash ??
+    session?.lastTxHash ??
+    session?.primaryTransfer?.lastTxHash;
+  const destinationTxHash =
+    trackingData?.dstTxHash ??
+    trackingData?.destinationTxHash ??
+    trackingData?.primaryTransfer?.dstTxHash ??
+    trackingData?.primaryTransfer?.destinationTxHash;
 
   // Pickers — chain & token lists with tier badging
   const chainPickerList: PickerChain[] = useMemo(() => {
@@ -398,30 +711,550 @@ export default function CrossPage() {
     };
   }, [tokenPickerTarget, fromChainId, toChainId, connectedBalance.nativeBalance, connectedBalance.nativeBalanceUSD, connectedBalance.nativeTicker]);
 
-  // Demo route (uses selected offer's rail)
   const routeHops: RouteHop[] = useMemo(() => {
     if (!selectedOffer) return [];
-    const settle = defaultSettlementTicker(fromChainId);
-    return [
-      { ticker: fromTicker, chainName: fromChain.name, chainColor: fromChain.color, via: fromTier === 1 ? "EmpX aggregator" : "Native" },
-      { ticker: settle, chainName: fromChain.name, chainColor: fromChain.color, via: selectedOffer.rail.name },
-      { ticker: toTicker, chainName: toChain.name, chainColor: toChain.color, via: toTier === 1 ? "EmpX aggregator" : undefined },
-    ];
-  }, [selectedOffer, fromChain, toChain, fromTicker, toTicker, fromChainId, fromTier, toTier]);
+    return buildCrossRouteHops(selectedOffer, fromChain, toChain, fromTicker, toTicker);
+  }, [selectedOffer, fromChain, toChain, fromTicker, toTicker]);
 
   // Flip
   const flip = () => {
     const fc = fromChainId, ft = fromTicker;
     setFromChainId(toChainId); setToChainId(fc);
     setFromTicker(toTicker); setToTicker(ft);
-    setSelectedRailName(null);
+    setSelectedOfferId(null);
   };
 
   const onSwap = () => {
     if (walletState.status !== "connected") { setShowWalletModal(true); return; }
+    if (!selectedOffer || !effectiveQuote) {
+      toast.error(quoteErrorMessage ?? "No executable route is available for this pair.");
+      return;
+    }
     setQuoteIssuedAt(Date.now());
     setShowConfirm(true);
   };
+
+  const ensureChain = useCallback(
+    async (targetChainId: number) => {
+      if (currentChainId !== targetChainId) {
+        await switchChainAsync({ chainId: targetChainId as any });
+      }
+    },
+    [currentChainId, switchChainAsync],
+  );
+
+  const submitStandardIntent = useCallback(
+    async (intentId: string, srcTxHash: string) => {
+      if (!connectedAddress) {
+        throw new Error("Wallet not connected.");
+      }
+
+      const timestamp = Date.now();
+      const message = buildSubmittedMessage({
+        intentId,
+        wallet: connectedAddress,
+        timestamp,
+        srcTxHash,
+      });
+      const signature = await signMessageAsync({ account: connectedAddress, message });
+
+      await crossApi.markSubmitted(intentId, {
+        userAddress: connectedAddress,
+        signature,
+        timestamp,
+        srcTxHash,
+      });
+    },
+    [connectedAddress, signMessageAsync],
+  );
+
+  const sendEvmTransaction = useCallback(
+    async (tx: any, chainId: number) => {
+      if (!connectedAddress) {
+        throw new Error("Wallet not connected.");
+      }
+
+      await ensureChain(chainId);
+
+      return sendTransaction(config, {
+        account: connectedAddress,
+        chainId: chainId as any,
+        to: tx.to as Address,
+        data: (tx.data ?? tx.calldata ?? "0x") as `0x${string}`,
+        value: BigInt(tx.value ?? "0"),
+        ...(tx.gas !== undefined && tx.gas !== null
+          ? { gas: BigInt(tx.gas) }
+          : tx.gasLimit !== undefined && tx.gasLimit !== null
+            ? { gas: BigInt(tx.gasLimit) }
+            : {}),
+      });
+    },
+    [connectedAddress, ensureChain],
+  );
+
+  const executeLayerZeroIntent = useCallback(
+    async (intentId: string, integration: any, sourceChainId: number) => {
+      if (!connectedAddress) {
+        throw new Error("Wallet not connected.");
+      }
+
+      const action = integration?.action ?? integration;
+      let steps = action?.userSteps ?? [];
+
+      if (action?.requiresFreshUserSteps) {
+        const refreshed = await crossApi.rebuildLayerZeroUserSteps(intentId);
+        steps = mergeLayerZeroUserSteps(integration, refreshed)?.action?.userSteps ?? steps;
+      }
+
+      const signatures: string[] = [];
+      let sourceTxHash: string | undefined;
+
+      // LayerZero provider-direct flows return wallet steps, not one uniform
+      // transaction. Preserve signature steps separately from lifecycle
+      // submitted/cancel/refund signatures.
+      for (const step of steps) {
+        const tx = getLayerZeroStepTx(step);
+        if (tx?.to) {
+          sourceTxHash = await sendEvmTransaction(tx, sourceChainId);
+          continue;
+        }
+
+        const message = getLayerZeroStepMessage(step);
+        if (typeof message === "string") {
+          signatures.push(await signMessageAsync({ account: connectedAddress, message }));
+          continue;
+        }
+
+        throw new Error("Unsupported LayerZero step for the current wallet capability.");
+      }
+
+      if (action?.submitSignatureRequired) {
+        await crossApi.submitLayerZeroSignatures(intentId, { signatures });
+      }
+
+      if (!sourceTxHash) {
+        throw new Error("LayerZero execution did not produce a source transaction.");
+      }
+
+      await crossApi.markLayerZeroSubmitted(intentId, {
+        userAddress: connectedAddress,
+        sourceTxHash,
+      });
+
+      return sourceTxHash;
+    },
+    [connectedAddress, sendEvmTransaction, signMessageAsync],
+  );
+
+  const executeIntent = useCallback(
+    async (intentId: string, integration: any, sourceChainId: number) => {
+      if (integration?.mode === "router_intent") {
+        const txHash = await sendEvmTransaction(
+          toSendTransactionArgs(integration.integration ?? integration),
+          sourceChainId,
+        );
+        await submitStandardIntent(intentId, txHash);
+        return txHash;
+      }
+
+      if (integration?.mode === "provider_direct") {
+        const classification = classifyProviderDirectAction(integration);
+        const actionKind = integration?.action?.kind;
+
+        if (classification === "layerzero_steps") {
+          return executeLayerZeroIntent(intentId, integration, sourceChainId);
+        }
+
+        if (classification === "evm_tx") {
+          const tx = getProviderDirectTx(integration);
+          const txHash = await sendEvmTransaction(tx, sourceChainId);
+          if (actionKind === "layerzero_value_transfer_api") {
+            await crossApi.markLayerZeroSubmitted(intentId, {
+              userAddress: connectedAddress,
+              sourceTxHash: txHash,
+            });
+          } else {
+            await submitStandardIntent(intentId, txHash);
+          }
+          return txHash;
+        }
+
+        throw new Error("This route requires a non-EVM source wallet. V2 currently supports EVM source execution only.");
+      }
+
+      throw new Error("Unsupported integration mode returned by the API.");
+    },
+    [connectedAddress, executeLayerZeroIntent, sendEvmTransaction, submitStandardIntent],
+  );
+
+  const prepareSingleExecution = useCallback(async (options?: {
+    offerOverride?: any;
+    quoteOverride?: any;
+  }) => {
+    const quoteForSelection = options?.quoteOverride ?? effectiveQuote;
+    const offerForSelection = options?.offerOverride ?? selectedOffer;
+
+    if (!connectedAddress || !offerForSelection || !quoteForSelection) {
+      return null;
+    }
+
+    // Selection creates a backend intent but does not submit user funds. The
+    // lifecycle tab owns the subsequent wallet execution step.
+    const response = await execution.selectSingleIntent({
+      offerSetId: quoteForSelection.offerSetId,
+      offerId: offerForSelection.offerId,
+      userAddress: connectedAddress,
+    }) as any;
+
+    let nextIntegration = response.integration;
+    const action = nextIntegration?.action ?? nextIntegration;
+
+    if (
+      nextIntegration?.mode === "provider_direct" &&
+      action?.kind === "layerzero_value_transfer_api" &&
+      action?.requiresFreshUserSteps
+    ) {
+      const refreshed = await crossApi.rebuildLayerZeroUserSteps(response.intentId);
+      nextIntegration = mergeLayerZeroUserSteps(nextIntegration, refreshed);
+    }
+
+    const nextSession = {
+      mode: "single",
+      intentId: response.intentId,
+      selectedOfferId: offerForSelection.offerId,
+      offerSetId: quoteForSelection.offerSetId,
+      quote: response.quote,
+      integration: nextIntegration,
+      status: "SELECTED",
+      sourceChainId: response.quote?.srcChainId ?? offerForSelection.srcChainId,
+      lastError: null,
+    };
+
+    setSession(nextSession);
+    return nextSession;
+  }, [connectedAddress, effectiveQuote, execution, selectedOffer]);
+
+  const handlePrepareExecution = useCallback(async () => {
+    if (!connectedAddress || !selectedOffer || !effectiveQuote) {
+      return;
+    }
+
+    try {
+      if (gasDropOnDestination && selectedGasOfferId) {
+        // Gas.zip destination gas is a composed route: primary bridge leg plus
+        // an independent gas-drop leg, each with its own intent lifecycle.
+        const response = await execution.selectComposedIntent({
+          offerSetId: effectiveQuote.offerSetId,
+          primaryTransferOfferId: selectedOffer.offerId,
+          gasZipDestinationGasOfferId: selectedGasOfferId,
+          userAddress: connectedAddress,
+        }) as any;
+
+        setSession({
+          mode: "composed",
+          composedIntentId: response.composedIntentId,
+          offerSetId: effectiveQuote.offerSetId,
+          selectedOfferId: selectedOffer.offerId,
+          selectedGasOfferId,
+          status: response.status,
+          primaryTransfer: response.primaryTransfer,
+          gasZipDestinationGas: response.gasZipDestinationGas,
+          composedIds: {
+            primary: response.primaryTransfer?.intentId,
+            gas: response.gasZipDestinationGas?.intentId,
+          },
+          lastError: null,
+        });
+        toast.info("Composed route selected. Execute each leg to continue.");
+      } else {
+        await prepareSingleExecution();
+        toast.info("Route selected. Review execution details below.");
+      }
+
+      setShowConfirm(false);
+      setSidePanel("lifecycle");
+    } catch (error: any) {
+      toast.error(mapCrossApiError(error));
+    }
+  }, [
+    connectedAddress,
+    effectiveQuote,
+    execution,
+    gasDropOnDestination,
+    prepareSingleExecution,
+    selectedGasOfferId,
+    selectedOffer,
+  ]);
+
+  const handleExecuteSingle = useCallback(async () => {
+    if (!session || session.mode !== "single") return;
+
+    if (isRouterIntentExpired(session.integration)) {
+      setSession(null);
+      toast.error("Prepared route expired. Prepare execution again.");
+      return;
+    }
+
+    try {
+      setIsExecuting(true);
+      const txHash = await executeIntent(
+        session.intentId,
+        session.integration,
+        session.sourceChainId ?? session.quote?.srcChainId ?? fromChainId,
+      );
+      setSession((current: any) => ({
+        ...current,
+        lastTxHash: txHash,
+        status: "SUBMITTED",
+        lastError: null,
+      }));
+      toast.success("Source transaction submitted.");
+    } catch (error: any) {
+      const message = mapCrossApiError(error);
+      setSession((current: any) =>
+        current ? { ...current, lastError: message } : current,
+      );
+      toast.error(message);
+    } finally {
+      setIsExecuting(false);
+    }
+  }, [executeIntent, fromChainId, session]);
+
+  const handleApproveSingle = useCallback(async () => {
+    if (!connectedAddress || !singleApprovalRequest || !selectedOffer) return;
+
+    try {
+      setIsApproving(true);
+      await ensureChain(singleApprovalRequest.chainId);
+
+      const hash = await (writeContract as any)(config, {
+        account: connectedAddress,
+        chainId: singleApprovalRequest.chainId as any,
+        address: singleApprovalRequest.tokenAddress as Address,
+        abi: erc20Abi,
+        functionName: "approve",
+        args: [
+          singleApprovalRequest.spender as Address,
+          singleApprovalRequest.amount,
+        ],
+      });
+
+      toast.info("Approval transaction sent. Waiting for confirmation...");
+
+      await waitForTransactionReceipt(config, {
+        hash,
+        chainId: singleApprovalRequest.chainId as any,
+      });
+
+      const refreshedQuote = (await quote.refetch()).data;
+      if (!refreshedQuote) {
+        throw new Error("Unable to refresh the route quote after approval.");
+      }
+
+      const refreshedOffer = findMatchingRefreshedOffer(
+        refreshedQuote,
+        selectedOffer,
+      );
+      if (!refreshedOffer) {
+        setSession(null);
+        setSelectedOfferId(
+          refreshedQuote.bestOfferId ??
+            refreshedQuote.offers?.[0]?.offerId ??
+            null,
+        );
+        toast.info("Approved route changed while waiting for confirmation. Review the refreshed quote and prepare execution again.");
+        return;
+      }
+
+      setHasRequiredApproval(true);
+      setSelectedOfferId(refreshedOffer.offerId);
+      await prepareSingleExecution({
+        quoteOverride: refreshedQuote,
+        offerOverride: refreshedOffer,
+      });
+      toast.success("Token approved. Route refreshed.");
+    } catch (error: any) {
+      const message = mapCrossApiError(error);
+      setSession((current: any) =>
+        current ? { ...current, lastError: message } : current,
+      );
+      toast.error(message);
+    } finally {
+      setIsApproving(false);
+    }
+  }, [
+    connectedAddress,
+    ensureChain,
+    prepareSingleExecution,
+    quote,
+    selectedOffer,
+    singleApprovalRequest,
+  ]);
+
+  const handleExecuteComposedLeg = useCallback(
+    async (leg: "primary" | "gas") => {
+      if (!session || session.mode !== "composed") return;
+
+      const legPayload =
+        leg === "primary"
+          ? session.primaryTransfer
+          : session.gasZipDestinationGas;
+
+      if (!legPayload?.intentId || !legPayload?.integration) {
+        toast.error("Selected composed leg is missing execution details.");
+        return;
+      }
+
+      try {
+        setIsExecuting(true);
+        const txHash = await executeIntent(
+          legPayload.intentId,
+          legPayload.integration,
+          legPayload.quote?.srcChainId ?? fromChainId,
+        );
+
+        setSession((current: any) => ({
+          ...current,
+          [leg === "primary" ? "primaryTransfer" : "gasZipDestinationGas"]: {
+            ...legPayload,
+            lastTxHash: txHash,
+          },
+          lastError: null,
+        }));
+        toast.success(
+          leg === "primary"
+            ? "Primary transfer submitted."
+            : "Destination gas leg submitted.",
+        );
+      } catch (error: any) {
+        const message = mapCrossApiError(error);
+        setSession((current: any) =>
+          current ? { ...current, lastError: message } : current,
+        );
+        toast.error(message);
+      } finally {
+        setIsExecuting(false);
+      }
+    },
+    [executeIntent, fromChainId, session],
+  );
+
+  const handleCancel = useCallback(async () => {
+    if (!session || session.mode !== "single" || !connectedAddress) return;
+
+    const reason = window.prompt("Cancellation reason", "User requested cancel");
+    if (!reason) return;
+
+    try {
+      const timestamp = Date.now();
+      const message = buildCancelMessage({
+        intentId: session.intentId,
+        wallet: connectedAddress,
+        timestamp,
+        reason,
+      });
+      const signature = await signMessageAsync({ account: connectedAddress, message });
+
+      await recovery.cancel.mutateAsync({
+        userAddress: connectedAddress,
+        signature,
+        timestamp,
+        reason,
+        replacementTxHash: "",
+      });
+      toast.success("Cancellation request submitted.");
+    } catch (error: any) {
+      toast.error(mapCrossApiError(error));
+    }
+  }, [connectedAddress, recovery.cancel, session, signMessageAsync]);
+
+  const handleRefund = useCallback(async () => {
+    if (!session || session.mode !== "single" || !connectedAddress) return;
+
+    const reason = window.prompt("Refund reason", "Bridge appears stuck");
+    if (!reason) return;
+
+    try {
+      const timestamp = Date.now();
+      const message = buildRefundMessage({
+        intentId: session.intentId,
+        wallet: connectedAddress,
+        timestamp,
+        reason,
+      });
+      const signature = await signMessageAsync({ account: connectedAddress, message });
+
+      await recovery.refund.mutateAsync({
+        userAddress: connectedAddress,
+        signature,
+        timestamp,
+        reason,
+      });
+      toast.success("Refund request submitted.");
+    } catch (error: any) {
+      toast.error(mapCrossApiError(error));
+    }
+  }, [connectedAddress, recovery.refund, session, signMessageAsync]);
+
+  const singleRouterValue =
+    session?.mode === "single" && session.integration?.mode === "router_intent"
+      ? toSendTransactionArgs(session.integration.integration ?? session.integration).value
+      : 0n;
+  const hasRouterNativeValueRequirement = singleRouterValue > 0n;
+  const hasSufficientRouterNativeValue =
+    !hasRouterNativeValueRequirement ||
+    (sourceNativeBalance?.value ?? 0n) >= singleRouterValue;
+  const singleRouteNeedsApproval =
+    Boolean(singleApprovalRequest) && !hasRequiredApproval;
+  const singleExecutionBlockedForNativeValue =
+    !singleRouteNeedsApproval && !hasSufficientRouterNativeValue;
+  const singleExecutionHint =
+    hasRouterNativeValueRequirement && session?.mode === "single"
+      ? hasSufficientRouterNativeValue
+        ? `This route requires ${formatUnits(singleRouterValue, 18)} native gas value on the source chain in addition to transaction gas.`
+        : `This route requires ${formatUnits(singleRouterValue, 18)} native gas value on the source chain. Your wallet balance appears too low for execution.`
+      : null;
+  const singleActionLabel =
+    session?.mode === "single"
+      ? isCheckingApproval
+        ? "Checking Approval..."
+        : isApproving
+          ? "Approving..."
+          : singleRouteNeedsApproval
+            ? "Approve Token"
+            : singleExecutionBlockedForNativeValue
+              ? "Insufficient Native Value"
+              : "Execute Route"
+      : undefined;
+  const singleActionDisabled =
+    isCheckingApproval || isApproving || singleExecutionBlockedForNativeValue;
+  const handleSingleAction =
+    singleRouteNeedsApproval ? handleApproveSingle : handleExecuteSingle;
+
+  useEffect(() => {
+    const status =
+      trackingData?.status ??
+      trackingData?.primaryTransfer?.status ??
+      trackingData?.primary?.status ??
+      session?.status;
+    const delivered = Boolean(
+      trackingData?.dstTxHash ||
+        trackingData?.destinationTxHash ||
+        status === "DELIVERED" ||
+        status === "COMPLETED",
+    );
+    const intentKey =
+      session?.mode === "single"
+        ? session.intentId
+        : session?.composedIntentId ?? session?.composedIds?.primary;
+
+    // Open success only once the backend tracking stream reports destination
+    // delivery/completion. Source submission alone is not a completed cross.
+    if (delivered && intentKey && shownSuccessIntentId !== intentKey) {
+      setShownSuccessIntentId(intentKey);
+      setShowSuccess(true);
+    }
+  }, [shownSuccessIntentId, session, trackingData]);
 
   const navLinks: NavLink[] = [
     { label: "Swap",      href: "/swap-v2" },
@@ -501,27 +1334,27 @@ export default function CrossPage() {
               fromChain={fromChain}
               fromToken={{ ticker: fromTicker }}
               fromAmount={fromAmount}
-              fromBalance={fromTicker === connectedBalance.nativeTicker ? connectedBalance.nativeBalance : undefined}
+              fromBalance={fromBalanceLabel}
               fromUsdValue={Number(fromAmount.replace(/,/g, "")) * priceOf(fromTicker, fromChainId)}
               onFromAmountChange={setFromAmount}
               onSelectFromToken={() => setTokenPickerTarget("from")}
               onSelectFromChain={() => setChainPickerTarget("from")}
-              onPercentClick={(pct) => setFromAmount(String(((Number(connectedBalance.nativeBalance) || 0) * pct) / 100))}
+              onPercentClick={(pct) => setFromAmount(String((fromBalanceNumeric * pct) / 100))}
 
               toChain={toChain}
               toToken={{ ticker: toTicker }}
-              toAmount={selectedOffer ? selectedOffer.outAmount.toFixed(4) : "0"}
-              toUsdValue={selectedOffer?.outUSD}
+              toAmount={toAmountDisplay}
+              toUsdValue={toUsdValue}
               onSelectToToken={() => setTokenPickerTarget("to")}
               onSelectToChain={() => setChainPickerTarget("to")}
 
-              railName={selectedOffer?.rail.name}
-              railBadge={selectedOffer?.rail.badge as any}
-              protocolFeeBps={selectedOffer?.feeBps}
-              protocolFeeUSD={selectedOffer?.protocolFeeUSD}
-              bridgeFeeUSD={selectedOffer ? selectedOffer.railFeeUSD + selectedOffer.gasDropFeeUSD : undefined}
-              estimatedTime={selectedOffer ? formatEtaSeconds(selectedOffer.displayEtaSeconds) : undefined}
-              minimumReceived={selectedOffer ? `${(selectedOffer.outAmount * 0.997).toFixed(4)} ${toTicker}` : undefined}
+              railName={selectedOfferDisplay?.railName}
+              railBadge={selectedOffer?.railVariant ?? selectedOffer?.executionMode ?? selectedOffer?.deliveryShape}
+              protocolFeeBps={selectedOffer?.economics?.protocolFeeBps ?? selectedOffer?.fees?.protocolFeeBps}
+              protocolFeeUSD={selectedOfferDisplay?.protocolFeeUSD}
+              bridgeFeeUSD={selectedOfferDisplay?.bridgeFeeUSD}
+              estimatedTime={selectedOfferDisplay?.estimatedTimeSeconds ? formatEtaSeconds(selectedOfferDisplay.estimatedTimeSeconds) : undefined}
+              minimumReceived={selectedOfferDisplay ? `${selectedOfferDisplay.minimumReceived} ${toTicker}` : undefined}
               slippageBps={30}
               routeHops={routeHops}
 
@@ -529,7 +1362,17 @@ export default function CrossPage() {
               onConnect={() => setShowWalletModal(true)}
               onSwap={onSwap}
               onFlip={flip}
-              swapLabel={walletState.status === "connected" ? "Cross-chain swap" : "Connect wallet"}
+              swapDisabled={!selectedOffer || quote.isFetching || execution.isSelecting}
+              swapLoading={quote.isFetching || execution.isSelecting}
+              swapLabel={
+                walletState.status !== "connected"
+                  ? "Connect wallet"
+                  : quote.isFetching
+                    ? "Fetching route..."
+                    : selectedOffer
+                      ? "Review route"
+                      : quoteErrorMessage ?? "No route"
+              }
             />
           </div>
 
@@ -541,12 +1384,16 @@ export default function CrossPage() {
                   <QuoteCountdown
                     totalMs={30000}
                     issuedAt={quoteIssuedAt}
-                    onRefresh={() => { setQuoteIssuedAt(Date.now()); toast.info("Quote refreshed"); }}
+                    onRefresh={() => {
+                      setQuoteIssuedAt(Date.now());
+                      void quote.refetch();
+                      toast.info("Quote refreshed");
+                    }}
                     compact
                   />
                   <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    <Pill variant="info">{eligibleRails.length} eligible</Pill>
-                    {selectedRailName && <Pill variant="accent">User-pinned</Pill>}
+                    <Pill variant="info">{offerEntries.length || eligibleRails.length} eligible</Pill>
+                    {selectedOfferId && selectedOfferId !== effectiveQuote?.bestOfferId && <Pill variant="accent">User-selected</Pill>}
                   </div>
                 </div>
               </Card>
@@ -558,24 +1405,26 @@ export default function CrossPage() {
               </p>
               <Tabs
                 options={[
-                  { value: "offers" as const,    label: "Offers",   count: offers.length },
+                  { value: "offers" as const,    label: "Offers",   count: offerEntries.length },
                   { value: "settings" as const,  label: "Gas" },
                   { value: "rails" as const,     label: "Catalog",  count: RAILS.length },
                   { value: "lifecycle" as const, label: "Lifecycle" },
                 ]}
                 active={sidePanel}
-                onChange={setSidePanel}
+                onChange={(value) => setSidePanel(value as SidePanelTab)}
                 variant="pill"
               />
               <div style={{ marginTop: 14 }}>
                 {sidePanel === "offers"   && (
                   <OffersList
-                    offers={offers}
-                    bestRailName={bestOffer?.rail.name}
-                    selectedRailName={selectedRailName}
-                    onSelectRail={(name) => {
-                      setSelectedRailName((cur) => (cur === name ? null : name));
-                      toast.info(selectedRailName === name ? "Reverted to best rail" : `Pinned to ${name}`);
+                    offers={offerEntries}
+                    bestOfferId={effectiveQuote?.bestOfferId}
+                    selectedOfferId={selectedOffer?.offerId ?? selectedOfferId}
+                    isLoading={quote.isFetching}
+                    error={quoteErrorMessage}
+                    onSelectOffer={(offerId) => {
+                      setSelectedOfferId((cur) => (cur === offerId ? effectiveQuote?.bestOfferId ?? null : offerId));
+                      toast.info(selectedOfferId === offerId ? "Reverted to best route" : "Selected route");
                     }}
                     toTicker={toTicker}
                   />
@@ -595,7 +1444,25 @@ export default function CrossPage() {
                   />
                 )}
                 {sidePanel === "rails"     && <RailsCatalog />}
-                {sidePanel === "lifecycle" && <LifecycleExplainer />}
+                {sidePanel === "lifecycle" && (
+                  <LifecycleStatus
+                    session={session}
+                    tracking={trackingData}
+                    isExecuting={isExecuting}
+                    isCancelling={recovery.cancel.isPending}
+                    isRefunding={recovery.refund.isPending}
+                    onExecuteSingle={handleSingleAction}
+                    onExecutePrimary={() => handleExecuteComposedLeg("primary")}
+                    onExecuteGas={() => handleExecuteComposedLeg("gas")}
+                    onCancel={handleCancel}
+                    onRefund={handleRefund}
+                    onClearSession={() => setSession(null)}
+                    singleActionLabel={singleActionLabel}
+                    singleActionDisabled={singleActionDisabled}
+                    singleExecutionHint={singleExecutionHint}
+                    singleExecutionError={session?.lastError ?? null}
+                  />
+                )}
               </div>
             </Card>
           </aside>
@@ -640,7 +1507,7 @@ export default function CrossPage() {
               setToChainId(c.id);
               setToTicker(defaultSettlementTicker(c.id));
             }
-            setSelectedRailName(null);
+            setSelectedOfferId(null);
             setChainPickerTarget(null);
             toast.info(`${chainPickerTarget === "from" ? "Source" : "Destination"} → ${c.name}`);
           }}
@@ -657,7 +1524,7 @@ export default function CrossPage() {
           onSelect={(t) => {
             if (tokenPickerTarget === "from") setFromTicker(t.ticker);
             else setToTicker(t.ticker);
-            setSelectedRailName(null);
+            setSelectedOfferId(null);
             setTokenPickerTarget(null);
           }}
         />
@@ -666,37 +1533,39 @@ export default function CrossPage() {
       <ConfirmTradeModal
         open={showConfirm}
         onClose={() => setShowConfirm(false)}
-        onConfirm={() => { setShowConfirm(false); setShowSuccess(true); }}
+        onConfirm={handlePrepareExecution}
         eyebrow="REVIEW · CROSS-CHAIN"
         title="Confirm trade"
         fromTicker={fromTicker}
         fromAmount={fromAmount}
         fromChainName={fromChain.name}
         toTicker={toTicker}
-        toAmount={selectedOffer ? selectedOffer.outAmount.toFixed(4) : "0"}
+        toAmount={toAmountDisplay}
         toChainName={toChain.name}
         routeHops={routeHops}
         feeRows={
-          selectedOffer
+          selectedOfferDisplay
             ? [
-                { label: "Via rail",      value: selectedOffer.rail.name },
-                { label: "Mode",          value: `Mode ${selectedOffer.rail.mode}` },
-                { label: "Protocol fee",  value: `${selectedOffer.feeBps} bps`, sub: `· $${selectedOffer.protocolFeeUSD.toFixed(2)}`, accent: true },
-                { label: "Rail fee",      value: selectedOffer.railFeeUSD <= 0.005 ? "FREE" : `$${selectedOffer.railFeeUSD.toFixed(2)}` },
+                { label: "Via rail",      value: selectedOfferDisplay.railName },
+                { label: "Execution",     value: selectedOffer?.executionMode ?? selectedOffer?.deliveryShape ?? "Route" },
+                { label: "Protocol fee",  value: `$${selectedOfferDisplay.protocolFeeUSD.toFixed(2)}`, accent: true },
+                { label: "Bridge fee",    value: selectedOfferDisplay.bridgeFeeUSD <= 0.005 ? "FREE" : `$${selectedOfferDisplay.bridgeFeeUSD.toFixed(2)}` },
                 ...(gasDropOnDestination ? [{ label: "Gas drop", value: `+$${GAS_DROP_USD.toFixed(2)} ${toChain.ticker}` }] : []),
                 ...(payInToken ? [{ label: "Source gas", value: `Paid in ${fromTicker} (Paymaster)`, muted: true }] : []),
-                { label: "Est. time",     value: formatEtaSeconds(selectedOffer.displayEtaSeconds), sub: selectedOffer.etaSource === "live" ? "· live quote" : "· baseline" },
-                { label: "Reliability",   value: `${selectedOffer.rail.reliability.toFixed(1)}% (30d)`, muted: true },
-                { label: "Stuck after",   value: `${selectedOffer.rail.stuckThresholdMin} min`, muted: true },
+                ...(selectedOfferDisplay.estimatedTimeSeconds ? [{ label: "Est. time", value: formatEtaSeconds(selectedOfferDisplay.estimatedTimeSeconds) }] : []),
+                { label: "Minimum received", value: `${selectedOfferDisplay.minimumReceived} ${toTicker}`, muted: true },
               ]
             : []
         }
         quoteIssuedAt={quoteIssuedAt}
         quoteValidMs={30000}
-        onRefreshQuote={() => setQuoteIssuedAt(Date.now())}
+        onRefreshQuote={() => {
+          setQuoteIssuedAt(Date.now());
+          void quote.refetch();
+        }}
         warning={
-          selectedOffer && selectedOffer.rail.mode === "B"
-            ? "Mode B rails settle via the rail's own vault. EmpX is NOT in the tx path — your funds flow through the rail's protocol directly."
+          selectedOffer?.executionMode === "provider_direct"
+            ? "Provider-direct routes may require wallet-specific transaction steps. Review the lifecycle tab after route selection."
             : undefined
         }
       />
@@ -709,15 +1578,26 @@ export default function CrossPage() {
         fromAmount={fromAmount}
         fromChainName={fromChain.name}
         toTicker={toTicker}
-        toAmount={selectedOffer ? selectedOffer.outAmount.toFixed(4) : "0"}
+        toAmount={toAmountDisplay}
         toChainName={toChain.name}
-        message={`${toTicker} arrived on ${toChain.name}`}
-        timeline={[
-          { label: "Source confirmation",  description: `${fromChain.name} tx mined`,                            state: "complete", timeLabel: "0:00" },
-          { label: "Rail settlement",      description: `${selectedOffer?.rail.name || "Rail"} relay completed`, state: "complete", timeLabel: "0:42" },
-          { label: "Destination delivery", description: `${toTicker} delivered on ${toChain.name}`,              state: "complete", timeLabel: "0:58" },
+        message={`${toTicker} delivery tracked on ${toChain.name}`}
+        timeline={buildCrossTimeline(trackingData, session, fromChain.name, toChain.name, toTicker)}
+        txHashes={[
+          ...(sourceTxHash
+            ? [{
+                label: "Source tx",
+                hashShort: shortHash(sourceTxHash),
+                url: getExplorerTxUrl(fromChainId, sourceTxHash) ?? undefined,
+              }]
+            : []),
+          ...(destinationTxHash
+            ? [{
+                label: "Destination tx",
+                hashShort: shortHash(destinationTxHash),
+                url: getExplorerTxUrl(toChainId, destinationTxHash) ?? undefined,
+              }]
+            : []),
         ]}
-        txHashes={[]}
         onNewTrade={() => setShowSuccess(false)}
         onViewPortfolio={() => { setShowSuccess(false); toast.info("Navigate to /portfolio-v2"); }}
       />
@@ -748,63 +1628,71 @@ export default function CrossPage() {
 
 // ─── Offers list — user-selectable ────────────────────────────────────────
 
-interface OfferEntry {
-  rail: RailEntry;
-  pairType: "V/V" | "V/S" | "S/S";
-  feeBps: number;
-  protocolFeeUSD: number;
-  railFeeUSD: number;
-  gasDropFeeUSD: number;
-  totalFeeUSD: number;
-  outAmount: number;
-  outUSD: number;
-  /** ETA from a live RailSolver.quote() response. null until a quote arrives. */
-  quotedEtaSeconds: number | null;
-  /** What to actually render — quotedEtaSeconds when present, baseline otherwise. */
-  displayEtaSeconds: number;
-  /** Where displayEtaSeconds came from. Drives the "Live"/"Baseline" pill. */
-  etaSource: "live" | "baseline";
-}
+type CrossOfferEntry = CrossV2OfferDisplay & {
+  rawOffer: any;
+  railBadge?: string;
+  executionMode?: string;
+  deliveryShape?: string;
+};
 
 function OffersList({
   offers,
-  bestRailName,
-  selectedRailName,
-  onSelectRail,
+  bestOfferId,
+  selectedOfferId,
+  onSelectOffer,
   toTicker,
+  isLoading,
+  error,
 }: {
-  offers: OfferEntry[];
-  bestRailName?: string;
-  selectedRailName: string | null;
-  onSelectRail: (name: string) => void;
+  offers: CrossOfferEntry[];
+  bestOfferId?: string;
+  selectedOfferId: string | null;
+  onSelectOffer: (offerId: string) => void;
   toTicker: string;
+  isLoading?: boolean;
+  error?: string | null;
 }) {
+  if (isLoading && offers.length === 0) {
+    return (
+      <p style={{ margin: 0, padding: "16px 4px", fontSize: 12, color: "rgba(255,255,255,0.50)", textAlign: "center", lineHeight: 1.55 }}>
+        Fetching executable routes from the cross-chain quote API...
+      </p>
+    );
+  }
+
+  if (error && offers.length === 0) {
+    return (
+      <p style={{ margin: 0, padding: "16px 4px", fontSize: 12, color: "rgba(248,113,113,0.85)", textAlign: "center", lineHeight: 1.55 }}>
+        {error}
+      </p>
+    );
+  }
+
   if (offers.length === 0) {
     return (
       <p style={{ margin: 0, padding: "16px 4px", fontSize: 12, color: "rgba(255,255,255,0.50)", textAlign: "center", lineHeight: 1.55 }}>
-        No rails support this route + token combination. Try a different chain pair or destination token.
+        Connect a wallet and enter an amount to fetch executable cross-chain routes.
       </p>
     );
   }
   return (
     <>
       <p style={{ margin: "0 0 10px", fontSize: 10.5, color: "rgba(255,255,255,0.40)", lineHeight: 1.45 }}>
-        Tap a rail to pin it. Tap again to revert to best output.
+        Tap a route to select it. Tap again to revert to the backend best route.
       </p>
       <div style={{ display: "flex", flexDirection: "column", gap: 1, maxHeight: 320, overflowY: "auto" }}>
         {offers.map((o, idx) => {
-          const isBest     = o.rail.name === bestRailName;
-          const isSelected = o.rail.name === selectedRailName;
-          const isActive   = isSelected || (!selectedRailName && isBest);
-          // Pick ONE secondary tag — Pinned beats Best beats rail.badge.
-          const tag = isSelected ? "PINNED" : (isBest && !selectedRailName) ? "BEST" : o.rail.badge;
-          const tagAccent = isSelected || (isBest && !selectedRailName);
-          const modeColor = o.rail.mode === "A" ? "#FFB347" : "#93C5FD";
+          const isBest = o.offerId === bestOfferId || o.isBest;
+          const isSelected = o.offerId === selectedOfferId;
+          const isActive = isSelected || (!selectedOfferId && isBest);
+          const tag = isSelected && !isBest ? "SELECTED" : isBest ? "BEST" : o.railBadge;
+          const tagAccent = isSelected || isBest;
+          const modeColor = o.executionMode === "provider_direct" ? "#93C5FD" : "#FFB347";
           return (
             <button
-              key={o.rail.name}
+              key={o.offerId}
               type="button"
-              onClick={() => onSelectRail(o.rail.name)}
+              onClick={() => onSelectOffer(o.offerId)}
               style={{
                 display: "flex",
                 alignItems: "center",
@@ -831,7 +1719,7 @@ function OffersList({
               {/* Tiny mode dot — replaces the chunky "Mode A/B" pill */}
               <span
                 aria-hidden
-                title={`Mode ${o.rail.mode}`}
+                title={o.executionMode ?? "route"}
                 style={{
                   width: 6,
                   height: 6,
@@ -845,7 +1733,7 @@ function OffersList({
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                   <span style={{ fontSize: 12.5, fontWeight: 600, color: isActive ? "#fff" : "rgba(255,255,255,0.92)" }}>
-                    {o.rail.name}
+                    {o.railName}
                   </span>
                   {tag && (
                     <span
@@ -872,9 +1760,9 @@ function OffersList({
                     fontFamily: "'Space Grotesk', sans-serif",
                     letterSpacing: "-0.005em",
                   }}
-                  title={`${o.rail.reliability.toFixed(1)}% reliability (30d) · ETA source: ${o.etaSource}`}
+                  title={o.offerId}
                 >
-                  {o.feeBps} bps · {formatEtaSeconds(o.displayEtaSeconds)} · ${o.totalFeeUSD.toFixed(2)}
+                  {o.executionMode ?? "route"} · {o.estimatedTimeSeconds ? formatEtaSeconds(o.estimatedTimeSeconds) : "ETA pending"} · ${o.totalFeeUSD.toFixed(2)}
                 </p>
               </div>
 
@@ -890,10 +1778,10 @@ function OffersList({
                     lineHeight: 1.2,
                   }}
                 >
-                  {o.outAmount.toFixed(4)}
+                  {o.outputAmount}
                 </p>
                 <p style={{ margin: "1px 0 0", fontSize: 10, color: "rgba(255,255,255,0.40)" }}>
-                  {toTicker} · ${o.outUSD.toLocaleString("en-US", { maximumFractionDigits: 0 })}
+                  {toTicker} · min {o.minimumReceived}
                 </p>
               </div>
             </button>
@@ -1100,6 +1988,84 @@ function RailsCatalog() {
 }
 
 // ─── Lifecycle explainer ─────────────────────────────────────────────────
+
+function LifecycleStatus({
+  session,
+  tracking,
+  isExecuting,
+  isCancelling,
+  isRefunding,
+  onExecuteSingle,
+  onExecutePrimary,
+  onExecuteGas,
+  onCancel,
+  onRefund,
+  onClearSession,
+  singleActionLabel,
+  singleActionDisabled,
+  singleExecutionHint,
+  singleExecutionError,
+}: {
+  session: any;
+  tracking: any;
+  isExecuting: boolean;
+  isCancelling: boolean;
+  isRefunding: boolean;
+  onExecuteSingle: () => void;
+  onExecutePrimary: () => void;
+  onExecuteGas: () => void;
+  onCancel: () => void;
+  onRefund: () => void;
+  onClearSession: () => void;
+  singleActionLabel?: string;
+  singleActionDisabled?: boolean;
+  singleExecutionHint?: string | null;
+  singleExecutionError?: string | null;
+}) {
+  if (!session) return <LifecycleExplainer />;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <CrossExecutionPanel
+        session={session}
+        isExecuting={isExecuting}
+        onExecuteSingle={onExecuteSingle}
+        onExecutePrimary={onExecutePrimary}
+        onExecuteGas={onExecuteGas}
+        singleActionLabel={singleActionLabel}
+        singleActionDisabled={singleActionDisabled}
+        singleExecutionHint={singleExecutionHint}
+        singleExecutionError={singleExecutionError}
+      />
+      <CrossTrackingPanel
+        session={session}
+        tracking={tracking}
+        isCancelling={isCancelling}
+        isRefunding={isRefunding}
+        onCancel={onCancel}
+        onRefund={onRefund}
+      />
+      <button
+        type="button"
+        onClick={onClearSession}
+        style={{
+          alignSelf: "flex-start",
+          background: "transparent",
+          border: "1px solid rgba(255,255,255,0.10)",
+          color: "rgba(255,255,255,0.55)",
+          cursor: "pointer",
+          fontSize: 10,
+          fontWeight: 700,
+          letterSpacing: "0.22em",
+          padding: "8px 10px",
+          textTransform: "uppercase",
+        }}
+      >
+        Clear session
+      </button>
+    </div>
+  );
+}
 
 function LifecycleExplainer() {
   const steps: TradeTimelineStep[] = [

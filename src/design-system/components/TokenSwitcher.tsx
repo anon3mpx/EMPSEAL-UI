@@ -10,6 +10,7 @@ interface TokenSwitcherProps {
   ticker: string;
   logo?: ReactNode;
   onClick?: () => void;
+  ariaLabel?: string;
   accent?: boolean;
   disabled?: boolean;
   size?: "sm" | "md";
@@ -21,6 +22,7 @@ export default function TokenSwitcher({
   ticker,
   logo,
   onClick,
+  ariaLabel,
   accent = false,
   disabled = false,
   size = "md",
@@ -33,7 +35,11 @@ export default function TokenSwitcher({
   return (
     <button
       type="button"
-      onClick={disabled ? undefined : onClick}
+      aria-label={ariaLabel ?? `Select ${ticker} token`}
+      onClick={(e) => {
+        e.stopPropagation();
+        if (!disabled) onClick?.();
+      }}
       disabled={disabled}
       className={`empx-token-switcher ${className}`}
       style={{
@@ -42,7 +48,10 @@ export default function TokenSwitcher({
         gap: 8,
         background: "transparent",
         border: "none",
-        padding: 0,
+        minWidth: size === "sm" ? 44 : 56,
+        minHeight: size === "sm" ? 30 : 36,
+        padding: "4px 2px",
+        justifyContent: "flex-end",
         cursor: disabled ? "not-allowed" : "pointer",
         opacity: disabled ? 0.5 : 1,
         color: accent ? "#FF8A00" : "#FFFFFF",

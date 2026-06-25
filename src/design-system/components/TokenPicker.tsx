@@ -20,7 +20,7 @@ export interface PickerToken {
   chainColor?: string;
   /** Chain ID — when present, TokenLogo resolves the TrustWallet image. */
   chainId?: number;
-  badge?: "TRENDING" | "VERIFIED" | "NEW" | "LP";
+  badge?: "TRENDING" | "VERIFIED" | "NEW" | "LP" | "WARNING";
 }
 
 interface TokenPickerProps {
