@@ -23,15 +23,42 @@ export interface SwapQuoteLike {
   amounts: bigint[];
   path: string[];
   adapters: string[];
+  gasEstimate?: string;
 }
 
 export interface SwapTradeInfo {
   amountIn: bigint;
   amountOut: bigint;
+  fee: string;
+  affiliateFee: string;
+  totalFeeBps: string;
   amounts: bigint[];
   path: string[];
   pathTokens: SwapHookToken[];
   adapters: string[];
+  gasEstimate: string;
+  quoteId: string;
+  timestamp: number;
+  validUntil: number;
+  sdkVersion: string;
+}
+
+const QUOTE_TTL_MS = 30_000;
+const SDK_VERSION = "2.0.1";
+
+function buildQuoteMetadata() {
+  const now = Date.now();
+  const quoteId =
+    typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+      ? crypto.randomUUID()
+      : `swap-${now}`;
+
+  return {
+    quoteId,
+    timestamp: now,
+    validUntil: now + QUOTE_TTL_MS,
+    sdkVersion: SDK_VERSION,
+  };
 }
 
 function addressKey(address: string | undefined): string {
@@ -63,23 +90,30 @@ export function buildSwapTradeInfo({
   selectedTokenB,
   tokenOptions,
   slippageBps,
+  protocolFeeBps = 0,
 }: {
   quote: SwapQuoteLike | null | undefined;
   selectedTokenA: SwapHookToken | null | undefined;
   selectedTokenB: SwapHookToken | null | undefined;
   tokenOptions: SwapHookToken[];
   slippageBps: number;
+  protocolFeeBps?: number;
 }): SwapTradeInfo | null {
   if (!quote?.amounts?.length || !quote.path?.length || !selectedTokenA || !selectedTokenB) return null;
 
   const quotedOut = quote.amounts[quote.amounts.length - 1];
   const safeSlippageBps = Math.max(0, Math.min(10_000, Math.trunc(slippageBps || 0)));
+  const safeProtocolFeeBps = Math.max(0, Math.trunc(protocolFeeBps || 0));
   const minOut = (quotedOut * BigInt(10_000 - safeSlippageBps)) / 10_000n;
   const tokenByAddress = new Map(tokenOptions.map((token) => [addressKey(token.address), token]));
+  const metadata = buildQuoteMetadata();
 
   return {
     amountIn: quote.amounts[0],
     amountOut: minOut,
+    fee: String(safeProtocolFeeBps),
+    affiliateFee: "0",
+    totalFeeBps: String(safeProtocolFeeBps),
     amounts: quote.amounts,
     path: quote.path,
     pathTokens: quote.path.map((address, index) => {
@@ -88,6 +122,8 @@ export function buildSwapTradeInfo({
       return tokenByAddress.get(addressKey(address)) ?? selectedTokenA;
     }),
     adapters: quote.adapters ?? [],
+    gasEstimate: quote.gasEstimate ?? "0",
+    ...metadata,
   };
 }
 
@@ -109,13 +145,20 @@ export function buildDirectSwapTradeInfo({
     parsedAmount = 0n;
   }
 
+  const metadata = buildQuoteMetadata();
+
   return {
     amountIn: parsedAmount,
     amountOut: parsedAmount,
+    fee: "0",
+    affiliateFee: "0",
+    totalFeeBps: "0",
     amounts: [parsedAmount, parsedAmount],
     path: [selectedTokenA.address, selectedTokenB.address],
     pathTokens: [selectedTokenA, selectedTokenB],
     adapters: [],
+    gasEstimate: "0",
+    ...metadata,
   };
 }
 

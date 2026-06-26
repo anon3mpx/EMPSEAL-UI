@@ -188,8 +188,9 @@ export default function SwapPage() {
             selectedTokenB: toToken,
             tokenOptions: tokensForChain,
             slippageBps,
+            protocolFeeBps: feeBps,
           }),
-    [deferredFromAmount, fromToken, isDirectRoute, quoteData, slippageBps, toToken, tokensForChain],
+    [deferredFromAmount, feeBps, fromToken, isDirectRoute, quoteData, slippageBps, toToken, tokensForChain],
   );
   const toAmount = useMemo(
     () => (isDirectRoute ? fromAmount : formatSwapQuoteOutput(quoteData, toToken?.decimal ?? 18)),

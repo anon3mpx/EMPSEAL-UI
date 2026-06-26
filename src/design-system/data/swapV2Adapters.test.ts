@@ -82,15 +82,23 @@ describe("swapV2Adapters", () => {
       selectedTokenB: buy,
       tokenOptions: [sell, buy],
       slippageBps: 50,
+      protocolFeeBps: 28,
     });
 
     expect(tradeInfo).toMatchObject({
       amountIn: 1_000_000_000_000_000_000n,
       amountOut: 2_487_500n,
+      fee: "28",
+      affiliateFee: "0",
+      totalFeeBps: "28",
       path: [sell.address, buy.address],
       adapters: ["Uniswap V3"],
     });
     expect(tradeInfo?.pathTokens.map((token) => token.ticker)).toEqual(["ETH", "USDC"]);
+    expect(typeof tradeInfo?.quoteId).toBe("string");
+    expect(typeof tradeInfo?.timestamp).toBe("number");
+    expect(typeof tradeInfo?.validUntil).toBe("number");
+    expect(typeof tradeInfo?.sdkVersion).toBe("string");
   });
 
   it("builds route hops from tradeInfo path tokens and adapter names", () => {
@@ -99,10 +107,18 @@ describe("swapV2Adapters", () => {
     const tradeInfo = {
       amountIn: 1n,
       amountOut: 1n,
+      fee: "28",
+      affiliateFee: "0",
+      totalFeeBps: "28",
       amounts: [1n, 1n],
       path: [sell.address, buy.address],
       pathTokens: [sell, buy],
       adapters: ["Uniswap V3"],
+      gasEstimate: "0",
+      quoteId: "test-quote",
+      timestamp: Date.now(),
+      validUntil: Date.now() + 30_000,
+      sdkVersion: "2.0.1",
     };
 
     expect(buildSwapRouteHops(tradeInfo, chain)).toEqual([
@@ -122,6 +138,9 @@ describe("swapV2Adapters", () => {
     })).toMatchObject({
       amountIn: 1_250_000_000_000_000_000n,
       amountOut: 1_250_000_000_000_000_000n,
+      fee: "0",
+      affiliateFee: "0",
+      totalFeeBps: "0",
       path: [sell.address, buy.address],
       adapters: [],
       pathTokens: [sell, buy],

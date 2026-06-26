@@ -36,6 +36,8 @@ interface NFTPanelProps {
   items?: NFTItem[];
   /** When wallet not connected, render the prompt */
   walletConnected?: boolean;
+  /** Distinguishes a real empty NFT result from a missing metadata provider. */
+  providerAvailable?: boolean;
   /** Total count to render in the header */
   totalCount?: number;
   /** Trigger to expand to NFT marketplace */
@@ -45,6 +47,7 @@ interface NFTPanelProps {
 export default function NFTPanel({
   items,
   walletConnected = true,
+  providerAvailable = true,
   totalCount,
   onViewAll,
 }: NFTPanelProps) {
@@ -111,6 +114,11 @@ export default function NFTPanel({
         <EmptyNFTState
           headline="Connect a wallet to view your NFTs"
           body="Once connected, EmpX pulls NFT metadata from your wallet provider's indexer."
+        />
+      ) : !providerAvailable ? (
+        <EmptyNFTState
+          headline="NFT provider not connected"
+          body="NFT metadata requires a configured indexer. V2 does not render fallback collections, rarity ranks, or mock floor prices."
         />
       ) : !items || items.length === 0 ? (
         <EmptyNFTState

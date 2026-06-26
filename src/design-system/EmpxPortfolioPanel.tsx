@@ -68,6 +68,11 @@ interface EmpxPortfolioPanelProps {
 type SortKey = "value" | "change24h" | "change7d" | "allocation";
 type GroupMode = "chain" | "flat";
 
+function getAssetSortValue(asset: PortfolioAsset, key: SortKey): number {
+  if (key === "value") return asset.balanceUSD;
+  return asset[key] ?? -Infinity;
+}
+
 // ─── Component ────────────────────────────────────────────────────────────
 
 export default function EmpxPortfolioPanel({
@@ -127,9 +132,9 @@ export default function EmpxPortfolioPanel({
 
   const sorted = useMemo(() => {
     return [...filtered].sort((a, b) => {
-      const av = a[sortBy] ?? -Infinity;
-      const bv = b[sortBy] ?? -Infinity;
-      return sortDir * ((bv as number) - (av as number));
+      const av = getAssetSortValue(a, sortBy);
+      const bv = getAssetSortValue(b, sortBy);
+      return sortDir * (av - bv);
     });
   }, [filtered, sortBy, sortDir]);
 

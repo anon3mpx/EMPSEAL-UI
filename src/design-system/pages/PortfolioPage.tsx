@@ -8,10 +8,9 @@
 // Composed entirely from design-system primitives.  Drop-in replacement for
 // the existing src/pages/portfolio/Portfolio.tsx (2,036 lines → ~400 lines).
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   AccountModal,
-  BrandMark,
   Card,
   ChainPicker,
   DappNavbar,
@@ -20,7 +19,6 @@ import {
   NFTGalleryModal,
   NFTPanel,
   Pill,
-  PrimaryButton,
   Skeleton,
   SocialTray,
   Tabs,
@@ -29,32 +27,20 @@ import {
   useIsMobile,
   WalletButton,
   WalletModal,
-  type NFTItem,
   type NavLink,
   type PickerChain,
-  type WalletOption,
 } from "../components";
 import { useWalletConnection } from "../hooks/useWalletConnection";
 import { useV2Balances } from "../hooks/useV2Balances";
-import { EMPX_SOCIALS } from "./SwapPage";
 import { getExplorerAddressUrl } from "../data/explorers";
+import { fetchPortfolio } from "../data/portfolioApiRuntime";
+import {
+  buildPortfolioV2ViewModel,
+  type PortfolioV2Data,
+} from "../data/portfolioV2Adapters";
+import { EMPX_SOCIALS } from "../data/socials";
 import { V2_ALL_CHAINS } from "../data/v2ChainView";
-import EmpxPortfolioPanel, {
-  type PortfolioAsset,
-  type MarketCard,
-} from "../EmpxPortfolioPanel";
-
-// ─── Shared chain references (would come from SDK / chain registry) ───────
-
-const ARB = { id: 42161, name: "Arbitrum",  color: "#28A0F0" };
-const BASE = { id: 8453, name: "Base",      color: "#0052FF" };
-const ETH_MAIN = { id: 1, name: "Ethereum", color: "#627EEA" };
-const OP = { id: 10, name: "Optimism",      color: "#FF0420" };
-const POLY = { id: 137, name: "Polygon",    color: "#7B3FE4" };
-const BSC = { id: 56, name: "BSC",          color: "#F0B90B" };
-const SONIC = { id: 146, name: "Sonic",     color: "#FE9A4D" };
-const BTC = { id: 0, name: "Bitcoin",       color: "#F7931A", kind: "BTC" as const };
-const SOL = { id: 900, name: "Solana",      color: "#9945FF", kind: "SOL" as const };
+import EmpxPortfolioPanel from "../EmpxPortfolioPanel";
 
 const ALL_CHAINS: PickerChain[] = V2_ALL_CHAINS.map((chain) => ({
   id: chain.id,
@@ -64,35 +50,13 @@ const ALL_CHAINS: PickerChain[] = V2_ALL_CHAINS.map((chain) => ({
   kind: chain.kind,
 }));
 
-
-// ─── Demo data (will be swapped for real SDK / VPS fetch) ─────────────────
-
-const DEMO_ASSETS: PortfolioAsset[] = [
-  { ticker: "ETH",  chainName: "Arbitrum", chainColor: ARB.color, balance: "12.45",    balanceUSD: 39625.20, change24h: 2.84,  change7d: -1.42, allocation: 76.8, spark: [3120,3110,3140,3155,3148,3162,3170,3184] },
-  { ticker: "USDC", chainName: "Arbitrum", chainColor: ARB.color, balance: "8,420.10", balanceUSD: 8420.10,  change24h: 0.01,  change7d: 0.03,  allocation: 16.3, spark: [0.9998,0.9999,1.0001,1.0000,0.9999,1.0001,1.0002,1.0001] },
-  { ticker: "USDT", chainName: "Base",     chainColor: BASE.color, balance: "1,250.00", balanceUSD: 1250.00,  change24h: -0.02, change7d: 0.01,  allocation: 2.4,  spark: [1.0002,1.0001,1.0000,0.9999,0.9998,0.9999,1.0000,0.9999] },
-  { ticker: "ARB",  chainName: "Arbitrum", chainColor: ARB.color, balance: "452.18",   balanceUSD: 538.59,   change24h: 8.42,  change7d: 12.50, allocation: 1.0,  spark: [1.05,1.06,1.08,1.10,1.12,1.14,1.16,1.19] },
-  { ticker: "WBTC", chainName: "Ethereum", chainColor: ETH_MAIN.color, balance: "0.0312", balanceUSD: 2120.40, change24h: 1.42, change7d: -2.15, allocation: 4.1, spark: [68500,68400,68200,68100,67900,67800,67852] },
-  { ticker: "AERO", chainName: "Base",     chainColor: BASE.color, balance: "245.00",   balanceUSD: 612.50,   change24h: 5.32,  change7d: 18.40, allocation: 1.2,  spark: [2.10,2.15,2.20,2.25,2.30,2.40,2.45,2.50] },
-];
-
-const DEMO_MARKETS: MarketCard[] = [
-  { ticker: "ETH",  name: "Ether",     price: 3184.20,  change24h: 2.84,  chainColor: ETH_MAIN.color, spark: [3100,3120,3110,3140,3155,3148,3162,3170,3184] },
-  { ticker: "BTC",  name: "Bitcoin",   price: 67852.40, change24h: 1.42,  chainColor: BTC.color,      spark: [67000,67200,67100,67400,67550,67620,67700,67800,67852] },
-  { ticker: "SOL",  name: "Solana",    price: 158.30,   change24h: -2.10, chainColor: SOL.color,      spark: [165,163,161,158,156,159,157,156,158] },
-  { ticker: "ARB",  name: "Arbitrum",  price: 1.19,     change24h: 8.42,  chainColor: ARB.color,      spark: [1.05,1.06,1.08,1.10,1.12,1.14,1.16,1.17,1.19] },
-];
-
-const DEMO_CHART = [48200, 48450, 48100, 48800, 49250, 49800, 50100, 49700, 50300, 50900, 51200, 51570];
-
-const DEMO_NFTS: NFTItem[] = [
-  { id: "1", collection: "Pudgy Penguins",   name: "#4271",     chainName: "Ethereum", chainColor: ETH_MAIN.color, floorETH: 9.85,  floorUSD: 31378, rarityRank: 421, badge: "RARE", placeholder: "P" },
-  { id: "2", collection: "Mad Lads",         name: "#1138",     chainName: "Solana",   chainColor: SOL.color,      floorETH: 1.42,  floorUSD: 4517,  rarityRank: 230, placeholder: "ML" },
-  { id: "3", collection: "Azuki Elementals", name: "#9882",     chainName: "Ethereum", chainColor: ETH_MAIN.color, floorETH: 0.58,  floorUSD: 1846,  placeholder: "Az" },
-  { id: "4", collection: "Base Frens",       name: "Fren-0341", chainName: "Base",     chainColor: BASE.color,     floorETH: 0.025, floorUSD: 79,    badge: "NEW", placeholder: "BF" },
-  { id: "5", collection: "Pudgy Penguins",   name: "#7102",     chainName: "Ethereum", chainColor: ETH_MAIN.color, floorETH: 9.85,  floorUSD: 31378, rarityRank: 1042, placeholder: "P" },
-  { id: "6", collection: "Doodles",          name: "#221",      chainName: "Ethereum", chainColor: ETH_MAIN.color, floorETH: 1.94,  floorUSD: 6173,  rarityRank: 380, placeholder: "D" },
-];
+const DEFAULT_CHAIN = ALL_CHAINS[0] ?? {
+  id: 42161,
+  name: "Arbitrum",
+  color: "#28A0F0",
+  ticker: "ETH",
+  kind: "EVM" as const,
+};
 
 // ─── Page state model ─────────────────────────────────────────────────────
 
@@ -102,7 +66,7 @@ type PageTab = "overview" | "assets" | "nfts" | "activity";
 
 export default function PortfolioPage() {
   const isMobile = useIsMobile();
-  const { walletState, walletOptions, onSelectWallet, disconnect, switchChain, currentChain } =
+  const { walletState, walletOptions, onSelectWallet, disconnect, switchChain } =
     useWalletConnection();
   const connectedBalance = useV2Balances();
   const [tab, setTab] = useState<PageTab>("overview");
@@ -110,34 +74,70 @@ export default function PortfolioPage() {
   const [showChainPicker, setShowChainPicker] = useState(false);
   const [showAccountModal, setShowAccountModal] = useState(false);
   const [showNftGallery, setShowNftGallery] = useState(false);
+  const [portfolio, setPortfolio] = useState<PortfolioV2Data | null>(null);
+  const [portfolioLoading, setPortfolioLoading] = useState(false);
+  const [portfolioError, setPortfolioError] = useState<string | null>(null);
+  const connectedWalletAddress = walletState.status === "connected" ? walletState.address : null;
 
-  const [portfolioData, setPortfolioData] = useState<{
-    totalUSD: number;
-    change24hPct: number;
-    change24hUSD: number;
-    change7dPct: number;
-    chart: number[];
-    assets: PortfolioAsset[];
-    markets: MarketCard[];
-    nfts: NFTItem[];
-  } | null>(null);
+  const portfolioView = useMemo(() => buildPortfolioV2ViewModel(portfolio), [portfolio]);
+  const canRenderPortfolio =
+    walletState.status === "connected" &&
+    !portfolioLoading &&
+    !portfolioError &&
+    portfolioView.assets.length > 0;
 
   useEffect(() => {
-    if (walletState.status === "connected" && !portfolioData) {
-      setPortfolioData({
-        totalUSD: 51570.49,
-        change24hPct: 2.34,
-        change24hUSD: 1180.24,
-        change7dPct: 5.18,
-        chart: DEMO_CHART,
-        assets: DEMO_ASSETS,
-        markets: DEMO_MARKETS,
-        nfts: DEMO_NFTS,
-      });
-      toast.success("Portfolio loaded", { description: "Synced across 3 chains" });
+    if (!connectedWalletAddress) {
+      setPortfolio(null);
+      setPortfolioLoading(false);
+      setPortfolioError(null);
+      return;
     }
-  }, [walletState.status, portfolioData]);
 
+    let cancelled = false;
+
+    // Real portfolio fetches can fan out across many RPCs; cancel stale responses
+    // when the wallet changes so an old address cannot overwrite the new view.
+    setPortfolioLoading(true);
+    setPortfolioError(null);
+
+    fetchPortfolio(connectedWalletAddress)
+      .then((data) => {
+        if (cancelled) return;
+        setPortfolio(data);
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        console.error("Failed to fetch V2 portfolio:", error);
+        setPortfolio(null);
+        setPortfolioError("Failed to fetch on-chain portfolio");
+      })
+      .finally(() => {
+        if (!cancelled) setPortfolioLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [connectedWalletAddress]);
+
+  const refreshPortfolio = () => {
+    if (walletState.status !== "connected" || portfolioLoading) return;
+
+    setPortfolioLoading(true);
+    setPortfolioError(null);
+
+    fetchPortfolio(walletState.address, { forceRefresh: true })
+      .then((data) => {
+        setPortfolio(data);
+        toast.success("Portfolio refreshed");
+      })
+      .catch((error) => {
+        console.error("Failed to refresh V2 portfolio:", error);
+        setPortfolioError("Failed to refresh on-chain portfolio");
+      })
+      .finally(() => setPortfolioLoading(false));
+  };
 
   const navLinks: NavLink[] = [
     { label: "Swap",      href: "/swap-v2" },
@@ -158,14 +158,14 @@ export default function PortfolioPage() {
         controls={
           <>
             <NetworkSelector
-              name={walletState.status === "connected" ? walletState.chain.name : ARB.name}
-              color={walletState.status === "connected" ? walletState.chain.color : ARB.color}
+              name={walletState.status === "connected" ? walletState.chain.name : DEFAULT_CHAIN.name}
+              color={walletState.status === "connected" ? walletState.chain.color : DEFAULT_CHAIN.color}
               onClick={() => setShowChainPicker(true)}
             />
             <WalletButton
               connected={walletState.status === "connected"}
               address={walletState.status === "connected" ? walletState.address : undefined}
-              balanceUSD={walletState.status === "connected" ? portfolioData?.totalUSD ?? 0 : undefined}
+              balanceUSD={walletState.status === "connected" ? portfolioView.totalUSD : undefined}
               onConnect={() => setShowWalletModal(true)}
               onClick={() => setShowAccountModal(true)}
             />
@@ -230,55 +230,70 @@ export default function PortfolioPage() {
                 onChange={(v) => setTab(v)}
                 options={[
                   { value: "overview", label: "Overview" },
-                  { value: "assets",   label: "Assets",   count: portfolioData?.assets?.length ?? 0 },
-                  { value: "nfts",     label: "NFTs",     count: portfolioData?.nfts?.length ?? 0 },
-                  { value: "activity", label: "Activity", count: 4 },
+                  { value: "assets",   label: "Assets",   count: portfolioView.assets.length },
+                  { value: "nfts",     label: "NFTs",     count: portfolioView.nfts.length },
+                  { value: "activity", label: "Activity", count: portfolioView.activity.length },
                 ]}
               />
             </div>
 
-            {tab === "overview" && (
+            {portfolioLoading && <LoadingState />}
+
+            {!portfolioLoading && portfolioError && (
+              <EmptyState
+                headline="Portfolio fetch failed"
+                body={portfolioError}
+                action={{ label: "Retry", onClick: refreshPortfolio }}
+                surface="inline"
+              />
+            )}
+
+            {!portfolioLoading && !portfolioError && portfolioView.assets.length === 0 && (tab === "overview" || tab === "assets") && (
+              <EmptyState
+                headline="No supported balances detected"
+                body="EmpX scanned the configured V2 chains and token registry for this wallet. Assets appear here when a supported native or whitelisted token balance is found."
+                action={{ label: "Refresh", onClick: refreshPortfolio }}
+                surface="inline"
+              />
+            )}
+
+            {canRenderPortfolio && tab === "overview" && (
               <EmpxPortfolioPanel
-                totalUSD={portfolioData?.totalUSD ?? 0}
-                change24hPct={portfolioData?.change24hPct ?? 0}
-                change24hUSD={portfolioData?.change24hUSD ?? 0}
-                change7dPct={portfolioData?.change7dPct ?? 0}
-                chart={portfolioData?.chart ?? []}
-                assets={portfolioData?.assets ?? []}
-                marketCards={portfolioData?.markets ?? []}
+                totalUSD={portfolioView.totalUSD}
+                change24hPct={portfolioView.change24hPct}
+                change24hUSD={portfolioView.change24hUSD}
+                change7dPct={portfolioView.change7dPct}
+                chart={portfolioView.chart}
+                assets={portfolioView.assets}
+                marketCards={portfolioView.markets}
                 walletAddress={`${walletState.address.slice(0, 6)}…${walletState.address.slice(-4)}`}
                 onCopyAddress={() => toast.success("Address copied")}
-                onRefresh={() => toast.pending("Refreshing portfolio…")}
+                onRefresh={refreshPortfolio}
               />
             )}
 
-            {tab === "assets" && (
+            {canRenderPortfolio && tab === "assets" && (
               <EmpxPortfolioPanel
-                totalUSD={portfolioData?.totalUSD ?? 0}
-                change24hPct={portfolioData?.change24hPct ?? 0}
-                change24hUSD={portfolioData?.change24hUSD ?? 0}
-                change7dPct={portfolioData?.change7dPct ?? 0}
-                assets={portfolioData?.assets ?? []}
+                totalUSD={portfolioView.totalUSD}
+                change24hPct={portfolioView.change24hPct}
+                change24hUSD={portfolioView.change24hUSD}
+                change7dPct={portfolioView.change7dPct}
+                assets={portfolioView.assets}
               />
             )}
 
-            {tab === "nfts" && (
+            {!portfolioLoading && !portfolioError && tab === "nfts" && (
               <NFTPanel
-                items={(portfolioData?.nfts ?? []).slice(0, 8)}
-                totalCount={portfolioData?.nfts?.length ?? 0}
+                items={portfolioView.nfts.slice(0, 8)}
+                totalCount={portfolioView.nfts.length}
+                walletConnected
+                providerAvailable={portfolioView.availability.nfts === "available"}
                 onViewAll={() => setShowNftGallery(true)}
               />
             )}
 
-            {tab === "activity" && (
-              <ActivityFeed
-                items={[
-                  { id: 1, kind: "SWAP",    summary: "0.5 ETH → 1,591 USDT",     status: "confirmed", timeLabel: "2m ago",  txHashShort: "0xab…3f9", chainName: "Arbitrum", chainColor: ARB.color },
-                  { id: 2, kind: "CROSS",   summary: "5,000 USDC Arb → Base",   status: "pending",   timeLabel: "5m ago",  txHashShort: "0x4e…c12", chainName: "Arbitrum", chainColor: ARB.color },
-                  { id: 3, kind: "APPROVE", summary: "USDC ↔ Router",            status: "confirmed", timeLabel: "1h ago",  txHashShort: "0xa1…b07", chainName: "Arbitrum", chainColor: ARB.color },
-                  { id: 4, kind: "GAS",     summary: "0.05 ETH refuel to Base",  status: "failed",    timeLabel: "yesterday", txHashShort: "0x55…d2a", chainName: "Base", chainColor: BASE.color },
-                ]}
-              />
+            {!portfolioLoading && !portfolioError && tab === "activity" && (
+              <ActivityFeed items={portfolioView.activity} />
             )}
           </>
         )}
@@ -301,9 +316,9 @@ export default function PortfolioPage() {
         chains={ALL_CHAINS.map((c) => ({
           ...c,
           balanceUSD:
-            walletState.status === "connected" && c.id === walletState.chain.id ? portfolioData?.totalUSD ?? 0 : undefined,
+            walletState.status === "connected" && c.id === walletState.chain.id ? portfolioView.totalUSD : undefined,
         }))}
-        selectedId={walletState.status === "connected" ? walletState.chain.id : ARB.id}
+        selectedId={walletState.status === "connected" ? walletState.chain.id : DEFAULT_CHAIN.id}
         mode="swap"
         onSelect={(c) => {
           setShowChainPicker(false);
@@ -322,31 +337,25 @@ export default function PortfolioPage() {
           providerName={walletState.providerName}
           chainName={walletState.chain.name}
           chainColor={walletState.chain.color}
-          balanceUSD={connectedBalance.nativeBalanceUSD ?? undefined}
+          balanceUSD={portfolioView.totalUSD || connectedBalance.nativeBalanceUSD || undefined}
           nativeBalance={connectedBalance.nativeBalance}
           nativeTicker={connectedBalance.nativeTicker}
           explorerUrl={getExplorerAddressUrl(walletState.chain.id, walletState.address) ?? undefined}
-          tokens={[
-            {
-              ticker: connectedBalance.nativeTicker,
-              chainName: walletState.chain.name,
-              chainColor: walletState.chain.color,
-              balance: connectedBalance.nativeBalance,
-              balanceUSD: connectedBalance.nativeBalanceUSD ?? undefined,
-            },
-          ]}
-          networks={[
-            {
-              chainName: walletState.chain.name,
-              chainColor: walletState.chain.color,
-              balanceUSD: connectedBalance.nativeBalanceUSD ?? 0,
-              nativeBalance: `${connectedBalance.nativeBalance} ${connectedBalance.nativeTicker}`,
-            },
-          ]}
+          tokens={portfolioView.assets.map((asset) => ({
+            ticker: asset.ticker,
+            chainName: asset.chainName,
+            chainColor: asset.chainColor,
+            balance: asset.balance,
+            balanceUSD: asset.balanceUSD,
+          }))}
+          networks={portfolio?.chains.map((chain) => ({
+            chainName: chain.chainName,
+            chainColor: chain.color,
+            balanceUSD: chain.value,
+            nativeBalance: `${chain.tokens} token${chain.tokens === 1 ? "" : "s"}`,
+          })) ?? []}
+          activity={portfolioView.activity}
           onCopy={() => toast.success("Address copied")}
-          onReceive={() => toast.info("Receive flow")}
-          onBuy={() => toast.info("Open buy provider")}
-          onBridge={() => toast.info("Open bridge")}
           onSwitchNetwork={() => { setShowAccountModal(false); setShowChainPicker(true); }}
           onSwitchWallet={() => { setShowAccountModal(false); setShowWalletModal(true); }}
           onDisconnect={() => { setShowAccountModal(false); disconnect(); toast.info("Wallet disconnected"); }}
@@ -357,9 +366,9 @@ export default function PortfolioPage() {
         <NFTGalleryModal
           open={showNftGallery}
           onClose={() => setShowNftGallery(false)}
-          items={portfolioData?.nfts ?? []}
-          totalFloorETH={(portfolioData?.nfts ?? []).reduce((s, n) => s + (n.floorETH || 0), 0)}
-          totalFloorUSD={(portfolioData?.nfts ?? []).reduce((s, n) => s + (n.floorUSD || 0), 0)}
+          items={portfolioView.nfts}
+          totalFloorETH={portfolioView.nfts.reduce((s, n) => s + (n.floorETH || 0), 0)}
+          totalFloorUSD={portfolioView.nfts.reduce((s, n) => s + (n.floorUSD || 0), 0)}
           onSelect={(n) => toast.info(`Opened ${n.collection} ${n.name}`)}
         />
       )}
@@ -378,7 +387,6 @@ function DisconnectedState({ onConnect }: { onConnect: () => void }) {
         headline="Connect a wallet to load your portfolio"
         body="EmpX reads your balances across 15+ EVM chains plus native Bitcoin and Solana via the cross-bridge SDK. Nothing is custodial — your keys stay where they are."
         action={{ label: "Connect wallet", onClick: onConnect }}
-        secondaryAction={{ label: "Try demo data", onClick: onConnect }}
       />
 
       {/* Preview cards even when disconnected */}
@@ -390,13 +398,13 @@ function DisconnectedState({ onConnect }: { onConnect: () => void }) {
         />
         <PreviewCard
           eyebrow="NFT TRACKING"
-          title="Collections + floor"
-          body="NFTs across Ethereum, Solana, Base, Arbitrum. Group by collection, sort by floor or rarity, jump to marketplace."
+          title="Provider-gated metadata"
+          body="NFTs stay empty until a configured metadata provider is connected. The V2 page no longer falls back to mock collections."
         />
         <PreviewCard
           eyebrow="ACTIVITY"
-          title="Cross-chain history"
-          body="Every swap, bridge, gas refuel and approval — flagged with status. Tap to view on chain explorer."
+          title="Indexer-backed history"
+          body="Swap, bridge, gas refuel and approval rows require a real activity source. Fake transaction hashes are not rendered."
         />
       </div>
     </div>
@@ -504,8 +512,8 @@ function ActivityFeed({ items }: { items: ActivityRow[] }) {
     <Card style={{ padding: 0, overflow: "hidden" }}>
       {items.length === 0 ? (
         <EmptyState
-          headline="No transactions yet"
-          body="Swap, bridge, or refuel from any EmpX surface to populate your history."
+          headline="Activity provider not connected"
+          body="Portfolio activity needs a configured transaction indexer. V2 does not render placeholder swaps, approvals, or fake hashes."
           surface="inline"
         />
       ) : (
