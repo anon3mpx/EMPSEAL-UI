@@ -54,7 +54,6 @@ import {
   WalletModal,
   useIsMobile,
   toast,
-  type NavLink,
   type PickerChain,
   type PickerToken,
   type RouteHop,
@@ -100,6 +99,7 @@ import EmpxCrossWidget from "../EmpxCrossWidget";
 import { getExplorerAddressUrl, getExplorerTxUrl } from "../data/explorers";
 import { V2_ALL_CHAINS, getV2Chain } from "../data/v2ChainView";
 import { getTokensForChain, type V2TokenConfig } from "../data/v2TokenView";
+import { createV2NavLinks } from "../data/v2ProductRoutes";
 import {
   buildCrossQuoteRequest,
   buildCrossRouteHops,
@@ -1256,15 +1256,7 @@ export default function CrossPage() {
     }
   }, [shownSuccessIntentId, session, trackingData]);
 
-  const navLinks: NavLink[] = [
-    { label: "Swap",      href: "/swap-v2" },
-    { label: "Cross",     href: "/cross-v2", active: true },
-    { label: "Bridge",    href: "/bridge-v2" },
-    { label: "Multi",     href: "/multi-v2", badge: "NEW" },
-    { label: "Gas",       href: "/gas-v2" },
-    { label: "Widget",    href: "/widget-v2" },
-    { label: "Portfolio", href: "/portfolio-v2" },
-  ];
+  const navLinks = createV2NavLinks("cross");
 
   // ─── Render ──────────────────────────────────────────────────────────────
   return (

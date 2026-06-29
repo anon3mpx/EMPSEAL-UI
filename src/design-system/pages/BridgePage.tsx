@@ -10,8 +10,7 @@
 //   • Amount input with USD preview
 //   • Recipient toggle
 //   • Route hop visualization
-//   • Fee + ETA preview slots
-//   • Quote countdown placeholder
+//   • Explicit preview-only quote/execution slots
 //   • Roadmap status panel on the right
 //
 // What WILL plug in when Via Labs rebuild lands:
@@ -33,7 +32,6 @@ import {
   NetworkSelector,
   Pill,
   PrimaryButton,
-  QuoteCountdown,
   RouteVisualization,
   SocialTray,
   Toaster,
@@ -42,7 +40,6 @@ import {
   WalletModal,
   useIsMobile,
   toast,
-  type NavLink,
   type PickerChain,
   type PickerToken,
   type RouteHop,
@@ -56,7 +53,11 @@ import { getExplorerAddressUrl } from "../data/explorers";
 import { V2_AGGREGATOR_CHAINS } from "../data/v2ChainView";
 import { getTokensForChain } from "../data/v2TokenView";
 import {
-  formatEtaSeconds,
+  V2_BRIDGE_ROUTE_STATUS,
+  buildUnavailableRouteRows,
+  createV2NavLinks,
+} from "../data/v2ProductRoutes";
+import {
   tierForChainId,
   tierLabel,
 } from "../data/empxRegistry";
@@ -95,7 +96,6 @@ export default function BridgePage() {
 
   const [chainPickerTarget, setChainPickerTarget] = useState<ChainPickerTarget | null>(null);
   const [tokenPickerOpen, setTokenPickerOpen] = useState(false);
-  const [quoteIssuedAt, setQuoteIssuedAt] = useState(Date.now());
 
   const fromChain = useMemo(() => BRIDGE_CHAINS.find((c) => c.id === fromChainId) ?? BRIDGE_CHAINS[0], [fromChainId]);
   const toChain   = useMemo(() => BRIDGE_CHAINS.find((c) => c.id === toChainId) ?? BRIDGE_CHAINS[1], [toChainId]);
@@ -114,11 +114,6 @@ export default function BridgePage() {
   }, [fromChain, fromChainId]);
 
   const amountNum = Number(amount.replace(/,/g, "")) || 0;
-  // Demo fee/eta — production sources from ViaLabsSolver.quote()
-  const protocolFeeUSD = amountNum * 0.0025; // 25 bps placeholder
-  const railFeeUSD = 0.40;
-  const totalFeeUSD = protocolFeeUSD + railFeeUSD;
-  const outAmount = Math.max(0, amountNum - totalFeeUSD);
   const recipientValid = !useDifferentRecipient || /^0x[0-9a-fA-F]{40}$/.test(recipient.trim());
 
   const chainPickerList: PickerChain[] = useMemo(
@@ -151,15 +146,7 @@ export default function BridgePage() {
     setToChainId(fc);
   };
 
-  const navLinks: NavLink[] = [
-    { label: "Swap",      href: "/swap-v2" },
-    { label: "Cross",     href: "/cross-v2" },
-    { label: "Bridge",    href: "/bridge-v2", active: true },
-    { label: "Multi",     href: "/multi-v2", badge: "NEW" },
-    { label: "Gas",       href: "/gas-v2" },
-    { label: "Widget",    href: "/widget-v2" },
-    { label: "Portfolio", href: "/portfolio-v2" },
-  ];
+  const navLinks = createV2NavLinks("bridge");
 
   return (
     <div style={{ minHeight: "100vh", background: "#05050c", color: "#fff", fontFamily: "Inter, sans-serif" }}>
@@ -240,23 +227,17 @@ export default function BridgePage() {
 
               toChain={{ id: toChain.id, name: toChain.name, color: toChain.color }}
               toToken={{ ticker: token }}
-              toAmount={outAmount > 0 ? outAmount.toLocaleString("en-US", { maximumFractionDigits: 4 }) : "0"}
-              toUsdValue={outAmount}
+              toAmount="Unavailable until quote"
+              toUsdValue={null}
               onSelectToToken={() => setTokenPickerOpen(true)}
               onSelectToChain={() => setChainPickerTarget("to")}
 
-              protocolFeeBps={25}
-              protocolFeeUSD={protocolFeeUSD}
-              bridgeFeeUSD={railFeeUSD}
-              estimatedTime={formatEtaSeconds(180)}
-              minimumReceived={`${(outAmount * 0.997).toFixed(4)} ${token}`}
-              slippageBps={30}
               routeHops={routeHops}
 
-              swapDisabled
-              swapLabel="Bridge — not active"
-              comingSoonHint="Bridge surface is built. Execution is gated on the rail SDK landing."
-              onSwap={() => toast.info("Bridge not active yet")}
+              swapDisabled={!V2_BRIDGE_ROUTE_STATUS.executionEnabled}
+              swapLabel={V2_BRIDGE_ROUTE_STATUS.primaryActionLabel}
+              comingSoonHint="Skeleton is preserved, but quotes and execution stay disabled until the rail SDK is wired."
+              onSwap={() => toast.info("Bridge preview only — rail SDK required")}
               onFlip={flip}
 
               walletConnected={walletState.status === "connected"}
@@ -273,27 +254,24 @@ export default function BridgePage() {
 
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
                 <p style={{ margin: 0, fontSize: 10, letterSpacing: "0.40em", color: "rgba(255,255,255,0.50)", textTransform: "uppercase", fontWeight: 700 }}>
-                  Route preview
+                  Route preview · no live quote
                 </p>
-                {walletState.status === "connected" && (
-                  <QuoteCountdown
-                    totalMs={30000}
-                    issuedAt={quoteIssuedAt}
-                    onRefresh={() => { setQuoteIssuedAt(Date.now()); toast.info("Quote refreshed"); }}
-                    compact
-                  />
-                )}
               </div>
 
               <RouteVisualization hops={routeHops} />
 
               <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 8 }}>
                 <ReviewRow label="Bridge model" value="Lock & mint" />
-                <ReviewRow label="Protocol fee" value={`${(0.0025 * 10_000).toFixed(0)} bps`} sub={`· $${protocolFeeUSD.toFixed(2)}`} accent />
-                <ReviewRow label="Rail fee"     value={`$${railFeeUSD.toFixed(2)}`} />
-                <ReviewRow label="Total fee"    value={`$${totalFeeUSD.toFixed(2)}`} />
-                <ReviewRow label="You receive"  value={`${outAmount.toLocaleString("en-US", { maximumFractionDigits: 4 })} ${token}`} highlight />
-                <ReviewRow label="Est. delivery" value={formatEtaSeconds(180)} sub="baseline · live ETA on quote" />
+                {buildUnavailableRouteRows("bridge").map((row) => (
+                  <ReviewRow
+                    key={row.label}
+                    label={row.label}
+                    value={String(row.value)}
+                    sub={row.sub}
+                    accent={row.accent}
+                    highlight={row.label === "Status"}
+                  />
+                ))}
               </div>
             </Card>
 

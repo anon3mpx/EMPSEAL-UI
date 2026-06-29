@@ -32,7 +32,6 @@ import {
   WalletModal,
   useIsMobile,
   toast,
-  type NavLink,
   type PickerChain,
   type RouteHop,
 } from "../components";
@@ -44,6 +43,7 @@ import { getTokensForChain } from "../data/v2TokenView";
 import { getExplorerAddressUrl, getExplorerTxUrl } from "../data/explorers";
 import { formatUSD } from "../hooks/useUnifiedPrice";
 import { classifyPair, modeAFeeBps } from "../data/empxRegistry";
+import { createV2NavLinks } from "../data/v2ProductRoutes";
 import { SUPPORTED_CHAINS } from "../../config/chains";
 import { useSwapBalances } from "../../hooks/swap/useSwapBalances";
 import { useSwapExecution } from "../../hooks/swap/useSwapExecution";
@@ -272,15 +272,7 @@ export default function SwapPage() {
     }
   }, [swapStatus]);
 
-  const navLinks: NavLink[] = [
-    { label: "Swap",      href: "/swap-v2", active: true },
-    { label: "Cross",     href: "/cross-v2" },
-    { label: "Bridge",    href: "/bridge-v2" },
-    { label: "Multi",     href: "/multi-v2", badge: "NEW" },
-    { label: "Gas",       href: "/gas-v2" },
-    { label: "Widget",    href: "/widget-v2" },
-    { label: "Portfolio", href: "/portfolio-v2" },
-  ];
+  const navLinks = createV2NavLinks("swap");
 
   return (
     <div style={{ minHeight: "100vh", background: "#05050c", color: "#fff", fontFamily: "Inter, sans-serif" }}>

@@ -14,6 +14,8 @@
     "src/design-system/data/portfolioV2Adapters.ts",
     "src/design-system/data/portfolioV2Adapters.test.ts",
     "src/design-system/data/portfolioApiRuntime.d.ts",
+    "src/design-system/data/v2ProductRoutes.ts",
+    "src/design-system/data/v2ProductRoutes.test.ts",
     "src/design-system/data/priceService.ts",
     "src/design-system/data/socials.ts",
     "src/design-system/data/swapV2Adapters.ts",

@@ -40,7 +40,6 @@ import {
   WalletModal,
   useIsMobile,
   toast,
-  type NavLink,
   type PickerChain,
   type WalletOption,
 } from "../components";
@@ -50,6 +49,7 @@ import { EMPX_SOCIALS } from "../data/socials";
 import { tierForChainId, tierLabel } from "../data/empxRegistry";
 import { getExplorerAddressUrl } from "../data/explorers";
 import { getV2Chain } from "../data/v2ChainView";
+import { createV2NavLinks } from "../data/v2ProductRoutes";
 import {
   WIDGET_FORM_DEFAULTS,
   buildWidgetSnippet,
@@ -146,15 +146,7 @@ export default function WidgetPage() {
     }
   };
 
-  const navLinks: NavLink[] = [
-    { label: "Swap",      href: "/swap-v2" },
-    { label: "Cross",     href: "/cross-v2" },
-    { label: "Bridge",    href: "/bridge-v2" },
-    { label: "Multi",     href: "/multi-v2", badge: "NEW" },
-    { label: "Gas",       href: "/gas-v2" },
-    { label: "Widget",    href: "/widget-v2", active: true },
-    { label: "Portfolio", href: "/portfolio-v2" },
-  ];
+  const navLinks = createV2NavLinks("widget");
 
   return (
     <div style={{ minHeight: "100vh", background: "#05050c", color: "#fff", fontFamily: "Inter, sans-serif" }}>

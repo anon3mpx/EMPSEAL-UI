@@ -27,7 +27,6 @@ import {
   useIsMobile,
   WalletButton,
   WalletModal,
-  type NavLink,
   type PickerChain,
 } from "../components";
 import { useWalletConnection } from "../hooks/useWalletConnection";
@@ -40,6 +39,7 @@ import {
 } from "../data/portfolioV2Adapters";
 import { EMPX_SOCIALS } from "../data/socials";
 import { V2_ALL_CHAINS } from "../data/v2ChainView";
+import { createV2NavLinks } from "../data/v2ProductRoutes";
 import EmpxPortfolioPanel from "../EmpxPortfolioPanel";
 
 const ALL_CHAINS: PickerChain[] = V2_ALL_CHAINS.map((chain) => ({
@@ -139,15 +139,7 @@ export default function PortfolioPage() {
       .finally(() => setPortfolioLoading(false));
   };
 
-  const navLinks: NavLink[] = [
-    { label: "Swap",      href: "/swap-v2" },
-    { label: "Cross",     href: "/cross-v2" },
-    { label: "Bridge",    href: "/bridge-v2" },
-    { label: "Multi",     href: "/multi-v2", badge: "NEW" },
-    { label: "Gas",       href: "/gas-v2" },
-    { label: "Widget",    href: "/widget-v2" },
-    { label: "Portfolio", href: "/portfolio-v2", active: true },
-  ];
+  const navLinks = createV2NavLinks("portfolio");
 
   return (
     <div style={{ minHeight: "100vh", background: "#05050c", color: "#fff", fontFamily: "Inter, sans-serif" }}>

@@ -47,7 +47,6 @@ import {
   useIsMobile,
   toast,
   type FeeRow,
-  type NavLink,
   type PickerChain,
   type PickerToken,
   type WalletOption,
@@ -58,11 +57,15 @@ import { EMPX_SOCIALS } from "./SwapPage";
 import { getExplorerAddressUrl } from "../data/explorers";
 import {
   defaultSettlementTicker,
-  formatEtaSeconds,
   RAILS,
   tierForChainId,
   tierLabel,
 } from "../data/empxRegistry";
+import {
+  buildUnavailableRouteRows,
+  createV2NavLinks,
+  V2_MULTI_ROUTE_STATUS,
+} from "../data/v2ProductRoutes";
 
 // ─── Constants mirrored from IntentBasket.ts ──────────────────────────────
 
@@ -275,7 +278,7 @@ export default function MultiPage() {
   const legCount = useMemo(() => {
     if (mode === "multi-to-one")      return inputs.length;
     if (mode === "one-to-many")       return outputs.length;
-    if (mode === "wallet-liquidator") return 5; // placeholder until scan
+    if (mode === "wallet-liquidator") return 0;
     return inputs.length * outputs.length; // many-to-many full cross-product
   }, [mode, inputs.length, outputs.length]);
 
@@ -287,54 +290,8 @@ export default function MultiPage() {
                || outputs.length > BASKET_LIMITS.maxOutputs
                || legCount > BASKET_LIMITS.maxLegs;
 
-  // ── Demo quote computation (mirrors BasketQuoteEngine shape) ────────────
-  const quote = useMemo(() => {
-    const totalInputUSD = inputs.reduce((s, i) => s + Number(i.amount) * i.usdPrice, 0);
-    // Per-leg fee = pair-type bps on Mode A rails (28/15/9) — simplified to
-    // V/S = 15 bps default for the demo summary.  Real BasketQuoteEngine
-    // returns per-leg feeUsd from each underlying RailOffer / SwapResult.
-    const feeBps = 15;
-    const feeUSD = totalInputUSD * (feeBps / 10_000);
-    const outputsUSD = totalInputUSD - feeUSD;
-    // ETA: same-chain legs ~5s, cross-chain ~150s baseline.  Worst-case =
-    // sum of all legs (sequential).  Parallel = max.
-    const legEtas = (() => {
-      if (mode === "wallet-liquidator") {
-        return Array.from({ length: 5 }, (_, i) => (i === 0 ? 20 : 180));
-      }
-      if (mode === "one-to-many") {
-        return outputs.map((o) =>
-          o.chainId === (inputs[0]?.chainId ?? -1) ? 20 : 180,
-        );
-      }
-      if (mode === "multi-to-one") {
-        const dst = outputs[0]?.chainId ?? -1;
-        return inputs.map((i) => (i.chainId === dst ? 20 : 180));
-      }
-      // many-to-many
-      return inputs.flatMap((i) => outputs.map((o) => (i.chainId === o.chainId ? 20 : 180)));
-    })();
-    const worstEtaSeconds = legEtas.reduce((s, e) => s + e, 0);
-    const parallelEtaSeconds = legEtas.reduce((m, e) => Math.max(m, e), 0);
-    // Revenue-tier mix
-    const tierByLeg: ("agg-wired" | "api-direct")[] = legEtas.map((e) => (e < 60 ? "agg-wired" : "api-direct"));
-    const aggregateTier: "agg-wired" | "api-direct" | "mixed" = (() => {
-      const set = new Set(tierByLeg);
-      if (set.size > 1) return "mixed";
-      return tierByLeg[0] ?? "agg-wired";
-    })();
-    return { totalInputUSD, feeUSD, outputsUSD, worstEtaSeconds, parallelEtaSeconds, tierByLeg, aggregateTier, legCount: legEtas.length };
-  }, [inputs, outputs, mode]);
-
-  const navLinks: NavLink[] = [
-    { label: "Swap",      href: "/swap-v2" },
-    { label: "Cross",     href: "/cross-v2" },
-    { label: "Bridge",    href: "/bridge-v2" },
-    { label: "Multi",     href: "/multi-v2", active: true, badge: "NEW" },
-    { label: "Gas",       href: "/gas-v2" },
-    { label: "Widget",    href: "/widget-v2" },
-    { label: "Portfolio", href: "/portfolio-v2" },
-  ];
+  const totalInputUSD = inputs.reduce((s, i) => s + Number(i.amount) * i.usdPrice, 0);
+  const navLinks = createV2NavLinks("multi");
 
   return (
     <div style={{ minHeight: "100vh", background: "#05050c", color: "#fff", fontFamily: "Inter, sans-serif" }}>
@@ -482,13 +439,9 @@ export default function MultiPage() {
                   rows={(() => {
                     const rows: FeeRow[] = [
                       { label: "Mode",          value: MODE_LABEL[mode] },
-                      { label: "Legs",          value: `${quote.legCount} · cap ${BASKET_LIMITS.maxLegs}` },
-                      { label: "Total in",      value: `$${quote.totalInputUSD.toLocaleString("en-US", { maximumFractionDigits: 2 })}` },
-                      { label: "Protocol fee", value: `$${quote.feeUSD.toFixed(2)}`, sub: "15 bps demo", accent: true },
-                      { label: "Total out",    value: `$${quote.outputsUSD.toLocaleString("en-US", { maximumFractionDigits: 2 })}` },
-                      { label: "Worst-case ETA", value: formatEtaSeconds(quote.worstEtaSeconds), muted: true },
-                      { label: "Parallel ETA",   value: formatEtaSeconds(quote.parallelEtaSeconds), muted: true },
-                      { label: "Revenue tier",   value: quote.aggregateTier, sub: quote.aggregateTier === "mixed" ? "honest disclosure" : undefined, muted: true },
+                      { label: "Legs",          value: `${legCount} configured · cap ${BASKET_LIMITS.maxLegs}` },
+                      { label: "Input estimate", value: `$${totalInputUSD.toLocaleString("en-US", { maximumFractionDigits: 2 })}`, muted: true },
+                      ...buildUnavailableRouteRows("multi"),
                     ];
                     return rows;
                   })()}
@@ -527,19 +480,16 @@ export default function MultiPage() {
                     lineHeight: 1.5,
                   }}
                 >
-                  Enter an amount &gt; 0 on every input leg to quote.
+                  Enter an amount &gt; 0 on every input leg to keep the preview valid.
                 </div>
               )}
 
               <div style={{ marginTop: 14 }}>
                 <PrimaryButton
-                  disabled={!allocOk || !inputsValid || overCap || (mode !== "wallet-liquidator" && walletState.status !== "connected")}
-                  onClick={() => {
-                    if (walletState.status !== "connected") { setShowWalletModal(true); return; }
-                    toast.success("Quote requested — production wires to /basket/quote");
-                  }}
+                  disabled={!V2_MULTI_ROUTE_STATUS.executionEnabled}
+                  onClick={() => toast.info("Basket preview only — backend basket API required")}
                 >
-                  {walletState.status !== "connected" ? "Connect wallet" : `Quote basket (${quote.legCount} ${quote.legCount === 1 ? "leg" : "legs"})`}
+                  {V2_MULTI_ROUTE_STATUS.primaryActionLabel}
                 </PrimaryButton>
               </div>
             </Card>
@@ -1174,17 +1124,9 @@ function LiquidatorScanCard() {
     setScanning(true);
     setAssets(null);
     setTimeout(() => {
-      // Demo result — production calls WalletScanner endpoint with chains[] + tokens[].
-      setAssets([
-        { id: "1", chain: "Arbitrum",  chainColor: "#28A0F0", ticker: "ETH",  balance: "12.45",    usd: 39625.20, selected: true },
-        { id: "2", chain: "Arbitrum",  chainColor: "#28A0F0", ticker: "ARB",  balance: "1,200.5",  usd: 948.40,   selected: true },
-        { id: "3", chain: "Base",      chainColor: "#0052FF", ticker: "USDC", balance: "8,420.10", usd: 8420.10,  selected: false },
-        { id: "4", chain: "Polygon",   chainColor: "#7B3FE4", ticker: "POL",  balance: "4,510",    usd: 3247.20,  selected: true },
-        { id: "5", chain: "Avalanche", chainColor: "#E84142", ticker: "AVAX", balance: "31.2",     usd: 1185.60,  selected: true },
-        { id: "6", chain: "Optimism",  chainColor: "#FF0420", ticker: "OP",   balance: "245",      usd: 451.80,   selected: true },
-      ]);
+      setAssets([]);
       setScanning(false);
-      toast.success("Scan complete — 6 balances found");
+      toast.info("Wallet scanner is preview-only until the basket backend is wired");
     }, 1400);
   };
 
@@ -1210,7 +1152,7 @@ function LiquidatorScanCard() {
           </p>
         </div>
         <Pill variant={assets ? "success" : "ghost"}>
-          {assets ? `${selectedAssets.length} / ${assets.length} selected` : "ready"}
+          {assets ? "provider required" : "preview"}
         </Pill>
       </div>
 
@@ -1222,8 +1164,24 @@ function LiquidatorScanCard() {
 
       {assets && (
         <div style={{ marginTop: 14 }}>
+          {assets.length === 0 && (
+            <div
+              style={{
+                padding: "11px 12px",
+                background: "rgba(255,138,0,0.06)",
+                border: "1px solid rgba(255,138,0,0.20)",
+                borderRadius: 4,
+                fontSize: 11.5,
+                color: "rgba(255,255,255,0.70)",
+                lineHeight: 1.5,
+                marginBottom: 10,
+              }}
+            >
+              WalletScanner is not connected in this UI yet, so no balances are fabricated. This section will populate only after the backend scanner API is available.
+            </div>
+          )}
           {/* Totals + controls */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
+          {assets.length > 0 && <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
             <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
               <Totals label="Liquidating" value={`$${totalSelectedUSD.toLocaleString("en-US", { maximumFractionDigits: 2 })}`} accent />
               <Totals label="Preserving" value={`$${preservedUSD.toLocaleString("en-US", { maximumFractionDigits: 2 })}`} muted />
@@ -1244,10 +1202,10 @@ function LiquidatorScanCard() {
                 None
               </button>
             </div>
-          </div>
+          </div>}
 
           {/* Asset rows with checkboxes */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 280, overflowY: "auto" }}>
+          {assets.length > 0 && <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 280, overflowY: "auto" }}>
             {assets.map((a) => (
               <button
                 type="button"
@@ -1314,9 +1272,9 @@ function LiquidatorScanCard() {
                 </span>
               </button>
             ))}
-          </div>
+          </div>}
 
-          {selectedAssets.length === 0 && (
+          {assets.length > 0 && selectedAssets.length === 0 && (
             <p style={{ margin: "10px 0 0", fontSize: 11, color: "#FFB347", lineHeight: 1.45 }}>
               Select at least one asset to liquidate.
             </p>

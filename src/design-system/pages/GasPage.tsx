@@ -56,7 +56,6 @@ import {
   useIsMobile,
   toast,
   type FeeRow,
-  type NavLink,
   type PickerChain,
 } from "../components";
 import { useWalletConnection } from "../hooks/useWalletConnection";
@@ -82,6 +81,7 @@ import {
   tierForChainId,
   tierLabel,
 } from "../data/empxRegistry";
+import { createV2NavLinks } from "../data/v2ProductRoutes";
 import {
   useGetCalldataQuote,
   useGetChains,
@@ -369,15 +369,7 @@ export default function GasPage() {
     setTab("lookup");
   };
 
-  const navLinks: NavLink[] = [
-    { label: "Swap",      href: "/swap-v2" },
-    { label: "Cross",     href: "/cross-v2" },
-    { label: "Bridge",    href: "/bridge-v2" },
-    { label: "Multi",     href: "/multi-v2", badge: "NEW" },
-    { label: "Gas",       href: "/gas-v2", active: true },
-    { label: "Widget",    href: "/widget-v2" },
-    { label: "Portfolio", href: "/portfolio-v2" },
-  ];
+  const navLinks = createV2NavLinks("gas");
 
   // ─── Render ──────────────────────────────────────────────────────────────
   return (
