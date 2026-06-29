@@ -46,6 +46,7 @@ export interface SwapTradeInfo {
 
 const QUOTE_TTL_MS = 30_000;
 const SDK_VERSION = "2.0.1";
+const SWAP_QUOTE_DISPLAY_DECIMALS = 6;
 
 function buildQuoteMetadata() {
   const now = Date.now();
@@ -95,7 +96,32 @@ export function toSwapHookToken(token: V2TokenConfig, chain: V2ChainConfig): Swa
 export function formatSwapQuoteOutput(quote: SwapQuoteLike | null | undefined, outputDecimals: number): string {
   const quotedOut = quote?.amounts?.[quote.amounts.length - 1];
   if (quotedOut == null) return "0";
-  return formatUnits(quotedOut, outputDecimals);
+  return formatDecimalString(formatUnits(quotedOut, outputDecimals), SWAP_QUOTE_DISPLAY_DECIMALS);
+}
+
+function formatDecimalString(value: string, displayDecimals: number): string {
+  const sign = value.startsWith("-") ? "-" : "";
+  const unsigned = sign ? value.slice(1) : value;
+  const [rawInteger = "0", rawFraction = ""] = unsigned.split(".");
+  const integer = rawInteger || "0";
+  const paddedFraction = rawFraction.padEnd(displayDecimals + 1, "0");
+  const visibleFraction = paddedFraction.slice(0, displayDecimals).split("");
+  const roundDigit = Number(paddedFraction[displayDecimals] ?? "0");
+
+  if (roundDigit < 5) {
+    return `${sign}${integer}.${visibleFraction.join("")}`;
+  }
+
+  for (let i = visibleFraction.length - 1; i >= 0; i -= 1) {
+    const next = Number(visibleFraction[i]) + 1;
+    if (next < 10) {
+      visibleFraction[i] = String(next);
+      return `${sign}${integer}.${visibleFraction.join("")}`;
+    }
+    visibleFraction[i] = "0";
+  }
+
+  return `${sign}${BigInt(integer) + 1n}.${visibleFraction.join("")}`;
 }
 
 export function buildSwapTradeInfo({

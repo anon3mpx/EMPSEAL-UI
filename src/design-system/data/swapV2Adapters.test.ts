@@ -57,14 +57,24 @@ describe("swapV2Adapters", () => {
     });
   });
 
-  it("formats SDK quote output using the buy token decimals", () => {
+  it("formats SDK quote output with six display decimals", () => {
     const quote = {
       amounts: [1_000_000_000_000_000_000n, 2_500_000n],
       path: [EMPTY_SWAP_TOKEN_ADDRESS, usdcToken.address],
       adapters: ["Uniswap V3"],
     };
 
-    expect(formatSwapQuoteOutput(quote, 6)).toBe("2.5");
+    expect(formatSwapQuoteOutput(quote, 6)).toBe("2.500000");
+  });
+
+  it("caps 18-decimal quote output to six display decimals", () => {
+    const quote = {
+      amounts: [1_000_000_000_000_000_000n, 1_234_567_890_123_456_789n],
+      path: [EMPTY_SWAP_TOKEN_ADDRESS, EMPTY_SWAP_TOKEN_ADDRESS],
+      adapters: ["Uniswap V3"],
+    };
+
+    expect(formatSwapQuoteOutput(quote, 18)).toBe("1.234568");
   });
 
   it("builds tradeInfo with slippage-adjusted minimum output", () => {

@@ -18,10 +18,10 @@
 //
 // Backward-compat override
 // ────────────────────────
-// The legacy `swapContractApi` shape is still accepted as an optional input
-// for widget integrations that need full control over the write surface.
-// When provided, it short-circuits the SDK path entirely.  When absent, the
-// SDK path is used.  This preserves the existing contractApi prop on Emp.
+// The legacy `swapContractApi` shape is still accepted as an optional write
+// surface for the V1 contract route shared with Emp.  `executionMode` controls
+// whether the hook uses SDK writes only, legacy writes only, or auto mode
+// (prefer SDK, fall back to legacy when the SDK write surface is unavailable).
 //
 // State machine (preserved from pre-W2)
 // ─────────────────────────────────────
@@ -49,6 +49,11 @@ import { toast } from "../../utils/toastHelper";
 import { convertToBigInt } from "../../utils/utils";
 import { EMPTY_ADDRESS } from "../../utils/contractCalls";
 import { useEmpxRouter } from "./useEmpxRouter";
+import {
+  SWAP_EXECUTION_MODE,
+  hasSwapContractApi,
+  resolveSwapExecutionMode,
+} from "./swapExecutionMode";
 
 const NATIVE_ADDRESSES = new Set([
   EMPTY_ADDRESS.toLowerCase(),
@@ -75,10 +80,11 @@ function isSameAddress(a, b) {
  * @param {number}  input.protocolFee              - basis points (15 for stable pairs, 28 otherwise)
  * @param {boolean} input.isRefreshingQuote        - guard against submitting against a stale quote
  * @param {{ checkAllowance, callApprove, swapTokens } | null} [input.swapContractApi]
- *   Optional legacy override.  When provided, short-circuits the SDK path
- *   entirely and uses this object's methods instead.  Useful for widget
- *   integrators who need full control over the write surface.  When absent
- *   (the default in the main dApp), the SDK path runs.
+ *   Optional legacy write surface shared with the classic Emp swap page.
+ * @param {"sdk" | "legacy" | "auto"} [input.executionMode]
+ *   "sdk" uses SDK writes only. "legacy" uses swapContractApi when available.
+ *   "auto" prefers SDK writes and falls back to swapContractApi only when the
+ *   SDK write surface is not ready.
  * @param {() => void} [input.onSwapSubmitted]     - called after a successful swap
  */
 export function useSwapExecution({
@@ -92,6 +98,7 @@ export function useSwapExecution({
   protocolFee,
   isRefreshingQuote,
   swapContractApi,
+  executionMode = SWAP_EXECUTION_MODE.SDK,
   onSwapSubmitted,
 }) {
   // ─── State machine ─────────────────────────────────────────────────────────
@@ -103,12 +110,15 @@ export function useSwapExecution({
   // ─── SDK seam (default path) ───────────────────────────────────────────────
   const { router, signer } = useEmpxRouter({ chainId });
 
-  // True iff caller passed a working override (all three methods present).
-  const useLegacyOverride =
-    !!swapContractApi &&
-    typeof swapContractApi.checkAllowance === "function" &&
-    typeof swapContractApi.callApprove === "function" &&
-    typeof swapContractApi.swapTokens === "function";
+  // Resolve once per render so allowance, approval, and swap submission agree
+  // on the same write surface.
+  const executionSurface = resolveSwapExecutionMode({
+    executionMode,
+    hasLegacyApi: hasSwapContractApi(swapContractApi),
+    hasRouter: Boolean(router),
+    hasSigner: Boolean(signer),
+  });
+  const useLegacyExecution = executionSurface.mode === SWAP_EXECUTION_MODE.LEGACY;
 
   // ─── Allowance check ───────────────────────────────────────────────────────
   // Re-runs whenever the things that could change allowance status change.
@@ -132,7 +142,7 @@ export function useSwapExecution({
           selectedTokenA.decimal,
         );
 
-        if (useLegacyOverride) {
+        if (useLegacyExecution) {
           // Legacy shape: returns { data: bigint } — `data` is the allowance.
           const allowance = await swapContractApi.checkAllowance(
             chainId,
@@ -167,7 +177,7 @@ export function useSwapExecution({
     selectedTokenA,
     debouncedAmountIn,
     swapContractApi,
-    useLegacyOverride,
+    useLegacyExecution,
     router,
   ]);
 
@@ -255,7 +265,7 @@ export function useSwapExecution({
       return null;
     }
 
-    if (useLegacyOverride) {
+    if (useLegacyExecution) {
       // ───── Legacy path: callsite-provided swapContractApi ─────────────────
       try {
         await swapContractApi.swapTokens(
@@ -309,7 +319,7 @@ export function useSwapExecution({
       const amountInBigInt = convertToBigInt(amountIn, selectedTokenA.decimal);
 
       let approved = false;
-      if (useLegacyOverride) {
+      if (useLegacyExecution) {
         await swapContractApi.callApprove(
           chainId,
           selectedTokenA.address,

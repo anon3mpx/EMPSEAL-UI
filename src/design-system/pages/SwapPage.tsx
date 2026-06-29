@@ -44,10 +44,16 @@ import { getExplorerAddressUrl, getExplorerTxUrl } from "../data/explorers";
 import { formatUSD } from "../hooks/useUnifiedPrice";
 import { classifyPair, modeAFeeBps } from "../data/empxRegistry";
 import { createV2NavLinks } from "../data/v2ProductRoutes";
+import { resolveSwapPageChain } from "../data/swapPageChainState";
 import { SUPPORTED_CHAINS } from "../../config/chains";
 import { useSwapBalances } from "../../hooks/swap/useSwapBalances";
 import { useSwapExecution } from "../../hooks/swap/useSwapExecution";
 import { useSwapQuoteFetch } from "../../hooks/swap/useSwapQuoteFetch";
+import {
+  checkAllowance as legacyCheckAllowance,
+  callApprove as legacyCallApprove,
+  swapTokens as legacySwapTokens,
+} from "../../utils/contractCalls";
 import {
   EMPTY_SWAP_TOKEN_ADDRESS,
   buildDirectSwapTradeInfo,
@@ -73,6 +79,13 @@ const SWAP_CHAINS: PickerChain[] = V2_AGGREGATOR_CHAINS.map((c) => ({
   color: c.color,
   ticker: c.ticker,
 }));
+
+const SWAP_V2_EXECUTION_MODE = "auto";
+const SWAP_V2_CONTRACT_API = {
+  checkAllowance: legacyCheckAllowance,
+  callApprove: legacyCallApprove,
+  swapTokens: legacySwapTokens,
+};
 
 // ─── Page state ───────────────────────────────────────────────────────────
 
@@ -103,7 +116,13 @@ export default function SwapPage() {
 
   // Active chain — driven by wallet connection, defaults to Arbitrum
   const defaultChain = SWAP_CHAINS[0]; // Arbitrum (42161) — first in V2_AGGREGATOR_CHAINS
-  const activeChain = walletState.status === "connected" ? walletState.chain : defaultChain;
+  const [selectedChainId, setSelectedChainId] = useState(defaultChain.id);
+  const activeChain = resolveSwapPageChain({
+    walletState,
+    selectedChainId,
+    chains: SWAP_CHAINS,
+    defaultChain,
+  });
   const activeV2Chain = getV2Chain(activeChain.id) ?? V2_AGGREGATOR_CHAINS.find((chain) => chain.id === activeChain.id) ?? V2_AGGREGATOR_CHAINS[0];
   const activeChainConfig = SUPPORTED_CHAINS[activeChain.id];
 
@@ -235,6 +254,8 @@ export default function SwapPage() {
     tradeInfo: quoteTradeInfo,
     protocolFee: feeBps,
     isRefreshingQuote,
+    swapContractApi: SWAP_V2_CONTRACT_API,
+    executionMode: SWAP_V2_EXECUTION_MODE,
     onSwapSubmitted: () => {
       setShowConfirm(false);
       setShowSuccess(true);
@@ -588,6 +609,7 @@ export default function SwapPage() {
         mode="swap"
         onSelect={(c) => {
           setShowChainPicker(false);
+          setSelectedChainId(c.id);
           if (walletState.status === "connected") {
             switchChain({ chainId: c.id });
           }
