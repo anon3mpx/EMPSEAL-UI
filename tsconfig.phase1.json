@@ -21,6 +21,8 @@
     "src/design-system/data/v2ChainView.ts",
     "src/design-system/data/v2RuntimeViews.test.ts",
     "src/design-system/data/v2TokenView.ts",
+    "src/design-system/data/widgetV2Adapters.ts",
+    "src/design-system/data/widgetV2Adapters.test.ts",
     "src/design-system/hooks/useUnifiedPrice.ts",
     "src/design-system/hooks/useV2Balances.ts",
     "src/design-system/EmpxCrossWidget.tsx",
@@ -29,6 +31,11 @@
     "src/design-system/pages/CrossPage.tsx",
     "src/design-system/pages/GasPage.tsx",
     "src/design-system/pages/PortfolioPage.tsx",
+    "src/design-system/pages/WidgetPage.tsx",
+    "src/widget/chains.ts",
+    "src/widget/useWidgetConfig.ts",
+    "src/widget/widgetRuntime.ts",
+    "src/widget/widgetRuntime.test.ts",
     "src/config/**/*"
   ],
   "exclude": [

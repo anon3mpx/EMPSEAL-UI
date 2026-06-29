@@ -101,7 +101,7 @@ describe("swapV2Adapters", () => {
     expect(typeof tradeInfo?.sdkVersion).toBe("string");
   });
 
-  it("builds route hops from tradeInfo path tokens and adapter names", () => {
+  it("builds route hops with configured adapter names, never raw addresses", () => {
     const sell = toSwapHookToken(ethToken, chain);
     const buy = toSwapHookToken(usdcToken, chain);
     const tradeInfo = {
@@ -113,7 +113,7 @@ describe("swapV2Adapters", () => {
       amounts: [1n, 1n],
       path: [sell.address, buy.address],
       pathTokens: [sell, buy],
-      adapters: ["Uniswap V3"],
+      adapters: ["0xa91d8284C199FE4c178d76558A1427790AF7e80F", "0x1111111111111111111111111111111111111111"],
       gasEstimate: "0",
       quoteId: "test-quote",
       timestamp: Date.now(),
@@ -122,7 +122,7 @@ describe("swapV2Adapters", () => {
     };
 
     expect(buildSwapRouteHops(tradeInfo, chain)).toEqual([
-      { ticker: "ETH", chainName: "Arbitrum", chainColor: "#28A0F0", via: "Uniswap V3" },
+      { ticker: "ETH", chainName: "Arbitrum", chainColor: "#28A0F0", via: "UniswapV3" },
       { ticker: "USDC", chainName: "Arbitrum", chainColor: "#28A0F0", via: undefined },
     ]);
   });

@@ -46,11 +46,21 @@ import {
 } from "../components";
 import { useWalletConnection } from "../hooks/useWalletConnection";
 import { useV2Balances } from "../hooks/useV2Balances";
-import { EMPX_SOCIALS } from "./SwapPage";
+import { EMPX_SOCIALS } from "../data/socials";
 import { tierForChainId, tierLabel } from "../data/empxRegistry";
 import { getExplorerAddressUrl } from "../data/explorers";
 import { getV2Chain } from "../data/v2ChainView";
-import { WIDGET_CHAIN_BY_KEY, type WidgetChainKey } from "../../widget/chains";
+import {
+  WIDGET_FORM_DEFAULTS,
+  buildWidgetSnippet,
+  buildWidgetUrl,
+  clampWidgetDimension,
+  normalizeWidgetDimensions,
+  resolveWidgetSnippetOrigin,
+  type WidgetForm,
+  type WidgetSnippetFormat,
+} from "../data/widgetV2Adapters";
+import { WIDGET_CHAIN_BY_KEY } from "../../widget/chains";
 
 // ─── Widget chain registry — mirrors src/widget/chains.ts ──────────────────
 
@@ -65,98 +75,9 @@ const WIDGET_CHAINS = Object.values(WIDGET_CHAIN_BY_KEY).map((runtime) => {
   };
 });
 
-// ─── Form state ────────────────────────────────────────────────────────────
-
-interface WidgetForm {
-  chainKey: WidgetChainKey;
-  theme: "dark" | "darker" | "midnight";
-  primaryColor: string;
-  background: string;
-  borderColor: string;
-  defaultFrom: string;
-  defaultTo: string;
-  defaultAmount: string;
-  integratorId: string;
-  showBackground: boolean;
-  showSlippage: boolean;
-  showPoweredBy: boolean;
-  width: number;
-  height: number;
-}
-
-const FORM_DEFAULTS: WidgetForm = {
-  chainKey: "pulsechain",
-  theme: "dark",
-  primaryColor: "#FF8A00",
-  background: "#05050c",
-  borderColor: "#15151f",
-  defaultFrom: "",
-  defaultTo: "",
-  defaultAmount: "",
-  integratorId: "",
-  showBackground: true,
-  showSlippage: true,
-  showPoweredBy: true,
-  width: 440,
-  height: 720,
-};
-
 const ACCENT_PRESETS = ["#FF8A00", "#4ade80", "#60a5fa", "#e879f9", "#f87171", "#facc15"];
 
 type ConfigTab = "branding" | "defaults" | "behavior" | "embed";
-
-type SnippetFormat = "iframe" | "react" | "url";
-
-// ─── URL builder — mirrors WIDGET_PARAM_KEYS contract ─────────────────────
-
-function buildWidgetUrl(form: WidgetForm, origin: string = ""): string {
-  const params = new URLSearchParams();
-  params.set("chain", form.chainKey);
-  params.set("theme", form.theme);
-  params.set("primaryColor", form.primaryColor);
-  params.set("background", form.background);
-  params.set("borderColor", form.borderColor);
-  if (form.defaultFrom)    params.set("defaultTokenIn", form.defaultFrom);
-  if (form.defaultTo)      params.set("defaultTokenOut", form.defaultTo);
-  if (form.defaultAmount)  params.set("defaultAmountIn", form.defaultAmount);
-  if (form.integratorId)   params.set("integratorId", form.integratorId);
-  params.set("showBackground", String(form.showBackground));
-  params.set("showSlippage", String(form.showSlippage));
-  params.set("showPoweredBy", String(form.showPoweredBy));
-  return `${origin}/widget/swap?${params.toString()}`;
-}
-
-function buildSnippet(format: SnippetFormat, form: WidgetForm): string {
-  const url = buildWidgetUrl(form, "https://empx.network");
-  if (format === "url") return url;
-  if (format === "iframe") {
-    return `<iframe
-  src="${url}"
-  width="${form.width}"
-  height="${form.height}"
-  frameBorder="0"
-  allow="clipboard-write"
-  title="EmpX Swap Widget"
-></iframe>`;
-  }
-  // React
-  return `import { useMemo } from "react";
-
-export function EmpxSwapWidget() {
-  const src = "${url}";
-  return (
-    <iframe
-      src={src}
-      width={${form.width}}
-      height={${form.height}}
-      frameBorder={0}
-      allow="clipboard-write"
-      title="EmpX Swap Widget"
-      style={{ border: "1px solid ${form.borderColor}", borderRadius: 8 }}
-    />
-  );
-}`;
-}
 
 // ─── Page ──────────────────────────────────────────────────────────────────
 
@@ -169,9 +90,9 @@ export default function WidgetPage() {
   const [showWalletModal, setShowWalletModal] = useState(false);
   const [showAccountModal, setShowAccountModal] = useState(false);
 
-  const [form, setForm] = useState<WidgetForm>(FORM_DEFAULTS);
+  const [form, setForm] = useState<WidgetForm>(WIDGET_FORM_DEFAULTS);
   const [tab, setTab] = useState<ConfigTab>("branding");
-  const [snippetFormat, setSnippetFormat] = useState<SnippetFormat>("iframe");
+  const [snippetFormat, setSnippetFormat] = useState<WidgetSnippetFormat>("iframe");
   const [chainPickerOpen, setChainPickerOpen] = useState(false);
   const [previewReloadKey, setPreviewReloadKey] = useState(0);
   const [previewStatus, setPreviewStatus] = useState<"loading" | "ok" | "error">("loading");
@@ -191,7 +112,14 @@ export default function WidgetPage() {
   useEffect(() => {
     setPreviewStatus("loading");
   }, [previewUrl, previewReloadKey]);
-  const snippet = useMemo(() => buildSnippet(snippetFormat, form), [snippetFormat, form]);
+  const snippetOrigin = typeof window !== "undefined"
+    ? resolveWidgetSnippetOrigin(window.location.origin)
+    : resolveWidgetSnippetOrigin();
+  const snippet = useMemo(
+    () => buildWidgetSnippet(snippetFormat, form, snippetOrigin),
+    [snippetFormat, form, snippetOrigin],
+  );
+  const previewFrame = useMemo(() => normalizeWidgetDimensions(form), [form]);
 
   const chainPickerList: PickerChain[] = useMemo(
     () =>
@@ -288,7 +216,7 @@ export default function WidgetPage() {
           {/* LEFT — config */}
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             <Card style={{ padding: 18 }}>
-              <Tabs
+              <Tabs<ConfigTab>
                 options={[
                   { value: "branding" as const, label: "Branding" },
                   { value: "defaults" as const, label: "Defaults" },
@@ -396,8 +324,8 @@ export default function WidgetPage() {
                 <iframe
                   key={previewReloadKey}
                   src={previewUrl}
-                  width={Math.min(form.width, 440)}
-                  height={Math.min(form.height, 720)}
+                  width={Math.min(previewFrame.width, 440)}
+                  height={Math.min(previewFrame.height, 720)}
                   frameBorder={0}
                   title="EmpX Widget preview"
                   onLoad={() => setPreviewStatus("ok")}
@@ -675,8 +603,8 @@ function BrandingTab({
 
       <Field label="Dimensions" hint="Iframe pixel size. Most embeds use 440 × 720.">
         <div style={{ display: "flex", gap: 8 }}>
-          <NumField label="Width"  value={form.width}  setValue={(v) => set("width",  Math.max(300, Math.min(800, v)))} />
-          <NumField label="Height" value={form.height} setValue={(v) => set("height", Math.max(400, Math.min(1200, v)))} />
+          <NumField label="Width"  value={form.width}  setValue={(v) => set("width",  clampWidgetDimension("width", v))} />
+          <NumField label="Height" value={form.height} setValue={(v) => set("height", clampWidgetDimension("height", v))} />
         </div>
       </Field>
     </div>
@@ -737,6 +665,20 @@ function BehaviorTab({
         enabled={form.showPoweredBy}
         onToggle={() => set("showPoweredBy", !form.showPoweredBy)}
       />
+      <Field label="Execution path" hint="Auto uses SDK execution unless a valid bytes32 integrator ID needs widget contract attribution.">
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          {(["auto", "sdk", "contract"] as const).map((mode) => (
+            <button
+              key={mode}
+              type="button"
+              onClick={() => set("executionMode", mode)}
+              style={chipStyle(form.executionMode === mode)}
+            >
+              {mode}
+            </button>
+          ))}
+        </div>
+      </Field>
     </div>
   );
 }
@@ -746,13 +688,13 @@ function EmbedTab({
 }: {
   form: WidgetForm;
   snippet: string;
-  snippetFormat: SnippetFormat;
-  setSnippetFormat: (f: SnippetFormat) => void;
+  snippetFormat: WidgetSnippetFormat;
+  setSnippetFormat: (f: WidgetSnippetFormat) => void;
   onCopy: (v: string) => void;
 }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      <Tabs
+      <Tabs<WidgetSnippetFormat>
         options={[
           { value: "iframe" as const, label: "iframe" },
           { value: "react"  as const, label: "React" },

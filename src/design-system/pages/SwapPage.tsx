@@ -210,8 +210,12 @@ export default function SwapPage() {
     [activeV2Chain, quoteTradeInfo],
   );
   const bestRoute = useMemo(
-    () => quoteTradeInfo?.adapters?.length ? quoteTradeInfo.adapters.join(" · ") : isDirectRoute ? "Native wrap" : undefined,
-    [isDirectRoute, quoteTradeInfo?.adapters],
+    () => quoteTradeInfo?.pathTokens?.length
+      ? `${Math.max(quoteTradeInfo.pathTokens.length - 1, 1)} hop SDK route`
+      : isDirectRoute
+        ? "Native wrap"
+        : undefined,
+    [isDirectRoute, quoteTradeInfo?.pathTokens],
   );
 
   const isRefreshingQuote = deferredFromAmount !== fromAmount || quoteLoading;

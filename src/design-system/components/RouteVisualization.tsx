@@ -143,8 +143,12 @@ export default function RouteVisualization({
                   textTransform: "uppercase",
                   color: "rgba(255,255,255,0.55)",
                   whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  maxWidth: "100%",
                   pointerEvents: "none",
                 }}
+                title={hop.via}
               >
                 <span style={{ color: "#FF8A00", marginRight: 6 }}>via</span>
                 {hop.via}

@@ -101,7 +101,7 @@ export function useSwapExecution({
   const [needsApproval, setNeedsApproval] = useState(false);
 
   // ─── SDK seam (default path) ───────────────────────────────────────────────
-  const { router, signer } = useEmpxRouter();
+  const { router, signer } = useEmpxRouter({ chainId });
 
   // True iff caller passed a working override (all three methods present).
   const useLegacyOverride =

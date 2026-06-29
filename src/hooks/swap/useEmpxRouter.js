@@ -52,9 +52,10 @@ const AFFILIATE_CONFIG =
     ? { address: AFFILIATE_ADDRESS, feeBps: AFFILIATE_FEE_BPS }
     : null;
 
-export function useEmpxRouter() {
+export function useEmpxRouter(options = {}) {
   const { address } = useAccount();
-  const chainId = useChainId();
+  const connectedChainId = useChainId();
+  const chainId = options.chainId ?? connectedChainId;
   const { data: walletClient } = useWalletClient();
 
   // The signer is freshly derived per render; memoise on its identity-stable
@@ -62,7 +63,7 @@ export function useEmpxRouter() {
   // ref whose contents may mutate between connections.
   const signer = useMemo(
     () => walletClientToEthersSigner(walletClient),
-    [walletClient, chainId, address],
+    [walletClient, connectedChainId, address],
   );
 
   const router = useMemo(() => {

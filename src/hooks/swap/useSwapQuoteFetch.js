@@ -77,7 +77,7 @@ export function useSwapQuoteFetch({
 }) {
   // SDK router (memoised on chainId+signer in useEmpxRouter).  When router
   // is null (unknown chain / signer not ready), the hook returns no data.
-  const { router } = useEmpxRouter();
+  const { router } = useEmpxRouter({ chainId });
 
   const [data, setData] = useState(undefined);
   const [singleToken, setSingleToken] = useState(undefined);

@@ -4,6 +4,7 @@ import {
   WIDGET_CHAIN_BY_KEY,
   WidgetChainKey,
 } from "./chains";
+import { parseWidgetExecutionMode, WidgetExecutionMode } from "./widgetRuntime";
 
 export type WidgetConfig = {
   chain: WidgetChainKey;
@@ -19,6 +20,7 @@ export type WidgetConfig = {
   showBackground: boolean;
   showSlippage: boolean;
   showPoweredBy: boolean;
+  executionMode: WidgetExecutionMode;
   isWidgetMode: boolean;
 };
 
@@ -30,6 +32,7 @@ export const DEFAULT_WIDGET_CONFIG = {
   borderColor: "#000000",
   integratorId: null as string | null,
   showBackground: true,
+  executionMode: "auto" as WidgetExecutionMode,
 };
 
 const WIDGET_PARAM_KEYS = [
@@ -45,6 +48,7 @@ const WIDGET_PARAM_KEYS = [
   "showBackground",
   "showSlippage",
   "showPoweredBy",
+  "execution",
 ] as const;
 
 export const parseWidgetConfig = (params: URLSearchParams): WidgetConfig => {
@@ -76,6 +80,7 @@ export const parseWidgetConfig = (params: URLSearchParams): WidgetConfig => {
       (params.get("showSlippage")?.trim().toLowerCase() || "true") !== "false",
     showPoweredBy:
       (params.get("showPoweredBy")?.trim().toLowerCase() || "true") !== "false",
+    executionMode: parseWidgetExecutionMode(params.get("execution")),
     isWidgetMode: WIDGET_PARAM_KEYS.some((key) => params.has(key)),
   };
 };

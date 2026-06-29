@@ -1,6 +1,7 @@
 import { formatUnits, parseUnits } from "viem";
 
 import type { RouteHop } from "../components";
+import { CHAIN_ADAPTERS } from "../../config/adapters";
 import type { V2ChainConfig } from "./v2ChainView";
 import type { V2TokenConfig } from "./v2TokenView";
 
@@ -63,6 +64,19 @@ function buildQuoteMetadata() {
 
 function addressKey(address: string | undefined): string {
   return (address || EMPTY_SWAP_TOKEN_ADDRESS).toLowerCase();
+}
+
+const ADDRESS_LIKE = /^0x[0-9a-fA-F]{40}$/;
+
+function resolveAdapterDisplayName(chainId: number | undefined, adapter?: string): string | undefined {
+  const raw = adapter?.trim();
+  if (!raw) return undefined;
+  if (!ADDRESS_LIKE.test(raw)) return raw.replace(/Adapter$/i, "");
+
+  const match = (chainId ? CHAIN_ADAPTERS[chainId] : undefined)?.find(
+    (entry) => addressKey(entry.address) === addressKey(raw),
+  );
+  return match?.name?.replace(/Adapter$/i, "");
 }
 
 export function toSwapHookToken(token: V2TokenConfig, chain: V2ChainConfig): SwapHookToken {
@@ -164,7 +178,7 @@ export function buildDirectSwapTradeInfo({
 
 export function buildSwapRouteHops(
   tradeInfo: SwapTradeInfo | null | undefined,
-  chain: Pick<V2ChainConfig, "name" | "color">,
+  chain: Pick<V2ChainConfig, "id" | "name" | "color">,
 ): RouteHop[] | undefined {
   if (!tradeInfo?.pathTokens?.length) return undefined;
 
@@ -172,6 +186,11 @@ export function buildSwapRouteHops(
     ticker: token.ticker,
     chainName: chain.name,
     chainColor: chain.color,
-    via: tradeInfo.adapters[index],
+    // SDK adapter identifiers can be contract addresses. Resolve those through
+    // canonical adapter config and hide unknown addresses instead of rendering
+    // raw contract strings into compact route visuals.
+    via: index < tradeInfo.pathTokens.length - 1
+      ? resolveAdapterDisplayName(chain.id, tradeInfo.adapters[index])
+      : undefined,
   }));
 }
