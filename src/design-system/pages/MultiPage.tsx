@@ -603,7 +603,7 @@ export default function MultiPage() {
             </Card>
 
             {/* SDK source */}
-            <Card style={{ padding: 14 }}>
+            {/* <Card style={{ padding: 14 }}>
               <p style={{ margin: 0, fontSize: 10, letterSpacing: "0.40em", color: "rgba(255,255,255,0.50)", textTransform: "uppercase", fontWeight: 700 }}>
                 Backed by
               </p>
@@ -619,7 +619,7 @@ export default function MultiPage() {
                   </li>
                 ))}
               </ul>
-            </Card>
+            </Card> */}
           </aside>
         </div>
       </main>

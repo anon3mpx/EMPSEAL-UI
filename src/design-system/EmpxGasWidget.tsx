@@ -1,17 +1,16 @@
-// ─── EmpxGasWidget — multi-destination native gas top-up ──────────────────
+// ─── EmpxGasWidget — single-destination native gas top-up ─────────────────
 //
 // Built on the EXACT same widget anatomy as EmpxSwapWidget / EmpxCrossWidget:
 //   • Card width: 100%, maxWidth: 480, padding: 22
 //   • Header row: GAS label + Pill (right)
 //   • AmountInput "From" with ChainSwitcher topMeta + Bal/MAX bottomMeta
-//   • SwapDivider between source and destinations (decorative)
-//   • Stacked destination AmountInputs with ChainSwitcher topMeta
-//   • FeeBreakdown (visible) + Collapsible "What this buys" + PrimaryButton
+//   • SwapDivider between source and destination
+//   • Destination AmountInput with ChainSwitcher topMeta
+//   • FeeBreakdown (visible) + PrimaryButton
 
 import {
   AmountInput,
   ChainSwitcher,
-  Collapsible,
   Card,
   FeeBreakdown,
   Pill,
@@ -32,7 +31,6 @@ export interface GasDestination {
   chain: GasChain;
   usd: number;
   nativeOut: number;
-  swapsBuyable: number;
 }
 
 export interface EmpxGasWidgetProps {
@@ -41,14 +39,13 @@ export interface EmpxGasWidgetProps {
   sourceUsdValue: number;
   sourceBalance?: string;
   onSelectSourceChain: () => void;
+  onSwitchChains: () => void;
+  canSwitchChains?: boolean;
   onMaxClick?: () => void;
 
-  destinations: GasDestination[];
-  maxDestinations: number;
-  onSelectDestinationChain: (destId: string) => void;
-  onSetDestinationUsd: (destId: string, usd: number) => void;
-  onRemoveDestination: (destId: string) => void;
-  onAddDestination: () => void;
+  destination: GasDestination;
+  onSelectDestinationChain: () => void;
+  onSetDestinationUsd: (usd: number) => void;
   presets: number[];
 
   bridgeFeeUSD: number;
@@ -69,19 +66,17 @@ export interface EmpxGasWidgetProps {
 
 export default function EmpxGasWidget(props: EmpxGasWidgetProps) {
   const {
-    sourceChain, sourceAmount, sourceUsdValue, sourceBalance, onSelectSourceChain, onMaxClick,
-    destinations, maxDestinations, onSelectDestinationChain, onSetDestinationUsd,
-    onRemoveDestination, onAddDestination, presets,
+    sourceChain, sourceAmount, sourceUsdValue, sourceBalance, onSelectSourceChain,
+    onSwitchChains, canSwitchChains = true, onMaxClick,
+    destination, onSelectDestinationChain, onSetDestinationUsd, presets,
     bridgeFeeUSD, estimatedTime,
     useDifferentRecipient, onToggleRecipient, recipient, onSetRecipient, recipientValid,
     canSubmit, swapLabel, onSubmit, walletConnected, onConnect,
   } = props;
 
-  const totalDestUSD = destinations.reduce((s, d) => s + d.usd, 0);
-
   const feeRows: FeeRow[] = [
-    { label: "Destinations", value: `${destinations.length} chain${destinations.length === 1 ? "" : "s"}` },
-    { label: "Delivering",   value: `$${totalDestUSD.toFixed(2)}` },
+    { label: "Destination", value: destination.chain.name },
+    { label: "Delivering",  value: `$${destination.usd.toFixed(2)}` },
     {
       label: "Bridge fee",
       value: bridgeFeeUSD <= 0.005 ? "FREE" : `$${bridgeFeeUSD.toFixed(2)}`,
@@ -89,15 +84,6 @@ export default function EmpxGasWidget(props: EmpxGasWidgetProps) {
     },
   ];
   if (estimatedTime) feeRows.push({ label: "Est. time", value: estimatedTime });
-
-  const buysRows: FeeRow[] = destinations
-    .filter((d) => d.usd > 0)
-    .map((d) => ({
-      label: d.chain.name,
-      value: `≈ ${d.swapsBuyable.toLocaleString("en-US")} swap${d.swapsBuyable === 1 ? "" : "s"}`,
-      sub: `· ${d.nativeOut < 0.01 ? d.nativeOut.toFixed(6) : d.nativeOut.toFixed(4)} ${d.chain.ticker}`,
-      muted: true,
-    }));
 
   return (
     <Card style={{ width: "100%", maxWidth: 480, padding: 22 }}>
@@ -116,7 +102,7 @@ export default function EmpxGasWidget(props: EmpxGasWidgetProps) {
           >
             Gas
           </span>
-          <Pill variant="ghost">{destinations.length} / {maxDestinations}</Pill>
+          <Pill variant="ghost">Single destination</Pill>
         </div>
         <Pill variant="info">Gas.zip</Pill>
       </div>
@@ -150,35 +136,22 @@ export default function EmpxGasWidget(props: EmpxGasWidgetProps) {
         }
       />
 
-      <SwapDivider />
+      <SwapDivider
+        onSwap={onSwitchChains}
+        disabled={!canSwitchChains}
+        ariaLabel="Switch source and destination chains"
+      />
 
-      {/* DESTINATIONS — stacked legs */}
-      <div style={{ display: "flex", flexDirection: "column" }}>
-        {destinations.map((d, idx) => (
-          <DestinationLeg
-            key={d.id}
-            index={idx + 1}
-            dest={d}
-            isFirst={idx === 0}
-            onSelectChain={() => onSelectDestinationChain(d.id)}
-            onSetUsd={(usd) => onSetDestinationUsd(d.id, usd)}
-            onRemove={() => onRemoveDestination(d.id)}
-            canRemove={destinations.length > 1}
-            presets={presets}
-          />
-        ))}
-      </div>
+      {/* DESTINATION */}
+      <DestinationLeg
+        dest={destination}
+        onSelectChain={onSelectDestinationChain}
+        onSetUsd={onSetDestinationUsd}
+        presets={presets}
+      />
 
       {/* Action buttons row */}
       <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
-        <button
-          type="button"
-          onClick={onAddDestination}
-          disabled={destinations.length >= maxDestinations}
-          style={addBtnStyle(destinations.length >= maxDestinations)}
-        >
-          + Add destination
-        </button>
         <button
           type="button"
           onClick={onToggleRecipient}
@@ -216,19 +189,6 @@ export default function EmpxGasWidget(props: EmpxGasWidgetProps) {
         <FeeBreakdown rows={feeRows} bordered />
       </div>
 
-      {/* What this gas buys */}
-      {buysRows.length > 0 && (
-        <div style={{ marginTop: 8 }}>
-          <Collapsible
-            title="What this gas buys"
-            subtitle={`${buysRows.length} destination${buysRows.length === 1 ? "" : "s"}`}
-            defaultOpen
-          >
-            <FeeBreakdown rows={buysRows} bordered={false} compact />
-          </Collapsible>
-        </div>
-      )}
-
       {/* CTA */}
       <div style={{ marginTop: 18 }}>
         {!walletConnected ? (
@@ -244,28 +204,24 @@ export default function EmpxGasWidget(props: EmpxGasWidgetProps) {
 // ─── Destination leg — mirrors AmountInput "To" layout ────────────────────
 
 function DestinationLeg({
-  index, dest, isFirst, onSelectChain, onSetUsd, onRemove, canRemove, presets,
+  dest, onSelectChain, onSetUsd, presets,
 }: {
-  index: number;
   dest: GasDestination;
-  isFirst: boolean;
   onSelectChain: () => void;
   onSetUsd: (usd: number) => void;
-  onRemove: () => void;
-  canRemove: boolean;
   presets: number[];
 }) {
   return (
     <div
       style={{
         padding: "12px 0",
-        borderTop: isFirst ? "none" : "1px solid rgba(255,255,255,0.04)",
+        borderTop: "none",
         display: "flex",
         flexDirection: "column",
         gap: 8,
       }}
     >
-      {/* Top row — "To · N" label + ChainSwitcher (matches AmountInput's topMeta) */}
+      {/* Top row — "To" label + ChainSwitcher (matches AmountInput's topMeta) */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <span
           style={{
@@ -276,7 +232,7 @@ function DestinationLeg({
             textTransform: "uppercase",
           }}
         >
-          To · {index}
+          To
         </span>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <ChainSwitcher
@@ -285,31 +241,6 @@ function DestinationLeg({
             onClick={onSelectChain}
             size="md"
           />
-          {canRemove && (
-            <button
-              type="button"
-              onClick={onRemove}
-              aria-label="Remove destination"
-              style={{
-                width: 22,
-                height: 22,
-                background: "transparent",
-                border: "1px solid rgba(255,255,255,0.10)",
-                borderRadius: 4,
-                color: "rgba(255,255,255,0.55)",
-                cursor: "pointer",
-                padding: 0,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: 13,
-                lineHeight: 1,
-                flexShrink: 0,
-              }}
-            >
-              ×
-            </button>
-          )}
         </div>
       </div>
 
@@ -346,9 +277,6 @@ function DestinationLeg({
               ? `${dest.nativeOut < 0.01 ? dest.nativeOut.toFixed(6) : dest.nativeOut.toFixed(4)} ${dest.chain.ticker}`
               : `0 ${dest.chain.ticker}`}
           </p>
-          <p style={{ margin: "2px 0 0", fontSize: 10, color: "rgba(255,255,255,0.45)" }}>
-            {dest.swapsBuyable > 0 ? `≈ ${dest.swapsBuyable.toLocaleString("en-US")} swaps` : "delivered"}
-          </p>
         </div>
       </div>
 
@@ -382,22 +310,6 @@ const maxBtnStyle: React.CSSProperties = {
   cursor: "pointer",
   padding: 0,
 };
-
-function addBtnStyle(disabled: boolean): React.CSSProperties {
-  return {
-    padding: "7px 14px",
-    background: disabled ? "rgba(255,255,255,0.04)" : "rgba(255,138,0,0.08)",
-    border: `1px solid ${disabled ? "rgba(255,255,255,0.08)" : "rgba(255,138,0,0.30)"}`,
-    borderRadius: 4,
-    color: disabled ? "rgba(255,255,255,0.30)" : "#FF8A00",
-    fontFamily: "Inter, sans-serif",
-    fontSize: 10.5,
-    fontWeight: 600,
-    letterSpacing: "0.10em",
-    textTransform: "uppercase",
-    cursor: disabled ? "not-allowed" : "pointer",
-  };
-}
 
 function recipientBtnStyle(active: boolean): React.CSSProperties {
   return {

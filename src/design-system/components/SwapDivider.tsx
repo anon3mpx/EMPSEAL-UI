@@ -3,9 +3,10 @@
 interface SwapDividerProps {
   onSwap?: () => void;
   disabled?: boolean;
+  ariaLabel?: string;
 }
 
-export default function SwapDivider({ onSwap, disabled }: SwapDividerProps) {
+export default function SwapDivider({ onSwap, disabled, ariaLabel = "Swap tokens" }: SwapDividerProps) {
   return (
     <div
       style={{
@@ -20,7 +21,7 @@ export default function SwapDivider({ onSwap, disabled }: SwapDividerProps) {
         type="button"
         onClick={disabled ? undefined : onSwap}
         disabled={disabled}
-        aria-label="Swap tokens"
+        aria-label={ariaLabel}
         style={{
           width: 36,
           height: 36,

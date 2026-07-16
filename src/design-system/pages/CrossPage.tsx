@@ -1804,7 +1804,7 @@ function GasSettings({
 }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-      <GasToggle
+      {/* <GasToggle
         title="Gasless source"
         hint={
           paymasterAvailable
@@ -1815,7 +1815,7 @@ function GasSettings({
         disabled={!paymasterAvailable}
         onToggle={() => setPayInToken(!payInToken)}
         tag="EIP-4337"
-      />
+      /> */}
       <GasToggle
         title="Drop destination gas"
         hint={
@@ -1828,12 +1828,12 @@ function GasSettings({
         onToggle={() => setGasDropOnDestination(!gasDropOnDestination)}
         tag="GAS.ZIP"
       />
-      <p style={{ margin: "6px 2px 0", fontSize: 10.5, color: "rgba(255,255,255,0.40)", lineHeight: 1.55 }}>
+      {/* <p style={{ margin: "6px 2px 0", fontSize: 10.5, color: "rgba(255,255,255,0.40)", lineHeight: 1.55 }}>
         Both features map to live SDK services — Paymaster path uses{" "}
         <code style={{ color: "rgba(255,255,255,0.65)" }}>PaymasterService</code>,
         gas-drop side-leg uses <code style={{ color: "rgba(255,255,255,0.65)" }}>GasZipSolver</code> +{" "}
         <code style={{ color: "rgba(255,255,255,0.65)" }}>DestinationGasAutoFund</code>.
-      </p>
+      </p> */}
     </div>
   );
 }
@@ -1972,9 +1972,9 @@ function RailsCatalog() {
           </span>
         </div>
       ))}
-      <p style={{ margin: "10px 4px 0", fontSize: 10.5, color: "rgba(255,255,255,0.40)", lineHeight: 1.55 }}>
+      {/* <p style={{ margin: "10px 4px 0", fontSize: 10.5, color: "rgba(255,255,255,0.40)", lineHeight: 1.55 }}>
         ETAs shown here are <em>baselines</em> from <code>RailConfig.etaSeconds</code>. Real quotes use <code>Quote.etaSeconds</code> from <code>RailSolver.quote()</code>, which adjusts for live network conditions, hop count, and attestation queues. Reliability sourced from the cross-bridge VPS <code>route_outcomes</code> table — last 30 days per rail. Stuck-threshold is the per-rail cutoff at which a watching intent transitions to STUCK.
-      </p>
+      </p> */}
     </div>
   );
 }
@@ -2061,15 +2061,15 @@ function LifecycleStatus({
 
 function LifecycleExplainer() {
   const steps: TradeTimelineStep[] = [
-    { label: "Quote",   description: "RailSolver.quote() returns offer + economics", state: "complete" },
-    { label: "Execute", description: "buildExecution() → user signs source tx",       state: "complete" },
-    { label: "Watch",   description: "AsyncIterable<IntentEvent> streams transitions",state: "active"  },
+    { label: "Quote",   description: "RailSolver returns offer + economics", state: "complete" },
+    { label: "Execute", description: "User signs source tx",       state: "complete" },
+    { label: "Watch",   description: "Streams transitions",state: "active"  },
     { label: "Settle",  description: "SettleResult: SETTLED / STUCK / FAILED",        state: "pending" },
   ];
   return (
     <div>
       <p style={{ margin: "0 0 12px", fontSize: 11, color: "rgba(255,255,255,0.55)", lineHeight: 1.55 }}>
-        Every cross-chain intent flows through the RailSolver interface. Stuck detection runs per-rail in the VPS worker; failed intents return to the user's wallet via the rail's recovery flow.
+        Every cross-chain intent flows through the RailSolver. Stuck detection runs per-rail; failed intents return to the user's wallet via the rail's recovery flow.
       </p>
       <div style={{ display: "flex", flexDirection: "column" }}>
         {steps.map((s, i) => (

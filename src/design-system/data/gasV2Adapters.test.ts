@@ -6,10 +6,26 @@ import {
   formatGasHistoryRows,
   formatGasLookupResult,
   normalizeGasChains,
+  resolveGasSourceAmount,
+  resolveSingleGasDestinationChain,
   shortHash,
+  swapSingleGasChains,
 } from "./gasV2Adapters";
 
 describe("gasV2Adapters", () => {
+  it("falls back to the estimated source amount while a live quote has no value", () => {
+    expect(resolveGasSourceAmount("0", "0.00315641")).toBe(0.00315641);
+    expect(resolveGasSourceAmount("0.004", "0.00315641")).toBe(0.004);
+  });
+
+  it("swaps source and destination only when the destination supports inbound transfers", () => {
+    expect(swapSingleGasChains(42161, 8453, [{ id: 42161 }, { id: 8453 }])).toEqual({
+      sourceChainId: 8453,
+      destinationChainId: 42161,
+    });
+    expect(swapSingleGasChains(42161, 8453, [{ id: 42161 }])).toBeNull();
+  });
+
   it("normalizes live Gas.zip chains into picker-safe V2 chains", () => {
     expect(
       normalizeGasChains([
@@ -39,6 +55,25 @@ describe("gasV2Adapters", () => {
     ]);
   });
 
+  it("filters testnets and chains that cannot accept inbound deposits", () => {
+    const chains = [
+      { chain: 42161, name: "Arbitrum", symbol: "ETH", mainnet: true, inbound: true },
+      { chain: 8453, name: "Base", symbol: "ETH", mainnet: true, inbound: false },
+      { chain: 11155111, name: "Sepolia", symbol: "sETH", mainnet: false, inbound: true },
+    ];
+
+    expect(normalizeGasChains(chains).map((chain) => chain.id)).toEqual([42161, 8453]);
+    expect(normalizeGasChains(chains, { requireInbound: true }).map((chain) => chain.id)).toEqual([42161]);
+  });
+
+  it("keeps one valid destination when the source chain changes", () => {
+    const chains = [{ id: 42161 }, { id: 8453 }, { id: 10 }];
+
+    expect(resolveSingleGasDestinationChain(42161, 8453, chains)).toBe(8453);
+    expect(resolveSingleGasDestinationChain(8453, 8453, chains)).toBe(42161);
+    expect(resolveSingleGasDestinationChain(42161, 999999, chains)).toBe(8453);
+  });
+
   it("formats quote and calldata into a send summary", () => {
     const quote = {
       contractDepositTxn: {
@@ -50,7 +85,7 @@ describe("gasV2Adapters", () => {
         {
           expected: "9950000000000000",
           feeUsd: "0.08",
-          eta: 90,
+          speed: 90,
         },
       ],
     };
@@ -69,6 +104,44 @@ describe("gasV2Adapters", () => {
     });
   });
 
+  it("builds a direct-deposit transaction from the documented calldata response", () => {
+    const quote = {
+      calldata: "0x010039",
+      quotes: [{ expected: "599131010000000", gas: "868990000000", speed: 7, usd: 2.078004 }],
+    };
+
+    expect(buildGasQuoteSummary(quote, "ETH")).toMatchObject({
+      expectedAmount: "0.00059913101",
+      estimatedTimeSeconds: 7,
+      ready: true,
+    });
+    expect(buildGasTxRequest(quote, 600000000000000n)).toEqual({
+      to: "0x391E7C679d29bD940d63be94AD22A25d25b5A604",
+      data: "0x010039",
+      value: 600000000000000n,
+    });
+  });
+
+  it("uses the documented transaction time field in history and lookup rows", () => {
+    const time = 1780000000;
+    const history = [{
+      deposit: {
+        hash: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        time,
+        status: "CANCELLED",
+        chain: 42161,
+      },
+      txs: [],
+    }];
+
+    const [row] = formatGasHistoryRows(history, []);
+    const lookup = formatGasLookupResult(history[0], []);
+
+    expect(row.seenLabel).toBe(new Date(time * 1000).toLocaleString());
+    expect(row.status).toBe("failed");
+    expect(lookup?.sentAt).toBe(new Date(time * 1000).toLocaleString());
+  });
+
   it("builds destination display rows from quote expected output", () => {
     expect(
       buildGasDestinationDisplays({
@@ -82,7 +155,6 @@ describe("gasV2Adapters", () => {
         chain: { id: 8453, name: "Base", ticker: "ETH", color: "#0052FF" },
         usd: 31.6808,
         nativeOut: 0.00995,
-        swapsBuyable: 176,
       },
     ]);
   });
@@ -107,14 +179,12 @@ describe("gasV2Adapters", () => {
         chain: { id: 8453, name: "Base", ticker: "ETH", color: "#0052FF" },
         usd: 31.5216,
         nativeOut: 0.0099,
-        swapsBuyable: 175,
       },
       {
         id: "b",
         chain: { id: 137, name: "Polygon", ticker: "POL", color: "#7B3FE4" },
         usd: 7.056,
         nativeOut: 9.8,
-        swapsBuyable: 176,
       },
     ]);
   });

@@ -14,6 +14,8 @@ const GAS_CHAIN_ESTIMATES: Record<number, { nativeUsd: number; gasUsdPerSwap: nu
   146: { nativeUsd: 0.42, gasUsdPerSwap: 0.02 },
 };
 
+const GAS_ZIP_DIRECT_DEPOSIT_ADDRESS = "0x391E7C679d29bD940d63be94AD22A25d25b5A604" as const;
+
 export type GasV2Chain = {
   id: number;
   name: string;
@@ -116,14 +118,56 @@ function chainMeta(chainId: number, raw?: any): GasV2Chain {
   };
 }
 
-export function normalizeGasChains(chains: any[] = []): GasV2Chain[] {
+export function normalizeGasChains(
+  chains: any[] = [],
+  { requireInbound = false }: { requireInbound?: boolean } = {},
+): GasV2Chain[] {
   // Gas.zip returns chain IDs under `chain`; V2 pickers expect `id`.
   // We enrich live chain rows with local display metadata, but never use the
   // local list as the source of supported-chain truth.
   return chains.flatMap((chain) => {
+    if (chain?.mainnet === false || (requireInbound && chain?.inbound === false)) return [];
     const chainId = readChainId(chain);
     return chainId ? [chainMeta(chainId, chain)] : [];
   });
+}
+
+export function resolveSingleGasDestinationChain(
+  sourceChainId: number,
+  currentDestinationChainId: number,
+  chains: Array<{ id: number }>,
+): number {
+  const currentIsValid = currentDestinationChainId !== sourceChainId
+    && chains.some((chain) => chain.id === currentDestinationChainId);
+  if (currentIsValid) return currentDestinationChainId;
+  return chains.find((chain) => chain.id !== sourceChainId)?.id ?? currentDestinationChainId;
+}
+
+export function resolveGasSourceAmount(quotedAmount: unknown, estimatedAmount: unknown): number {
+  const quoted = toNumber(quotedAmount);
+  if (quoted > 0) return quoted;
+
+  const estimated = toNumber(estimatedAmount);
+  return estimated > 0 ? estimated : 0;
+}
+
+export function swapSingleGasChains(
+  sourceChainId: number,
+  destinationChainId: number,
+  sourceChains: Array<{ id: number }>,
+  destinationChains: Array<{ id: number }> = sourceChains,
+): { sourceChainId: number; destinationChainId: number } | null {
+  const destinationSupportsInbound = sourceChains.some((chain) => chain.id === destinationChainId);
+  const sourceSupportsOutbound = destinationChains.some((chain) => chain.id === sourceChainId);
+
+  if (sourceChainId === destinationChainId || !destinationSupportsInbound || !sourceSupportsOutbound) {
+    return null;
+  }
+
+  return {
+    sourceChainId: destinationChainId,
+    destinationChainId: sourceChainId,
+  };
 }
 
 function readQuote(quote: any): any {
@@ -144,7 +188,7 @@ function readFeeUSD(quote: any): number {
 
 function readEtaSeconds(quote: any): number | null {
   const q = readQuote(quote);
-  const eta = q?.etaSeconds ?? q?.eta ?? q?.estimatedTimeSeconds ?? quote?.etaSeconds;
+  const eta = q?.speed ?? q?.etaSeconds ?? q?.eta ?? q?.estimatedTimeSeconds ?? quote?.etaSeconds;
   const parsed = Number(eta);
   return Number.isFinite(parsed) ? parsed : null;
 }
@@ -154,24 +198,46 @@ export function buildGasQuoteSummary(quote: any, _sourceTicker = "GAS"): GasV2Qu
   const q = readQuote(quote);
   const sourceAmount = formatNativeWei(tx.value ?? quote?.value);
   const expectedAmount = formatNativeWei(q?.expected ?? q?.amountOut ?? q?.output);
+  const documentedCalldataReady = Boolean(
+    quote?.calldata &&
+      quote.calldata !== "0x" &&
+      !quote?.error &&
+      Array.isArray(quote?.quotes) &&
+      quote.quotes.length > 0 &&
+      quote.quotes.every((item: any) => !item?.error),
+  );
 
   return {
     sourceAmount,
     expectedAmount,
     bridgeFeeUSD: readFeeUSD(quote),
     estimatedTimeSeconds: readEtaSeconds(quote),
-    ready: Boolean(tx?.to && tx?.data && tx?.value),
+    ready: Boolean(tx?.to && tx?.data && tx?.value) || documentedCalldataReady,
   };
 }
 
-export function buildGasTxRequest(quote: any): GasV2TxRequest | null {
+export function buildGasTxRequest(
+  quote: any,
+  documentedDepositValue?: bigint | string | number,
+): GasV2TxRequest | null {
   const tx = quote?.contractDepositTxn ?? quote?.transaction ?? quote?.tx;
-  if (!tx?.to || !tx?.data || tx?.value == null) return null;
+  if (tx?.to && tx?.data && tx?.value != null) {
+    return {
+      to: tx.to as `0x${string}`,
+      data: tx.data as `0x${string}`,
+      value: BigInt(tx.value),
+    };
+  }
+
+  if (!quote?.calldata || quote.calldata === "0x" || documentedDepositValue == null) return null;
+
+  const value = BigInt(documentedDepositValue);
+  if (value <= 0n) return null;
 
   return {
-    to: tx.to as `0x${string}`,
-    data: tx.data as `0x${string}`,
-    value: BigInt(tx.value),
+    to: GAS_ZIP_DIRECT_DEPOSIT_ADDRESS,
+    data: quote.calldata as `0x${string}`,
+    value,
   };
 }
 
@@ -205,7 +271,6 @@ export function buildGasDestinationDisplays({
       chain: { id: chain.id, name: chain.name, ticker: chain.ticker, color: chain.color },
       usd,
       nativeOut,
-      swapsBuyable: Math.floor(usd / Math.max(chain.gasUsdPerSwap, 0.000001)),
     };
   });
 }
@@ -215,7 +280,7 @@ function normalizeStatus(status: unknown): "delivered" | "pending" | "failed" {
   if (["confirmed", "complete", "completed", "delivered", "success", "settled"].includes(normalized)) {
     return "delivered";
   }
-  if (["error", "failed", "reverted"].includes(normalized)) return "failed";
+  if (["cancelled", "error", "failed", "reverted"].includes(normalized)) return "failed";
   return "pending";
 }
 
@@ -225,7 +290,7 @@ function lookupStatus(status: unknown): GasLookupDelivery["status"] {
     return "delivered";
   }
   if (["stuck", "timeout"].includes(normalized)) return "stuck";
-  if (["error", "failed", "reverted"].includes(normalized)) return "failed";
+  if (["cancelled", "error", "failed", "reverted"].includes(normalized)) return "failed";
   return "in_flight";
 }
 
@@ -249,7 +314,9 @@ export function formatGasHistoryRows(history: any[] = [], chains: GasV2Chain[] =
       sourceHash,
       sourceHashShort: shortHash(sourceHash),
       sourceExplorer: sourceChainId ? getExplorerTxUrl(sourceChainId, sourceHash) ?? undefined : undefined,
-      seenLabel: deposit?.seen ? new Date(Number(deposit.seen) * 1000).toLocaleString() : "Unknown",
+      seenLabel: deposit?.time ?? deposit?.seen
+        ? new Date(Number(deposit.time ?? deposit.seen) * 1000).toLocaleString()
+        : "Unknown",
       status: normalizeStatus(deposit?.status),
       value: String(deposit?.value ?? deposit?.amount ?? ""),
       sourceChainName: chainNameFromId(sourceChainId, chains),
@@ -283,7 +350,9 @@ export function formatGasLookupResult(result: any, chains: GasV2Chain[] = []): G
     sourceTxShort: shortHash(sourceHash),
     sourceTxFull: sourceHash,
     sourceExplorer: sourceChainId ? getExplorerTxUrl(sourceChainId, sourceHash) ?? undefined : undefined,
-    sentAt: deposit?.seen ? new Date(Number(deposit.seen) * 1000).toLocaleString() : "Unknown",
+    sentAt: deposit?.time ?? deposit?.seen
+      ? new Date(Number(deposit.time ?? deposit.seen) * 1000).toLocaleString()
+      : "Unknown",
     sentUsd: toNumber(deposit?.usdValue ?? deposit?.sentUsd ?? deposit?.usd),
     bridgeFeeUsd: toNumber(deposit?.feeUsd ?? deposit?.bridgeFeeUsd),
     deliveries: txs.map((tx: any) => {

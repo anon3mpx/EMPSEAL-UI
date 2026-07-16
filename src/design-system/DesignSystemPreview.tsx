@@ -418,17 +418,29 @@ export default function DesignSystemPreview() {
                 sourceAmount={gasFrom}
                 sourceBalance="12.45"
                 sourceUsdValue={Number(gasFrom) * 3184}
-                onSourceAmountChange={setGasFrom}
                 onSelectSourceChain={() => setCrossChainPickerOpen(true)}
-                onPercentClick={(pct) => setGasFrom(String((12.45 * pct) / 100))}
-                destChain={{ ...BASE, ticker: "ETH" }}
-                destAmount={gasTo}
-                destUsdValue={Number(gasTo) * 3184}
-                onSelectDestChain={() => setCrossChainPickerOpen(true)}
-                protocolFeeUSD={0.05}
+                onSwitchChains={() => {}}
+                destination={{
+                  id: "base",
+                  chain: { ...BASE, ticker: "ETH" },
+                  usd: Number(gasTo) * 3184,
+                  nativeOut: Number(gasTo),
+                }}
+                onSelectDestinationChain={() => setCrossChainPickerOpen(true)}
+                onSetDestinationUsd={(usd) => setGasTo(String(usd / 3184))}
+                presets={[5, 10, 20, 50]}
                 bridgeFeeUSD={0.12}
                 estimatedTime="~ 45 seconds"
+                useDifferentRecipient={false}
+                onToggleRecipient={() => {}}
+                recipient=""
+                onSetRecipient={() => {}}
+                recipientValid
+                canSubmit
+                swapLabel="Send gas to Base"
                 onSubmit={() => toast.success("Refuel submitted")}
+                walletConnected
+                onConnect={() => {}}
               />
             </div>
           </div>

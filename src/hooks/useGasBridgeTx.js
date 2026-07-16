@@ -110,7 +110,7 @@ export const useGasBridgeTx = () => {
     }
     if (backendStatus?.deposit?.status === 'CONFIRMED') {
       toast.success('Bridge complete! Funds received on destination chain.');
-    } else if (backendStatus?.deposit?.status === 'ERROR') {
+    } else if (['CANCELLED', 'ERROR'].includes(backendStatus?.deposit?.status)) {
       toast.error('An error occurred with the bridge transfer.');
     }
   }, [isPolling, backendStatus]);

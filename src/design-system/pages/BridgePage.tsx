@@ -276,7 +276,7 @@ export default function BridgePage() {
             </Card>
 
             {/* Roadmap status — compact */}
-            <Card style={{ padding: 14 }}>
+            {/* <Card style={{ padding: 14 }}>
               <p style={{ margin: 0, fontSize: 10, letterSpacing: "0.40em", color: "rgba(255,255,255,0.50)", textTransform: "uppercase", fontWeight: 700 }}>
                 Rebuild status
               </p>
@@ -288,9 +288,9 @@ export default function BridgePage() {
                   <TierRow key={t.tier} tier={t} />
                 ))}
               </div>
-            </Card>
+            </Card> */}
 
-            <Card style={{ padding: 14 }}>
+            {/* <Card style={{ padding: 14 }}>
               <p style={{ margin: 0, fontSize: 10, letterSpacing: "0.40em", color: "rgba(255,255,255,0.50)", textTransform: "uppercase", fontWeight: 700 }}>
                 Plug-in points
               </p>
@@ -307,7 +307,7 @@ export default function BridgePage() {
                   </li>
                 ))}
               </ul>
-            </Card>
+            </Card> */}
           </aside>
         </div>
       </main>

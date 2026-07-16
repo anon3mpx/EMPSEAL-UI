@@ -4,6 +4,17 @@ import { parseEther } from 'viem';
 
 const GAS_API_BASE_URL = 'https://backend.gas.zip/v2';
 
+export const isGasBridgeTerminalStatus = (status) => {
+  return ['CONFIRMED', 'CANCELLED', 'ERROR'].includes(String(status || '').toUpperCase());
+};
+
+export const buildGasQuotePath = (fromChain, amountInWei, toChain) => {
+  if (Array.isArray(toChain)) {
+    throw new Error('Gas bridge quotes require exactly one destination chain');
+  }
+  return `/quotes/${fromChain}/${amountInWei}/${toChain}`;
+};
+
 // Endpoint 1: Get all supported chains
 export const useGetChains = () => {
   return useQuery({
@@ -14,7 +25,7 @@ export const useGetChains = () => {
       return data?.chains || [];
     },
     staleTime: Infinity,
-    cacheTime: Infinity,
+    gcTime: Infinity,
   });
 };
 
@@ -67,8 +78,8 @@ export const useSearchTransaction = ({ hash }) => {
     enabled: !!hash,
     refetchInterval: (query) => {
       const data = query.state.data;
-      // Stop polling if the transaction is confirmed or has an error
-      if (data?.deposit?.status === 'CONFIRMED' || data?.deposit?.status === 'ERROR') {
+      // Stop polling when Gas.zip reports a terminal outcome.
+      if (isGasBridgeTerminalStatus(data?.deposit?.status)) {
         return false;
       }
       return 5000; // Poll every 5 seconds
@@ -77,17 +88,16 @@ export const useSearchTransaction = ({ hash }) => {
 };
 
 // Endpoint 6: Get a simple quote
-export const useGetQuote = ({ fromChain, amount, toChains }) => {
+export const useGetQuote = ({ fromChain, amount, toChain }) => {
   const amountInWei = amount ? parseEther(amount) : '0';
-  const toChainsString = toChains?.join(',');
 
   return useQuery({
-    queryKey: ['gasQuote', fromChain, amountInWei.toString(), toChainsString],
+    queryKey: ['gasQuote', fromChain, amountInWei.toString(), toChain],
     queryFn: async () => {
-      const { data } = await axios.get(`${GAS_API_BASE_URL}/quotes/${fromChain}/${amountInWei}/${toChainsString}`);
+      const { data } = await axios.get(`${GAS_API_BASE_URL}${buildGasQuotePath(fromChain, amountInWei, toChain)}`);
       return data;
     },
-    enabled: !!fromChain && BigInt(amountInWei) > 0 && !!toChainsString,
+    enabled: !!fromChain && BigInt(amountInWei) > 0 && !!toChain,
   });
 };
 
@@ -112,7 +122,8 @@ export const useGetCalldataQuote = ({ fromChain, toChain, amount, toAddress, fro
   return useQuery({
     queryKey: ['gasCalldataQuote', fromChain, toChain, amountInWei.toString(), toAddress, fromAddress],
     queryFn: async () => {
-      const { data } = await axios.get(`${GAS_API_BASE_URL}/quotes/${fromChain}/${amountInWei}/${toChain}?to=${toAddress}&from=${fromAddress}`);
+      const path = buildGasQuotePath(fromChain, amountInWei, toChain);
+      const { data } = await axios.get(`${GAS_API_BASE_URL}${path}?to=${toAddress}&from=${fromAddress}`);
       return data;
     },
     enabled: !!fromChain && !!toChain && BigInt(amountInWei) > 0 && !!toAddress && !!fromAddress,

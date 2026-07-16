@@ -1,8 +1,8 @@
 // ─── GasPage — standalone native-gas top-up (Gas.zip direct integration) ──
 //
 // PURPOSE & HONEST SCOPE:
-//   Send native gas from one source chain to 1–5 destination chains in a
-//   SINGLE transaction.  Native → native only (no token swaps).
+//   Send native gas from one source chain to one destination chain.
+//   Native → native only (no token swaps).
 //
 //   This page integrates with Gas.zip's public backend (https://backend.gas.zip/v2)
 //   DIRECTLY — NOT through the empx-cross-bridge SDK.  That distinction matters:
@@ -19,7 +19,6 @@
 // EXISTING WIRING WE'D REUSE WHEN GOING LIVE:
 //   • hooks/useGasBridgeAPI.js
 //       - useGetChains()           — Gas.zip supported chains (cache: Infinity)
-//       - useGetQuote({ fromChain, amount, toChains })       — multi-dest!
 //       - useGetQuoteReverse({ fromChain, amountOut, toChain }) — reverse
 //       - useGetCalldataQuote(...) — tx calldata for the bridge
 //       - useGetUserHistory({ address })
@@ -33,7 +32,7 @@
 //   fallbacks when the live API omits fiat/gas affordability metadata.
 
 import { useEffect, useMemo, useState } from "react";
-import { formatEther, type Address } from "viem";
+import { formatEther, parseEther, type Address } from "viem";
 import { useBalance } from "wagmi";
 import {
   AccountModal,
@@ -70,7 +69,10 @@ import {
   formatGasHistoryRows,
   formatGasLookupResult,
   normalizeGasChains,
+  resolveGasSourceAmount,
+  resolveSingleGasDestinationChain,
   shortHash,
+  swapSingleGasChains,
   type GasLookupDelivery,
   type GasLookupResult,
   type GasV2Chain,
@@ -93,7 +95,6 @@ import { useGasBridgeStore } from "../../redux/store/gasBridgeStore";
 
 // ─── Constants ────────────────────────────────────────────────────────────
 
-const MAX_DESTINATIONS = 5;
 const PER_DEST_USD_PRESETS = [5, 10, 20, 50];
 
 // Chain set Gas.zip supports — production sources this from
@@ -134,9 +135,7 @@ type ActiveTab = "send" | "history" | "lookup";
 
 type ChainPickerTarget =
   | { kind: "source" }
-  | { kind: "destination"; destId: string };
-
-function nextId() { return Math.random().toString(36).slice(2, 9); }
+  | { kind: "destination" };
 
 export default function GasPage() {
   const isMobile = useIsMobile();
@@ -157,11 +156,13 @@ export default function GasPage() {
 
   const [tab, setTab] = useState<ActiveTab>("send");
 
-  // Source + destinations
+  // Source + single destination
   const [sourceChainId, setSourceChainId] = useState(42161); // Arbitrum default
-  const [destinations, setDestinations] = useState<Destination[]>([
-    { id: nextId(), chainId: 8453, usd: 10 },
-  ]);
+  const [destination, setDestination] = useState<Destination>({
+    id: "destination",
+    chainId: 8453,
+    usd: 10,
+  });
 
   // Recipient — defaults to connected wallet; expose only via toggle
   const [useDifferentRecipient, setUseDifferentRecipient] = useState(false);
@@ -176,22 +177,32 @@ export default function GasPage() {
   const tx = useGasBridgeTx();
 
   // ── Derived ─────────────────────────────────────────────────────────────
-  const liveGasChains = useMemo<GasV2Chain[]>(
+  const liveDestinationChains = useMemo<GasV2Chain[]>(
     () => normalizeGasChains(gasChainsQuery.data ?? []),
     [gasChainsQuery.data],
   );
-  const supportedGasChains = liveGasChains.length > 0 ? liveGasChains : GAS_CHAINS;
+  const liveSourceChains = useMemo<GasV2Chain[]>(
+    () => normalizeGasChains(gasChainsQuery.data ?? [], { requireInbound: true }),
+    [gasChainsQuery.data],
+  );
+  const supportedGasChains = liveDestinationChains.length > 0 ? liveDestinationChains : GAS_CHAINS;
+  const supportedSourceChains = liveSourceChains.length > 0 ? liveSourceChains : GAS_CHAINS;
   const sourceChain = useMemo(
-    () => supportedGasChains.find((c) => c.id === sourceChainId) ?? supportedGasChains[0] ?? GAS_CHAINS[0],
-    [sourceChainId, supportedGasChains],
+    () => supportedSourceChains.find((c) => c.id === sourceChainId) ?? supportedSourceChains[0] ?? GAS_CHAINS[0],
+    [sourceChainId, supportedSourceChains],
+  );
+  const destinationChain = useMemo(
+    () => supportedGasChains.find((c) => c.id === destination.chainId)
+      ?? supportedGasChains.find((c) => c.id !== sourceChainId)
+      ?? GAS_CHAINS[0],
+    [destination.chainId, sourceChainId, supportedGasChains],
   );
   const recipientAddress = useDifferentRecipient
     ? recipient.trim()
     : connectedAddress;
 
-  // Total USD across destinations
-  const totalDestUSD = destinations.reduce((s, d) => s + (d.usd || 0), 0);
-  // The V2 UI keeps destination USD targets; Gas.zip quotes take a single
+  const totalDestUSD = destination.usd || 0;
+  // The V2 UI keeps a destination USD target; Gas.zip quotes take a single
   // source-native amount. This estimate is only the request seed. The rendered
   // fee/send amount below switches to the live quote when available.
   const estimatedBridgeFeeUSD = totalDestUSD * 0.005;
@@ -202,11 +213,9 @@ export default function GasPage() {
   const sourceAmountInput = estimatedSourceAmountNative > 0
     ? estimatedSourceAmountNative.toFixed(estimatedSourceAmountNative < 0.01 ? 8 : 6)
     : "";
-  const destinationChainIds = destinations.map((d) => d.chainId);
-  const destinationChainParam = destinationChainIds.join(",");
   const quote = useGetCalldataQuote({
     fromChain: sourceChainId,
-    toChain: destinationChainParam,
+    toChain: destination.chainId,
     amount: sourceAmountInput,
     toAddress: recipientAddress,
     fromAddress: connectedAddress,
@@ -215,21 +224,23 @@ export default function GasPage() {
     () => buildGasQuoteSummary(quote.data, sourceChain.ticker),
     [quote.data, sourceChain.ticker],
   );
-  const txRequest = useMemo(() => buildGasTxRequest(quote.data), [quote.data]);
+  const txRequest = useMemo(
+    () => buildGasTxRequest(quote.data, sourceAmountInput ? parseEther(sourceAmountInput) : 0n),
+    [quote.data, sourceAmountInput],
+  );
   const bridgeFeeUSD = quoteSummary.bridgeFeeUSD || estimatedBridgeFeeUSD;
   const totalCostUSD = totalDestUSD + bridgeFeeUSD;
-  const sourceAmountNative = Number(quoteSummary.sourceAmount || sourceAmountInput || 0);
+  const sourceAmountNative = resolveGasSourceAmount(quoteSummary.sourceAmount, sourceAmountInput);
   const sourceAmountDisplay = sourceAmountNative > 0
     ? sourceAmountNative.toFixed(sourceAmountNative < 0.01 ? 8 : 6)
     : "0";
   const estimatedTimeSeconds = quoteSummary.estimatedTimeSeconds ?? 75;
 
   // Validity
-  const destsValid = destinations.length > 0
-    && destinations.every((d) => d.usd > 0 && d.chainId !== sourceChainId);
+  const destinationValid = destination.usd > 0 && destination.chainId !== sourceChainId;
   const recipientValid = !useDifferentRecipient || /^0x[0-9a-fA-F]{40}$/.test(recipient.trim());
   const canSubmit = Boolean(
-    destsValid &&
+    destinationValid &&
       recipientValid &&
       connectedAddress &&
       txRequest &&
@@ -246,11 +257,11 @@ export default function GasPage() {
 
   useEffect(() => {
     setFromChain(sourceChainId);
-    setToChain(destinations[0]?.chainId ?? null);
+    setToChain(destination.chainId);
     setStoreAmount(sourceAmountInput);
     setRecipientAddress(recipientAddress ?? "");
   }, [
-    destinations,
+    destination.chainId,
     recipientAddress,
     setFromChain,
     setRecipientAddress,
@@ -279,14 +290,25 @@ export default function GasPage() {
   }, [tx.backendStatus]);
 
   useEffect(() => {
-    if (!supportedGasChains.some((chain) => chain.id === sourceChainId)) {
-      setSourceChainId(supportedGasChains[0]?.id ?? 42161);
+    if (!supportedSourceChains.some((chain) => chain.id === sourceChainId)) {
+      setSourceChainId(supportedSourceChains[0]?.id ?? 42161);
     }
+  }, [sourceChainId, supportedSourceChains]);
+
+  useEffect(() => {
+    setDestination((current) => {
+      const nextChainId = resolveSingleGasDestinationChain(
+        sourceChainId,
+        current.chainId,
+        supportedGasChains,
+      );
+      return nextChainId === current.chainId ? current : { ...current, chainId: nextChainId };
+    });
   }, [sourceChainId, supportedGasChains]);
 
   // Chain picker list — apply tier badging
-  const chainPickerList: PickerChain[] = useMemo(() => {
-    return supportedGasChains.map((c) => {
+  const sourceChainPickerList: PickerChain[] = useMemo(() => {
+    return supportedSourceChains.map((c) => {
       const tier = tierForChainId(c.id);
       return {
         id: c.id,
@@ -297,36 +319,55 @@ export default function GasPage() {
         tierLabel: tierLabel(tier),
       };
     });
-  }, [supportedGasChains]);
+  }, [supportedSourceChains]);
+
+  const destinationChainPickerList: PickerChain[] = useMemo(() => {
+    return supportedGasChains.filter((c) => c.id !== sourceChainId).map((c) => {
+      const tier = tierForChainId(c.id);
+      return {
+        id: c.id,
+        name: c.name,
+        ticker: c.ticker,
+        color: c.color,
+        tier,
+        tierLabel: tierLabel(tier),
+      };
+    });
+  }, [sourceChainId, supportedGasChains]);
 
   // ── Mutators ────────────────────────────────────────────────────────────
-  const addDestination = () => {
-    if (destinations.length >= MAX_DESTINATIONS) return;
-    // Pick a chain that's not source + not already a destination
-    const usedIds = new Set([sourceChainId, ...destinations.map((d) => d.chainId)]);
-    const available = supportedGasChains.find((c) => !usedIds.has(c.id)) ?? supportedGasChains[0] ?? GAS_CHAINS[0];
-    setDestinations([...destinations, { id: nextId(), chainId: available.id, usd: 10 }]);
+  const setDestUsd = (usd: number) => {
+    setDestination((current) => ({ ...current, usd }));
   };
-  const removeDestination = (id: string) => {
-    setDestinations(destinations.filter((d) => d.id !== id));
+  const setDestChain = (chainId: number) => {
+    setDestination((current) => ({ ...current, chainId }));
   };
-  const setDestUsd = (id: string, usd: number) => {
-    setDestinations(destinations.map((d) => (d.id === id ? { ...d, usd } : d)));
-  };
-  const setDestChain = (id: string, chainId: number) => {
-    setDestinations(destinations.map((d) => (d.id === id ? { ...d, chainId } : d)));
+  const chainSwap = swapSingleGasChains(
+    sourceChainId,
+    destination.chainId,
+    supportedSourceChains,
+    supportedGasChains,
+  );
+  const switchChains = () => {
+    if (!chainSwap) {
+      toast.error("The selected destination cannot be used as a Gas.zip source chain.");
+      return;
+    }
+
+    setSourceChainId(chainSwap.sourceChainId);
+    setDestination((current) => ({ ...current, chainId: chainSwap.destinationChainId }));
   };
 
-  const gasDestinations = useMemo(
+  const gasDestination = useMemo(
     () =>
       buildGasDestinationDisplays({
-        destinations: destinations.map<GasV2Destination>((destination) => {
-          const chain = supportedGasChains.find((item) => item.id === destination.chainId);
-          const amount = chain?.nativeUsd
-            ? String(destination.usd / chain.nativeUsd)
-            : "0";
-          return { id: destination.id, chainId: destination.chainId, amount };
-        }),
+        destinations: [{
+          id: destination.id,
+          chainId: destination.chainId,
+          amount: destinationChain.nativeUsd
+            ? String(destination.usd / destinationChain.nativeUsd)
+            : "0",
+        } satisfies GasV2Destination],
         chains: supportedGasChains,
         expectedAmount: quoteSummary.expectedAmount,
         expectedAmounts: Array.isArray(quote.data?.quotes)
@@ -338,8 +379,8 @@ export default function GasPage() {
               }
             })
           : undefined,
-      }),
-    [destinations, quote.data, quoteSummary.expectedAmount, supportedGasChains],
+      })[0],
+    [destination, destinationChain.nativeUsd, quote.data, quoteSummary.expectedAmount, supportedGasChains],
   );
   const backendLookupResult = useMemo(
     () => formatGasLookupResult(tx.backendStatus, supportedGasChains),
@@ -399,7 +440,7 @@ export default function GasPage() {
         <header style={{ marginBottom: isMobile ? 20 : 26 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8, flexWrap: "wrap" }}>
             <p style={{ margin: 0, fontSize: 10, letterSpacing: "0.40em", color: "#FF8A00", textTransform: "uppercase", fontWeight: 700 }}>
-              GAS · MULTI-DESTINATION
+              GAS · SINGLE DESTINATION
             </p>
             <Pill variant="info">Direct Gas.zip · bypasses SDK rails</Pill>
           </div>
@@ -420,7 +461,7 @@ export default function GasPage() {
             </span>
           </h1>
           <p style={{ margin: "12px 0 0", fontSize: 13, color: "rgba(255,255,255,0.65)", lineHeight: 1.6, maxWidth: 720 }}>
-            Top up native gas on 1–{MAX_DESTINATIONS} destination chains in a single source transaction.
+            Top up native gas.
             For gas drops bundled with a swap, use{" "}
             <a href="/cross-v2" style={{ color: "#FF8A00", textDecoration: "none", borderBottom: "1px solid rgba(255,138,0,0.40)" }}>
               cross-chain swap
@@ -459,12 +500,11 @@ export default function GasPage() {
                 sourceUsdValue={totalCostUSD}
                 sourceBalance={sourceBalance ? `${Number(sourceBalance.formatted).toLocaleString(undefined, { maximumFractionDigits: 6 })} ${sourceChain.ticker}` : undefined}
                 onSelectSourceChain={() => setChainPickerTarget({ kind: "source" })}
-                destinations={gasDestinations}
-                maxDestinations={MAX_DESTINATIONS}
-                onSelectDestinationChain={(destId) => setChainPickerTarget({ kind: "destination", destId })}
+                onSwitchChains={switchChains}
+                canSwitchChains={Boolean(chainSwap)}
+                destination={gasDestination}
+                onSelectDestinationChain={() => setChainPickerTarget({ kind: "destination" })}
                 onSetDestinationUsd={setDestUsd}
-                onRemoveDestination={removeDestination}
-                onAddDestination={addDestination}
                 presets={PER_DEST_USD_PRESETS}
                 bridgeFeeUSD={bridgeFeeUSD}
                 estimatedTime={formatEtaSeconds(estimatedTimeSeconds)}
@@ -473,13 +513,11 @@ export default function GasPage() {
                 recipient={recipient}
                 onSetRecipient={setRecipient}
                 recipientValid={recipientValid}
-                canSubmit={Boolean(destsValid && recipientValid && (!connectedAddress || canSubmit))}
+                canSubmit={Boolean(destinationValid && recipientValid && (!connectedAddress || canSubmit))}
                 swapLabel={
                   quote.isLoading
                     ? "Fetching Gas.zip route..."
-                    : destinations.length === 1
-                      ? `Send gas to ${supportedGasChains.find((c) => c.id === destinations[0].chainId)?.name ?? "destination"}`
-                      : `Send gas to ${destinations.length} chains`
+                    : `Send gas to ${destinationChain.name}`
                 }
                 onSubmit={onSubmit}
                 walletConnected={walletState.status === "connected"}
@@ -516,7 +554,7 @@ export default function GasPage() {
                 <FeeBreakdown
                   rows={(() => {
                     const rows: FeeRow[] = [
-                      { label: "Destinations",     value: `${destinations.length} chain${destinations.length === 1 ? "" : "s"}` },
+                      { label: "Destination",      value: destinationChain.name },
                       { label: "Total to deliver", value: `$${totalDestUSD.toFixed(2)}` },
                       { label: "Bridge fee",       value: bridgeFeeUSD <= 0.005 ? "FREE" : `$${bridgeFeeUSD.toFixed(2)}`, sub: quote.data ? "Gas.zip quote" : "estimate", accent: true },
                       { label: `You send`,         value: `${sourceAmountDisplay} ${sourceChain.ticker}`, sub: `~$${totalCostUSD.toFixed(2)}` },
@@ -527,9 +565,9 @@ export default function GasPage() {
                   bordered
                 />
 
-                {!destsValid && (
+                {!destinationValid && (
                   <p style={{ margin: "12px 0 0", fontSize: 11, color: "#FFB347", lineHeight: 1.5 }}>
-                    Set a USD amount &gt; 0 on each destination, and make sure none equal the source chain.
+                    Set a USD amount &gt; 0 and choose a destination different from the source chain.
                   </p>
                 )}
                 {useDifferentRecipient && recipient.length > 0 && !recipientValid && (
@@ -544,15 +582,13 @@ export default function GasPage() {
                       ? "Connect wallet"
                       : quote.isLoading
                       ? "Fetching Gas.zip route..."
-                      : destinations.length === 1
-                      ? `Send gas to ${supportedGasChains.find((c) => c.id === destinations[0].chainId)?.name ?? "destination"}`
-                      : `Send gas to ${destinations.length} chains`}
+                      : `Send gas to ${destinationChain.name}`}
                   </PrimaryButton>
                 </div>
               </Card>
 
               {/* Honest disclosure */}
-              <Card style={{ padding: 14 }}>
+              {/* <Card style={{ padding: 14 }}>
                 <p style={{ margin: 0, fontSize: 10, letterSpacing: "0.40em", color: "rgba(255,255,255,0.50)", textTransform: "uppercase", fontWeight: 700 }}>
                   How this works
                 </p>
@@ -561,7 +597,7 @@ export default function GasPage() {
                     "Page integrates DIRECTLY with Gas.zip's public backend.",
                     "Does NOT route through the EmpX cross-chain rails / SDK.",
                     "For gas drops bundled with a swap, use /cross-v2.",
-                    "One source tx fans out to all selected destinations.",
+                    "One source transaction funds one destination.",
                   ].map((line, i) => (
                     <li key={i} style={{ display: "flex", gap: 10, fontSize: 11, color: "rgba(255,255,255,0.65)", lineHeight: 1.55 }}>
                       <span style={{ color: "#FF8A00", flexShrink: 0, marginTop: 1 }}>•</span>
@@ -569,10 +605,10 @@ export default function GasPage() {
                     </li>
                   ))}
                 </ul>
-              </Card>
+              </Card> */}
 
               {/* SDK source */}
-              <Card style={{ padding: 14 }}>
+              {/* <Card style={{ padding: 14 }}>
                 <p style={{ margin: 0, fontSize: 10, letterSpacing: "0.40em", color: "rgba(255,255,255,0.50)", textTransform: "uppercase", fontWeight: 700 }}>
                   Backed by
                 </p>
@@ -587,7 +623,7 @@ export default function GasPage() {
                     </li>
                   ))}
                 </ul>
-              </Card>
+              </Card> */}
             </aside>
           </div>
         )}
@@ -617,25 +653,27 @@ export default function GasPage() {
         }}
       />
 
-      {/* Chain picker — both source and per-destination */}
+      {/* Chain picker — source or destination */}
       {chainPickerTarget && (
         <ChainPicker
           open={!!chainPickerTarget}
           onClose={() => setChainPickerTarget(null)}
-          chains={chainPickerList}
+          chains={chainPickerTarget.kind === "source" ? sourceChainPickerList : destinationChainPickerList}
           selectedId={
             chainPickerTarget.kind === "source"
               ? sourceChainId
-              : destinations.find((d) => d.id === chainPickerTarget.destId)?.chainId
+              : destination.chainId
           }
           mode="swap"
           onSelect={(c) => {
             if (chainPickerTarget.kind === "source") {
               setSourceChainId(c.id);
-              // If new source matches any destination, remove that destination
-              setDestinations((cur) => cur.filter((d) => d.chainId !== c.id));
+              setDestination((current) => ({
+                ...current,
+                chainId: resolveSingleGasDestinationChain(c.id, current.chainId, supportedGasChains),
+              }));
             } else {
-              setDestChain(chainPickerTarget.destId, c.id);
+              setDestChain(c.id);
             }
             setChainPickerTarget(null);
           }}
@@ -653,15 +691,11 @@ export default function GasPage() {
         fromTicker={sourceChain.ticker}
         fromAmount={sourceAmountDisplay}
         fromChainName={sourceChain.name}
-        toTicker={destinations.length === 1
-          ? (supportedGasChains.find((c) => c.id === destinations[0].chainId)?.ticker ?? "GAS")
-          : `${destinations.length} chains`}
+        toTicker={destinationChain.ticker}
         toAmount={`$${totalDestUSD.toFixed(2)}`}
-        toChainName={destinations.length === 1
-          ? (supportedGasChains.find((c) => c.id === destinations[0].chainId)?.name ?? "")
-          : "multi-destination"}
+        toChainName={destinationChain.name}
         feeRows={[
-          { label: "Destinations",     value: `${destinations.length} chain${destinations.length === 1 ? "" : "s"}` },
+          { label: "Destination",      value: destinationChain.name },
           { label: "Total to deliver", value: `$${totalDestUSD.toFixed(2)}` },
           { label: "Bridge fee",       value: bridgeFeeUSD <= 0.005 ? "FREE" : `$${bridgeFeeUSD.toFixed(2)}`, sub: quote.data ? "Gas.zip quote" : "estimate", accent: true },
           { label: "Source amount",    value: `${sourceAmountDisplay} ${sourceChain.ticker}` },
@@ -673,9 +707,6 @@ export default function GasPage() {
           setQuoteIssuedAt(Date.now());
           void quote.refetch();
         }}
-        warning={destinations.length > 1
-          ? "One source tx fans out to all destinations. Each landing is independent — partial fills possible if a rail stalls."
-          : undefined}
       />
 
       {/* Success after send */}
@@ -686,16 +717,10 @@ export default function GasPage() {
         fromTicker={sourceChain.ticker}
         fromAmount={sourceAmountDisplay}
         fromChainName={sourceChain.name}
-        toTicker={destinations.length === 1
-          ? (supportedGasChains.find((c) => c.id === destinations[0].chainId)?.ticker ?? "GAS")
-          : `${destinations.length} chains`}
+        toTicker={destinationChain.ticker}
         toAmount={`$${totalDestUSD.toFixed(2)}`}
-        toChainName={destinations.length === 1
-          ? (supportedGasChains.find((c) => c.id === destinations[0].chainId)?.name ?? "")
-          : "multi-destination"}
-        message={destinations.length === 1
-          ? `Gas delivered on ${supportedGasChains.find((c) => c.id === destinations[0].chainId)?.name}`
-          : `Gas delivered across ${destinations.length} chains`}
+        toChainName={destinationChain.name}
+        message={`Gas delivered on ${destinationChain.name}`}
         timeline={[
           {
             label: "Source confirmation",
