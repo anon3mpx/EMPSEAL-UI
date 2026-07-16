@@ -1,44 +1,21 @@
 // ─── useSwapQuoteFetch ───────────────────────────────────────────────────────
 //
-// W3 of SDK wiring (post-CHECKPOINT-v6).  Routes the swap-page quote engine
-// through empx-swap-sdk's `router.findBestPath()` instead of wagmi's six
-// `useReadContract` calls.
-//
-// Why findBestPath() and NOT getTradeInfo()
-// ──────────────────────────────────────────
-// The SDK's `getTradeInfo()` applies protocol fee BEFORE pathfinding via
-// `applyProtocolFee()` → that changes the expected output vs the old
-// wagmi path which called `findBestPath()` with the full amountIn and
-// let Emp.jsx do its own fee math downstream (`setCalculatedRoute`).
-// Using `findBestPath()` directly preserves the original behaviour.
-// W3.5 could migrate to `getTradeInfo()` once we audit every consumer of
-// `data` to ensure fee handling stays consistent — out of scope for now.
-//
-// Boundary kept identical to the pre-W3 hook
-// ──────────────────────────────────────────
-//   { data, singleToken, quoteLoading, isQuoteEnabled, isDirectRoute,
-//     refreshQuotes, quoteFallbackPlan }
-//
-// `data` and `singleToken` produce the shape consumers already use:
-//   { amounts: bigint[], path: string[], adapters: string[], gasEstimate? }
-//
-// What's actually gone vs pre-W3
-// ──────────────────────────────
-//   • The 6 useReadContract calls (primary + 2 fallback × 2 quote types)
-//   • All explicit fallback-hop-step plumbing — the SDK's internal
-//     `findBestPathPreferAcyclic` already does cycle-detection + step-down
-//     fallback, replacing our manual primary/fallback/fallbackOne tiers.
-//   • The `routerABI` return (was never consumed by Emp.jsx anyway).
-//
-// What stays
-// ──────────
-//   • `quoteFallbackPlan` retained as a shape for backward-compat — now
-//     reports `{ enabled: false }` since the SDK handles fallback internally.
+// Prepares the executable route once and publishes it with explicit provenance.
+// The primary path is SDK `splitSwap(..., { routing: "auto" })`; when that
+// fails, the hook retries the existing local `findBestPath` contract read with
+// the configured hop-reduction plan. Consumers receive both the legacy quote
+// shape and `preparedRoute`, which must be passed through to execution so the
+// displayed split/single/local route is the route that gets submitted.
 
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { useEmpxRouter } from "./useEmpxRouter";
+import { prepareSwapRoute } from "./swapRoutePreparation";
+import { getQuoteHopFallbackPlan } from "../../config/quoteFallback";
 import { convertToBigInt } from "../../utils/utils";
 import { EMPTY_ADDRESS } from "../../utils/contractCalls";
+import { readLocalSwapQuote } from "../../utils/swap/localSwapQuote";
+
+const PREVIEW_RECIPIENT = "0x000000000000000000000000000000000000dEaD";
 
 const normalizeAddress = (address) => address?.toLowerCase?.() || "";
 const isSameAddress = (a, b) => normalizeAddress(a) === normalizeAddress(b);
@@ -74,12 +51,17 @@ export function useSwapQuoteFetch({
   selectedTokenA,
   selectedTokenB,
   debouncedAmountIn,
+  recipient,
+  slippageBps = 50,
+  pairType = "V/V",
 }) {
   // SDK router (memoised on chainId+signer in useEmpxRouter).  When router
   // is null (unknown chain / signer not ready), the hook returns no data.
   const { router } = useEmpxRouter({ chainId });
 
   const [data, setData] = useState(undefined);
+  const [preparedRoute, setPreparedRoute] = useState(undefined);
+  const [quoteError, setQuoteError] = useState(undefined);
   const [singleToken, setSingleToken] = useState(undefined);
   const [quoteLoading, setQuoteLoading] = useState(false);
 
@@ -99,12 +81,11 @@ export function useSwapQuoteFetch({
   // ─── Quote-enabled gate ──────────────────────────────────────────────────
   const isQuoteEnabled = useMemo(
     () =>
-      !isDirectRoute &&
       !!selectedTokenA &&
       !!selectedTokenB &&
       !!debouncedAmountIn &&
       parseFloat(debouncedAmountIn) > 0,
-    [isDirectRoute, selectedTokenA, selectedTokenB, debouncedAmountIn],
+    [selectedTokenA, selectedTokenB, debouncedAmountIn],
   );
 
   // ─── Resolve token addresses to chain-friendly form (EMPTY → wrapped) ────
@@ -136,6 +117,11 @@ export function useSwapQuoteFetch({
     [maxHops],
   );
 
+  const quoteFallbackPlan = useMemo(
+    () => getQuoteHopFallbackPlan(chainId, BigInt(requestedMaxSteps)),
+    [chainId, requestedMaxSteps],
+  );
+
   // ─── Refresh tick — bumping this re-runs the effects ─────────────────────
   const [refreshTick, setRefreshTick] = useState(0);
 
@@ -144,42 +130,82 @@ export function useSwapQuoteFetch({
   // request-id check at lower level.
   const inflightId = useRef(0);
 
-  // ─── Primary quote — uses SDK's findBestPathPreferAcyclic via getTradeInfo's
-  //     prefix logic.  Lifted directly: router.findBestPath() exposes the
-  //     same low-level call wagmi was using.
+  // ─── Prepared route — SDK auto split first, local no-split fallback ───────
   useEffect(() => {
-    if (!isQuoteEnabled || !router) {
+    if (!isQuoteEnabled) {
+      inflightId.current += 1;
       setData(undefined);
+      setPreparedRoute(undefined);
+      setQuoteError(undefined);
       return;
     }
     const myId = ++inflightId.current;
     setQuoteLoading(true);
-    router
-      .findBestPath(
-        amountInWei,
-        quoteTokenInAddress,
-        quoteTokenOutAddress,
-        requestedMaxSteps,
-      )
+    setQuoteError(undefined);
+    setData(undefined);
+    setPreparedRoute(undefined);
+
+    const localQuote = isDirectRoute
+      ? async () => ({
+          amounts: [amountInWei, amountInWei],
+          path: [selectedTokenA?.address, selectedTokenB?.address],
+          adapters: [],
+          gasEstimate: "0",
+        })
+      : readLocalSwapQuote;
+
+    prepareSwapRoute({
+      router,
+      localQuote,
+      fallbackPlan: quoteFallbackPlan,
+      chainId,
+      amountIn: amountInWei,
+      tokenIn: selectedTokenA?.address || EMPTY_ADDRESS,
+      tokenOut: selectedTokenB?.address || EMPTY_ADDRESS,
+      localTokenIn: quoteTokenInAddress,
+      localTokenOut: quoteTokenOutAddress,
+      recipient: recipient || PREVIEW_RECIPIENT,
+      maxSteps: requestedMaxSteps,
+      slippageBps,
+      pairType,
+    })
       .then((result) => {
         if (myId !== inflightId.current) return; // superseded
-        const normalised = normalizePathResult(result);
+        const quote = result.source === "sdk"
+          ? result.sdkResult?.tradeInfo
+          : result.quote;
+        const normalised = normalizePathResult(quote);
+        setPreparedRoute(result);
         setData(normalised ?? undefined);
       })
-      .catch(() => {
+      .catch((error) => {
         if (myId !== inflightId.current) return;
         setData(undefined);
+        setPreparedRoute(undefined);
+        setQuoteError(error);
       })
       .finally(() => {
         if (myId === inflightId.current) setQuoteLoading(false);
       });
+
+    return () => {
+      if (myId === inflightId.current) inflightId.current += 1;
+    };
   }, [
     router,
     isQuoteEnabled,
+    isDirectRoute,
     amountInWei,
+    chainId,
+    selectedTokenA?.address,
+    selectedTokenB?.address,
     quoteTokenInAddress,
     quoteTokenOutAddress,
     requestedMaxSteps,
+    recipient,
+    slippageBps,
+    pairType,
+    quoteFallbackPlan,
     refreshTick,
   ]);
 
@@ -230,13 +256,16 @@ export function useSwapQuoteFetch({
 
   return {
     data,
+    preparedRoute,
+    quoteSource: preparedRoute?.source,
+    routing: preparedRoute?.routing,
+    quoteFallbackActive: preparedRoute?.source === "local",
+    quoteError,
     singleToken,
     quoteLoading,
     isQuoteEnabled,
     isDirectRoute,
     refreshQuotes,
-    // Kept for shape compat with the pre-W3 hook; SDK handles fallback
-    // internally so we no longer expose an external plan.
-    quoteFallbackPlan: { enabled: false, secondStep: null, thirdStep: null },
+    quoteFallbackPlan,
   };
 }

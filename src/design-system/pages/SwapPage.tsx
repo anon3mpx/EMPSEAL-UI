@@ -23,6 +23,7 @@ import {
   PrimaryButton,
   QuoteCountdown,
   RouteVisualization,
+  SplitRouteVisualization,
   SocialTray,
   Tabs,
   Toaster,
@@ -58,9 +59,13 @@ import {
   EMPTY_SWAP_TOKEN_ADDRESS,
   buildDirectSwapTradeInfo,
   buildSwapRouteHops,
+  buildSwapSplitBranches,
   buildSwapTradeInfo,
   formatSwapQuoteOutput,
+  getSwapRouteLabel,
+  normalizeSdkPreparedRoute,
   toSwapHookToken,
+  type PreparedSwapRoute,
   type SwapHookToken,
 } from "../data/swapV2Adapters";
 
@@ -173,9 +178,15 @@ export default function SwapPage() {
   const selectedFromToken = fromToken ? { ...fromToken, balance: fromBalance } : null;
   const selectedToToken = toToken ? { ...toToken, balance: toBalance } : null;
 
+  const pairType = fromToken && toToken ? classifyPair(fromToken.ticker, toToken.ticker) : "V/V";
+  const feeBps = modeAFeeBps(pairType);
+
   const {
     data: quoteData,
+    preparedRoute: rawPreparedRoute,
     quoteLoading,
+    quoteFallbackActive,
+    quoteError,
     isQuoteEnabled,
     isDirectRoute,
     refreshQuotes,
@@ -187,30 +198,60 @@ export default function SwapPage() {
     selectedTokenA: fromToken,
     selectedTokenB: toToken,
     debouncedAmountIn: deferredFromAmount,
+    recipient: connectedAddress,
+    slippageBps,
+    pairType,
   });
 
-  const pairType = fromToken && toToken ? classifyPair(fromToken.ticker, toToken.ticker) : "V/V";
-  const feeBps = modeAFeeBps(pairType);
   const fromUSDValue = null;
   const protocolFeeUSD = null;
-  const quoteTradeInfo = useMemo(
-    () =>
-      isDirectRoute
-        ? buildDirectSwapTradeInfo({
-            amountIn: deferredFromAmount,
-            selectedTokenA: fromToken,
-            selectedTokenB: toToken,
-          })
-        : buildSwapTradeInfo({
-            quote: quoteData,
-            selectedTokenA: fromToken,
-            selectedTokenB: toToken,
-            tokenOptions: tokensForChain,
-            slippageBps,
-            protocolFeeBps: feeBps,
-          }),
-    [deferredFromAmount, feeBps, fromToken, isDirectRoute, quoteData, slippageBps, toToken, tokensForChain],
-  );
+  const preparedRoute: PreparedSwapRoute | null = useMemo(() => {
+    if (!rawPreparedRoute || !fromToken || !toToken) return null;
+    if (rawPreparedRoute.source === "sdk" && rawPreparedRoute.sdkResult) {
+      return normalizeSdkPreparedRoute({
+        prepared: rawPreparedRoute.sdkResult,
+        selectedTokenA: fromToken,
+        selectedTokenB: toToken,
+        tokenOptions: tokensForChain,
+        recipient: connectedAddress,
+      });
+    }
+
+    const tradeInfo = isDirectRoute
+      ? buildDirectSwapTradeInfo({
+          amountIn: deferredFromAmount,
+          selectedTokenA: fromToken,
+          selectedTokenB: toToken,
+        })
+      : buildSwapTradeInfo({
+          quote: rawPreparedRoute.quote,
+          selectedTokenA: fromToken,
+          selectedTokenB: toToken,
+          tokenOptions: tokensForChain,
+          slippageBps,
+          protocolFeeBps: feeBps,
+        });
+    return tradeInfo
+      ? {
+          source: "local",
+          routing: "single",
+          tradeInfo,
+          recipient: connectedAddress,
+          sdkError: rawPreparedRoute.sdkError,
+        }
+      : null;
+  }, [
+    connectedAddress,
+    deferredFromAmount,
+    feeBps,
+    fromToken,
+    isDirectRoute,
+    rawPreparedRoute,
+    slippageBps,
+    toToken,
+    tokensForChain,
+  ]);
+  const quoteTradeInfo = preparedRoute?.tradeInfo ?? null;
   const toAmount = useMemo(
     () => (isDirectRoute ? fromAmount : formatSwapQuoteOutput(quoteData, toToken?.decimal ?? 18)),
     [fromAmount, isDirectRoute, quoteData, toToken?.decimal],
@@ -225,16 +266,25 @@ export default function SwapPage() {
     [quoteTradeInfo, toToken?.decimal],
   );
   const routeHops: RouteHop[] | undefined = useMemo(
-    () => buildSwapRouteHops(quoteTradeInfo, activeV2Chain),
-    [activeV2Chain, quoteTradeInfo],
+    () => preparedRoute?.routing === "single"
+      ? buildSwapRouteHops(quoteTradeInfo, activeV2Chain)
+      : undefined,
+    [activeV2Chain, preparedRoute?.routing, quoteTradeInfo],
   );
+  const splitBranches = useMemo(
+    () => buildSwapSplitBranches(preparedRoute, activeChain.id),
+    [activeChain.id, preparedRoute],
+  );
+  const routeLabel = getSwapRouteLabel(preparedRoute);
   const bestRoute = useMemo(
-    () => quoteTradeInfo?.pathTokens?.length
-      ? `${Math.max(quoteTradeInfo.pathTokens.length - 1, 1)} hop SDK route`
+    () => preparedRoute?.routing === "split"
+      ? `${preparedRoute.splits?.length ?? 0} route SDK split`
+      : quoteTradeInfo?.pathTokens?.length
+      ? `${Math.max(quoteTradeInfo.pathTokens.length - 1, 1)} hop ${preparedRoute?.source === "local" ? "local fallback" : "SDK route"}`
       : isDirectRoute
         ? "Native wrap"
         : undefined,
-    [isDirectRoute, quoteTradeInfo?.pathTokens],
+    [isDirectRoute, preparedRoute?.routing, preparedRoute?.splits?.length, quoteTradeInfo?.pathTokens],
   );
 
   const isRefreshingQuote = deferredFromAmount !== fromAmount || quoteLoading;
@@ -252,6 +302,7 @@ export default function SwapPage() {
     amountIn: fromAmount,
     debouncedAmountIn: deferredFromAmount,
     tradeInfo: quoteTradeInfo,
+    preparedRoute,
     protocolFee: feeBps,
     isRefreshingQuote,
     swapContractApi: SWAP_V2_CONTRACT_API,
@@ -263,7 +314,7 @@ export default function SwapPage() {
     },
   });
   const isExecuting = ["APPROVING", "WAITING_FOR_CONFIRMATION", "SWAPPING"].includes(swapStatus);
-  const canOpenConfirm = !!quoteTradeInfo && Number(fromAmount) > 0 && (isDirectRoute || !!quoteData);
+  const canOpenConfirm = !!preparedRoute && !!quoteTradeInfo && Number(fromAmount) > 0;
 
   // Flip
   const flipTokens = () => {
@@ -395,9 +446,11 @@ export default function SwapPage() {
               protocolFeeBps={feeBps}
               protocolFeeUSD={protocolFeeUSD ?? undefined}
               bestRoute={bestRoute}
+              routeLabel={routeLabel}
               minimumReceived={`${minimumReceived} ${toToken?.ticker || ""}`}
               slippageBps={slippageBps}
               routeHops={routeHops}
+              splitBranches={splitBranches}
               swapDisabled={!canOpenConfirm || isRefreshingQuote}
               swapLoading={quoteLoading}
               walletConnected={walletState.status === "connected"}
@@ -436,14 +489,25 @@ export default function SwapPage() {
                     }}
                     compact
                   />
-                  <Pill variant={quoteLoading ? "accent" : isQuoteEnabled ? "info" : "ghost"}>
-                    {quoteLoading ? "Quoting" : isQuoteEnabled ? "SDK quote" : "Quote idle"}
+                  <Pill variant={quoteLoading ? "accent" : quoteFallbackActive ? "ghost" : isQuoteEnabled ? "info" : "ghost"}>
+                    {quoteLoading
+                      ? "Preparing auto route"
+                      : quoteFallbackActive
+                        ? "Local fallback"
+                        : isQuoteEnabled
+                          ? "SDK quote"
+                          : "Quote idle"}
                   </Pill>
                   {executionError && <Pill variant="danger">Execution error</Pill>}
                 </div>
                 {executionError && (
                   <p style={{ margin: "10px 0 0", fontSize: 11, color: "#F87171", lineHeight: 1.45 }}>
                     {executionError}
+                  </p>
+                )}
+                {quoteError && !quoteLoading && (
+                  <p style={{ margin: "10px 0 0", fontSize: 11, color: "#F87171", lineHeight: 1.45 }}>
+                    SDK and local route preparation failed. Refresh the quote or try a different amount.
                   </p>
                 )}
               </Card>
@@ -467,11 +531,32 @@ export default function SwapPage() {
                   </p>
                   <Pill variant="accent">{pairType}</Pill>
                 </div>
-                {routeHops && routeHops.length > 1 ? (
+                {splitBranches && splitBranches.length > 1 ? (
+                  <>
+                    {routeLabel && (
+                      <p style={{ margin: "0 0 10px", fontSize: 10, color: "#FF8A00", letterSpacing: "0.18em", textTransform: "uppercase" }}>
+                        {routeLabel}
+                      </p>
+                    )}
+                    <SplitRouteVisualization
+                      fromTicker={fromToken.ticker}
+                      fromChainName={activeChain.name}
+                      fromChainColor={activeChain.color}
+                      toTicker={toToken.ticker}
+                      toChainName={activeChain.name}
+                      toChainColor={activeChain.color}
+                      branches={splitBranches}
+                      animated
+                      compact
+                    />
+                  </>
+                ) : routeHops && routeHops.length > 1 ? (
                   <RouteVisualization hops={routeHops} animated compact />
                 ) : (
                   <p style={{ margin: 0, fontSize: 12, color: "rgba(255,255,255,0.55)", lineHeight: 1.55 }}>
-                    {quoteLoading ? "Finding the best SDK route..." : "No route available for the current pair and amount."}
+                    {quoteLoading
+                      ? "Preparing the best automatic SDK route..."
+                      : routeLabel ?? "No route available for the current pair and amount."}
                   </p>
                 )}
               </Card>
@@ -511,8 +596,8 @@ export default function SwapPage() {
                 {settingsTab === "route" && (
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                     <RouteToggle
-                      label="Split routing"
-                      hint="Route across multiple DEXes for better price"
+                      label="Automatic split routing"
+                      hint="SDK selects a split only when it improves the route"
                       enabled
                     />
                     <RouteToggle
@@ -653,10 +738,13 @@ export default function SwapPage() {
         toUsdValue={undefined}
         toChainName={activeChain.name}
         routeHops={routeHops}
+        routeLabel={routeLabel}
+        splitBranches={splitBranches}
         feeRows={[
           { label: "Pair type",     value: pairType.replace("/", " / ") },
           { label: "Protocol fee",  value: `${feeBps} bps`, sub: protocolFeeUSD == null ? undefined : `· ${formatUSD(protocolFeeUSD)}`, accent: true },
           { label: "Best route",    value: bestRoute ?? "SDK route unavailable" },
+          ...(routeLabel ? [{ label: "Route type", value: routeLabel, accent: true as const }] : []),
           { label: "Min. received", value: `${minimumReceived} ${toToken?.ticker || ""}`, muted: true },
           { label: "Slippage",      value: `${(slippageBps / 100).toFixed(2)}%`, muted: true },
           ...(needsApproval ? [{ label: "Approval", value: `${fromToken?.ticker ?? "Token"} approval required`, accent: true as const }] : []),

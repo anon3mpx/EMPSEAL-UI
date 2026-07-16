@@ -31,4 +31,34 @@ describe("EmpxSwapWidget", () => {
     expect(onSelectFromToken).toHaveBeenCalledTimes(1);
     expect(onSelectToToken).toHaveBeenCalledTimes(1);
   });
+
+  it("shows the SDK split label and split branches", () => {
+    render(
+      <EmpxSwapWidget
+        {...baseProps}
+        routeLabel="Split swap · SDK"
+        splitBranches={[
+          { via: "UniswapV3", pct: 60 },
+          { via: "Camelot", pct: 40 },
+        ]}
+      />,
+    );
+
+    expect(screen.getByText("Split swap · SDK")).toBeInTheDocument();
+    expect(screen.getByText("UniswapV3")).toBeInTheDocument();
+    expect(screen.getByText("60%")).toBeInTheDocument();
+  });
+
+  it("shows a local no-split fallback label", () => {
+    render(
+      <EmpxSwapWidget
+        {...baseProps}
+        routeLabel="No-split fallback · Local router"
+      />,
+    );
+
+    expect(
+      screen.getByText("No-split fallback · Local router"),
+    ).toBeInTheDocument();
+  });
 });

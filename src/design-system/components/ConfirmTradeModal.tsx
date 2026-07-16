@@ -5,6 +5,7 @@ import FeeBreakdown, { FeeRow } from "./FeeBreakdown";
 import PrimaryButton from "./PrimaryButton";
 import QuoteCountdown from "./QuoteCountdown";
 import RouteVisualization, { RouteHop } from "./RouteVisualization";
+import SplitRouteVisualization, { SplitBranch } from "./SplitRouteVisualization";
 
 interface ConfirmTradeModalProps {
   open: boolean;
@@ -27,6 +28,8 @@ interface ConfirmTradeModalProps {
 
   /** Route hops for visualization. Pass undefined to omit. */
   routeHops?: RouteHop[];
+  routeLabel?: string;
+  splitBranches?: SplitBranch[];
 
   /** Fee breakdown rows. */
   feeRows: FeeRow[];
@@ -58,6 +61,8 @@ export default function ConfirmTradeModal({
   toUsdValue,
   toChainName,
   routeHops,
+  routeLabel,
+  splitBranches,
   feeRows,
   quoteIssuedAt,
   quoteValidMs = 30000,
@@ -178,7 +183,41 @@ export default function ConfirmTradeModal({
       </div>
 
       {/* Route visualization */}
-      {routeHops && routeHops.length > 1 && (
+      {splitBranches && splitBranches.length > 1 ? (
+        <div
+          style={{
+            padding: "14px 16px",
+            background: "rgba(255,255,255,0.02)",
+            border: "1px solid rgba(255,255,255,0.06)",
+            borderRadius: 6,
+            marginBottom: 16,
+          }}
+        >
+          {routeLabel && (
+            <p
+              style={{
+                margin: "0 0 8px",
+                fontSize: 10,
+                letterSpacing: "0.24em",
+                color: "#FF8A00",
+                textTransform: "uppercase",
+                fontWeight: 600,
+              }}
+            >
+              {routeLabel}
+            </p>
+          )}
+          <SplitRouteVisualization
+            fromTicker={fromTicker}
+            fromChainName={fromChainName}
+            toTicker={toTicker}
+            toChainName={toChainName}
+            branches={splitBranches}
+            animated
+            compact
+          />
+        </div>
+      ) : routeHops && routeHops.length > 1 ? (
         <div
           style={{
             padding: "14px 16px",
@@ -202,7 +241,20 @@ export default function ConfirmTradeModal({
           </p>
           <RouteVisualization hops={routeHops} animated compact />
         </div>
-      )}
+      ) : routeLabel ? (
+        <p
+          style={{
+            margin: "0 0 16px",
+            fontSize: 10,
+            letterSpacing: "0.24em",
+            color: "#FF8A00",
+            textTransform: "uppercase",
+            fontWeight: 600,
+          }}
+        >
+          {routeLabel}
+        </p>
+      ) : null}
 
       {/* Fees */}
       <FeeBreakdown rows={feeRows} bordered />

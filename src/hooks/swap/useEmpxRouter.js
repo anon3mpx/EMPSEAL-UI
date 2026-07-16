@@ -1,16 +1,12 @@
 // ─── useEmpxRouter ───────────────────────────────────────────────────────────
 //
-// Root SDK seam for the swap page.  Returns a memoised EmpxRouter instance
-// (from empx-swap-sdk) scoped to the current chain + connected signer.
+// Root SDK seam for the swap surfaces. Returns a memoised EmpxRouter instance
+// (from the published empx-swap-sdk package) for the current chain and signer.
 //
-// Design choices (per the C3 audit + locked user decisions):
-//   • Hybrid model: SDK is used for WRITES (allowance / approval / swap
-//     calldata + USD pricing).  wagmi remains the reactive READ layer
-//     (useBalance, useReadContract for block-watched data).  The two
-//     coexist; this hook is the SDK side of that line.
-//   • file: dep — local SDK build at ../../empx-swap-sdk, picked up via
-//     package.json file: path.  Rebuild SDK (`npm run build` in its dir)
-//     after edits.
+// The SDK prepares auto split/single routes and their exact calldata. Wagmi
+// remains the reactive wallet/read layer and powers the local quote fallback.
+// Pair-type fees are enabled so each splitSwap feeContext resolves to the same
+// V/V, V/S, or S/S rate shown by the UI.
 //   • Affiliate config sourced from Vite env vars so the dApp can earn a
 //     share of the protocol fee without recompiling.  Two env vars:
 //       VITE_EMPX_AFFILIATE_ADDRESS  — payable address
@@ -69,12 +65,16 @@ export function useEmpxRouter(options = {}) {
   const router = useMemo(() => {
     if (!chainId) return null;
     try {
+      const routerConfig = {
+        pairTypeFees: {},
+        ...(AFFILIATE_CONFIG ? { affiliate: AFFILIATE_CONFIG } : {}),
+      };
       // Pass signer when available, otherwise SDK creates a read-only router
       // against the chain's default RPC.
       return createRouter(
         chainId,
         signer ?? undefined,
-        AFFILIATE_CONFIG ? { affiliate: AFFILIATE_CONFIG } : undefined,
+        routerConfig,
       );
     } catch (err) {
       // Most likely: chainId not in the SDK's chain registry.  Don't throw

@@ -76,4 +76,28 @@ describe("resolveSwapExecutionMode", () => {
       }).mode,
     ).toBe("legacy");
   });
+
+  it("keeps a local prepared route on legacy execution when the SDK is ready", () => {
+    expect(
+      resolveSwapExecutionMode({
+        executionMode: "auto",
+        routeSource: "local",
+        hasLegacyApi: true,
+        hasRouter: true,
+        hasSigner: true,
+      }).mode,
+    ).toBe("legacy");
+  });
+
+  it("keeps an SDK prepared route on SDK execution", () => {
+    expect(
+      resolveSwapExecutionMode({
+        executionMode: "auto",
+        routeSource: "sdk",
+        hasLegacyApi: true,
+        hasRouter: true,
+        hasSigner: true,
+      }).mode,
+    ).toBe("sdk");
+  });
 });

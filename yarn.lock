@@ -3322,12 +3322,12 @@ emoji-regex@^9.2.2:
   resolved "https://registry.npmjs.org/emoji-regex/-/emoji-regex-9.2.2.tgz"
   integrity sha512-L18DaJsXSUk2+42pv8mLs5jJT2hqFkFE4j21wOmgbUqsZ2hL72NsUU785g9RXgo3s0ZNgVl42TiHp3ZtOv/Vyg==
 
-empx-swap-sdk@2.0.1:
-  version "2.0.1"
-  resolved "https://registry.yarnpkg.com/empx-swap-sdk/-/empx-swap-sdk-2.0.1.tgz#191e5e5b8f5181532d1afc4c99dda873d5365905"
-  integrity sha512-396CJwRnzq46BL0QonojFUHFZRxAg5sNld7X2RxIe6sLL61ID4uSxmu8RR9lEvfjwwuBySKKu+rksOy5xTc0Uw==
+empx-swap-sdk@2.2.0:
+  version "2.2.0"
+  resolved "https://registry.npmjs.org/empx-swap-sdk/-/empx-swap-sdk-2.2.0.tgz"
+  integrity sha512-yg5AFrqja5WxqL+m9iJETPwbFlhbrcxWPUSkZ1AzLudQoB+jYpkNxow8dUBYQINgxOA57sgsKpK3ZQyDwD7D0w==
   dependencies:
-    ethers "^6.16.0"
+    ethers "^6.17.0"
 
 encode-utf8@^1.0.3:
   version "1.0.3"
@@ -3746,7 +3746,7 @@ ethers@^6.13.4:
     tslib "2.7.0"
     ws "8.17.1"
 
-ethers@^6.16.0:
+ethers@^6.16.0, ethers@^6.17.0:
   version "6.17.0"
   resolved "https://registry.yarnpkg.com/ethers/-/ethers-6.17.0.tgz#ad85ee1fc45fe2d95cb1e21c4e3ff9f7f1b093cc"
   integrity sha512-BpyrpIPJ3ydEVow8zGaz1DuPS7YU8DcWxuBnY9a0UA/lvAPwrMr+EPXsfrul628SRaekPNeIM4UFh/91GWZang==

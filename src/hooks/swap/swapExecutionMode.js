@@ -21,6 +21,7 @@ function normalizeExecutionMode(executionMode) {
 
 export function resolveSwapExecutionMode({
   executionMode,
+  routeSource,
   hasLegacyApi,
   hasRouter,
   hasSigner,
@@ -39,6 +40,22 @@ export function resolveSwapExecutionMode({
   }
 
   if (requestedMode === SWAP_EXECUTION_MODE.AUTO) {
+    if (routeSource === "local" && canUseLegacy) {
+      return {
+        requestedMode,
+        mode: SWAP_EXECUTION_MODE.LEGACY,
+        canUseLegacy,
+        canUseSdk,
+      };
+    }
+    if (routeSource === "sdk") {
+      return {
+        requestedMode,
+        mode: SWAP_EXECUTION_MODE.SDK,
+        canUseLegacy,
+        canUseSdk,
+      };
+    }
     return {
       requestedMode,
       mode: canUseSdk || !canUseLegacy ? SWAP_EXECUTION_MODE.SDK : SWAP_EXECUTION_MODE.LEGACY,

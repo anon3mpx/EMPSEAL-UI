@@ -17,9 +17,11 @@ import {
   Pill,
   PrimaryButton,
   RouteVisualization,
+  SplitRouteVisualization,
   SwapDivider,
   type FeeRow,
   type RouteHop,
+  type SplitBranch,
 } from "./components";
 
 export interface SwapToken {
@@ -62,6 +64,8 @@ export interface EmpxSwapWidgetProps {
 
   // Routing
   routeHops?: RouteHop[];
+  routeLabel?: string;
+  splitBranches?: SplitBranch[];
 
   // CTA
   swapDisabled?: boolean;
@@ -98,6 +102,8 @@ export default function EmpxSwapWidget({
   slippageBps,
   priceImpactBps,
   routeHops,
+  routeLabel,
+  splitBranches,
 
   swapDisabled,
   swapLoading,
@@ -120,6 +126,7 @@ export default function EmpxSwapWidget({
     });
   }
   if (bestRoute && !routeHops) feeRows.push({ label: "Best route", value: bestRoute });
+  if (routeLabel) feeRows.push({ label: "Route type", value: routeLabel, accent: true });
 
   // Collapsed advanced rows
   const advancedRows: FeeRow[] = [];
@@ -223,7 +230,27 @@ export default function EmpxSwapWidget({
       )}
 
       {/* Routing (collapsible) */}
-      {routeHops && routeHops.length > 1 && (
+      {splitBranches && splitBranches.length > 1 ? (
+        <div style={{ marginTop: 8 }}>
+          <Collapsible
+            title="Routing"
+            subtitle={`${splitBranches.length} split routes`}
+            defaultOpen
+          >
+            <SplitRouteVisualization
+              fromTicker={fromToken?.ticker || "From"}
+              fromChainName={chain.name}
+              fromChainColor={chain.color}
+              toTicker={toToken?.ticker || "To"}
+              toChainName={chain.name}
+              toChainColor={chain.color}
+              branches={splitBranches}
+              animated
+              compact
+            />
+          </Collapsible>
+        </div>
+      ) : routeHops && routeHops.length > 1 ? (
         <div style={{ marginTop: 8 }}>
           <Collapsible
             title="Routing"
@@ -233,7 +260,7 @@ export default function EmpxSwapWidget({
             <RouteVisualization hops={routeHops} animated compact />
           </Collapsible>
         </div>
-      )}
+      ) : null}
 
       {/* Advanced details (collapsed by default) */}
       {advancedRows.length > 0 && (

@@ -1,6 +1,6 @@
 import { formatUnits, parseUnits } from "viem";
 
-import type { RouteHop } from "../components";
+import type { RouteHop, SplitBranch } from "../components";
 import { CHAIN_ADAPTERS } from "../../config/adapters";
 import type { V2ChainConfig } from "./v2ChainView";
 import type { V2TokenConfig } from "./v2TokenView";
@@ -44,8 +44,74 @@ export interface SwapTradeInfo {
   sdkVersion: string;
 }
 
+export interface SwapCalldata {
+  to: string;
+  data: string;
+  value: string;
+}
+
+export interface PreparedSplitLeg {
+  shareBps: number;
+  amountIn: bigint;
+  expectedOut: bigint;
+  minAmountOut: bigint;
+  path: string[];
+  pathTokens: SwapHookToken[];
+  adapters: string[];
+}
+
+export interface PreparedSwapRoute {
+  source: "sdk" | "local";
+  routing: "single" | "split";
+  tradeInfo: SwapTradeInfo;
+  calldata?: SwapCalldata;
+  splits?: PreparedSplitLeg[];
+  splitSavingsBps?: number;
+  approvalTarget?: string;
+  recipient?: string;
+  sdkError?: unknown;
+}
+
+interface SdkTradeInfoLike {
+  amountIn: string;
+  amountOut: string;
+  fee: string;
+  affiliateFee: string;
+  totalFeeBps: string;
+  amounts: string[];
+  path: string[];
+  adapters: string[];
+  gasEstimate: string;
+  quoteId: string;
+  timestamp: number;
+  validUntil: number;
+  sdkVersion: string;
+}
+
+interface SdkPreparedRouteLike {
+  routing: "single" | "split";
+  tradeInfo: SdkTradeInfoLike;
+  calldata: SwapCalldata;
+  swapType:
+    | "WrapNative"
+    | "UnwrapNative"
+    | "NativeToERC20"
+    | "ERC20ToNative"
+    | "ERC20ToERC20";
+  splits?: Array<{
+    shareBps: number;
+    amountIn: string;
+    expectedOut: string;
+    minAmountOut: string;
+    path: string[];
+    adapters: string[];
+  }>;
+  splitSavingsBps?: number;
+  approvalTarget?: string;
+}
+
 const QUOTE_TTL_MS = 30_000;
-const SDK_VERSION = "2.0.1";
+const SDK_VERSION = "2.2.0";
 const SWAP_QUOTE_DISPLAY_DECIMALS = 6;
 
 function buildQuoteMetadata() {
@@ -77,7 +143,112 @@ function resolveAdapterDisplayName(chainId: number | undefined, adapter?: string
   const match = (chainId ? CHAIN_ADAPTERS[chainId] : undefined)?.find(
     (entry) => addressKey(entry.address) === addressKey(raw),
   );
-  return match?.name?.replace(/Adapter$/i, "");
+  return match?.name?.replace(/Adapter$/i, "") ?? "Unknown venue";
+}
+
+function buildPathTokens(
+  path: string[],
+  selectedTokenA: SwapHookToken,
+  selectedTokenB: SwapHookToken,
+  tokenOptions: SwapHookToken[],
+): SwapHookToken[] {
+  const tokenByAddress = new Map(
+    tokenOptions.map((token) => [addressKey(token.address), token]),
+  );
+  return path.map((address, index) => {
+    if (index === 0) return selectedTokenA;
+    if (index === path.length - 1) return selectedTokenB;
+    return tokenByAddress.get(addressKey(address)) ?? {
+      ...selectedTokenA,
+      ticker: "TOKEN",
+      name: "Intermediate token",
+      address,
+    };
+  });
+}
+
+export function normalizeSdkPreparedRoute({
+  prepared,
+  selectedTokenA,
+  selectedTokenB,
+  tokenOptions,
+  recipient,
+}: {
+  prepared: SdkPreparedRouteLike;
+  selectedTokenA: SwapHookToken;
+  selectedTokenB: SwapHookToken;
+  tokenOptions: SwapHookToken[];
+  recipient?: string;
+}): PreparedSwapRoute {
+  const trade = prepared.tradeInfo;
+  const tradeInfo: SwapTradeInfo = {
+    amountIn: BigInt(trade.amountIn),
+    amountOut: BigInt(trade.amountOut),
+    fee: trade.fee,
+    affiliateFee: trade.affiliateFee,
+    totalFeeBps: trade.totalFeeBps,
+    amounts: trade.amounts.map(BigInt),
+    path: [...trade.path],
+    pathTokens: buildPathTokens(
+      trade.path,
+      selectedTokenA,
+      selectedTokenB,
+      tokenOptions,
+    ),
+    adapters: [...trade.adapters],
+    gasEstimate: trade.gasEstimate,
+    quoteId: trade.quoteId,
+    timestamp: trade.timestamp,
+    validUntil: trade.validUntil,
+    sdkVersion: trade.sdkVersion,
+  };
+
+  return {
+    source: "sdk",
+    routing: prepared.routing,
+    tradeInfo,
+    calldata: prepared.calldata,
+    splits: prepared.splits?.map((leg) => ({
+      shareBps: leg.shareBps,
+      amountIn: BigInt(leg.amountIn),
+      expectedOut: BigInt(leg.expectedOut),
+      minAmountOut: BigInt(leg.minAmountOut),
+      path: [...leg.path],
+      pathTokens: buildPathTokens(
+        leg.path,
+        selectedTokenA,
+        selectedTokenB,
+        tokenOptions,
+      ),
+      adapters: [...leg.adapters],
+    })),
+    splitSavingsBps: prepared.splitSavingsBps,
+    approvalTarget: prepared.approvalTarget,
+    recipient,
+  };
+}
+
+export function getSwapRouteLabel(
+  route: Pick<PreparedSwapRoute, "source" | "routing"> | null | undefined,
+): string | undefined {
+  if (!route) return undefined;
+  if (route.source === "local") return "No-split fallback · Local router";
+  return route.routing === "split" ? "Split swap · SDK" : "Single route · SDK";
+}
+
+export function buildSwapSplitBranches(
+  route: PreparedSwapRoute | null | undefined,
+  chainId: number,
+): SplitBranch[] | undefined {
+  if (!route || route.routing !== "split" || !route.splits?.length) return undefined;
+  return route.splits.map((leg) => ({
+    pct: leg.shareBps / 100,
+    via:
+      leg.adapters
+        .map((adapter) => resolveAdapterDisplayName(chainId, adapter) ?? "Unknown venue")
+        .join(" → ") || "Unknown venue",
+    intermediateTickers: leg.pathTokens.slice(1, -1).map((token) => token.ticker),
+  }));
 }
 
 export function toSwapHookToken(token: V2TokenConfig, chain: V2ChainConfig): SwapHookToken {

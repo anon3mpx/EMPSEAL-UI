@@ -54,6 +54,11 @@ import {
   hasSwapContractApi,
   resolveSwapExecutionMode,
 } from "./swapExecutionMode";
+import {
+  checkPreparedAllowance,
+  getPreparedApproval,
+  submitPreparedSdkRoute,
+} from "./swapPreparedExecution";
 
 const NATIVE_ADDRESSES = new Set([
   EMPTY_ADDRESS.toLowerCase(),
@@ -62,10 +67,6 @@ const NATIVE_ADDRESSES = new Set([
 
 function isNativeAddress(addr) {
   return !!addr && NATIVE_ADDRESSES.has(addr.toLowerCase());
-}
-
-function isSameAddress(a, b) {
-  return !!a && !!b && a.toLowerCase() === b.toLowerCase();
 }
 
 /**
@@ -77,14 +78,15 @@ function isSameAddress(a, b) {
  * @param {string}  input.amountIn                 - user-typed sell amount (decimal string)
  * @param {string}  input.debouncedAmountIn        - debounced version used for allowance check
  * @param {unknown} input.tradeInfo                - route + amounts blob produced by setCalculatedRoute
+ * @param {unknown} input.preparedRoute            - displayed route including source, routing, and SDK calldata
  * @param {number}  input.protocolFee              - basis points (15 for stable pairs, 28 otherwise)
  * @param {boolean} input.isRefreshingQuote        - guard against submitting against a stale quote
  * @param {{ checkAllowance, callApprove, swapTokens } | null} [input.swapContractApi]
  *   Optional legacy write surface shared with the classic Emp swap page.
  * @param {"sdk" | "legacy" | "auto"} [input.executionMode]
  *   "sdk" uses SDK writes only. "legacy" uses swapContractApi when available.
- *   "auto" prefers SDK writes and falls back to swapContractApi only when the
- *   SDK write surface is not ready.
+ *   "auto" follows preparedRoute.source: SDK calldata for SDK routes and the
+ *   supplied contract API for local fallback routes.
  * @param {() => void} [input.onSwapSubmitted]     - called after a successful swap
  */
 export function useSwapExecution({
@@ -95,6 +97,7 @@ export function useSwapExecution({
   amountIn,
   debouncedAmountIn,
   tradeInfo,
+  preparedRoute,
   protocolFee,
   isRefreshingQuote,
   swapContractApi,
@@ -114,11 +117,13 @@ export function useSwapExecution({
   // on the same write surface.
   const executionSurface = resolveSwapExecutionMode({
     executionMode,
+    routeSource: preparedRoute?.source,
     hasLegacyApi: hasSwapContractApi(swapContractApi),
     hasRouter: Boolean(router),
     hasSigner: Boolean(signer),
   });
   const useLegacyExecution = executionSurface.mode === SWAP_EXECUTION_MODE.LEGACY;
+  const activeTradeInfo = preparedRoute?.tradeInfo ?? tradeInfo;
 
   // ─── Allowance check ───────────────────────────────────────────────────────
   // Re-runs whenever the things that could change allowance status change.
@@ -150,13 +155,15 @@ export function useSwapExecution({
             address,
           );
           setNeedsApproval(allowance.data < amountInBigInt);
-        } else if (router) {
+        } else if (router && preparedRoute?.source === "sdk") {
           // SDK shape: returns { approved, allowance: string }.
-          const allowance = await router.checkAllowance(
-            selectedTokenA.address,
-            address,
-            amountInBigInt,
-          );
+          const allowance = await checkPreparedAllowance({
+            route: preparedRoute,
+            router,
+            token: selectedTokenA.address,
+            owner: address,
+            amount: amountInBigInt,
+          });
           setNeedsApproval(!allowance.approved);
         } else {
           // No SDK router AND no override — likely chain not in registry, or
@@ -179,6 +186,7 @@ export function useSwapExecution({
     swapContractApi,
     useLegacyExecution,
     router,
+    preparedRoute,
   ]);
 
   // ─── Internal: SDK-driven approval submission ──────────────────────────────
@@ -186,10 +194,12 @@ export function useSwapExecution({
     if (!router) throw new Error("SDK router unavailable");
     if (!signer) throw new Error("No wallet signer connected");
 
-    const calldata = router.getApprovalCalldata(
-      selectedTokenA.address,
-      amountInBigInt,
-    );
+    const calldata = getPreparedApproval({
+      route: preparedRoute,
+      router,
+      token: selectedTokenA.address,
+      amount: amountInBigInt,
+    });
 
     const tx = await signer.sendTransaction({
       to: calldata.to,
@@ -199,59 +209,35 @@ export function useSwapExecution({
     await tx.wait();
 
     // Re-check allowance to confirm the on-chain state caught up.
-    const fresh = await router.checkAllowance(
-      selectedTokenA.address,
-      address,
-      amountInBigInt,
-    );
+    const fresh = await checkPreparedAllowance({
+      route: preparedRoute,
+      router,
+      token: selectedTokenA.address,
+      owner: address,
+      amount: amountInBigInt,
+    });
     return fresh.approved;
   };
 
   // ─── Internal: SDK-driven swap submission ──────────────────────────────────
   //
-  // Picks the correct calldata builder based on the token roles:
-  //   • native → wrapped     → getWrapCalldata
-  //   • wrapped → native     → getUnwrapCalldata
-  //   • native → ERC-20      → getSwapFromNativeCalldata
-  //   • ERC-20 → native      → getSwapToNativeCalldata
-  //   • ERC-20 → ERC-20      → getSwapCalldata
+  // Sends the exact calldata produced by the SDK quote preparation step.
   const submitSwapViaSdk = async () => {
     if (!router) throw new Error("SDK router unavailable");
     if (!signer) throw new Error("No wallet signer connected");
-
-    const tokenInAddr = selectedTokenA?.address;
-    const tokenOutAddr = selectedTokenB?.address;
-    const wrappedNative = router.chain.WRAPPED_NATIVE;
-
-    const isTokenInNative = isNativeAddress(tokenInAddr);
-    const isTokenOutNative = isNativeAddress(tokenOutAddr);
-    const isTokenInWrapped = isSameAddress(tokenInAddr, wrappedNative);
-    const isTokenOutWrapped = isSameAddress(tokenOutAddr, wrappedNative);
-
-    // Fee passed as basis-point string to match SDK signatures.
-    const feeBpsStr = String(protocolFee);
-
-    let calldata;
-    if (isTokenInNative && isTokenOutWrapped) {
-      calldata = router.getWrapCalldata({ amountIn: String(tradeInfo.amountIn) });
-    } else if (isTokenInWrapped && isTokenOutNative) {
-      calldata = router.getUnwrapCalldata({ amountIn: String(tradeInfo.amountIn) });
-    } else if (isTokenInNative) {
-      calldata = router.getSwapFromNativeCalldata(tradeInfo, address, feeBpsStr);
-    } else if (isTokenOutNative) {
-      calldata = router.getSwapToNativeCalldata(tradeInfo, address, feeBpsStr);
-    } else {
-      calldata = router.getSwapCalldata(tradeInfo, address, feeBpsStr);
+    if (preparedRoute?.source !== "sdk") {
+      throw new Error("SDK prepared route unavailable");
     }
-
-    const tx = await signer.sendTransaction({
-      to: calldata.to,
-      data: calldata.data,
-      value: BigInt(calldata.value || "0"),
-    });
-    setSwapHash(tx.hash);
-    await tx.wait();
-    return tx.hash;
+    if (
+      preparedRoute.recipient &&
+      address &&
+      preparedRoute.recipient.toLowerCase() !== address.toLowerCase()
+    ) {
+      throw new Error("Prepared route recipient no longer matches the connected wallet");
+    }
+    const hash = await submitPreparedSdkRoute({ route: preparedRoute, signer });
+    setSwapHash(hash);
+    return hash;
   };
 
   // ─── confirmSwap: actual swap submission ──────────────────────────────────
@@ -274,7 +260,7 @@ export function useSwapExecution({
           selectedTokenA?.address,
           selectedTokenB?.address,
           address,
-          tradeInfo,
+          activeTradeInfo,
           chainId,
           protocolFee,
         );

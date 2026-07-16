@@ -4,8 +4,11 @@ import {
   EMPTY_SWAP_TOKEN_ADDRESS,
   buildDirectSwapTradeInfo,
   buildSwapRouteHops,
+  buildSwapSplitBranches,
   buildSwapTradeInfo,
   formatSwapQuoteOutput,
+  getSwapRouteLabel,
+  normalizeSdkPreparedRoute,
   toSwapHookToken,
 } from "./swapV2Adapters";
 
@@ -155,5 +158,79 @@ describe("swapV2Adapters", () => {
       adapters: [],
       pathTokens: [sell, buy],
     });
+  });
+
+  it("normalizes an SDK split result and builds safe split branches", () => {
+    const sell = toSwapHookToken(usdcToken, chain);
+    const buy = toSwapHookToken(ethToken, chain);
+    const route = normalizeSdkPreparedRoute({
+      prepared: {
+        routing: "split",
+        tradeInfo: {
+          amountIn: "1000",
+          amountOut: "1900",
+          fee: "15",
+          affiliateFee: "0",
+          totalFeeBps: "15",
+          amounts: ["1000", "2000"],
+          path: [sell.address, buy.address],
+          adapters: [],
+          gasEstimate: "10",
+          quoteId: "q",
+          timestamp: 1,
+          validUntil: 31_000,
+          sdkVersion: "2.2.0",
+        },
+        calldata: {
+          to: "0x4444444444444444444444444444444444444444",
+          data: "0x1234",
+          value: "0",
+        },
+        swapType: "ERC20ToERC20",
+        splits: [
+          {
+            shareBps: 6000,
+            amountIn: "600",
+            expectedOut: "1200",
+            minAmountOut: "1190",
+            path: [sell.address, buy.address],
+            adapters: ["0xa91d8284C199FE4c178d76558A1427790AF7e80F"],
+          },
+          {
+            shareBps: 4000,
+            amountIn: "400",
+            expectedOut: "800",
+            minAmountOut: "790",
+            path: [sell.address, buy.address],
+            adapters: ["0x1111111111111111111111111111111111111111"],
+          },
+        ],
+        splitSavingsBps: 14,
+        approvalTarget: "0x4444444444444444444444444444444444444444",
+      },
+      selectedTokenA: sell,
+      selectedTokenB: buy,
+      tokenOptions: [sell, buy],
+    });
+
+    expect(route).toMatchObject({
+      source: "sdk",
+      routing: "split",
+      splitSavingsBps: 14,
+    });
+    expect(buildSwapSplitBranches(route, chain.id)).toEqual([
+      expect.objectContaining({ pct: 60, via: "UniswapV3" }),
+      expect.objectContaining({ pct: 40, via: "Unknown venue" }),
+    ]);
+    expect(getSwapRouteLabel(route)).toBe("Split swap · SDK");
+  });
+
+  it("labels SDK and local single routes distinctly", () => {
+    expect(getSwapRouteLabel({ source: "sdk", routing: "single" } as never)).toBe(
+      "Single route · SDK",
+    );
+    expect(getSwapRouteLabel({ source: "local", routing: "single" } as never)).toBe(
+      "No-split fallback · Local router",
+    );
   });
 });

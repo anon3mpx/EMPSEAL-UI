@@ -17,20 +17,34 @@ import { getTokensForChain } from "../../design-system/data/v2TokenView";
 import {
   buildDirectSwapTradeInfo,
   buildSwapRouteHops,
+  buildSwapSplitBranches,
   buildSwapTradeInfo,
   EMPTY_SWAP_TOKEN_ADDRESS,
   formatSwapQuoteOutput,
+  getSwapRouteLabel,
+  normalizeSdkPreparedRoute,
   toSwapHookToken,
 } from "../../design-system/data/swapV2Adapters";
 import { useSwapBalances } from "../../hooks/swap/useSwapBalances";
 import { useSwapExecution } from "../../hooks/swap/useSwapExecution";
 import { useSwapQuoteFetch } from "../../hooks/swap/useSwapQuoteFetch";
+import {
+  checkAllowance as legacyCheckAllowance,
+  callApprove as legacyCallApprove,
+  swapTokens as legacySwapTokens,
+} from "../../utils/contractCalls";
 import { SUPPORTED_CHAINS } from "../../config/chains";
 import { useSetSelectedChainId } from "../../hooks/ChainContext";
 import { getWidgetExecutionMode } from "../../widget/widgetRuntime";
 import { useWidgetConfig } from "../../widget/useWidgetConfig";
 import { WIDGET_CHAIN_BY_KEY } from "../../widget/chains";
 import { createWidgetContractApi } from "../../widget/widgetContractCalls";
+
+const SWAP_EMBED_FALLBACK_API = {
+  checkAllowance: legacyCheckAllowance,
+  callApprove: legacyCallApprove,
+  swapTokens: legacySwapTokens,
+};
 
 const parseHexToRgb = (value) => {
   if (!value) return null;
@@ -255,11 +269,15 @@ export default function WidgetSwapPage() {
       : formattedChainBalance;
   }, [formattedBalance, formattedChainBalance, fromToken, walletState.status]);
   const selectedFromToken = fromToken ? { ...fromToken, balance: fromBalance } : null;
+  const pairType = fromToken && toToken ? classifyPair(fromToken.ticker, toToken.ticker) : "V/V";
+  const feeBps = modeAFeeBps(pairType);
 
   const {
     data: quoteData,
+    preparedRoute: rawPreparedRoute,
     quoteLoading,
-    isQuoteEnabled,
+    quoteFallbackActive,
+    quoteError,
     isDirectRoute,
     refreshQuotes,
   } = useSwapQuoteFetch({
@@ -270,28 +288,58 @@ export default function WidgetSwapPage() {
     selectedTokenA: fromToken,
     selectedTokenB: toToken,
     debouncedAmountIn: deferredFromAmount,
+    recipient: connectedAddress,
+    slippageBps,
+    pairType,
   });
 
-  const pairType = fromToken && toToken ? classifyPair(fromToken.ticker, toToken.ticker) : "V/V";
-  const feeBps = modeAFeeBps(pairType);
-  const quoteTradeInfo = useMemo(
-    () =>
-      isDirectRoute
-        ? buildDirectSwapTradeInfo({
-            amountIn: deferredFromAmount,
-            selectedTokenA: fromToken,
-            selectedTokenB: toToken,
-          })
-        : buildSwapTradeInfo({
-            quote: quoteData,
-            selectedTokenA: fromToken,
-            selectedTokenB: toToken,
-            tokenOptions: tokensForChain,
-            slippageBps,
-            protocolFeeBps: feeBps,
-          }),
-    [deferredFromAmount, feeBps, fromToken, isDirectRoute, quoteData, slippageBps, toToken, tokensForChain],
-  );
+  const preparedRoute = useMemo(() => {
+    if (!rawPreparedRoute || !fromToken || !toToken) return null;
+    if (rawPreparedRoute.source === "sdk" && rawPreparedRoute.sdkResult) {
+      return normalizeSdkPreparedRoute({
+        prepared: rawPreparedRoute.sdkResult,
+        selectedTokenA: fromToken,
+        selectedTokenB: toToken,
+        tokenOptions: tokensForChain,
+        recipient: connectedAddress,
+      });
+    }
+
+    const tradeInfo = isDirectRoute
+      ? buildDirectSwapTradeInfo({
+          amountIn: deferredFromAmount,
+          selectedTokenA: fromToken,
+          selectedTokenB: toToken,
+        })
+      : buildSwapTradeInfo({
+          quote: rawPreparedRoute.quote,
+          selectedTokenA: fromToken,
+          selectedTokenB: toToken,
+          tokenOptions: tokensForChain,
+          slippageBps,
+          protocolFeeBps: feeBps,
+        });
+    return tradeInfo
+      ? {
+          source: "local",
+          routing: "single",
+          tradeInfo,
+          recipient: connectedAddress,
+          sdkError: rawPreparedRoute.sdkError,
+        }
+      : null;
+  }, [
+    connectedAddress,
+    deferredFromAmount,
+    feeBps,
+    fromToken,
+    isDirectRoute,
+    rawPreparedRoute,
+    slippageBps,
+    toToken,
+    tokensForChain,
+  ]);
+  const quoteTradeInfo = preparedRoute?.tradeInfo ?? null;
   const toAmount = useMemo(
     () => (isDirectRoute ? fromAmount : formatSwapQuoteOutput(quoteData, toToken?.decimal ?? 18)),
     [fromAmount, isDirectRoute, quoteData, toToken?.decimal],
@@ -311,17 +359,25 @@ export default function WidgetSwapPage() {
     [quoteTradeInfo, toToken?.decimal],
   );
   const routeHops = useMemo(
-    () => buildSwapRouteHops(quoteTradeInfo, activeV2Chain),
-    [activeV2Chain, quoteTradeInfo],
+    () => preparedRoute?.routing === "single"
+      ? buildSwapRouteHops(quoteTradeInfo, activeV2Chain)
+      : undefined,
+    [activeV2Chain, preparedRoute?.routing, quoteTradeInfo],
   );
+  const splitBranches = useMemo(
+    () => buildSwapSplitBranches(preparedRoute, chainId),
+    [chainId, preparedRoute],
+  );
+  const routeLabel = getSwapRouteLabel(preparedRoute);
   const bestRoute = useMemo(
-    () =>
-      quoteTradeInfo?.pathTokens?.length
-        ? `${Math.max(quoteTradeInfo.pathTokens.length - 1, 1)} hop SDK route`
+    () => preparedRoute?.routing === "split"
+      ? `${preparedRoute.splits?.length ?? 0} route SDK split`
+      : quoteTradeInfo?.pathTokens?.length
+        ? `${Math.max(quoteTradeInfo.pathTokens.length - 1, 1)} hop ${preparedRoute?.source === "local" ? "local fallback" : "SDK route"}`
         : isDirectRoute
           ? "Native wrap"
           : undefined,
-    [isDirectRoute, quoteTradeInfo?.pathTokens],
+    [isDirectRoute, preparedRoute?.routing, preparedRoute?.source, preparedRoute?.splits?.length, quoteTradeInfo?.pathTokens],
   );
 
   const executionMode = useMemo(
@@ -336,9 +392,12 @@ export default function WidgetSwapPage() {
     () =>
       executionMode === "contract"
         ? createWidgetContractApi(config.integratorId)
-        : undefined,
+        : SWAP_EMBED_FALLBACK_API,
     [config.integratorId, executionMode],
   );
+  const executionLabel = preparedRoute?.source === "local"
+    ? "Contract fallback"
+    : "SDK exec";
 
   const isRefreshingQuote = deferredFromAmount !== fromAmount || quoteLoading;
   const {
@@ -355,9 +414,11 @@ export default function WidgetSwapPage() {
     amountIn: fromAmount,
     debouncedAmountIn: deferredFromAmount,
     tradeInfo: quoteTradeInfo,
+    preparedRoute,
     protocolFee: feeBps,
     isRefreshingQuote,
     swapContractApi,
+    executionMode: "auto",
     onSwapSubmitted: () => {
       setShowConfirm(false);
       setShowSuccess(true);
@@ -372,10 +433,7 @@ export default function WidgetSwapPage() {
   }, [swapStatus]);
 
   const isExecuting = ["APPROVING", "WAITING_FOR_CONFIRMATION", "SWAPPING"].includes(swapStatus);
-  const canOpenConfirm =
-    !!quoteTradeInfo &&
-    Number(fromAmount) > 0 &&
-    (isDirectRoute || !!quoteData);
+  const canOpenConfirm = !!preparedRoute && !!quoteTradeInfo && Number(fromAmount) > 0;
 
   const onSwap = () => {
     if (walletState.status !== "connected") {
@@ -465,11 +523,11 @@ export default function WidgetSwapPage() {
           </div>
           <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", minWidth: 0 }}>
             <WidgetStatusBadge tone="info">{activeChain.name}</WidgetStatusBadge>
-            <WidgetStatusBadge tone={executionMode === "contract" ? "accent" : "neutral"}>
-              {executionMode === "contract" ? "Contract exec" : "SDK exec"}
+            <WidgetStatusBadge tone={preparedRoute?.source === "local" ? "accent" : "neutral"}>
+              {executionLabel}
             </WidgetStatusBadge>
-            <WidgetStatusBadge tone={quoteLoading ? "accent" : "info"}>
-              {quoteLoading ? "Quoting" : "SDK quote"}
+            <WidgetStatusBadge tone={quoteLoading ? "accent" : quoteFallbackActive ? "neutral" : "info"}>
+              {quoteLoading ? "Preparing auto route" : quoteFallbackActive ? "Local fallback" : "SDK quote"}
             </WidgetStatusBadge>
           </div>
         </header>
@@ -493,9 +551,11 @@ export default function WidgetSwapPage() {
           pairType={pairType}
           protocolFeeBps={feeBps}
           bestRoute={bestRoute}
+          routeLabel={routeLabel}
           minimumReceived={`${minimumReceived} ${toToken?.ticker || ""}`}
           slippageBps={config.showSlippage ? slippageBps : undefined}
           routeHops={routeHops}
+          splitBranches={splitBranches}
           swapDisabled={!canOpenConfirm || isRefreshingQuote}
           swapLoading={quoteLoading}
           walletConnected={walletState.status === "connected"}
@@ -542,6 +602,11 @@ export default function WidgetSwapPage() {
         {executionError && (
           <p style={{ margin: "10px 0 0", fontSize: 11, color: "#F87171", lineHeight: 1.45 }}>
             {executionError}
+          </p>
+        )}
+        {quoteError && !quoteLoading && (
+          <p style={{ margin: "10px 0 0", fontSize: 11, color: "#F87171", lineHeight: 1.45 }}>
+            SDK and local route preparation failed. Refresh the quote or try a different amount.
           </p>
         )}
       </main>
@@ -595,11 +660,14 @@ export default function WidgetSwapPage() {
         toAmount={toAmount}
         toChainName={activeChain.name}
         routeHops={routeHops}
+        routeLabel={routeLabel}
+        splitBranches={splitBranches}
         feeRows={[
-          { label: "Quote path", value: "EmpX SDK" },
-          { label: "Execution", value: executionMode === "contract" ? "Widget contract calls" : "EmpX SDK" },
+          { label: "Quote path", value: routeLabel ?? "Route unavailable" },
+          { label: "Execution", value: preparedRoute?.source === "local" ? "Contract fallback" : "EmpX SDK" },
           { label: "Protocol fee", value: `${feeBps} bps`, accent: true },
           { label: "Best route", value: bestRoute ?? "SDK route unavailable" },
+          ...(routeLabel ? [{ label: "Route type", value: routeLabel, accent: true }] : []),
           { label: "Min. received", value: `${minimumReceived} ${toToken?.ticker || ""}`, muted: true },
           ...(config.showSlippage ? [{ label: "Slippage", value: `${(slippageBps / 100).toFixed(2)}%`, muted: true }] : []),
           ...(needsApproval ? [{ label: "Approval", value: `${fromToken?.ticker ?? "Token"} approval required`, accent: true }] : []),
@@ -626,7 +694,7 @@ export default function WidgetSwapPage() {
         message={`${toToken?.ticker || "Tokens"} arrived in your wallet`}
         timeline={[
           { label: "Widget quote", description: "EmpX SDK route selected", state: "complete" },
-          { label: "Execution", description: executionMode === "contract" ? "Widget contract call submitted" : "SDK calldata submitted", state: "complete" },
+          { label: "Execution", description: preparedRoute?.source === "local" ? "Fallback contract call submitted" : "SDK calldata submitted", state: "complete" },
           { label: "Tokens delivered", description: `${toToken?.ticker || "Tokens"} in wallet`, state: "complete" },
         ]}
         txHashes={swapHash ? [
