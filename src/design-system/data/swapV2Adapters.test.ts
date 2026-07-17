@@ -6,7 +6,9 @@ import {
   buildSwapRouteHops,
   buildSwapSplitBranches,
   buildSwapTradeInfo,
+  formatPreparedSwapOutput,
   formatSwapQuoteOutput,
+  getSwapQuoteFreshness,
   getSwapRouteLabel,
   normalizeSdkPreparedRoute,
   toSwapHookToken,
@@ -78,6 +80,30 @@ describe("swapV2Adapters", () => {
     };
 
     expect(formatSwapQuoteOutput(quote, 18)).toBe("1.234568");
+  });
+
+  it("uses the aggregate prepared amount for split output display", () => {
+    const dominantLegQuote = {
+      amounts: [600n, 1_200n],
+      path: [usdcToken.address, EMPTY_SWAP_TOKEN_ADDRESS],
+      adapters: ["Uniswap V3"],
+    };
+    const route = {
+      source: "sdk",
+      routing: "split",
+      tradeInfo: { amountOut: 1_900n },
+    };
+
+    expect(formatPreparedSwapOutput(route as never, dominantLegQuote, 3)).toBe(
+      "1.900000",
+    );
+  });
+
+  it("derives quote countdown timing from tradeInfo metadata", () => {
+    expect(
+      getSwapQuoteFreshness({ timestamp: 1_000, validUntil: 61_000 } as never),
+    ).toEqual({ issuedAt: 1_000, validMs: 60_000 });
+    expect(getSwapQuoteFreshness(null)).toBeNull();
   });
 
   it("builds tradeInfo with slippage-adjusted minimum output", () => {

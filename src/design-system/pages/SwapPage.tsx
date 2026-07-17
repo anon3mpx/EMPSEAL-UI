@@ -61,7 +61,9 @@ import {
   buildSwapRouteHops,
   buildSwapSplitBranches,
   buildSwapTradeInfo,
+  formatPreparedSwapOutput,
   formatSwapQuoteOutput,
+  getSwapQuoteFreshness,
   getSwapRouteLabel,
   normalizeSdkPreparedRoute,
   toSwapHookToken,
@@ -116,7 +118,6 @@ export default function SwapPage() {
   const [showTokenPicker, setShowTokenPicker] = useState<"from" | "to" | null>(null);
   const [showConfirm, setShowConfirm] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
-  const [quoteIssuedAt, setQuoteIssuedAt] = useState(Date.now());
   const [executionError, setExecutionError] = useState<string | null>(null);
 
   // Active chain — driven by wallet connection, defaults to Arbitrum
@@ -253,8 +254,10 @@ export default function SwapPage() {
   ]);
   const quoteTradeInfo = preparedRoute?.tradeInfo ?? null;
   const toAmount = useMemo(
-    () => (isDirectRoute ? fromAmount : formatSwapQuoteOutput(quoteData, toToken?.decimal ?? 18)),
-    [fromAmount, isDirectRoute, quoteData, toToken?.decimal],
+    () => (isDirectRoute
+      ? fromAmount
+      : formatPreparedSwapOutput(preparedRoute, quoteData, toToken?.decimal ?? 18)),
+    [fromAmount, isDirectRoute, preparedRoute, quoteData, toToken?.decimal],
   );
   const minimumReceived = useMemo(
     () => formatSwapQuoteOutput(
@@ -264,6 +267,10 @@ export default function SwapPage() {
       toToken?.decimal ?? 18,
     ),
     [quoteTradeInfo, toToken?.decimal],
+  );
+  const quoteFreshness = useMemo(
+    () => getSwapQuoteFreshness(quoteTradeInfo),
+    [quoteTradeInfo],
   );
   const routeHops: RouteHop[] | undefined = useMemo(
     () => preparedRoute?.routing === "single"
@@ -292,6 +299,7 @@ export default function SwapPage() {
     swapStatus,
     swapHash,
     needsApproval,
+    executionError: swapExecutionError,
     handleApprove,
     confirmSwap,
   } = useSwapExecution({
@@ -333,16 +341,22 @@ export default function SwapPage() {
       toast.error(quoteLoading ? "Quote is still loading" : "No executable quote available");
       return;
     }
-    setQuoteIssuedAt(Date.now());
     setExecutionError(null);
     setShowConfirm(true);
   };
 
   useEffect(() => {
     if (swapStatus === "ERROR") {
-      setExecutionError("Swap failed. Check wallet status, quote freshness, and token approval, then retry.");
+      setExecutionError(
+        swapExecutionError ??
+          "Swap failed. Check wallet status, quote freshness, and token approval, then retry.",
+      );
     }
-  }, [swapStatus]);
+  }, [swapExecutionError, swapStatus]);
+
+  useEffect(() => {
+    if (quoteTradeInfo?.quoteId) setExecutionError(null);
+  }, [quoteTradeInfo?.quoteId]);
 
   const navLinks = createV2NavLinks("swap");
 
@@ -479,16 +493,17 @@ export default function SwapPage() {
                   Quote freshness
                 </p>
                 <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-                  <QuoteCountdown
-                    totalMs={30000}
-                    issuedAt={quoteIssuedAt}
-                    onRefresh={() => {
-                      setQuoteIssuedAt(Date.now());
-                      void refreshQuotes();
-                      toast.info("Quote refreshed");
-                    }}
-                    compact
-                  />
+                  {quoteFreshness && (
+                    <QuoteCountdown
+                      totalMs={quoteFreshness.validMs}
+                      issuedAt={quoteFreshness.issuedAt}
+                      onRefresh={() => {
+                        void refreshQuotes();
+                        toast.info("Refreshing quote");
+                      }}
+                      compact
+                    />
+                  )}
                   <Pill variant={quoteLoading ? "accent" : quoteFallbackActive ? "ghost" : isQuoteEnabled ? "info" : "ghost"}>
                     {quoteLoading
                       ? "Preparing auto route"
@@ -749,10 +764,9 @@ export default function SwapPage() {
           { label: "Slippage",      value: `${(slippageBps / 100).toFixed(2)}%`, muted: true },
           ...(needsApproval ? [{ label: "Approval", value: `${fromToken?.ticker ?? "Token"} approval required`, accent: true as const }] : []),
         ]}
-        quoteIssuedAt={quoteIssuedAt}
-        quoteValidMs={30000}
+        quoteIssuedAt={quoteFreshness?.issuedAt}
+        quoteValidMs={quoteFreshness?.validMs}
         onRefreshQuote={() => {
-          setQuoteIssuedAt(Date.now());
           void refreshQuotes();
         }}
         warning={executionError ?? undefined}

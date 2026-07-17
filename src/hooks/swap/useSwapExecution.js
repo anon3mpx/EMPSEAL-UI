@@ -56,7 +56,9 @@ import {
 } from "./swapExecutionMode";
 import {
   checkPreparedAllowance,
+  getSwapExecutionErrorMessage,
   getPreparedApproval,
+  isPreparedRouteExpired,
   submitPreparedSdkRoute,
 } from "./swapPreparedExecution";
 
@@ -64,6 +66,7 @@ const NATIVE_ADDRESSES = new Set([
   EMPTY_ADDRESS.toLowerCase(),
   "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
 ]);
+const EXPIRED_QUOTE_MESSAGE = "Quote expired. Refresh the quote and try again.";
 
 function isNativeAddress(addr) {
   return !!addr && NATIVE_ADDRESSES.has(addr.toLowerCase());
@@ -109,6 +112,7 @@ export function useSwapExecution({
   const [swapHash, setSwapHash] = useState("");
   const [swapSuccess, setSwapSuccess] = useState(false);
   const [needsApproval, setNeedsApproval] = useState(false);
+  const [executionError, setExecutionError] = useState(null);
 
   // ─── SDK seam (default path) ───────────────────────────────────────────────
   const { router, signer } = useEmpxRouter({ chainId });
@@ -251,6 +255,20 @@ export function useSwapExecution({
       return null;
     }
 
+    if (
+      isPreparedRouteExpired(
+        preparedRoute ?? (activeTradeInfo ? { tradeInfo: activeTradeInfo } : undefined),
+      )
+    ) {
+      setSwapStatus("ERROR");
+      setSwapSuccess(false);
+      setExecutionError(EXPIRED_QUOTE_MESSAGE);
+      toast.error(EXPIRED_QUOTE_MESSAGE);
+      return null;
+    }
+
+    setExecutionError(null);
+
     if (useLegacyExecution) {
       // ───── Legacy path: callsite-provided swapContractApi ─────────────────
       try {
@@ -265,10 +283,13 @@ export function useSwapExecution({
           protocolFee,
         );
         setSwapSuccess(true);
+        setExecutionError(null);
         onSwapSubmitted?.();
       } catch (error) {
         console.error("Swap failed (legacy)", error);
+        setSwapStatus("ERROR");
         setSwapSuccess(false);
+        setExecutionError(getSwapExecutionErrorMessage(error));
       }
       return;
     }
@@ -279,20 +300,14 @@ export function useSwapExecution({
       await submitSwapViaSdk();
       setSwapStatus("SWAPPED");
       setSwapSuccess(true);
+      setExecutionError(null);
       toast.success("Transaction Successful");
       onSwapSubmitted?.();
     } catch (error) {
-      const msg = error?.message || String(error);
-      if (msg.includes("EmpsealRouter: Insufficient output amount")) {
-        setSwapStatus("ERROR");
-        toast.error("Output amount too high. Adjust slippage and retry.");
-      } else if (msg.includes("user rejected") || msg.includes("User denied")) {
-        setSwapStatus("ERROR");
-        toast.error("Transaction rejected");
-      } else {
-        setSwapStatus("ERROR");
-        toast.error("Swap failed");
-      }
+      const message = getSwapExecutionErrorMessage(error);
+      setSwapStatus("ERROR");
+      setExecutionError(message);
+      toast.error(message);
       console.error("Swap failed (SDK)", error);
       setSwapSuccess(false);
     }
@@ -301,6 +316,7 @@ export function useSwapExecution({
   // ─── handleApprove: approval then auto-confirm ─────────────────────────────
   const handleApprove = async () => {
     try {
+      setExecutionError(null);
       setSwapStatus("APPROVING");
       const amountInBigInt = convertToBigInt(amountIn, selectedTokenA.decimal);
 
@@ -331,12 +347,9 @@ export function useSwapExecution({
     } catch (error) {
       setSwapStatus("ERROR");
       console.error("Approval failed:", error);
-      const msg = error?.message || String(error);
-      if (msg.includes("user rejected") || msg.includes("User denied")) {
-        toast.error("Approval rejected");
-      } else {
-        toast.error("Token approval failed");
-      }
+      const message = getSwapExecutionErrorMessage(error, { phase: "approval" });
+      setExecutionError(message);
+      toast.error(message);
     }
   };
 
@@ -349,6 +362,7 @@ export function useSwapExecution({
     swapSuccess,
     setSwapSuccess,
     needsApproval,
+    executionError,
     // actions
     handleApprove,
     confirmSwap,

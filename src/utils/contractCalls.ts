@@ -457,12 +457,20 @@ export const swapTokens = async (
     toast.success("Transaction Successful");
     return swapResponse;
   } catch (error) {
+    const errorMessage = [
+      error?.message,
+      error?.shortMessage,
+      error?.reason,
+      error?.info?.error?.message,
+    ]
+      .filter(Boolean)
+      .join(" ");
     if (
-      error.message &&
-      error.message.includes("EmpsealRouter: Insufficient output amount")
+      errorMessage.includes("EmpsealRouter: Insufficient output amount") ||
+      errorMessage.includes("Insufficient amountOut")
     ) {
       setStatus("ERROR");
-      toast.error("Output amount too high. Adjust slippage and retry.");
+      toast.error("Minimum output is no longer available. Refresh the quote or increase slippage, then retry.");
     } else {
       setStatus("ERROR");
       toast.error("Transaction rejected");

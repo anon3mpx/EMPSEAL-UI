@@ -72,6 +72,11 @@ export interface PreparedSwapRoute {
   sdkError?: unknown;
 }
 
+export interface SwapQuoteFreshness {
+  issuedAt: number;
+  validMs: number;
+}
+
 interface SdkTradeInfoLike {
   amountIn: string;
   amountOut: string;
@@ -268,6 +273,39 @@ export function formatSwapQuoteOutput(quote: SwapQuoteLike | null | undefined, o
   const quotedOut = quote?.amounts?.[quote.amounts.length - 1];
   if (quotedOut == null) return "0";
   return formatDecimalString(formatUnits(quotedOut, outputDecimals), SWAP_QUOTE_DISPLAY_DECIMALS);
+}
+
+export function formatPreparedSwapOutput(
+  route: PreparedSwapRoute | null | undefined,
+  quote: SwapQuoteLike | null | undefined,
+  outputDecimals: number,
+): string {
+  if (route?.routing === "split") {
+    return formatDecimalString(
+      formatUnits(route.tradeInfo.amountOut, outputDecimals),
+      SWAP_QUOTE_DISPLAY_DECIMALS,
+    );
+  }
+  return formatSwapQuoteOutput(quote, outputDecimals);
+}
+
+export function getSwapQuoteFreshness(
+  tradeInfo: Pick<SwapTradeInfo, "timestamp" | "validUntil"> | null | undefined,
+): SwapQuoteFreshness | null {
+  const issuedAt = Number(tradeInfo?.timestamp);
+  const validUntil = Number(tradeInfo?.validUntil);
+  if (
+    !Number.isFinite(issuedAt) ||
+    !Number.isFinite(validUntil) ||
+    issuedAt <= 0 ||
+    validUntil <= issuedAt
+  ) {
+    return null;
+  }
+  return {
+    issuedAt,
+    validMs: validUntil - issuedAt,
+  };
 }
 
 function formatDecimalString(value: string, displayDecimals: number): string {

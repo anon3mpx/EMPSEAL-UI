@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   checkPreparedAllowance,
+  getSwapExecutionErrorMessage,
   getPreparedApproval,
+  isPreparedRouteExpired,
   submitPreparedSdkRoute,
 } from "./swapPreparedExecution";
 
@@ -98,5 +100,41 @@ describe("prepared swap execution", () => {
         signer: { sendTransaction: vi.fn() },
       }),
     ).rejects.toThrow("SDK prepared calldata is unavailable");
+  });
+
+  it("treats the prepared route validUntil as the execution deadline", () => {
+    const route = {
+      source: "sdk",
+      routing: "split",
+      tradeInfo: { timestamp: 1_000, validUntil: 61_000 },
+    };
+
+    expect(isPreparedRouteExpired(route, 60_999)).toBe(false);
+    expect(isPreparedRouteExpired(route, 61_000)).toBe(true);
+  });
+
+  it("does not invent an expiry when route metadata is unavailable", () => {
+    expect(isPreparedRouteExpired(undefined, 61_000)).toBe(false);
+    expect(isPreparedRouteExpired({ tradeInfo: {} }, 61_000)).toBe(false);
+  });
+
+  it("maps the SDK split amountOut revert to an actionable message", () => {
+    const error = {
+      message: 'missing revert data (action="estimateGas", reason="Insufficient amountOut")',
+      info: { error: { message: "execution reverted: Insufficient amountOut" } },
+    };
+
+    expect(getSwapExecutionErrorMessage(error)).toBe(
+      "Minimum output is no longer available. Refresh the quote or increase slippage, then retry.",
+    );
+  });
+
+  it("distinguishes wallet rejection from transaction simulation failure", () => {
+    expect(
+      getSwapExecutionErrorMessage({ code: 4001, message: "User rejected the request" }),
+    ).toBe("Transaction rejected in wallet.");
+    expect(
+      getSwapExecutionErrorMessage({ message: 'missing revert data (action="estimateGas")' }),
+    ).toBe("Transaction simulation failed. Refresh the quote and try again.");
   });
 });
