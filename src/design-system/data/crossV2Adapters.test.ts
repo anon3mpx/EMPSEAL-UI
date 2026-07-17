@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  CROSS_V2_DEFAULT_SELECTION,
   buildCrossQuoteRequest,
   buildCrossRouteHops,
   buildCrossTimeline,
   formatCrossOffer,
+  getCrossQuoteUiState,
 } from "./crossV2Adapters";
 
 const arbitrum = { id: 42161, name: "Arbitrum", ticker: "ETH", color: "#28A0F0" };
@@ -28,6 +30,78 @@ const toToken = {
 };
 
 describe("crossV2Adapters", () => {
+  it("defaults to a stablecoin pair that can surface live rail offers", () => {
+    expect(CROSS_V2_DEFAULT_SELECTION).toEqual({
+      fromChainId: 8453,
+      toChainId: 42161,
+      fromTicker: "USDC",
+      toTicker: "USDC",
+      fromAmount: "10",
+    });
+  });
+
+  it("distinguishes live quote status from the reference rail catalog", () => {
+    expect(
+      getCrossQuoteUiState({
+        walletConnected: false,
+        quoteReady: false,
+        isFetching: false,
+        offerCount: 0,
+      }),
+    ).toEqual({
+      summary: "Connect to quote",
+      emptyMessage: "Connect a wallet to fetch live cross-chain offers.",
+    });
+
+    expect(
+      getCrossQuoteUiState({
+        walletConnected: true,
+        quoteReady: false,
+        isFetching: false,
+        offerCount: 0,
+      }),
+    ).toEqual({
+      summary: "Quote not ready",
+      emptyMessage: "Enter an amount and choose different source and destination chains.",
+    });
+
+    expect(
+      getCrossQuoteUiState({
+        walletConnected: true,
+        quoteReady: true,
+        isFetching: true,
+        offerCount: 0,
+      }),
+    ).toEqual({
+      summary: "Fetching live offers",
+      emptyMessage: "Fetching executable routes from the cross-chain quote API...",
+    });
+
+    expect(
+      getCrossQuoteUiState({
+        walletConnected: true,
+        quoteReady: true,
+        isFetching: false,
+        offerCount: 3,
+      }),
+    ).toEqual({
+      summary: "3 live offers",
+      emptyMessage: "",
+    });
+
+    expect(
+      getCrossQuoteUiState({
+        walletConnected: true,
+        quoteReady: true,
+        isFetching: false,
+        offerCount: 0,
+      }),
+    ).toEqual({
+      summary: "0 live offers",
+      emptyMessage: "No live offers were returned for this pair. Try another token or route.",
+    });
+  });
+
   it("builds backend quote requests from V2 token config", () => {
     expect(
       buildCrossQuoteRequest({

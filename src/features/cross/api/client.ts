@@ -1,5 +1,18 @@
-const API_BASE_URL =
-  import.meta.env.VITE_CROSS_API_BASE_URL ?? "https://crosschain.empx.io";
+const PUBLIC_CROSS_API_ORIGIN = "https://crosschain.empx.io";
+
+export function resolveCrossApiBaseUrl(
+  configuredBaseUrl: string | undefined,
+  isDevelopment: boolean,
+): string {
+  const configured = configuredBaseUrl?.trim();
+  if (configured) return configured.replace(/\/+$/, "");
+  return isDevelopment ? "" : PUBLIC_CROSS_API_ORIGIN;
+}
+
+const API_BASE_URL = resolveCrossApiBaseUrl(
+  import.meta.env.VITE_CROSS_API_BASE_URL,
+  import.meta.env.DEV,
+);
 
 export async function crossApiFetch<T>(
   path: string,

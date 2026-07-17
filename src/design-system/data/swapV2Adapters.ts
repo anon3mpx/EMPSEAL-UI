@@ -116,7 +116,7 @@ interface SdkPreparedRouteLike {
 }
 
 const QUOTE_TTL_MS = 30_000;
-const SDK_VERSION = "2.2.0";
+const SDK_VERSION = "2.3.1";
 const SWAP_QUOTE_DISPLAY_DECIMALS = 6;
 
 function buildQuoteMetadata() {

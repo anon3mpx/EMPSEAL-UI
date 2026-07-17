@@ -17,6 +17,15 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  server: {
+    proxy: {
+      '/api/v1': {
+        target: 'https://crosschain.empx.io',
+        changeOrigin: true,
+        secure: true,
+      },
+    },
+  },
   test: {
     environment: "jsdom",
     setupFiles: "./src/test/setup.ts",

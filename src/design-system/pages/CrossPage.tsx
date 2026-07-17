@@ -9,9 +9,6 @@
 //   • Aggregator-deployed chains (T1)
 //       → empx-cross-bridge/src/vps/config/chains.ts AGG_CHAIN_IDS
 //
-//   • Paymaster (gasless source) deployed chains
-//       → empx-cross-bridge/src/vps/services/PaymasterService.ts PIMLICO_URLS
-//
 //   • Destination gas drop (Gas.zip rail)
 //       → empx-cross-bridge/src/vps/rails/solvers/GasZipSolver.ts +
 //         vps/services/DestinationGasAutoFund.ts
@@ -24,7 +21,7 @@
 //   2. Token list filtering by chain tier + rail settlement support.
 //   3. Three-tier chain badge (T1 / T2 / T3) in ChainPicker.
 //   4. Gas-on-destination toggle (Gas.zip side-leg).
-//   5. Gasless-source Paymaster toggle (only on Paymaster-deployed chains).
+//   5. Gasless-source Paymaster remains visible but disabled until re-enabled.
 
 import {
   readContract,
@@ -101,15 +98,16 @@ import { V2_ALL_CHAINS, getV2Chain } from "../data/v2ChainView";
 import { getTokensForChain, type V2TokenConfig } from "../data/v2TokenView";
 import { createV2NavLinks } from "../data/v2ProductRoutes";
 import {
+  CROSS_V2_DEFAULT_SELECTION,
   buildCrossQuoteRequest,
   buildCrossRouteHops,
   buildCrossTimeline,
   formatCrossOffer,
+  getCrossQuoteUiState,
   shortHash,
   type CrossV2OfferDisplay,
 } from "../data/crossV2Adapters";
 import {
-  PAYMASTER_CHAIN_IDS,
   RAILS,
   defaultSettlementTicker,
   eligibleRailsFor,
@@ -297,12 +295,12 @@ export default function CrossPage() {
   const [shownSuccessIntentId, setShownSuccessIntentId] = useState<string | null>(null);
   const [quoteIssuedAt, setQuoteIssuedAt] = useState(Date.now());
 
-  // Cross-chain pair state — default Arbitrum ETH → Base USDC
-  const [fromChainId, setFromChainId] = useState(42161);
-  const [toChainId,   setToChainId]   = useState(8453);
-  const [fromTicker, setFromTicker] = useState<string>("ETH");
-  const [toTicker,   setToTicker]   = useState<string>(defaultSettlementTicker(8453));
-  const [fromAmount, setFromAmount] = useState<string>("0.5");
+  // Cross-chain pair state — start on a stable pair that can surface live rails.
+  const [fromChainId, setFromChainId] = useState<number>(CROSS_V2_DEFAULT_SELECTION.fromChainId);
+  const [toChainId,   setToChainId]   = useState<number>(CROSS_V2_DEFAULT_SELECTION.toChainId);
+  const [fromTicker, setFromTicker] = useState<string>(CROSS_V2_DEFAULT_SELECTION.fromTicker);
+  const [toTicker,   setToTicker]   = useState<string>(CROSS_V2_DEFAULT_SELECTION.toTicker);
+  const [fromAmount, setFromAmount] = useState<string>(CROSS_V2_DEFAULT_SELECTION.fromAmount);
 
   const [selectedOfferId, setSelectedOfferId] = useState<string | null>(null);
   const [selectedGasOfferId, setSelectedGasOfferId] = useState<string | null>(null);
@@ -326,9 +324,8 @@ export default function CrossPage() {
   const [hasRequiredApproval, setHasRequiredApproval] = useState(true);
   const [now, setNow] = useState(Date.now());
 
-  // Gas settings
+  // Gas settings. Paymaster is intentionally disabled in the UI for now.
   const [gasDropOnDestination, setGasDropOnDestination] = useState(false);
-  const [payInToken, setPayInToken] = useState(false); // Paymaster path
 
   const [sidePanel, setSidePanel] = useState<SidePanelTab>("offers");
   const deferredFromAmount = useDeferredValue(fromAmount);
@@ -351,12 +348,6 @@ export default function CrossPage() {
   const fromTier: ChainTier = tierForChainId(fromChainId);
   const toTier:   ChainTier = tierForChainId(toChainId);
 
-
-  // Eligible rails for the current (src, dst, destTicker) — rail/token aware
-  const eligibleRails = useMemo(
-    () => eligibleRailsFor(fromChainId, toChainId, toTicker),
-    [fromChainId, toChainId, toTicker],
-  );
 
   const fromTokenConfig = useMemo(
     () => getTokensForChain(fromChainId).find((t) => t.ticker === fromTicker) ?? null,
@@ -437,6 +428,12 @@ export default function CrossPage() {
       deliveryShape: offer.deliveryShape,
     }));
   }, [displayOffers, toTokenDecimals]);
+  const quoteUiState = getCrossQuoteUiState({
+    walletConnected: walletState.status === "connected",
+    quoteReady: quoteEnabled,
+    isFetching: quote.isFetching,
+    offerCount: offerEntries.length,
+  });
   const selectedOffer = useMemo(
     () =>
       displayOffers.find((offer: any) => offer.offerId === selectedOfferId) ??
@@ -519,12 +516,6 @@ export default function CrossPage() {
       }
     }
   }, [toChainId, toTier, fromChainId]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Paymaster eligibility — Paymaster only deployed on a subset of T1 chains
-  const paymasterAvailable = PAYMASTER_CHAIN_IDS.has(fromChainId);
-  useEffect(() => {
-    if (!paymasterAvailable && payInToken) setPayInToken(false);
-  }, [paymasterAvailable, payInToken]);
 
   // Gas-drop eligibility — Gas.zip must support the destination
   const gasZipRail = RAILS.find((r) => r.name === "Gas.zip");
@@ -1384,7 +1375,7 @@ export default function CrossPage() {
                     compact
                   />
                   <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    <Pill variant="info">{offerEntries.length || eligibleRails.length} eligible</Pill>
+                    <Pill variant="info">{quoteUiState.summary}</Pill>
                     {selectedOfferId && selectedOfferId !== effectiveQuote?.bestOfferId && <Pill variant="accent">User-selected</Pill>}
                   </div>
                 </div>
@@ -1397,9 +1388,9 @@ export default function CrossPage() {
               </p>
               <Tabs
                 options={[
-                  { value: "offers" as const,    label: "Offers",   count: offerEntries.length },
+                  { value: "offers" as const,    label: "Live offers", count: offerEntries.length },
                   { value: "settings" as const,  label: "Gas" },
-                  { value: "rails" as const,     label: "Catalog",  count: RAILS.length },
+                  { value: "rails" as const,     label: "Rail guide", count: RAILS.length },
                   { value: "lifecycle" as const, label: "Lifecycle" },
                 ]}
                 active={sidePanel}
@@ -1414,6 +1405,7 @@ export default function CrossPage() {
                     selectedOfferId={selectedOffer?.offerId ?? selectedOfferId}
                     isLoading={quote.isFetching}
                     error={quoteErrorMessage}
+                    emptyMessage={quoteUiState.emptyMessage}
                     onSelectOffer={(offerId) => {
                       setSelectedOfferId((cur) => (cur === offerId ? effectiveQuote?.bestOfferId ?? null : offerId));
                       toast.info(selectedOfferId === offerId ? "Reverted to best route" : "Selected route");
@@ -1423,10 +1415,6 @@ export default function CrossPage() {
                 )}
                 {sidePanel === "settings" && (
                   <GasSettings
-                    payInToken={payInToken}
-                    setPayInToken={setPayInToken}
-                    paymasterAvailable={paymasterAvailable}
-                    paymasterChainName={fromChain.name}
                     gasDropOnDestination={gasDropOnDestination}
                     setGasDropOnDestination={setGasDropOnDestination}
                     gasDropAvailable={gasDropAvailable}
@@ -1543,7 +1531,6 @@ export default function CrossPage() {
                 { label: "Protocol fee",  value: `$${selectedOfferDisplay.protocolFeeUSD.toFixed(2)}`, accent: true },
                 { label: "Bridge fee",    value: selectedOfferDisplay.bridgeFeeUSD <= 0.005 ? "FREE" : `$${selectedOfferDisplay.bridgeFeeUSD.toFixed(2)}` },
                 ...(gasDropOnDestination ? [{ label: "Gas drop", value: `+$${GAS_DROP_USD.toFixed(2)} ${toChain.ticker}` }] : []),
-                ...(payInToken ? [{ label: "Source gas", value: `Paid in ${fromTicker} (Paymaster)`, muted: true }] : []),
                 ...(selectedOfferDisplay.estimatedTimeSeconds ? [{ label: "Est. time", value: formatEtaSeconds(selectedOfferDisplay.estimatedTimeSeconds) }] : []),
                 { label: "Minimum received", value: `${selectedOfferDisplay.minimumReceived} ${toTicker}`, muted: true },
               ]
@@ -1635,6 +1622,7 @@ function OffersList({
   toTicker,
   isLoading,
   error,
+  emptyMessage,
 }: {
   offers: CrossOfferEntry[];
   bestOfferId?: string;
@@ -1643,11 +1631,12 @@ function OffersList({
   toTicker: string;
   isLoading?: boolean;
   error?: string | null;
+  emptyMessage: string;
 }) {
   if (isLoading && offers.length === 0) {
     return (
       <p style={{ margin: 0, padding: "16px 4px", fontSize: 12, color: "rgba(255,255,255,0.50)", textAlign: "center", lineHeight: 1.55 }}>
-        Fetching executable routes from the cross-chain quote API...
+        {emptyMessage}
       </p>
     );
   }
@@ -1663,7 +1652,7 @@ function OffersList({
   if (offers.length === 0) {
     return (
       <p style={{ margin: 0, padding: "16px 4px", fontSize: 12, color: "rgba(255,255,255,0.50)", textAlign: "center", lineHeight: 1.55 }}>
-        Connect a wallet and enter an amount to fetch executable cross-chain routes.
+        {emptyMessage}
       </p>
     );
   }
@@ -1787,14 +1776,9 @@ function OffersList({
 // ─── Gas settings tab ─────────────────────────────────────────────────────
 
 function GasSettings({
-  payInToken, setPayInToken, paymasterAvailable, paymasterChainName,
   gasDropOnDestination, setGasDropOnDestination, gasDropAvailable,
   destinationName, destinationNative, gasDropUSD,
 }: {
-  payInToken: boolean;
-  setPayInToken: (v: boolean) => void;
-  paymasterAvailable: boolean;
-  paymasterChainName: string;
   gasDropOnDestination: boolean;
   setGasDropOnDestination: (v: boolean) => void;
   gasDropAvailable: boolean;
@@ -1804,18 +1788,13 @@ function GasSettings({
 }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-      {/* <GasToggle
+      <GasToggle
         title="Gasless source"
-        hint={
-          paymasterAvailable
-            ? `Pay source gas in your input token via the EmpX Paymaster on ${paymasterChainName}. No native gas needed.`
-            : `Paymaster not deployed on ${paymasterChainName}. Available on Ethereum, Arbitrum, Base, OP, Polygon, Avalanche, BSC.`
-        }
-        enabled={payInToken}
-        disabled={!paymasterAvailable}
-        onToggle={() => setPayInToken(!payInToken)}
+        hint="Paymaster execution is temporarily unavailable in this interface."
+        enabled={false}
+        disabled
         tag="EIP-4337"
-      /> */}
+      />
       <GasToggle
         title="Drop destination gas"
         hint={
@@ -1828,12 +1807,6 @@ function GasSettings({
         onToggle={() => setGasDropOnDestination(!gasDropOnDestination)}
         tag="GAS.ZIP"
       />
-      {/* <p style={{ margin: "6px 2px 0", fontSize: 10.5, color: "rgba(255,255,255,0.40)", lineHeight: 1.55 }}>
-        Both features map to live SDK services — Paymaster path uses{" "}
-        <code style={{ color: "rgba(255,255,255,0.65)" }}>PaymasterService</code>,
-        gas-drop side-leg uses <code style={{ color: "rgba(255,255,255,0.65)" }}>GasZipSolver</code> +{" "}
-        <code style={{ color: "rgba(255,255,255,0.65)" }}>DestinationGasAutoFund</code>.
-      </p> */}
     </div>
   );
 }
@@ -1845,7 +1818,7 @@ function GasToggle({
   hint: string;
   enabled: boolean;
   disabled?: boolean;
-  onToggle: () => void;
+  onToggle?: () => void;
   tag?: string;
 }) {
   return (
@@ -1941,40 +1914,42 @@ function GasToggle({
 
 function RailsCatalog() {
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 360, overflowY: "auto", paddingRight: 4 }}>
-      {RAILS.map((r) => (
-        <div
-          key={r.name}
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1.6fr 0.5fr 0.7fr 0.8fr",
-            alignItems: "center",
-            gap: 8,
-            padding: "8px 10px",
-            background: "rgba(255,255,255,0.02)",
-            border: "1px solid rgba(255,255,255,0.04)",
-            borderRadius: 4,
-            fontSize: 11,
-          }}
-        >
-          <div>
-            <p style={{ margin: 0, color: "#fff", fontWeight: 600, fontSize: 12 }}>{r.name}</p>
-            <p style={{ margin: "2px 0 0", color: "rgba(255,255,255,0.45)", fontSize: 10 }}>
-              {r.speciality}
-            </p>
+    <div>
+      <p style={{ margin: "0 0 10px", fontSize: 10.5, color: "rgba(255,255,255,0.45)", lineHeight: 1.5 }}>
+        Reference catalog only. Live availability for the selected pair appears under Live offers.
+      </p>
+      <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 330, overflowY: "auto", paddingRight: 4 }}>
+        {RAILS.map((r) => (
+          <div
+            key={r.name}
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1.6fr 0.5fr 0.7fr 0.8fr",
+              alignItems: "center",
+              gap: 8,
+              padding: "8px 10px",
+              background: "rgba(255,255,255,0.02)",
+              border: "1px solid rgba(255,255,255,0.04)",
+              borderRadius: 4,
+              fontSize: 11,
+            }}
+          >
+            <div>
+              <p style={{ margin: 0, color: "#fff", fontWeight: 600, fontSize: 12 }}>{r.name}</p>
+              <p style={{ margin: "2px 0 0", color: "rgba(255,255,255,0.45)", fontSize: 10 }}>
+                {r.speciality}
+              </p>
+            </div>
+            <Pill variant={r.mode === "A" ? "accent" : "info"}>Mode {r.mode}</Pill>
+            <span style={{ fontFamily: "'Space Grotesk', sans-serif", color: "#fff", letterSpacing: "-0.01em", fontWeight: 500 }}>
+              {r.reliability.toFixed(1)}%
+            </span>
+            <span style={{ color: "rgba(255,255,255,0.55)", textAlign: "right", fontSize: 10 }} title="Baseline ETA — live quote may differ">
+              {formatEtaSeconds(r.etaSecondsBaseline)}
+            </span>
           </div>
-          <Pill variant={r.mode === "A" ? "accent" : "info"}>Mode {r.mode}</Pill>
-          <span style={{ fontFamily: "'Space Grotesk', sans-serif", color: "#fff", letterSpacing: "-0.01em", fontWeight: 500 }}>
-            {r.reliability.toFixed(1)}%
-          </span>
-          <span style={{ color: "rgba(255,255,255,0.55)", textAlign: "right", fontSize: 10 }} title="Baseline ETA — live quote may differ">
-            {formatEtaSeconds(r.etaSecondsBaseline)}
-          </span>
-        </div>
-      ))}
-      {/* <p style={{ margin: "10px 4px 0", fontSize: 10.5, color: "rgba(255,255,255,0.40)", lineHeight: 1.55 }}>
-        ETAs shown here are <em>baselines</em> from <code>RailConfig.etaSeconds</code>. Real quotes use <code>Quote.etaSeconds</code> from <code>RailSolver.quote()</code>, which adjusts for live network conditions, hop count, and attestation queues. Reliability sourced from the cross-bridge VPS <code>route_outcomes</code> table — last 30 days per rail. Stuck-threshold is the per-rail cutoff at which a watching intent transitions to STUCK.
-      </p> */}
+        ))}
+      </div>
     </div>
   );
 }

@@ -8,6 +8,55 @@ import {
 
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 
+export const CROSS_V2_DEFAULT_SELECTION = {
+  fromChainId: 8453,
+  toChainId: 42161,
+  fromTicker: "USDC",
+  toTicker: "USDC",
+  fromAmount: "10",
+} as const;
+
+export function getCrossQuoteUiState({
+  walletConnected,
+  quoteReady,
+  isFetching,
+  offerCount,
+}: {
+  walletConnected: boolean;
+  quoteReady: boolean;
+  isFetching: boolean;
+  offerCount: number;
+}): { summary: string; emptyMessage: string } {
+  if (!walletConnected) {
+    return {
+      summary: "Connect to quote",
+      emptyMessage: "Connect a wallet to fetch live cross-chain offers.",
+    };
+  }
+
+  if (!quoteReady) {
+    return {
+      summary: "Quote not ready",
+      emptyMessage: "Enter an amount and choose different source and destination chains.",
+    };
+  }
+
+  if (isFetching) {
+    return {
+      summary: "Fetching live offers",
+      emptyMessage: "Fetching executable routes from the cross-chain quote API...",
+    };
+  }
+
+  return {
+    summary: `${offerCount} live offer${offerCount === 1 ? "" : "s"}`,
+    emptyMessage:
+      offerCount === 0
+        ? "No live offers were returned for this pair. Try another token or route."
+        : "",
+  };
+}
+
 type ChainLike = {
   id: number;
   name: string;
