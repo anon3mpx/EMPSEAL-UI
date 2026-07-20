@@ -7,6 +7,7 @@ import {
   formatCrossOffer,
   getCrossQuoteUiState,
 } from "./crossV2Adapters";
+import { getTokensForChain } from "./v2TokenView";
 
 const arbitrum = { id: 42161, name: "Arbitrum", ticker: "ETH", color: "#28A0F0" };
 const base = { id: 8453, name: "Base", ticker: "ETH", color: "#0052FF" };
@@ -131,6 +132,58 @@ describe("crossV2Adapters", () => {
         },
       ],
     });
+  });
+
+  it("serializes Ethereum USDC to Solana USDC using the CCTP asset identifiers", () => {
+    const ethereumUsdc = getTokensForChain(1).find((token) => token.ticker === "USDC") ?? null;
+    const solanaUsdc = getTokensForChain(99).find((token) => token.ticker === "USDC") ?? null;
+
+    expect(
+      buildCrossQuoteRequest({
+        fromToken: ethereumUsdc,
+        toToken: solanaUsdc,
+        fromAmount: "1",
+        fromChainId: 1,
+        toChainId: 99,
+        userAddress: "0xabc",
+        nativeDstAddress: "BaqEWofzK9Y4XP2rWuwNwJjptZ2xeTUDCZ3jGX3Qrbkt",
+      }),
+    ).toEqual({
+      tokenIn: "0xA0b86991c6218b36c1d19d4A2e9Eb0cE3606eB48",
+      tokenOut: "SOL.USDC",
+      amountIn: "1000000",
+      srcChainId: 1,
+      dstChainId: 99,
+      userAddress: "0xabc",
+      nativeDstAddress: "BaqEWofzK9Y4XP2rWuwNwJjptZ2xeTUDCZ3jGX3Qrbkt",
+      urgency: "fast",
+      destinationGas: undefined,
+    });
+  });
+
+  it("requires and forwards native destination addresses for non-EVM destinations", () => {
+    expect(
+      buildCrossQuoteRequest({
+        fromToken,
+        toToken: { ...toToken, ticker: "BTC" },
+        fromAmount: "0.5",
+        fromChainId: 42161,
+        toChainId: 0,
+        userAddress: "0xabc",
+      }),
+    ).toBeNull();
+
+    expect(
+      buildCrossQuoteRequest({
+        fromToken,
+        toToken: { ...toToken, ticker: "BTC" },
+        fromAmount: "0.5",
+        fromChainId: 42161,
+        toChainId: 0,
+        userAddress: "0xabc",
+        nativeDstAddress: "bc1qexample",
+      })?.nativeDstAddress,
+    ).toBe("bc1qexample");
   });
 
   it("formats backend offers for the V2 rail list", () => {

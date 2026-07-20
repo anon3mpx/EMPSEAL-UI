@@ -60,11 +60,16 @@ import { crossApi } from "../../features/cross/api/crossApi";
 import { CrossExecutionPanel } from "../../features/cross/components/CrossExecutionPanel";
 import { CrossTrackingPanel } from "../../features/cross/components/CrossTrackingPanel";
 import {
-  classifyProviderDirectAction,
   getLayerZeroStepMessage,
   getLayerZeroStepTx,
   mergeLayerZeroUserSteps,
 } from "../../features/cross/execution/providerDirect";
+import {
+  executeProviderApprovals,
+  findMissingProviderApprovals,
+  readProviderApprovalRequests,
+} from "../../features/cross/execution/approvals";
+import { executeCrossIntegration } from "../../features/cross/execution/crossExecution";
 import {
   getRequiredRouterIntentApproval,
   isRouterIntentExpired,
@@ -79,7 +84,12 @@ import {
   getPrimaryOffers,
   normalizeOfferSet,
 } from "../../features/cross/model/quotes";
+import {
+  getOfferCapability,
+  getRailCapability,
+} from "../../features/cross/model/capabilities";
 import { mapCrossApiError } from "../../features/cross/utils/errors";
+import type { CrossExecutionSession } from "../../features/cross/api/contracts";
 import {
   clearCrossSession,
   loadCrossSession,
@@ -109,6 +119,7 @@ import {
 } from "../data/crossV2Adapters";
 import {
   RAILS,
+  backendRailId,
   defaultSettlementTicker,
   eligibleRailsFor,
   formatEtaSeconds,
@@ -116,6 +127,11 @@ import {
   tierLabel,
   type RailEntry,
 } from "../data/empxRegistry";
+import DestinationAddressInput from "../../components/DestinationAddressInput";
+import {
+  chainKindFor,
+  isBackendNonEvmChainId,
+} from "../../lib/wallet/chainKind";
 
 // ─── Chain catalog for the picker ──────────────────────────────────────────
 // Mirrors empx-cross-bridge/src/vps/config/chains.ts CHAIN_CONFIGS entries
@@ -248,17 +264,6 @@ function _prefetchPrices(pairs: { chainId: number; ticker: string }[]) {
   void getTokenPrices(pairs); // fire-and-forget; cache picks up the result
 }
 
-const getProviderDirectTx = (integration: any) => {
-  const action = integration?.action ?? integration;
-  return (
-    action?.tx ??
-    integration?.tx ??
-    integration?.integration?.tx ??
-    action?.transaction ??
-    null
-  );
-};
-
 // ─── Page-level constants ─────────────────────────────────────────────────
 
 type ChainPickerTarget = "from" | "to";
@@ -301,11 +306,13 @@ export default function CrossPage() {
   const [fromTicker, setFromTicker] = useState<string>(CROSS_V2_DEFAULT_SELECTION.fromTicker);
   const [toTicker,   setToTicker]   = useState<string>(CROSS_V2_DEFAULT_SELECTION.toTicker);
   const [fromAmount, setFromAmount] = useState<string>(CROSS_V2_DEFAULT_SELECTION.fromAmount);
+  const [nativeDstAddress, setNativeDstAddress] = useState("");
+  const [nativeDstAddressValid, setNativeDstAddressValid] = useState(false);
 
   const [selectedOfferId, setSelectedOfferId] = useState<string | null>(null);
   const [selectedGasOfferId, setSelectedGasOfferId] = useState<string | null>(null);
-  const [session, setSession] = useState<any>(() => {
-    const restored = loadCrossSession<any>();
+  const [session, setSession] = useState<CrossExecutionSession | null>(() => {
+    const restored = loadCrossSession<CrossExecutionSession>();
 
     if (
       restored?.mode === "single" &&
@@ -322,6 +329,14 @@ export default function CrossPage() {
   const [isCheckingApproval, setIsCheckingApproval] = useState(false);
   const [isApproving, setIsApproving] = useState(false);
   const [hasRequiredApproval, setHasRequiredApproval] = useState(true);
+  const [missingApprovalRequests, setMissingApprovalRequests] = useState<
+    Array<{
+      tokenAddress: string;
+      spender: string;
+      amount: bigint;
+      chainId: number;
+    }>
+  >([]);
   const [now, setNow] = useState(Date.now());
 
   // Gas settings. Paymaster is intentionally disabled in the UI for now.
@@ -358,6 +373,19 @@ export default function CrossPage() {
     [toChainId, toTicker],
   );
   const toTokenDecimals = Number(toTokenConfig?.decimals ?? 18);
+  const nativeDestinationRequired = isBackendNonEvmChainId(toChainId);
+  const nativeDestinationKind = chainKindFor(toChainId);
+  const handleNativeDestinationValidation = useCallback(
+    (result: { valid: boolean }) => {
+      setNativeDstAddressValid(result.valid);
+    },
+    [],
+  );
+
+  useEffect(() => {
+    setNativeDstAddress("");
+    setNativeDstAddressValid(false);
+  }, [toChainId]);
 
   const quoteRequest = useMemo(
     () =>
@@ -370,6 +398,9 @@ export default function CrossPage() {
         fromChainId,
         toChainId,
         userAddress: connectedAddress,
+        nativeDstAddress: nativeDestinationRequired
+          ? nativeDstAddress
+          : undefined,
         includeDestinationGas: gasDropOnDestination,
         destinationGasAmount: "0.001",
       }),
@@ -379,6 +410,8 @@ export default function CrossPage() {
       fromChainId,
       fromTokenConfig,
       gasDropOnDestination,
+      nativeDestinationRequired,
+      nativeDstAddress,
       toChainId,
       toTokenConfig,
     ],
@@ -387,10 +420,16 @@ export default function CrossPage() {
     connectedAddress &&
       quoteRequest &&
       fromChainId !== toChainId &&
-      quoteRequest.amountIn !== "0",
+      quoteRequest.amountIn !== "0" &&
+      (!nativeDestinationRequired || nativeDstAddressValid),
   );
   const quote = useCrossQuote(quoteEnabled, quoteRequest);
   const execution = useCrossExecutionSession();
+  const refreshQuote = useCallback(() => {
+    if (!quoteEnabled || !quoteRequest) return;
+    setQuoteIssuedAt(Date.now());
+    void quote.refetch();
+  }, [quote, quoteEnabled, quoteRequest]);
 
   const effectiveQuote = useMemo(() => {
     if (execution.fallbackOfferSet) {
@@ -538,19 +577,50 @@ export default function CrossPage() {
     session?.mode === "composed" ? session.composedIds : undefined,
   );
 
-  const singleApprovalRequest = useMemo(
-    () =>
-      session?.mode === "single"
-        ? getRequiredRouterIntentApproval(session)
-        : null,
-    [session],
-  );
+  const approvalConfiguration = useMemo(() => {
+    if (session?.mode !== "single") {
+      return { requests: [], error: null as Error | null };
+    }
+
+    const routerApproval = getRequiredRouterIntentApproval(session);
+    if (routerApproval) {
+      return { requests: [routerApproval], error: null as Error | null };
+    }
+
+    if (session.integration?.mode === "provider_direct") {
+      try {
+        return {
+          requests: readProviderApprovalRequests(
+            session.integration,
+            session.sourceChainId ?? session.quote?.srcChainId ?? fromChainId,
+          ),
+          error: null as Error | null,
+        };
+      } catch (error) {
+        return {
+          requests: [],
+          error: error instanceof Error ? error : new Error(String(error)),
+        };
+      }
+    }
+
+    return { requests: [], error: null as Error | null };
+  }, [fromChainId, session]);
+  const singleApprovalRequests = approvalConfiguration.requests;
 
   useEffect(() => {
     let cancelled = false;
 
     const checkAllowance = async () => {
-      if (!connectedAddress || !singleApprovalRequest) {
+      if (approvalConfiguration.error) {
+        setMissingApprovalRequests([]);
+        setHasRequiredApproval(false);
+        setIsCheckingApproval(false);
+        return;
+      }
+
+      if (!connectedAddress || singleApprovalRequests.length === 0) {
+        setMissingApprovalRequests([]);
         setHasRequiredApproval(true);
         setIsCheckingApproval(false);
         return;
@@ -559,21 +629,26 @@ export default function CrossPage() {
       setIsCheckingApproval(true);
 
       try {
-        // Router-intent routes may need ERC20 approval before execute. This is
-        // a read-only guard; the actual approve action refreshes the quote.
-        const allowance = await (readContract as any)(config, {
-          address: singleApprovalRequest.tokenAddress as Address,
-          abi: erc20Abi,
-          functionName: "allowance",
-          args: [connectedAddress, singleApprovalRequest.spender as Address],
-          chainId: singleApprovalRequest.chainId as any,
-        });
+        const missing = await findMissingProviderApprovals(
+          singleApprovalRequests,
+          connectedAddress,
+          async (request) =>
+            (readContract as any)(config, {
+              address: request.tokenAddress as Address,
+              abi: erc20Abi,
+              functionName: "allowance",
+              args: [connectedAddress, request.spender as Address],
+              chainId: request.chainId as any,
+            }),
+        );
 
         if (!cancelled) {
-          setHasRequiredApproval(allowance >= singleApprovalRequest.amount);
+          setMissingApprovalRequests(missing);
+          setHasRequiredApproval(missing.length === 0);
         }
       } catch {
         if (!cancelled) {
+          setMissingApprovalRequests(singleApprovalRequests);
           setHasRequiredApproval(false);
         }
       } finally {
@@ -588,7 +663,7 @@ export default function CrossPage() {
     return () => {
       cancelled = true;
     };
-  }, [connectedAddress, singleApprovalRequest]);
+  }, [approvalConfiguration.error, connectedAddress, singleApprovalRequests]);
 
   const recoveryIntentId =
     session?.mode === "single"
@@ -651,7 +726,9 @@ export default function CrossPage() {
     trackingData?.srcTxHash ??
     trackingData?.sourceTxHash ??
     session?.lastTxHash ??
-    session?.primaryTransfer?.lastTxHash;
+    (session?.mode === "composed"
+      ? session.primaryTransfer.lastTxHash
+      : undefined);
   const destinationTxHash =
     trackingData?.dstTxHash ??
     trackingData?.destinationTxHash ??
@@ -717,8 +794,20 @@ export default function CrossPage() {
 
   const onSwap = () => {
     if (walletState.status !== "connected") { setShowWalletModal(true); return; }
+    if (
+      nativeDestinationRequired &&
+      (!nativeDstAddress.trim() || !nativeDstAddressValid)
+    ) {
+      toast.error("Enter a valid native destination address before quoting.");
+      return;
+    }
     if (!selectedOffer || !effectiveQuote) {
       toast.error(quoteErrorMessage ?? "No executable route is available for this pair.");
+      return;
+    }
+    const capability = getOfferCapability(selectedOffer);
+    if (!capability.selectable) {
+      toast.error(capability.reason ?? "This route cannot be selected.");
       return;
     }
     setQuoteIssuedAt(Date.now());
@@ -839,43 +928,34 @@ export default function CrossPage() {
 
   const executeIntent = useCallback(
     async (intentId: string, integration: any, sourceChainId: number) => {
-      if (integration?.mode === "router_intent") {
-        const txHash = await sendEvmTransaction(
-          toSendTransactionArgs(integration.integration ?? integration),
+      return executeCrossIntegration(
+        {
+          intentId,
+          integration,
           sourceChainId,
-        );
-        await submitStandardIntent(intentId, txHash);
-        return txHash;
-      }
-
-      if (integration?.mode === "provider_direct") {
-        const classification = classifyProviderDirectAction(integration);
-        const actionKind = integration?.action?.kind;
-
-        if (classification === "layerzero_steps") {
-          return executeLayerZeroIntent(intentId, integration, sourceChainId);
-        }
-
-        if (classification === "evm_tx") {
-          const tx = getProviderDirectTx(integration);
-          const txHash = await sendEvmTransaction(tx, sourceChainId);
-          if (actionKind === "layerzero_value_transfer_api") {
-            await crossApi.markLayerZeroSubmitted(intentId, {
+          approvalsComplete: hasRequiredApproval,
+        },
+        {
+          sendEvmTransaction,
+          executeLayerZeroIntent,
+          submitStandardIntent,
+          markLayerZeroSubmitted: async (selectedIntentId, txHash) => {
+            if (!connectedAddress) throw new Error("Wallet not connected.");
+            await crossApi.markLayerZeroSubmitted(selectedIntentId, {
               userAddress: connectedAddress,
               sourceTxHash: txHash,
             });
-          } else {
-            await submitStandardIntent(intentId, txHash);
-          }
-          return txHash;
-        }
-
-        throw new Error("This route requires a non-EVM source wallet. V2 currently supports EVM source execution only.");
-      }
-
-      throw new Error("Unsupported integration mode returned by the API.");
+          },
+        },
+      );
     },
-    [connectedAddress, executeLayerZeroIntent, sendEvmTransaction, submitStandardIntent],
+    [
+      connectedAddress,
+      executeLayerZeroIntent,
+      hasRequiredApproval,
+      sendEvmTransaction,
+      submitStandardIntent,
+    ],
   );
 
   const prepareSingleExecution = useCallback(async (options?: {
@@ -895,10 +975,13 @@ export default function CrossPage() {
       offerSetId: quoteForSelection.offerSetId,
       offerId: offerForSelection.offerId,
       userAddress: connectedAddress,
-    }) as any;
+    });
 
     let nextIntegration = response.integration;
-    const action = nextIntegration?.action ?? nextIntegration;
+    const action =
+      nextIntegration.mode === "provider_direct"
+        ? nextIntegration.action
+        : null;
 
     if (
       nextIntegration?.mode === "provider_direct" &&
@@ -909,7 +992,7 @@ export default function CrossPage() {
       nextIntegration = mergeLayerZeroUserSteps(nextIntegration, refreshed);
     }
 
-    const nextSession = {
+    const nextSession: CrossExecutionSession = {
       mode: "single",
       intentId: response.intentId,
       selectedOfferId: offerForSelection.offerId,
@@ -931,6 +1014,13 @@ export default function CrossPage() {
     }
 
     try {
+      const capability = getOfferCapability(selectedOffer);
+      if (!capability.selectable) {
+        throw new Error(
+          `RAIL_DISABLED: ${capability.reason ?? "This route cannot be selected."}`,
+        );
+      }
+
       if (gasDropOnDestination && selectedGasOfferId) {
         // Gas.zip destination gas is a composed route: primary bridge leg plus
         // an independent gas-drop leg, each with its own intent lifecycle.
@@ -939,7 +1029,7 @@ export default function CrossPage() {
           primaryTransferOfferId: selectedOffer.offerId,
           gasZipDestinationGasOfferId: selectedGasOfferId,
           userAddress: connectedAddress,
-        }) as any;
+        });
 
         setSession({
           mode: "composed",
@@ -993,16 +1083,20 @@ export default function CrossPage() {
         session.integration,
         session.sourceChainId ?? session.quote?.srcChainId ?? fromChainId,
       );
-      setSession((current: any) => ({
-        ...current,
-        lastTxHash: txHash,
-        status: "SUBMITTED",
-        lastError: null,
-      }));
+      setSession((current) =>
+        current
+          ? {
+              ...current,
+              lastTxHash: txHash,
+              status: "SUBMITTED",
+              lastError: null,
+            }
+          : current,
+      );
       toast.success("Source transaction submitted.");
     } catch (error: any) {
       const message = mapCrossApiError(error);
-      setSession((current: any) =>
+      setSession((current) =>
         current ? { ...current, lastError: message } : current,
       );
       toast.error(message);
@@ -1012,29 +1106,33 @@ export default function CrossPage() {
   }, [executeIntent, fromChainId, session]);
 
   const handleApproveSingle = useCallback(async () => {
-    if (!connectedAddress || !singleApprovalRequest || !selectedOffer) return;
+    if (
+      !connectedAddress ||
+      missingApprovalRequests.length === 0 ||
+      !selectedOffer
+    ) return;
 
     try {
       setIsApproving(true);
-      await ensureChain(singleApprovalRequest.chainId);
-
-      const hash = await (writeContract as any)(config, {
-        account: connectedAddress,
-        chainId: singleApprovalRequest.chainId as any,
-        address: singleApprovalRequest.tokenAddress as Address,
-        abi: erc20Abi,
-        functionName: "approve",
-        args: [
-          singleApprovalRequest.spender as Address,
-          singleApprovalRequest.amount,
-        ],
-      });
-
-      toast.info("Approval transaction sent. Waiting for confirmation...");
-
-      await waitForTransactionReceipt(config, {
-        hash,
-        chainId: singleApprovalRequest.chainId as any,
+      await executeProviderApprovals(missingApprovalRequests, {
+        ensureChain,
+        approve: async (request) => {
+          const hash = await (writeContract as any)(config, {
+            account: connectedAddress,
+            chainId: request.chainId as any,
+            address: request.tokenAddress as Address,
+            abi: erc20Abi,
+            functionName: "approve",
+            args: [request.spender as Address, request.amount],
+          });
+          toast.info("Approval transaction sent. Waiting for confirmation...");
+          return hash;
+        },
+        waitForConfirmation: (hash, request) =>
+          waitForTransactionReceipt(config, {
+            hash: hash as `0x${string}`,
+            chainId: request.chainId as any,
+          }),
       });
 
       const refreshedQuote = (await quote.refetch()).data;
@@ -1066,7 +1164,7 @@ export default function CrossPage() {
       toast.success("Token approved. Route refreshed.");
     } catch (error: any) {
       const message = mapCrossApiError(error);
-      setSession((current: any) =>
+      setSession((current) =>
         current ? { ...current, lastError: message } : current,
       );
       toast.error(message);
@@ -1076,10 +1174,10 @@ export default function CrossPage() {
   }, [
     connectedAddress,
     ensureChain,
+    missingApprovalRequests,
     prepareSingleExecution,
     quote,
     selectedOffer,
-    singleApprovalRequest,
   ]);
 
   const handleExecuteComposedLeg = useCallback(
@@ -1104,14 +1202,20 @@ export default function CrossPage() {
           legPayload.quote?.srcChainId ?? fromChainId,
         );
 
-        setSession((current: any) => ({
-          ...current,
-          [leg === "primary" ? "primaryTransfer" : "gasZipDestinationGas"]: {
-            ...legPayload,
-            lastTxHash: txHash,
-          },
-          lastError: null,
-        }));
+        setSession((current) =>
+          current?.mode === "composed"
+            ? {
+                ...current,
+                [leg === "primary"
+                  ? "primaryTransfer"
+                  : "gasZipDestinationGas"]: {
+                  ...legPayload,
+                  lastTxHash: txHash,
+                },
+                lastError: null,
+              }
+            : current,
+        );
         toast.success(
           leg === "primary"
             ? "Primary transfer submitted."
@@ -1119,7 +1223,7 @@ export default function CrossPage() {
         );
       } catch (error: any) {
         const message = mapCrossApiError(error);
-        setSession((current: any) =>
+        setSession((current) =>
           current ? { ...current, lastError: message } : current,
         );
         toast.error(message);
@@ -1189,14 +1293,14 @@ export default function CrossPage() {
 
   const singleRouterValue =
     session?.mode === "single" && session.integration?.mode === "router_intent"
-      ? toSendTransactionArgs(session.integration.integration ?? session.integration).value
+      ? toSendTransactionArgs(session.integration.integration).value
       : 0n;
   const hasRouterNativeValueRequirement = singleRouterValue > 0n;
   const hasSufficientRouterNativeValue =
     !hasRouterNativeValueRequirement ||
     (sourceNativeBalance?.value ?? 0n) >= singleRouterValue;
   const singleRouteNeedsApproval =
-    Boolean(singleApprovalRequest) && !hasRequiredApproval;
+    singleApprovalRequests.length > 0 && !hasRequiredApproval;
   const singleExecutionBlockedForNativeValue =
     !singleRouteNeedsApproval && !hasSufficientRouterNativeValue;
   const singleExecutionHint =
@@ -1218,7 +1322,10 @@ export default function CrossPage() {
               : "Execute Route"
       : undefined;
   const singleActionDisabled =
-    isCheckingApproval || isApproving || singleExecutionBlockedForNativeValue;
+    isCheckingApproval ||
+    isApproving ||
+    Boolean(approvalConfiguration.error) ||
+    singleExecutionBlockedForNativeValue;
   const handleSingleAction =
     singleRouteNeedsApproval ? handleApproveSingle : handleExecuteSingle;
 
@@ -1312,7 +1419,7 @@ export default function CrossPage() {
           }}
         >
           {/* LEFT — cross widget */}
-          <div style={{ display: "flex", justifyContent: "center" }}>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 14 }}>
             <EmpxCrossWidget
               fromChain={fromChain}
               fromToken={{ ticker: fromTicker }}
@@ -1345,7 +1452,13 @@ export default function CrossPage() {
               onConnect={() => setShowWalletModal(true)}
               onSwap={onSwap}
               onFlip={flip}
-              swapDisabled={!selectedOffer || quote.isFetching || execution.isSelecting}
+              swapDisabled={
+                !selectedOffer ||
+                !selectedOfferDisplay?.selectable ||
+                quote.isFetching ||
+                execution.isSelecting ||
+                (nativeDestinationRequired && !nativeDstAddressValid)
+              }
               swapLoading={quote.isFetching || execution.isSelecting}
               swapLabel={
                 walletState.status !== "connected"
@@ -1357,6 +1470,31 @@ export default function CrossPage() {
                       : quoteErrorMessage ?? "No route"
               }
             />
+            {nativeDestinationRequired ? (
+              <Card style={{ width: "100%", maxWidth: 620, padding: 16 }}>
+                {nativeDestinationKind ? (
+                  <DestinationAddressInput
+                    id="cross-v2-native-destination"
+                    chainKind={nativeDestinationKind}
+                    chainLabel={toChain.name}
+                    value={nativeDstAddress}
+                    onChange={setNativeDstAddress}
+                    onValidate={handleNativeDestinationValidation}
+                    required
+                    label="Native destination address"
+                  />
+                ) : (
+                  <p style={{ margin: 0, color: "rgba(255,255,255,0.58)", fontSize: 12, lineHeight: 1.5 }}>
+                    Address validation for {toChain.name} is not available yet,
+                    so quoting and execution remain disabled for this destination.
+                  </p>
+                )}
+                <p style={{ margin: "10px 0 0", color: "rgba(255,138,0,0.72)", fontSize: 10.5, lineHeight: 1.45 }}>
+                  This address receives funds on {toChain.name}. Your connected
+                  EVM address remains the source user address.
+                </p>
+              </Card>
+            ) : null}
           </div>
 
           {/* RIGHT — context panel */}
@@ -1364,16 +1502,17 @@ export default function CrossPage() {
             {walletState.status === "connected" && (
               <Card style={{ padding: 14 }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
-                  <QuoteCountdown
-                    totalMs={30000}
-                    issuedAt={quoteIssuedAt}
-                    onRefresh={() => {
-                      setQuoteIssuedAt(Date.now());
-                      void quote.refetch();
-                      toast.info("Quote refreshed");
-                    }}
-                    compact
-                  />
+                  {quoteEnabled ? (
+                    <QuoteCountdown
+                      totalMs={30000}
+                      issuedAt={quoteIssuedAt}
+                      onRefresh={() => {
+                        refreshQuote();
+                        toast.info("Quote refreshed");
+                      }}
+                      compact
+                    />
+                  ) : null}
                   <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                     <Pill variant="info">{quoteUiState.summary}</Pill>
                     {selectedOfferId && selectedOfferId !== effectiveQuote?.bestOfferId && <Pill variant="accent">User-selected</Pill>}
@@ -1538,10 +1677,7 @@ export default function CrossPage() {
         }
         quoteIssuedAt={quoteIssuedAt}
         quoteValidMs={30000}
-        onRefreshQuote={() => {
-          setQuoteIssuedAt(Date.now());
-          void quote.refetch();
-        }}
+        onRefreshQuote={quoteEnabled ? refreshQuote : undefined}
         warning={
           selectedOffer?.executionMode === "provider_direct"
             ? "Provider-direct routes may require wallet-specific transaction steps. Review the lifecycle tab after route selection."
@@ -1666,14 +1802,32 @@ function OffersList({
           const isBest = o.offerId === bestOfferId || o.isBest;
           const isSelected = o.offerId === selectedOfferId;
           const isActive = isSelected || (!selectedOfferId && isBest);
-          const tag = isSelected && !isBest ? "SELECTED" : isBest ? "BEST" : o.railBadge;
+          const capabilityTag =
+            o.capabilityStatus === "quote_only"
+              ? "QUOTE ONLY"
+              : o.capabilityStatus === "restricted"
+                ? "RESTRICTED"
+                : o.capabilityStatus === "disabled"
+                  ? "DISABLED"
+                  : null;
+          const tag =
+            capabilityTag ??
+            (isSelected && !isBest
+              ? "SELECTED"
+              : isBest
+                ? "BEST"
+                : o.railBadge);
           const tagAccent = isSelected || isBest;
           const modeColor = o.executionMode === "provider_direct" ? "#93C5FD" : "#FFB347";
           return (
             <button
               key={o.offerId}
               type="button"
-              onClick={() => onSelectOffer(o.offerId)}
+              onClick={() => {
+                if (o.selectable) onSelectOffer(o.offerId);
+              }}
+              disabled={!o.selectable}
+              title={o.restrictionReason}
               style={{
                 display: "flex",
                 alignItems: "center",
@@ -1681,7 +1835,7 @@ function OffersList({
                 padding: "10px 12px",
                 width: "100%",
                 textAlign: "left",
-                cursor: "pointer",
+                cursor: o.selectable ? "pointer" : "not-allowed",
                 background: isActive ? "rgba(255,138,0,0.06)" : "transparent",
                 border: "none",
                 borderLeft: `2px solid ${isActive ? "#FF8A00" : "transparent"}`,
@@ -1689,6 +1843,7 @@ function OffersList({
                 borderTop: idx === 0 ? "none" : "1px solid rgba(255,255,255,0.04)",
                 color: "#fff",
                 transition: "background 140ms ease, border-color 140ms ease",
+                opacity: o.selectable ? 1 : 0.62,
               }}
               onMouseEnter={(e) => {
                 if (!isActive) e.currentTarget.style.background = "rgba(255,255,255,0.025)";
@@ -1745,6 +1900,11 @@ function OffersList({
                 >
                   {o.executionMode ?? "route"} · {o.estimatedTimeSeconds ? formatEtaSeconds(o.estimatedTimeSeconds) : "ETA pending"} · ${o.totalFeeUSD.toFixed(2)}
                 </p>
+                {o.restrictionReason ? (
+                  <p style={{ margin: "3px 0 0", fontSize: 10, color: "rgba(255,138,0,0.72)", lineHeight: 1.35 }}>
+                    {o.restrictionReason}
+                  </p>
+                ) : null}
               </div>
 
               <div style={{ textAlign: "right", flexShrink: 0 }}>
@@ -1919,36 +2079,38 @@ function RailsCatalog() {
         Reference catalog only. Live availability for the selected pair appears under Live offers.
       </p>
       <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 330, overflowY: "auto", paddingRight: 4 }}>
-        {RAILS.map((r) => (
-          <div
-            key={r.name}
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1.6fr 0.5fr 0.7fr 0.8fr",
-              alignItems: "center",
-              gap: 8,
-              padding: "8px 10px",
-              background: "rgba(255,255,255,0.02)",
-              border: "1px solid rgba(255,255,255,0.04)",
-              borderRadius: 4,
-              fontSize: 11,
-            }}
-          >
-            <div>
-              <p style={{ margin: 0, color: "#fff", fontWeight: 600, fontSize: 12 }}>{r.name}</p>
-              <p style={{ margin: "2px 0 0", color: "rgba(255,255,255,0.45)", fontSize: 10 }}>
-                {r.speciality}
-              </p>
+        {RAILS.map((r) => {
+          const capability = getRailCapability(backendRailId(r.name));
+          return (
+            <div
+              key={r.name}
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1.6fr 0.7fr 0.8fr",
+                alignItems: "center",
+                gap: 8,
+                padding: "8px 10px",
+                background: "rgba(255,255,255,0.02)",
+                border: "1px solid rgba(255,255,255,0.04)",
+                borderRadius: 4,
+                fontSize: 11,
+              }}
+            >
+              <div>
+                <p style={{ margin: 0, color: "#fff", fontWeight: 600, fontSize: 12 }}>{r.name}</p>
+                <p style={{ margin: "2px 0 0", color: "rgba(255,255,255,0.45)", fontSize: 10 }}>
+                  {capability.reason ?? r.speciality}
+                </p>
+              </div>
+              <Pill variant={capability.status === "executable" ? "accent" : "info"}>
+                {capability.status.replace("_", " ")}
+              </Pill>
+              <span style={{ color: "rgba(255,255,255,0.55)", textAlign: "right", fontSize: 10 }} title="Baseline ETA — live quote may differ">
+                {formatEtaSeconds(r.etaSecondsBaseline)} baseline
+              </span>
             </div>
-            <Pill variant={r.mode === "A" ? "accent" : "info"}>Mode {r.mode}</Pill>
-            <span style={{ fontFamily: "'Space Grotesk', sans-serif", color: "#fff", letterSpacing: "-0.01em", fontWeight: 500 }}>
-              {r.reliability.toFixed(1)}%
-            </span>
-            <span style={{ color: "rgba(255,255,255,0.55)", textAlign: "right", fontSize: 10 }} title="Baseline ETA — live quote may differ">
-              {formatEtaSeconds(r.etaSecondsBaseline)}
-            </span>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
@@ -1973,7 +2135,7 @@ function LifecycleStatus({
   singleExecutionHint,
   singleExecutionError,
 }: {
-  session: any;
+  session: CrossExecutionSession | null;
   tracking: any;
   isExecuting: boolean;
   isCancelling: boolean;

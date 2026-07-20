@@ -10,10 +10,15 @@ describe("classifyProviderDirectAction", () => {
       classifyProviderDirectAction({
         action: {
           kind: "gaszip_transfer",
-          tx: { to: "0x1", data: "0x", value: "0" },
+          tx: {
+            to: "0x1111111111111111111111111111111111111111",
+            data: "0x",
+            value: "0",
+            chainId: 8453,
+          },
         },
       }),
-    ).toBe("evm_tx");
+    ).toBe("evm_transaction");
   });
 
   it("accepts tx-based EVM provider-direct payloads returned at the top level", () => {
@@ -22,12 +27,17 @@ describe("classifyProviderDirectAction", () => {
         action: {
           kind: "gaszip_transfer",
         },
-        tx: { to: "0x1", data: "0x", value: "0" },
+        tx: {
+          to: "0x1111111111111111111111111111111111111111",
+          data: "0x",
+          value: "0",
+          chainId: 8453,
+        },
       }),
-    ).toBe("evm_tx");
+    ).toBe("evm_transaction");
   });
 
-  it("flags non-EVM source steps as unsupported in phase 1", () => {
+  it("flags non-EVM source steps as requiring a compatible wallet", () => {
     expect(
       classifyProviderDirectAction({
         action: {
@@ -35,7 +45,7 @@ describe("classifyProviderDirectAction", () => {
           userSteps: [{ type: "svm_send_transaction" }],
         },
       }),
-    ).toBe("unsupported");
+    ).toBe("non_evm_wallet_required");
   });
 
   it("rejects LayerZero steps that do not expose a wallet tx or signable message", () => {
@@ -97,5 +107,67 @@ describe("classifyProviderDirectAction", () => {
         },
       }),
     ).toBe("layerzero_steps");
+  });
+
+  it("never classifies a Bitcoin deposit address as an EVM transaction", () => {
+    expect(
+      classifyProviderDirectAction({
+        action: { kind: "maya_swap", depositAddress: "bc1qexample" },
+        tx: {
+          to: "bc1qexample",
+          data: "0x",
+          value: "1000",
+          chainId: 0,
+        },
+      }),
+    ).toBe("non_evm_wallet_required");
+  });
+
+  it("rejects an EVM tx when its chain does not match the selected source", () => {
+    expect(
+      classifyProviderDirectAction(
+        {
+          action: { kind: "gaszip_transfer" },
+          tx: {
+            to: "0x1111111111111111111111111111111111111111",
+            data: "0x",
+            value: "0",
+            chainId: 8453,
+          },
+        },
+        { selectedSourceChainId: 42161 },
+      ),
+    ).toBe("unsupported");
+  });
+
+  it("keeps Chainflip quote-only even if stale helper data contains a tx", () => {
+    expect(
+      classifyProviderDirectAction({
+        action: { kind: "chainflip_deposit" },
+        tx: {
+          to: "0x1111111111111111111111111111111111111111",
+          data: "0x",
+          value: "0",
+          chainId: 8453,
+        },
+      }),
+    ).toBe("quote_only");
+  });
+
+  it("rejects Optimism withdrawals by product policy", () => {
+    expect(
+      classifyProviderDirectAction({
+        action: {
+          kind: "optimism_standard_bridge",
+          direction: "withdraw",
+        },
+        tx: {
+          to: "0x1111111111111111111111111111111111111111",
+          data: "0x",
+          value: "0",
+          chainId: 10,
+        },
+      }),
+    ).toBe("unsupported");
   });
 });

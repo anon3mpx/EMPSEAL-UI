@@ -8,6 +8,7 @@
 // V2 pages call getTokensForChain(chainId) instead of hardcoding TOKENS_BY_CHAIN.
 
 import { CHAIN_TOKENS } from "../../config/tokens";
+import { NON_EVM_CHAIN_IDS } from "../../lib/wallet/chainKind";
 import { getTokenAddress } from "./logoRegistry";
 
 export interface V2TokenConfig {
@@ -15,6 +16,7 @@ export interface V2TokenConfig {
   ticker: string;
   name: string;
   address?: string;
+  providerAssetId?: string;
   decimals: number;
   isNative?: boolean;
   badge?: "VERIFIED" | "TRENDING" | "WARNING";
@@ -35,10 +37,141 @@ interface TokenJsonEntry {
 const STABLE_TYPES = new Set(["STABLE", "STABLECOIN"]);
 const NATIVE_TYPES = new Set(["NATIVE_ETH", "NATIVE", "GAS"]);
 
+const FALLBACK_TOKENS: Record<number, V2TokenConfig[]> = {
+  1: [
+    {
+      chainId: 1,
+      ticker: "ETH",
+      name: "Ethereum",
+      decimals: 18,
+      isNative: true,
+    },
+    {
+      chainId: 1,
+      ticker: "USDC",
+      name: "USD Coin",
+      address: "0xA0b86991c6218b36c1d19d4A2e9Eb0cE3606eB48",
+      decimals: 6,
+      badge: "VERIFIED",
+    },
+  ],
+  [NON_EVM_CHAIN_IDS.BTC]: [
+    {
+      chainId: NON_EVM_CHAIN_IDS.BTC,
+      ticker: "BTC",
+      name: "Bitcoin",
+      providerAssetId: "BTC.BTC",
+      decimals: 8,
+      isNative: true,
+    },
+  ],
+  [NON_EVM_CHAIN_IDS.DOGE]: [
+    {
+      chainId: NON_EVM_CHAIN_IDS.DOGE,
+      ticker: "DOGE",
+      name: "Dogecoin",
+      providerAssetId: "DOGE.DOGE",
+      decimals: 8,
+      isNative: true,
+    },
+  ],
+  [NON_EVM_CHAIN_IDS.SOL]: [
+    {
+      chainId: NON_EVM_CHAIN_IDS.SOL,
+      ticker: "SOL",
+      name: "Solana",
+      providerAssetId: "SOL.SOL",
+      decimals: 9,
+      isNative: true,
+    },
+    {
+      chainId: NON_EVM_CHAIN_IDS.SOL,
+      ticker: "USDC",
+      name: "USD Coin",
+      address: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+      providerAssetId: "SOL.USDC",
+      decimals: 6,
+      badge: "VERIFIED",
+    },
+  ],
+  [NON_EVM_CHAIN_IDS.LTC]: [
+    {
+      chainId: NON_EVM_CHAIN_IDS.LTC,
+      ticker: "LTC",
+      name: "Litecoin",
+      providerAssetId: "LTC.LTC",
+      decimals: 8,
+      isNative: true,
+    },
+  ],
+  [NON_EVM_CHAIN_IDS.BCH]: [
+    {
+      chainId: NON_EVM_CHAIN_IDS.BCH,
+      ticker: "BCH",
+      name: "Bitcoin Cash",
+      providerAssetId: "BCH.BCH",
+      decimals: 8,
+      isNative: true,
+    },
+  ],
+  [NON_EVM_CHAIN_IDS.COSMOS]: [
+    {
+      chainId: NON_EVM_CHAIN_IDS.COSMOS,
+      ticker: "ATOM",
+      name: "Cosmos",
+      providerAssetId: "GAIA.ATOM",
+      decimals: 6,
+      isNative: true,
+    },
+  ],
+  [NON_EVM_CHAIN_IDS.DOT]: [
+    {
+      chainId: NON_EVM_CHAIN_IDS.DOT,
+      ticker: "DOT",
+      name: "Polkadot",
+      providerAssetId: "DOT.DOT",
+      decimals: 10,
+      isNative: true,
+    },
+  ],
+  [NON_EVM_CHAIN_IDS.KUJIRA]: [
+    {
+      chainId: NON_EVM_CHAIN_IDS.KUJIRA,
+      ticker: "KUJI",
+      name: "Kujira",
+      providerAssetId: "KUJI.KUJI",
+      decimals: 6,
+      isNative: true,
+    },
+  ],
+  [NON_EVM_CHAIN_IDS.DASH]: [
+    {
+      chainId: NON_EVM_CHAIN_IDS.DASH,
+      ticker: "DASH",
+      name: "Dash",
+      providerAssetId: "DASH.DASH",
+      decimals: 8,
+      isNative: true,
+    },
+  ],
+  [NON_EVM_CHAIN_IDS.ZCASH]: [
+    {
+      chainId: NON_EVM_CHAIN_IDS.ZCASH,
+      ticker: "ZEC",
+      name: "Zcash",
+      providerAssetId: "ZEC.ZEC",
+      decimals: 8,
+      isNative: true,
+    },
+  ],
+};
+
 /** Get tokens for a given chain from the canonical config. Returns [] if unknown. */
 export function getTokensForChain(chainId: number): V2TokenConfig[] {
   const rawTokens: TokenJsonEntry[] | undefined = CHAIN_TOKENS[chainId];
-  if (!rawTokens) return [];
+  if (!rawTokens) {
+    return FALLBACK_TOKENS[chainId] ?? [];
+  }
 
   return rawTokens
     .filter((t) => t.ticker || t.symbol)

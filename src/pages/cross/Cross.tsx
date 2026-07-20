@@ -31,19 +31,23 @@ import {
   buildCancelMessage,
   buildRefundMessage,
   buildSubmittedMessage,
-  classifyProviderDirectAction,
   clearCrossSession,
+  type CrossExecutionSession,
   CrossExecutionPanel,
   CrossRouteList,
   CrossTrackingPanel,
   CrossTradeForm,
   crossApi,
+  executeCrossIntegration,
+  executeProviderApprovals,
   findMatchingRefreshedOffer,
+  findMissingProviderApprovals,
   getCrossTokensForChain,
   getCrossUiChains,
   getThorchainTokensForChain,
   getThorchainUiChains,
   getOfferOutputAmount,
+  getOfferCapability,
   getQuotedOutputDisplay,
   getLayerZeroStepMessage,
   getLayerZeroStepTx,
@@ -55,6 +59,7 @@ import {
   mergeCrossTokens,
   normalizeOfferSet,
   pickDefaultToken,
+  readProviderApprovalRequests,
   requiresThorchainNativeDestinationAddress,
   saveCrossSession,
   toSendTransactionArgs,
@@ -77,17 +82,6 @@ const parseUnitsSafe = (value: string, decimals: number) => {
   } catch {
     return 0n;
   }
-};
-
-const getProviderDirectTx = (integration: any) => {
-  const action = integration?.action ?? integration;
-  return (
-    action?.tx ??
-    integration?.tx ??
-    integration?.integration?.tx ??
-    action?.transaction ??
-    null
-  );
 };
 
 export default function CrossChainPage() {
@@ -130,8 +124,8 @@ export default function CrossChainPage() {
   const [selectedGasOfferId, setSelectedGasOfferId] = useState<string | null>(
     null,
   );
-  const [session, setSession] = useState<any>(() => {
-    const restored = loadCrossSession<any>();
+  const [session, setSession] = useState<CrossExecutionSession | null>(() => {
+    const restored = loadCrossSession<CrossExecutionSession>();
 
     if (
       restored?.mode === "single" &&
@@ -148,6 +142,14 @@ export default function CrossChainPage() {
   const [isCheckingApproval, setIsCheckingApproval] = useState(false);
   const [isApproving, setIsApproving] = useState(false);
   const [hasRequiredApproval, setHasRequiredApproval] = useState(true);
+  const [missingApprovalRequests, setMissingApprovalRequests] = useState<
+    Array<{
+      tokenAddress: string;
+      spender: string;
+      amount: bigint;
+      chainId: number;
+    }>
+  >([]);
   const [now, setNow] = useState(Date.now());
 
   const deferredAmount = useDeferredValue(amount);
@@ -342,19 +344,50 @@ export default function CrossChainPage() {
     session?.mode === "composed" ? session.composedIds : undefined,
   );
 
-  const singleApprovalRequest = useMemo(
-    () =>
-      session?.mode === "single"
-        ? getRequiredRouterIntentApproval(session)
-        : null,
-    [session],
-  );
+  const approvalConfiguration = useMemo(() => {
+    if (session?.mode !== "single") {
+      return { requests: [], error: null as Error | null };
+    }
+
+    const routerApproval = getRequiredRouterIntentApproval(session);
+    if (routerApproval) {
+      return { requests: [routerApproval], error: null as Error | null };
+    }
+
+    if (session.integration?.mode === "provider_direct") {
+      try {
+        return {
+          requests: readProviderApprovalRequests(
+            session.integration,
+            session.sourceChainId ?? session.quote?.srcChainId ?? fromChainId,
+          ),
+          error: null as Error | null,
+        };
+      } catch (error) {
+        return {
+          requests: [],
+          error: error instanceof Error ? error : new Error(String(error)),
+        };
+      }
+    }
+
+    return { requests: [], error: null as Error | null };
+  }, [fromChainId, session]);
+  const singleApprovalRequests = approvalConfiguration.requests;
 
   useEffect(() => {
     let cancelled = false;
 
     const checkAllowance = async () => {
-      if (!address || !singleApprovalRequest) {
+      if (approvalConfiguration.error) {
+        setMissingApprovalRequests([]);
+        setHasRequiredApproval(false);
+        setIsCheckingApproval(false);
+        return;
+      }
+
+      if (!address || singleApprovalRequests.length === 0) {
+        setMissingApprovalRequests([]);
         setHasRequiredApproval(true);
         setIsCheckingApproval(false);
         return;
@@ -363,19 +396,26 @@ export default function CrossChainPage() {
       setIsCheckingApproval(true);
 
       try {
-        const allowance = await readContract(config, {
-          address: singleApprovalRequest.tokenAddress as Address,
-          abi: erc20Abi,
-          functionName: "allowance",
-          args: [address, singleApprovalRequest.spender as Address],
-          chainId: singleApprovalRequest.chainId,
-        });
+        const missing = await findMissingProviderApprovals(
+          singleApprovalRequests,
+          address,
+          async (request) =>
+            readContract(config, {
+              address: request.tokenAddress as Address,
+              abi: erc20Abi,
+              functionName: "allowance",
+              args: [address, request.spender as Address],
+              chainId: request.chainId,
+            }),
+        );
 
         if (!cancelled) {
-          setHasRequiredApproval(allowance >= singleApprovalRequest.amount);
+          setMissingApprovalRequests(missing);
+          setHasRequiredApproval(missing.length === 0);
         }
       } catch {
         if (!cancelled) {
+          setMissingApprovalRequests(singleApprovalRequests);
           setHasRequiredApproval(false);
         }
       } finally {
@@ -390,7 +430,7 @@ export default function CrossChainPage() {
     return () => {
       cancelled = true;
     };
-  }, [address, singleApprovalRequest]);
+  }, [address, approvalConfiguration.error, singleApprovalRequests]);
 
   const recoveryIntentId =
     session?.mode === "single"
@@ -557,45 +597,34 @@ export default function CrossChainPage() {
 
   const executeIntent = useCallback(
     async (intentId: string, integration: any, sourceChainId: number) => {
-      if (integration?.mode === "router_intent") {
-        const txHash = await sendEvmTransaction(
-          toSendTransactionArgs(integration.integration ?? integration),
+      return executeCrossIntegration(
+        {
+          intentId,
+          integration,
           sourceChainId,
-        );
-        await submitStandardIntent(intentId, txHash);
-        return txHash;
-      }
-
-      if (integration?.mode === "provider_direct") {
-        const classification = classifyProviderDirectAction(integration);
-        const actionKind = integration?.action?.kind;
-
-        if (classification === "layerzero_steps") {
-          return executeLayerZeroIntent(intentId, integration, sourceChainId);
-        }
-
-        if (classification === "evm_tx") {
-          const tx = getProviderDirectTx(integration);
-          const txHash = await sendEvmTransaction(tx, sourceChainId);
-          if (actionKind === "layerzero_value_transfer_api") {
-            await crossApi.markLayerZeroSubmitted(intentId, {
+          approvalsComplete: hasRequiredApproval,
+        },
+        {
+          sendEvmTransaction,
+          executeLayerZeroIntent,
+          submitStandardIntent,
+          markLayerZeroSubmitted: async (selectedIntentId, txHash) => {
+            if (!address) throw new Error("Wallet not connected.");
+            await crossApi.markLayerZeroSubmitted(selectedIntentId, {
               userAddress: address,
               sourceTxHash: txHash,
             });
-          } else {
-            await submitStandardIntent(intentId, txHash);
-          }
-          return txHash;
-        }
-
-        throw new Error(
-          "This route requires a non-EVM source wallet. Phase 1 only supports EVM source execution.",
-        );
-      }
-
-      throw new Error("Unsupported integration mode returned by the API.");
+          },
+        },
+      );
     },
-    [address, executeLayerZeroIntent, sendEvmTransaction, submitStandardIntent],
+    [
+      address,
+      executeLayerZeroIntent,
+      hasRequiredApproval,
+      sendEvmTransaction,
+      submitStandardIntent,
+    ],
   );
 
   const prepareSingleExecution = useCallback(async (options?: {
@@ -627,7 +656,7 @@ export default function CrossChainPage() {
       nextIntegration = mergeLayerZeroUserSteps(nextIntegration, refreshed);
     }
 
-    const nextSession = {
+    const nextSession: CrossExecutionSession = {
       mode: "single",
       intentId: response.intentId,
       selectedOfferId: offerForSelection.offerId,
@@ -649,6 +678,13 @@ export default function CrossChainPage() {
     }
 
     try {
+      const capability = getOfferCapability(selectedOffer);
+      if (!capability.selectable) {
+        throw new Error(
+          `RAIL_DISABLED: ${capability.reason ?? "This route cannot be selected."}`,
+        );
+      }
+
       if (includeDestinationGas && selectedGasOfferId) {
         const response = await execution.selectComposedIntent({
           offerSetId: effectiveQuote.offerSetId,
@@ -707,16 +743,20 @@ export default function CrossChainPage() {
         session.integration,
         session.sourceChainId ?? session.quote?.srcChainId ?? fromChainId,
       );
-      setSession((current: any) => ({
-        ...current,
-        lastTxHash: txHash,
-        status: "SUBMITTED",
-        lastError: null,
-      }));
+      setSession((current) =>
+        current
+          ? {
+              ...current,
+              lastTxHash: txHash,
+              status: "SUBMITTED",
+              lastError: null,
+            }
+          : current,
+      );
       toast.success("Source transaction submitted.");
     } catch (error: any) {
       const message = mapCrossApiError(error);
-      setSession((current: any) =>
+      setSession((current) =>
         current ? { ...current, lastError: message } : current,
       );
       toast.error(message);
@@ -726,29 +766,33 @@ export default function CrossChainPage() {
   }, [executeIntent, fromChainId, session]);
 
   const handleApproveSingle = useCallback(async () => {
-    if (!address || !singleApprovalRequest || !selectedOffer) return;
+    if (
+      !address ||
+      missingApprovalRequests.length === 0 ||
+      !selectedOffer
+    ) return;
 
     try {
       setIsApproving(true);
-      await ensureChain(singleApprovalRequest.chainId);
-
-      const hash = await writeContract(config, {
-        account: address,
-        chainId: singleApprovalRequest.chainId,
-        address: singleApprovalRequest.tokenAddress as Address,
-        abi: erc20Abi,
-        functionName: "approve",
-        args: [
-          singleApprovalRequest.spender as Address,
-          singleApprovalRequest.amount,
-        ],
-      });
-
-      toast.info("Approval transaction sent. Waiting for confirmation...");
-
-      await waitForTransactionReceipt(config, {
-        hash,
-        chainId: singleApprovalRequest.chainId,
+      await executeProviderApprovals(missingApprovalRequests, {
+        ensureChain,
+        approve: async (request) => {
+          const hash = await writeContract(config, {
+            account: address,
+            chainId: request.chainId,
+            address: request.tokenAddress as Address,
+            abi: erc20Abi,
+            functionName: "approve",
+            args: [request.spender as Address, request.amount],
+          });
+          toast.info("Approval transaction sent. Waiting for confirmation...");
+          return hash;
+        },
+        waitForConfirmation: (hash, request) =>
+          waitForTransactionReceipt(config, {
+            hash: hash as `0x${string}`,
+            chainId: request.chainId,
+          }),
       });
 
       const refreshedQuote = (await quote.refetch()).data;
@@ -782,7 +826,7 @@ export default function CrossChainPage() {
       toast.success("Token approved. Route refreshed.");
     } catch (error: any) {
       const message = mapCrossApiError(error);
-      setSession((current: any) =>
+      setSession((current) =>
         current ? { ...current, lastError: message } : current,
       );
       toast.error(message);
@@ -792,10 +836,10 @@ export default function CrossChainPage() {
   }, [
     address,
     ensureChain,
+    missingApprovalRequests,
     prepareSingleExecution,
     quote,
     selectedOffer,
-    singleApprovalRequest,
   ]);
 
   const handleExecuteComposedLeg = useCallback(
@@ -820,14 +864,20 @@ export default function CrossChainPage() {
           legPayload.quote?.srcChainId ?? fromChainId,
         );
 
-        setSession((current: any) => ({
-          ...current,
-          [leg === "primary" ? "primaryTransfer" : "gasZipDestinationGas"]: {
-            ...legPayload,
-            lastTxHash: txHash,
-          },
-          lastError: null,
-        }));
+        setSession((current) =>
+          current?.mode === "composed"
+            ? {
+                ...current,
+                [leg === "primary"
+                  ? "primaryTransfer"
+                  : "gasZipDestinationGas"]: {
+                  ...legPayload,
+                  lastTxHash: txHash,
+                },
+                lastError: null,
+              }
+            : current,
+        );
         toast.success(
           leg === "primary"
             ? "Primary transfer submitted."
@@ -835,7 +885,7 @@ export default function CrossChainPage() {
         );
       } catch (error: any) {
         const message = mapCrossApiError(error);
-        setSession((current: any) =>
+        setSession((current) =>
           current ? { ...current, lastError: message } : current,
         );
         toast.error(message);
@@ -941,7 +991,7 @@ export default function CrossChainPage() {
   const quoteErrorMessage = quote.error ? mapCrossApiError(quote.error) : null;
   const showNativeDstAddress = requiresNativeDstAddress;
   const singleRouteNeedsApproval =
-    Boolean(singleApprovalRequest) && !hasRequiredApproval;
+    singleApprovalRequests.length > 0 && !hasRequiredApproval;
   const singleExecutionBlockedForNativeValue =
     !singleRouteNeedsApproval && !hasSufficientRouterNativeValue;
   const singleActionLabel =
@@ -957,7 +1007,10 @@ export default function CrossChainPage() {
             : "Execute Route"
       : undefined;
   const singleActionDisabled =
-    isCheckingApproval || isApproving || singleExecutionBlockedForNativeValue;
+    isCheckingApproval ||
+    isApproving ||
+    Boolean(approvalConfiguration.error) ||
+    singleExecutionBlockedForNativeValue;
   const handleSingleAction =
     singleRouteNeedsApproval ? handleApproveSingle : handleExecuteSingle;
 

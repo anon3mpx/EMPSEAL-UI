@@ -1,6 +1,8 @@
+import type { CrossExecutionSession } from "../api/contracts";
+
 interface CrossTrackingPanelProps {
   tracking: any;
-  session: any;
+  session: CrossExecutionSession | null;
   isCancelling: boolean;
   isRefunding: boolean;
   onCancel: () => void;

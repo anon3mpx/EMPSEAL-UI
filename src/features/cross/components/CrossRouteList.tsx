@@ -6,6 +6,10 @@ import {
   getOfferOutputAmount,
   getQuotedOutputDisplay,
 } from "../utils/amounts";
+import {
+  getOfferCapability,
+  getRailCapability,
+} from "../model/capabilities";
 
 const formatDisplayAmount = (value?: string, decimals = 18) => {
   if (!value) return "0";
@@ -48,19 +52,7 @@ const sanitizeNumeric = (value: string) => {
 
 const formatRailLabel = (rail?: string) => {
   if (!rail) return "Route";
-
-  switch (rail.toUpperCase()) {
-    case "LAYERZERO":
-      return "LayerZero";
-    case "THORCHAIN":
-      return "THORChain";
-    case "GASZIP":
-      return "Gas.zip";
-    case "CCTP":
-      return "CCTP";
-    default:
-      return rail;
-  }
+  return getRailCapability(rail).label;
 };
 
 const formatExecutionMode = (executionMode?: string) => {
@@ -98,6 +90,22 @@ const getProviderFlowSummary = (offer: any) => {
 
   if (rail === "GASZIP") {
     return "Destination gas is executed as a second Gas.zip transfer leg.";
+  }
+
+  if (rail === "HYPERLANE_NEXUS") {
+    return "Hyperlane Nexus Warp Route execution using the transaction returned by the API.";
+  }
+
+  if (rail === "OPTIMISM_NATIVE_BRIDGE") {
+    return "Ethereum-to-Optimism deposit through the canonical Optimism Standard Bridge.";
+  }
+
+  if (rail === "MAYA") {
+    return "Maya is restricted until a Bitcoin source wallet or reviewed deposit flow is available.";
+  }
+
+  if (rail === "CHAINFLIP") {
+    return "Chainflip output is informational until private broker-backed deposit-channel creation is enabled.";
   }
 
   return offer?.executionMode === "provider_direct"
@@ -217,6 +225,7 @@ export function CrossRouteList({
 
       <div className="grid gap-3 md:grid-cols-2">
         {offers.map((offer) => {
+          const capability = getOfferCapability(offer);
           const output = getQuotedOutputDisplay(
             getOfferOutputAmount(offer),
             tokenOutDecimals,
@@ -227,12 +236,16 @@ export function CrossRouteList({
             <button
               key={offer.offerId}
               type="button"
-              onClick={() => onSelect(offer.offerId)}
+              onClick={() => {
+                if (capability.selectable) onSelect(offer.offerId);
+              }}
+              disabled={!capability.selectable}
+              title={capability.reason}
               className={`w-full border px-5 py-6 text-left transition-all ${
                 selectedOfferId === offer.offerId
                   ? "border-[#FF8A00]/35 bg-white/[0.05]"
                   : "border-white/[0.06] bg-white/[0.02]"
-              }`}
+              } ${capability.selectable ? "" : "cursor-not-allowed opacity-60"}`}
             >
               <div className="flex items-start justify-between gap-3">
                 <div>
@@ -254,6 +267,13 @@ export function CrossRouteList({
                     {offer.executionMode === "provider_direct" ? (
                       <span className="border border-white/[0.08] bg-white/[0.04] px-[5px] py-[1px] text-[8px] font-bold tracking-[0.08em] text-white/35">
                         DIRECT
+                      </span>
+                    ) : null}
+                    {capability.status !== "executable" ? (
+                      <span className="border border-[#FF8A00]/20 bg-[#FF8A00]/10 px-[5px] py-[1px] text-[8px] font-bold tracking-[0.08em] text-[#FF8A00]">
+                        {capability.status === "quote_only"
+                          ? "QUOTE ONLY"
+                          : capability.status.toUpperCase()}
                       </span>
                     ) : null}
                   </div>
@@ -289,6 +309,39 @@ export function CrossRouteList({
 
       {showDetails && selectedOffer ? (
         <div className="border border-white/[0.05] bg-white/[0.015] px-4 py-3">
+          {(() => {
+            const capability = getOfferCapability(selectedOffer);
+            return (
+              <div className="mb-3 grid gap-2 text-[10px] text-white/55 sm:grid-cols-2">
+                <div>
+                  <span className="text-white/30">Status: </span>
+                  <span className="uppercase">
+                    {capability.status.replace("_", " ")}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-white/30">Source wallet: </span>
+                  <span className="uppercase">{capability.requiredSourceWallet}</span>
+                </div>
+                <div>
+                  <span className="text-white/30">Approval: </span>
+                  <span>
+                    {capability.providerApprovalMayBeRequired
+                      ? "May be required by provider"
+                      : "Not expected"}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-white/30">Destination address: </span>
+                  <span>
+                    {capability.nativeDestinationAddressRequired
+                      ? "Native address required"
+                      : "Connected wallet"}
+                  </span>
+                </div>
+              </div>
+            );
+          })()}
           <div className="mb-3 flex flex-wrap items-center gap-2">
             <span className="border border-[#FF8A00]/20 bg-[#FF8A00]/10 px-2 py-1 text-[9px] font-bold uppercase tracking-[0.08em] text-[#FF8A00]">
               {selectedOffer.railVariant ?? formatRailLabel(selectedOffer.rail)}

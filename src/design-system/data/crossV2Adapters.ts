@@ -1,10 +1,15 @@
 import { formatUnits, parseUnits } from "viem";
 import type { RouteHop, TradeTimelineStep } from "../components";
 import type { QuoteRequest } from "../../features/cross/api/contracts";
+import { isBackendNonEvmChainId } from "../../lib/wallet/chainKind";
 import {
   getOfferMinimumOutputAmount,
   getOfferOutputAmount,
 } from "../../features/cross/utils/amounts";
+import {
+  getOfferCapability,
+  type RailCapabilityStatus,
+} from "../../features/cross/model/capabilities";
 
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 
@@ -67,6 +72,7 @@ type ChainLike = {
 type TokenLike = {
   ticker: string;
   address?: string;
+  providerAssetId?: string;
   decimal?: number | string;
   decimals?: number | string;
   isNative?: boolean;
@@ -82,6 +88,9 @@ export type CrossV2OfferDisplay = {
   totalFeeUSD: number;
   estimatedTimeSeconds: number | null;
   isBest: boolean;
+  capabilityStatus: RailCapabilityStatus;
+  selectable: boolean;
+  restrictionReason?: string;
 };
 
 function readDecimals(token?: TokenLike | null, fallback = 18): number {
@@ -92,6 +101,7 @@ function readDecimals(token?: TokenLike | null, fallback = 18): number {
 
 function tokenAddress(token?: TokenLike | null): string {
   if (!token) return ZERO_ADDRESS;
+  if (token.providerAssetId) return token.providerAssetId;
   if (token.isNative) return ZERO_ADDRESS;
   return token.address ?? ZERO_ADDRESS;
 }
@@ -151,6 +161,9 @@ export function buildCrossQuoteRequest({
   destinationGasAmount?: string;
 }): QuoteRequest | null {
   if (!fromToken || !toToken || !userAddress) return null;
+  if (isBackendNonEvmChainId(toChainId) && !nativeDstAddress?.trim()) {
+    return null;
+  }
 
   // This adapter is the only UI -> backend quote-contract translation layer.
   // V2 pages keep using shared token config; the cross API still expects
@@ -199,10 +212,11 @@ export function formatCrossOffer(offer: any, tokenOutDecimals = 18): CrossV2Offe
   const minimumAmount = getOfferMinimumOutputAmount(offer);
   const bridgeFeeUSD = readUsd(offer?.economics?.providerFeeUSD ?? offer?.fees?.providerFeeUSD);
   const protocolFeeUSD = readUsd(offer?.economics?.protocolFeeUSD ?? offer?.fees?.protocolFeeUSD);
+  const capability = getOfferCapability(offer);
 
   return {
     offerId: offer.offerId,
-    railName: offer.rail ?? offer.railName ?? "Route",
+    railName: capability.label,
     outputAmount: normalizeDisplayAmount(formatBaseUnits(outputAmount, tokenOutDecimals)),
     minimumReceived: normalizeDisplayAmount(formatBaseUnits(minimumAmount, tokenOutDecimals)),
     bridgeFeeUSD,
@@ -213,6 +227,9 @@ export function formatCrossOffer(offer: any, tokenOutDecimals = 18): CrossV2Offe
         ? offer.economics.settlementTimeSeconds
         : null,
     isBest: Boolean(offer.isBest),
+    capabilityStatus: capability.status,
+    selectable: capability.selectable,
+    restrictionReason: capability.reason,
   };
 }
 

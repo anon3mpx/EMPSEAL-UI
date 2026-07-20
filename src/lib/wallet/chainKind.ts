@@ -15,7 +15,7 @@
 //
 // Published in VPS registry:
 //   BTC = 0,  DOGE = 98,  SOL = 99,  LTC = 100,  BCH = 101,
-//   COSMOS = 102,  DOT = 103
+//   COSMOS = 102, DOT = 103, KUJI = 104, DASH = 105, ZEC = 106
 //
 // UI-side placeholders (TBD with VPS):
 //   TRON = 200, XMR = 210, NEAR = 220, APTOS = 230, SUI = 240,
@@ -36,6 +36,9 @@ export const NON_EVM_CHAIN_IDS = {
   BCH: 101,
   COSMOS: 102,
   DOT: 103,
+  KUJIRA: 104,
+  DASH: 105,
+  ZCASH: 106,
   // UI-side placeholders — TBD with VPS coordination before settlement
   // for these chains comes online.  Picked spaced numbers (10-apart) so
   // the bridge can adopt these IDs OR substitute its own without UI churn.
@@ -48,6 +51,27 @@ export const NON_EVM_CHAIN_IDS = {
   TON: 260,
   ADA: 270,
 } as const;
+
+const BACKEND_NON_EVM_CHAIN_IDS = new Set<number>([
+  NON_EVM_CHAIN_IDS.BTC,
+  NON_EVM_CHAIN_IDS.DOGE,
+  NON_EVM_CHAIN_IDS.SOL,
+  NON_EVM_CHAIN_IDS.LTC,
+  NON_EVM_CHAIN_IDS.BCH,
+  NON_EVM_CHAIN_IDS.COSMOS,
+  NON_EVM_CHAIN_IDS.DOT,
+  NON_EVM_CHAIN_IDS.KUJIRA,
+  NON_EVM_CHAIN_IDS.DASH,
+  NON_EVM_CHAIN_IDS.ZCASH,
+]);
+
+export function isBackendNonEvmChainId(
+  chainId: number | undefined | null,
+): boolean {
+  return chainId !== null &&
+    chainId !== undefined &&
+    BACKEND_NON_EVM_CHAIN_IDS.has(chainId);
+}
 
 /** Set of EVM chain IDs the dApp recognises.  Sourced from the swap SDK registry. */
 const EVM_CHAIN_IDS = new Set<number>([

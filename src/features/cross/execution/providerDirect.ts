@@ -1,4 +1,6 @@
 import type { ProviderDirectExecutionKind } from "./types";
+import { isAddress } from "viem";
+import { isEvmChain } from "@/lib/wallet/chainKind";
 
 export const getLayerZeroStepTx = (step: any) =>
   step?.tx?.encoded ??
@@ -49,6 +51,9 @@ export function mergeLayerZeroUserSteps(integration: any, refreshed: any) {
 
 export function classifyProviderDirectAction(
   integration: any,
+  context: {
+    selectedSourceChainId?: number;
+  } = {},
 ): ProviderDirectExecutionKind {
   const action = integration?.action ?? integration;
   const userSteps = action?.userSteps ?? [];
@@ -59,20 +64,89 @@ export function classifyProviderDirectAction(
     action?.transaction ??
     null;
 
+  if (action?.kind === "chainflip_deposit") {
+    return "quote_only";
+  }
+
+  if (
+    action?.kind === "teleswap_transfer" ||
+    action?.kind === "teleswap_deposit" ||
+    (action?.kind === "optimism_standard_bridge" &&
+      action?.direction === "withdraw")
+  ) {
+    return "unsupported";
+  }
+
   if (action?.kind === "layerzero_value_transfer_api") {
-    const hasUnsupportedStep = userSteps.some(
+    const hasNonEvmStep = userSteps.some(
       (step: any) =>
         (typeof step?.type === "string" && step.type.startsWith("svm_")) ||
+        String(step?.chainType ?? "").toUpperCase() === "SOLANA",
+    );
+    if (hasNonEvmStep) return "non_evm_wallet_required";
+
+    const hasUnsupportedStep = userSteps.some(
+      (step: any) =>
         (!getLayerZeroStepTx(step)?.to &&
           typeof getLayerZeroStepMessage(step) !== "string"),
     );
-
     return hasUnsupportedStep ? "unsupported" : "layerzero_steps";
   }
 
-  if (directTx?.to) {
-    return "evm_tx";
+  const txChainId = Number(directTx?.chainId ?? NaN);
+  if (
+    txChainId === 0 ||
+    (Number.isFinite(txChainId) && !isEvmChain(txChainId))
+  ) {
+    return "non_evm_wallet_required";
+  }
+
+  if (
+    action?.kind === "maya_swap" &&
+    (!Number.isFinite(txChainId) || txChainId === 0)
+  ) {
+    return "non_evm_wallet_required";
+  }
+
+  if (
+    context.selectedSourceChainId !== undefined &&
+    txChainId !== context.selectedSourceChainId
+  ) {
+    return "unsupported";
+  }
+
+  const supportedActions = new Set([
+    "thorchain_swap",
+    "gaszip_transfer",
+    "hyperlane_transfer_remote",
+    "maya_swap",
+    "optimism_standard_bridge",
+  ]);
+
+  if (
+    directTx?.to &&
+    isAddress(directTx.to) &&
+    Number.isSafeInteger(txChainId) &&
+    isEvmChain(txChainId) &&
+    supportedActions.has(action?.kind)
+  ) {
+    return "evm_transaction";
+  }
+
+  if (typeof action?.depositAddress === "string" && action.depositAddress) {
+    return "deposit_instructions";
   }
 
   return "unsupported";
+}
+
+export function getProviderDirectTx(integration: any) {
+  const action = integration?.action ?? integration;
+  return (
+    action?.tx ??
+    integration?.tx ??
+    integration?.integration?.tx ??
+    action?.transaction ??
+    null
+  );
 }

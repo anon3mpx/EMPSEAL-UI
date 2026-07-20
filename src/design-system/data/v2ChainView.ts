@@ -7,6 +7,7 @@
 // V2 pages import from here instead of hardcoding chain constants.
 
 import { SUPPORTED_CHAINS } from "../../config/chains";
+import { NON_EVM_CHAIN_IDS } from "../../lib/wallet/chainKind";
 import { AGG_CHAIN_IDS, PAYMASTER_CHAIN_IDS, tierForChainId } from "./empxRegistry";
 
 export interface V2ChainConfig {
@@ -28,19 +29,22 @@ const CHAIN_COLORS: Record<number, string> = {
   137: "#7B3FE4", 143: "#836EF9", 146: "#FE9A4D", 369: "#FF008F",
   999: "#00D1AB", 1329: "#9B1B30", 8453: "#0052FF", 42161: "#28A0F0",
   43114: "#E84142", 80094: "#F47834", 10001: "#86939B",
-  0: "#F7931A", 900: "#9945FF", 901: "#C2A633", 902: "#345D9D",
-  903: "#0AC18E", 904: "#2E3148",
+  0: "#F7931A", 98: "#C2A633", 99: "#9945FF", 100: "#345D9D",
+  101: "#0AC18E", 102: "#2E3148", 103: "#E6007A", 104: "#1B1B1B",
+  105: "#008CE7", 106: "#F4B728",
 };
 
 const NATIVE_TICKERS: Record<number, string> = {
   1: "ETH", 10: "ETH", 30: "RBTC", 56: "BNB", 137: "POL",
   143: "MON", 146: "S", 369: "PLS", 999: "HYPE", 1329: "SEI",
   8453: "ETH", 42161: "ETH", 43114: "AVAX", 80094: "BERA", 10001: "ETHW",
-  0: "BTC", 900: "SOL", 901: "DOGE", 902: "LTC", 903: "BCH", 904: "ATOM",
+  0: "BTC", 98: "DOGE", 99: "SOL", 100: "LTC", 101: "BCH",
+  102: "ATOM", 103: "DOT", 104: "KUJI", 105: "DASH", 106: "ZEC",
 };
 
 const CHAIN_KINDS: Record<number, "EVM" | "BTC" | "SOL" | "OTHER"> = {
-  0: "BTC", 900: "SOL", 901: "OTHER", 902: "OTHER", 903: "OTHER", 904: "OTHER",
+  0: "BTC", 98: "OTHER", 99: "SOL", 100: "OTHER", 101: "OTHER",
+  102: "OTHER", 103: "OTHER", 104: "OTHER", 105: "OTHER", 106: "OTHER",
 };
 
 // ─── Build adapter views from canonical sources ──────────────────────────
@@ -86,12 +90,16 @@ export const V2_AGGREGATOR_CHAINS: V2ChainConfig[] = Object.keys(SUPPORTED_CHAIN
 export const V2_ALL_CHAINS: V2ChainConfig[] = [
   buildFromConfig(1) ?? { id: 1, name: "Ethereum", ticker: "ETH", color: "#627EEA", kind: "EVM", tier: 2, supportsAggregator: false, supportsPaymaster: true },
   ...V2_AGGREGATOR_CHAINS,
-  buildNonEvm(0, "Bitcoin"),
-  buildNonEvm(900, "Solana"),
-  buildNonEvm(901, "Dogecoin"),
-  buildNonEvm(902, "Litecoin"),
-  buildNonEvm(903, "Bitcoin Cash"),
-  buildNonEvm(904, "Cosmos"),
+  buildNonEvm(NON_EVM_CHAIN_IDS.BTC, "Bitcoin"),
+  buildNonEvm(NON_EVM_CHAIN_IDS.DOGE, "Dogecoin"),
+  buildNonEvm(NON_EVM_CHAIN_IDS.SOL, "Solana"),
+  buildNonEvm(NON_EVM_CHAIN_IDS.LTC, "Litecoin"),
+  buildNonEvm(NON_EVM_CHAIN_IDS.BCH, "Bitcoin Cash"),
+  buildNonEvm(NON_EVM_CHAIN_IDS.COSMOS, "Cosmos"),
+  buildNonEvm(NON_EVM_CHAIN_IDS.DOT, "Polkadot Asset Hub"),
+  buildNonEvm(NON_EVM_CHAIN_IDS.KUJIRA, "Kujira"),
+  buildNonEvm(NON_EVM_CHAIN_IDS.DASH, "Dash"),
+  buildNonEvm(NON_EVM_CHAIN_IDS.ZCASH, "Zcash"),
 ];
 
 /** Lookup by chain ID */

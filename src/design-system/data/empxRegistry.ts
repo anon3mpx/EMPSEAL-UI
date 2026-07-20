@@ -1,3 +1,9 @@
+import {
+  getOfferCapability,
+  getRailCapability,
+} from "../../features/cross/model/capabilities";
+import { NON_EVM_CHAIN_IDS as BACKEND_NON_EVM_CHAIN_IDS } from "../../lib/wallet/chainKind";
+
 // ─── EmpX UI registry — mirrors the cross-bridge SDK config ────────────────
 //
 // This file is a *UI-side mirror* of values that live in the cross-bridge
@@ -45,12 +51,16 @@ export const PAYMASTER_CHAIN_IDS = new Set<number>([
 // ─── Non-EVM chains (T3) ───────────────────────────────────────────────────
 // SOURCE: empx-cross-bridge/src/vps/config/chains.ts → CHAIN_CONFIGS with isEVM: false
 export const NON_EVM_CHAIN_IDS = new Set<number>([
-  0,      // BTC (using 0 as the cross-bridge convention; SDK uses CHAIN_ID.BTC)
-  900,    // SOL
-  901,    // DOGE
-  902,    // LTC
-  903,    // BCH
-  904,    // COSMOS
+  BACKEND_NON_EVM_CHAIN_IDS.BTC,
+  BACKEND_NON_EVM_CHAIN_IDS.DOGE,
+  BACKEND_NON_EVM_CHAIN_IDS.SOL,
+  BACKEND_NON_EVM_CHAIN_IDS.LTC,
+  BACKEND_NON_EVM_CHAIN_IDS.BCH,
+  BACKEND_NON_EVM_CHAIN_IDS.COSMOS,
+  BACKEND_NON_EVM_CHAIN_IDS.DOT,
+  BACKEND_NON_EVM_CHAIN_IDS.KUJIRA,
+  BACKEND_NON_EVM_CHAIN_IDS.DASH,
+  BACKEND_NON_EVM_CHAIN_IDS.ZCASH,
 ]);
 
 // Chain-tier helper — drives ChainPicker badge + TokenPicker filter mode
@@ -101,7 +111,8 @@ export type RailName =
   | "Chainflip"
   | "Maya"
   | "TeleSwap"
-  | "Hyperlane Nexus";
+  | "Hyperlane Nexus"
+  | "Optimism Native Bridge";
 
 export interface RailEntry {
   name: RailName;
@@ -212,8 +223,8 @@ export const RAILS: RailEntry[] = [
   {
     name: "Wormhole",
     mode: "A",
-    sources: [1, 42161, 8453, 10, 137, 56, 43114, 900],
-    destinations: [1, 42161, 8453, 10, 137, 56, 43114, 900],
+    sources: [1, 42161, 8453, 10, 137, 56, 43114, BACKEND_NON_EVM_CHAIN_IDS.SOL],
+    destinations: [1, 42161, 8453, 10, 137, 56, 43114, BACKEND_NON_EVM_CHAIN_IDS.SOL],
     etaSecondsBaseline: 540,
     reliability: 98.2,
     stuckThresholdMin: 25,
@@ -273,8 +284,8 @@ export const RAILS: RailEntry[] = [
     name: "THORChain",
     mode: "B",
     badge: "BTC",
-    sources: [0, 1, 42161, 8453, 43114, 56, 901, 902],
-    destinations: [0, 1, 42161, 8453, 43114, 56, 901, 902],
+    sources: [BACKEND_NON_EVM_CHAIN_IDS.BTC, 1, 42161, 8453, 43114, 56, BACKEND_NON_EVM_CHAIN_IDS.DOGE, BACKEND_NON_EVM_CHAIN_IDS.LTC],
+    destinations: [BACKEND_NON_EVM_CHAIN_IDS.BTC, 1, 42161, 8453, 43114, 56, BACKEND_NON_EVM_CHAIN_IDS.DOGE, BACKEND_NON_EVM_CHAIN_IDS.LTC],
     etaSecondsBaseline: 1200,
     reliability: 97.5,
     stuckThresholdMin: 45,
@@ -290,8 +301,8 @@ export const RAILS: RailEntry[] = [
     name: "Chainflip",
     mode: "B",
     badge: "JIT",
-    sources: [0, 900, 1, 42161, 8453],
-    destinations: [0, 900, 1, 42161, 8453],
+    sources: [BACKEND_NON_EVM_CHAIN_IDS.BTC, BACKEND_NON_EVM_CHAIN_IDS.SOL, 1, 42161, 8453],
+    destinations: [BACKEND_NON_EVM_CHAIN_IDS.BTC, BACKEND_NON_EVM_CHAIN_IDS.SOL, 1, 42161, 8453],
     etaSecondsBaseline: 150,
     reliability: 98.3,
     stuckThresholdMin: 15,
@@ -307,8 +318,8 @@ export const RAILS: RailEntry[] = [
     name: "Maya",
     mode: "B",
     badge: "MAYA",
-    sources: [0, 1, 42161, 8453, 901],
-    destinations: [0, 1, 42161, 8453, 901],
+    sources: [BACKEND_NON_EVM_CHAIN_IDS.BTC, 1, 42161, 8453, BACKEND_NON_EVM_CHAIN_IDS.DOGE],
+    destinations: [BACKEND_NON_EVM_CHAIN_IDS.BTC, 1, 42161, 8453, BACKEND_NON_EVM_CHAIN_IDS.DOGE],
     etaSecondsBaseline: 720,
     reliability: 96.8,
     stuckThresholdMin: 25,
@@ -354,6 +365,23 @@ export const RAILS: RailEntry[] = [
     supportsNativeL1: false,
     speciality: "Warp-route stables",
   },
+  {
+    name: "Optimism Native Bridge",
+    mode: "B",
+    badge: "DEPOSIT",
+    sources: [1],
+    destinations: [10],
+    etaSecondsBaseline: 180,
+    reliability: 0,
+    stuckThresholdMin: 20,
+    baseFeeUSD: 0,
+    supportsUSDC: true,
+    supportsUSDT: true,
+    nativeUSDC: true,
+    supportsOFT: false,
+    supportsNativeL1: true,
+    speciality: "Ethereum → Optimism deposits",
+  },
 ];
 
 // ─── Pair-type fees (Mode A) ───────────────────────────────────────────────
@@ -397,6 +425,20 @@ export function formatEtaSeconds(seconds: number | undefined | null): string {
 export function eligibleRailsFor(srcChainId: number, dstChainId: number, destTicker?: string): RailEntry[] {
   const upper = destTicker?.toUpperCase();
   return RAILS.filter((r) => {
+    const railId = backendRailId(r.name);
+    const capability =
+      railId === "OPTIMISM_NATIVE_BRIDGE" ||
+      railId === "HYPERLANE_NEXUS" ||
+      railId === "THORCHAIN"
+        ? getOfferCapability({
+            rail: railId,
+            srcChainId,
+            dstChainId,
+          })
+        : getRailCapability(railId);
+    if (capability.status !== "executable" || !capability.selectable) {
+      return false;
+    }
     if (!r.sources.includes(srcChainId)) return false;
     if (!r.destinations.includes(dstChainId)) return false;
     if (!upper) return true;
@@ -408,4 +450,25 @@ export function eligibleRailsFor(srcChainId: number, dstChainId: number, destTic
     // Any other ticker — only OFT-capable rails can carry it
     return r.supportsOFT;
   });
+}
+
+export function backendRailId(name: RailName): string {
+  switch (name) {
+    case "CCTP Fast":
+      return "CCTP_FAST";
+    case "LayerZero":
+      return "LAYERZERO";
+    case "Via Labs":
+      return "VIA_LABS";
+    case "Gas.zip":
+      return "GASZIP";
+    case "THORChain":
+      return "THORCHAIN";
+    case "Hyperlane Nexus":
+      return "HYPERLANE_NEXUS";
+    case "Optimism Native Bridge":
+      return "OPTIMISM_NATIVE_BRIDGE";
+    default:
+      return name.toUpperCase();
+  }
 }

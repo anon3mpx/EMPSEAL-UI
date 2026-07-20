@@ -1,9 +1,15 @@
-import type { QuoteRequest } from "./contracts";
+import type {
+  ComposedSelectionResponse,
+  QuoteRequest,
+  QuoteResponse,
+  SelectionResponse,
+  SubmittedRequest,
+} from "./contracts";
 import { crossApiFetch } from "./client";
 
 export const crossApi = {
   quote: (payload: QuoteRequest) =>
-    crossApiFetch("/api/v1/quote", {
+    crossApiFetch<QuoteResponse>("/api/v1/quote", {
       method: "POST",
       body: JSON.stringify(payload),
     }),
@@ -12,7 +18,7 @@ export const crossApi = {
     offerId: string;
     userAddress: string;
   }) =>
-    crossApiFetch("/api/v1/quote/select", {
+    crossApiFetch<SelectionResponse>("/api/v1/quote/select", {
       method: "POST",
       body: JSON.stringify(payload),
     }),
@@ -22,7 +28,7 @@ export const crossApi = {
     gasZipDestinationGasOfferId: string;
     userAddress: string;
   }) =>
-    crossApiFetch("/api/v1/quote/select-composed", {
+    crossApiFetch<ComposedSelectionResponse>("/api/v1/quote/select-composed", {
       method: "POST",
       body: JSON.stringify(payload),
     }),
@@ -31,13 +37,13 @@ export const crossApi = {
     crossApiFetch(
       `/api/v1/intent/composed/${primaryIntentId}/${gasZipIntentId}`,
     ),
-  markSubmitted: (intentId: string, payload: any) =>
-    crossApiFetch(`/api/v1/intent/${intentId}/submitted`, {
+  markSubmitted: (intentId: string, payload: SubmittedRequest) =>
+    crossApiFetch<unknown>(`/api/v1/intent/${intentId}/submitted`, {
       method: "POST",
       body: JSON.stringify(payload),
     }),
-  markLayerZeroSubmitted: (intentId: string, payload: any) =>
-    crossApiFetch(
+  markLayerZeroSubmitted: (intentId: string, payload: SubmittedRequest) =>
+    crossApiFetch<unknown>(
       `/api/v1/layerzero-value-transfer-api/intents/${intentId}/submitted`,
       {
         method: "POST",

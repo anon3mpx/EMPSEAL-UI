@@ -1,13 +1,25 @@
 import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { crossApi } from "../api/crossApi";
+import type { OfferSet } from "../api/contracts";
+
+interface CrossApiFailure {
+  status?: number;
+  body?: {
+    fallbackOfferSet?: OfferSet;
+  };
+}
+
+function isCrossApiFailure(error: unknown): error is CrossApiFailure {
+  return typeof error === "object" && error !== null;
+}
 
 export function useCrossExecutionSession({
   api = crossApi,
 }: {
   api?: typeof crossApi;
 } = {}) {
-  const [fallbackOfferSet, setFallbackOfferSet] = useState<any>(null);
+  const [fallbackOfferSet, setFallbackOfferSet] = useState<OfferSet | null>(null);
 
   const singleIntent = useMutation({
     mutationFn: api.selectOffer,
@@ -27,8 +39,12 @@ export function useCrossExecutionSession({
       try {
         setFallbackOfferSet(null);
         return await singleIntent.mutateAsync(payload);
-      } catch (error: any) {
-        if (error?.status === 409 && error?.body?.fallbackOfferSet) {
+      } catch (error: unknown) {
+        if (
+          isCrossApiFailure(error) &&
+          error.status === 409 &&
+          error.body?.fallbackOfferSet
+        ) {
           setFallbackOfferSet(error.body.fallbackOfferSet);
         }
         throw error;

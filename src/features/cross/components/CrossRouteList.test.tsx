@@ -3,6 +3,41 @@ import { describe, expect, it, vi } from "vitest";
 import { CrossRouteList } from "./CrossRouteList";
 
 describe("CrossRouteList", () => {
+  it("shows restricted and quote-only routes without allowing selection", () => {
+    const onSelect = vi.fn();
+    render(
+      <CrossRouteList
+        offers={[
+          {
+            offerId: "maya-1",
+            rail: "MAYA",
+            srcChainId: 0,
+            dstChainId: 1,
+            estimatedOut: "1",
+            economics: { settlementTimeSeconds: 120 },
+          } as any,
+          {
+            offerId: "chainflip-1",
+            rail: "CHAINFLIP",
+            srcChainId: 8453,
+            dstChainId: 42161,
+            estimatedOut: "1",
+            economics: { settlementTimeSeconds: 120 },
+          } as any,
+        ]}
+        selectedOfferId={null}
+        onSelect={onSelect}
+        expiresAt={1740000000000}
+      />,
+    );
+
+    expect(screen.getByText("RESTRICTED")).toBeInTheDocument();
+    expect(screen.getByText("QUOTE ONLY")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /maya/i }));
+    fireEvent.click(screen.getByRole("button", { name: /chainflip/i }));
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+
   it("renders the best route badge and ETA", () => {
     render(
       <CrossRouteList
