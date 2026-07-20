@@ -42,7 +42,7 @@ import { useV2Balances } from "../hooks/useV2Balances";
 import { V2_AGGREGATOR_CHAINS, getV2Chain } from "../data/v2ChainView";
 import { getTokensForChain } from "../data/v2TokenView";
 import { getExplorerAddressUrl, getExplorerTxUrl } from "../data/explorers";
-import { formatUSD } from "../hooks/useUnifiedPrice";
+import { formatUSD, useUnifiedPrice } from "../hooks/useUnifiedPrice";
 import { classifyPair, modeAFeeBps } from "../data/empxRegistry";
 import { createV2NavLinks } from "../data/v2ProductRoutes";
 import { resolveSwapPageChain } from "../data/swapPageChainState";
@@ -73,10 +73,10 @@ import {
 
 // Shared social link set — referenced from every page navbar
 export const EMPX_SOCIALS = [
-  { kind: "x" as const,        href: "https://x.com/empx" },
-  { kind: "telegram" as const, href: "https://t.me/empx" },
-  { kind: "docs" as const,     href: "https://docs.empx.network" },
-  { kind: "github" as const,   href: "https://github.com/empx" },
+  { kind: "x" as const,        href: "https://x.com/EmpXio" },
+  { kind: "telegram" as const, href: "https://t.me/EmpXEmpseal" },
+  { kind: "docs" as const,     href: "https://docs.empx.io" },
+  { kind: "github" as const,   href: "https://github.com/3mperorsSeal" },
 ];
 import EmpxSwapWidget from "../EmpxSwapWidget";
 
@@ -97,10 +97,24 @@ const SWAP_V2_CONTRACT_API = {
 // ─── Page state ───────────────────────────────────────────────────────────
 
 type SettingsTab = "slippage" | "route" | "mev";
+type SwapAction = "swap" | "wrap" | "unwrap";
 
 function shortHash(hash: string): string {
   if (!hash || hash.length < 12) return hash;
   return `${hash.slice(0, 6)}…${hash.slice(-4)}`;
+}
+
+function calculateUSDValue(amount: string, price: number | null): number | null {
+  const numericAmount = Number(amount.replace(/,/g, ""));
+  if (price == null || !Number.isFinite(numericAmount)) return null;
+  return numericAmount * price;
+}
+
+function getSwapAction(isDirectRoute: boolean, fromToken: SwapHookToken | null): SwapAction {
+  if (!isDirectRoute) return "swap";
+  return fromToken?.address.toLowerCase() === EMPTY_SWAP_TOKEN_ADDRESS.toLowerCase()
+    ? "wrap"
+    : "unwrap";
 }
 
 // ─── Page component ──────────────────────────────────────────────────────
@@ -186,6 +200,7 @@ export default function SwapPage() {
     data: quoteData,
     preparedRoute: rawPreparedRoute,
     quoteLoading,
+    splitQuoteLoading,
     quoteFallbackActive,
     quoteError,
     isQuoteEnabled,
@@ -204,18 +219,30 @@ export default function SwapPage() {
     pairType,
   });
 
-  const fromUSDValue = null;
+  const fromPriceAddress = fromToken?.address === EMPTY_SWAP_TOKEN_ADDRESS
+    ? activeChainConfig?.wethAddress
+    : fromToken?.address;
+  const toPriceAddress = toToken?.address === EMPTY_SWAP_TOKEN_ADDRESS
+    ? activeChainConfig?.wethAddress
+    : toToken?.address;
+  const fromTokenPriceUSD = useUnifiedPrice(activeChain.id, fromToken?.ticker, fromPriceAddress);
+  const toTokenPriceUSD = useUnifiedPrice(activeChain.id, toToken?.ticker, toPriceAddress);
+  const fromUSDValue = calculateUSDValue(fromAmount, fromTokenPriceUSD);
   const protocolFeeUSD = null;
   const preparedRoute: PreparedSwapRoute | null = useMemo(() => {
     if (!rawPreparedRoute || !fromToken || !toToken) return null;
     if (rawPreparedRoute.source === "sdk" && rawPreparedRoute.sdkResult) {
-      return normalizeSdkPreparedRoute({
+      const normalized = normalizeSdkPreparedRoute({
         prepared: rawPreparedRoute.sdkResult,
         selectedTokenA: fromToken,
         selectedTokenB: toToken,
         tokenOptions: tokensForChain,
         recipient: connectedAddress,
       });
+      return {
+        ...normalized,
+        executionRequest: rawPreparedRoute.executionRequest,
+      };
     }
 
     const tradeInfo = isDirectRoute
@@ -259,6 +286,7 @@ export default function SwapPage() {
       : formatPreparedSwapOutput(preparedRoute, quoteData, toToken?.decimal ?? 18)),
     [fromAmount, isDirectRoute, preparedRoute, quoteData, toToken?.decimal],
   );
+  const toUSDValue = calculateUSDValue(toAmount, toTokenPriceUSD);
   const minimumReceived = useMemo(
     () => formatSwapQuoteOutput(
       quoteTradeInfo
@@ -283,16 +311,20 @@ export default function SwapPage() {
     [activeChain.id, preparedRoute],
   );
   const routeLabel = getSwapRouteLabel(preparedRoute);
-  const bestRoute = useMemo(
-    () => preparedRoute?.routing === "split"
-      ? `${preparedRoute.splits?.length ?? 0} route SDK split`
-      : quoteTradeInfo?.pathTokens?.length
-      ? `${Math.max(quoteTradeInfo.pathTokens.length - 1, 1)} hop ${preparedRoute?.source === "local" ? "local fallback" : "SDK route"}`
-      : isDirectRoute
-        ? "Native wrap"
-        : undefined,
-    [isDirectRoute, preparedRoute?.routing, preparedRoute?.splits?.length, quoteTradeInfo?.pathTokens],
-  );
+  const swapAction = getSwapAction(isDirectRoute, fromToken);
+  const swapActionLabel = swapAction === "swap"
+    ? "Swap"
+    : `${swapAction === "wrap" ? "Wrap" : "Unwrap"} ${fromToken?.ticker ?? "token"}`;
+  const bestRoute = useMemo(() => {
+    if (preparedRoute?.routing === "split") {
+      return `${preparedRoute.splits?.length ?? 0} route SDK split`;
+    }
+    if (isDirectRoute) return `Native ${swapAction}`;
+    if (quoteTradeInfo?.pathTokens?.length) {
+      return `${Math.max(quoteTradeInfo.pathTokens.length - 1, 1)} hop ${preparedRoute?.source === "local" ? "local fallback" : "SDK route"}`;
+    }
+    return undefined;
+  }, [isDirectRoute, preparedRoute?.routing, preparedRoute?.source, preparedRoute?.splits?.length, quoteTradeInfo?.pathTokens, swapAction]);
 
   const isRefreshingQuote = deferredFromAmount !== fromAmount || quoteLoading;
   const {
@@ -445,7 +477,7 @@ export default function SwapPage() {
               fromToken={fromToken ? { ticker: fromToken.ticker, address: fromToken.address, decimals: fromToken.decimal } : null}
               fromAmount={fromAmount}
               fromBalance={isTokenBalanceLoading ? "Loading..." : selectedFromToken?.balance}
-              fromUsdValue={fromUSDValue || null}
+              fromUsdValue={fromUSDValue}
               onFromAmountChange={setFromAmount}
               onSelectFromToken={() => setShowTokenPicker("from")}
               onPercentClick={(pct) => {
@@ -454,7 +486,7 @@ export default function SwapPage() {
               }}
               toToken={toToken ? { ticker: toToken.ticker, address: toToken.address, decimals: toToken.decimal } : null}
               toAmount={toAmount}
-              toUsdValue={null}
+              toUsdValue={toUSDValue}
               onSelectToToken={() => setShowTokenPicker("to")}
               pairType={pairType}
               protocolFeeBps={feeBps}
@@ -471,7 +503,7 @@ export default function SwapPage() {
               onConnect={() => setShowWalletModal(true)}
               onSwap={onSwap}
               onFlip={flipTokens}
-              swapLabel={walletState.status === "connected" ? quoteLoading ? "Fetching quote..." : "Swap" : "Connect wallet"}
+              swapLabel={walletState.status === "connected" ? quoteLoading ? "Fetching quote..." : swapActionLabel : "Connect wallet"}
             />
           </div>
 
@@ -504,14 +536,16 @@ export default function SwapPage() {
                       compact
                     />
                   )}
-                  <Pill variant={quoteLoading ? "accent" : quoteFallbackActive ? "ghost" : isQuoteEnabled ? "info" : "ghost"}>
+                  <Pill variant={quoteLoading || splitQuoteLoading ? "accent" : quoteFallbackActive ? "ghost" : isQuoteEnabled ? "info" : "ghost"}>
                     {quoteLoading
-                      ? "Preparing auto route"
-                      : quoteFallbackActive
-                        ? "Local fallback"
-                        : isQuoteEnabled
-                          ? "SDK quote"
-                          : "Quote idle"}
+                      ? "Fetching single route"
+                      : splitQuoteLoading
+                        ? "Optimizing split route"
+                        : quoteFallbackActive
+                          ? "Local fallback"
+                          : isQuoteEnabled
+                            ? "SDK quote"
+                            : "Quote idle"}
                   </Pill>
                   {executionError && <Pill variant="danger">Execution error</Pill>}
                 </div>
@@ -741,16 +775,16 @@ export default function SwapPage() {
           void (needsApproval ? handleApprove() : confirmSwap());
         }}
         confirming={isExecuting}
-        eyebrow="REVIEW · SWAP"
-        title="Confirm trade"
-        confirmLabel={needsApproval ? "Approve and swap" : "Confirm swap"}
+        eyebrow={`REVIEW · ${swapAction.toUpperCase()}`}
+        title={`Confirm ${swapAction}`}
+        confirmLabel={needsApproval ? `Approve and ${swapAction}` : `Confirm ${swapAction}`}
         fromTicker={fromToken?.ticker || ""}
         fromAmount={fromAmount}
         fromUsdValue={fromUSDValue ?? undefined}
         fromChainName={activeChain.name}
         toTicker={toToken?.ticker || ""}
         toAmount={toAmount}
-        toUsdValue={undefined}
+        toUsdValue={toUSDValue ?? undefined}
         toChainName={activeChain.name}
         routeHops={routeHops}
         routeLabel={routeLabel}

@@ -1,15 +1,17 @@
 // ─── useSwapQuoteFetch ───────────────────────────────────────────────────────
 //
-// Prepares the executable route once and publishes it with explicit provenance.
-// The primary path is SDK `splitSwap(..., { routing: "auto" })`; when that
+// Publishes a fast SDK single-route preview first, then upgrades it if bounded
+// background split discovery finds a split route. If the fast SDK preview
 // fails, the hook retries the existing local `findBestPath` contract read with
-// the configured hop-reduction plan. Consumers receive both the legacy quote
-// shape and `preparedRoute`, which must be passed through to execution so the
-// displayed split/single/local route is the route that gets submitted.
+// the configured hop-reduction plan. SDK preview routes are re-prepared from
+// post-approval state by useSwapExecution before any calldata is submitted.
 
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { useEmpxRouter } from "./useEmpxRouter";
-import { prepareSwapRoute } from "./swapRoutePreparation";
+import {
+  prepareSplitSwapRoute,
+  prepareSwapRoute,
+} from "./swapRoutePreparation";
 import { getQuoteHopFallbackPlan } from "../../config/quoteFallback";
 import { convertToBigInt } from "../../utils/utils";
 import { EMPTY_ADDRESS } from "../../utils/contractCalls";
@@ -64,6 +66,7 @@ export function useSwapQuoteFetch({
   const [quoteError, setQuoteError] = useState(undefined);
   const [singleToken, setSingleToken] = useState(undefined);
   const [quoteLoading, setQuoteLoading] = useState(false);
+  const [splitQuoteLoading, setSplitQuoteLoading] = useState(false);
 
   // ─── Direct-route check (native↔wrapped wrap/unwrap path) ────────────────
   // Same logic as pre-W3.  We bypass the SDK quote for these since they
@@ -130,17 +133,20 @@ export function useSwapQuoteFetch({
   // request-id check at lower level.
   const inflightId = useRef(0);
 
-  // ─── Prepared route — SDK auto split first, local no-split fallback ───────
+  // ─── Preview route — fast single first, bounded split upgrade second ──────
   useEffect(() => {
     if (!isQuoteEnabled) {
       inflightId.current += 1;
       setData(undefined);
       setPreparedRoute(undefined);
       setQuoteError(undefined);
+      setQuoteLoading(false);
+      setSplitQuoteLoading(false);
       return;
     }
     const myId = ++inflightId.current;
     setQuoteLoading(true);
+    setSplitQuoteLoading(false);
     setQuoteError(undefined);
     setData(undefined);
     setPreparedRoute(undefined);
@@ -154,7 +160,7 @@ export function useSwapQuoteFetch({
         })
       : readLocalSwapQuote;
 
-    prepareSwapRoute({
+    const preparationInput = {
       router,
       localQuote,
       fallbackPlan: quoteFallbackPlan,
@@ -168,25 +174,50 @@ export function useSwapQuoteFetch({
       maxSteps: requestedMaxSteps,
       slippageBps,
       pairType,
-    })
-      .then((result) => {
-        if (myId !== inflightId.current) return; // superseded
-        const quote = result.source === "sdk"
-          ? result.sdkResult?.tradeInfo
-          : result.quote;
-        const normalised = normalizePathResult(quote);
-        setPreparedRoute(result);
-        setData(normalised ?? undefined);
-      })
-      .catch((error) => {
+    };
+
+    const publishRoute = (result) => {
+      const quote = result.source === "sdk"
+        ? result.sdkResult?.tradeInfo
+        : result.quote;
+      const normalised = normalizePathResult(quote);
+      setPreparedRoute(result);
+      setData(normalised ?? undefined);
+    };
+
+    const prepareProgressiveRoute = async () => {
+      try {
+        const result = await prepareSwapRoute(preparationInput);
+        if (myId !== inflightId.current) return;
+        publishRoute(result);
+        setQuoteLoading(false);
+
+        if (result.source !== "sdk" || isDirectRoute) return;
+
+        setSplitQuoteLoading(true);
+        try {
+          const splitResult = await prepareSplitSwapRoute(preparationInput);
+          if (myId !== inflightId.current) return;
+          if (splitResult.routing === "split") {
+            publishRoute(splitResult);
+          }
+        } catch {
+          // The fast single quote remains valid when optional split discovery
+          // is unavailable or exceeds its bounded search window.
+        } finally {
+          if (myId === inflightId.current) setSplitQuoteLoading(false);
+        }
+      } catch (error) {
         if (myId !== inflightId.current) return;
         setData(undefined);
         setPreparedRoute(undefined);
         setQuoteError(error);
-      })
-      .finally(() => {
-        if (myId === inflightId.current) setQuoteLoading(false);
-      });
+        setQuoteLoading(false);
+        setSplitQuoteLoading(false);
+      }
+    };
+
+    void prepareProgressiveRoute();
 
     return () => {
       if (myId === inflightId.current) inflightId.current += 1;
@@ -211,7 +242,13 @@ export function useSwapQuoteFetch({
 
   // ─── Single-token spot rate (for the "1 X = Y Z" display) ────────────────
   const singleTokenEnabled =
-    !isDirectRoute && !!selectedTokenA && !!selectedTokenB && !!router;
+    !isDirectRoute &&
+    !!selectedTokenA &&
+    !!selectedTokenB &&
+    !!router &&
+    !!preparedRoute &&
+    !quoteLoading &&
+    !splitQuoteLoading;
 
   useEffect(() => {
     if (!singleTokenEnabled) {
@@ -263,6 +300,7 @@ export function useSwapQuoteFetch({
     quoteError,
     singleToken,
     quoteLoading,
+    splitQuoteLoading,
     isQuoteEnabled,
     isDirectRoute,
     refreshQuotes,

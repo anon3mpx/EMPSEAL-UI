@@ -116,10 +116,10 @@ const GAS_CHAINS = V2_AGGREGATOR_CHAINS
   .map((c) => ({ ...c, ...GAS_CHAIN_ESTIMATES[c.id] }));
 
 const EMPX_SOCIALS = [
-  { kind: "x" as const,        href: "https://x.com/empx" },
-  { kind: "telegram" as const, href: "https://t.me/empx" },
-  { kind: "docs" as const,     href: "https://docs.empx.network" },
-  { kind: "github" as const,   href: "https://github.com/empx" },
+  { kind: "x" as const,        href: "https://x.com/EmpXio" },
+  { kind: "telegram" as const, href: "https://t.me/EmpXEmpseal" },
+  { kind: "docs" as const,     href: "https://docs.empx.io" },
+  { kind: "github" as const,   href: "https://github.com/3mperorsSeal" },
 ];
 
 // ─── Page state ───────────────────────────────────────────────────────────

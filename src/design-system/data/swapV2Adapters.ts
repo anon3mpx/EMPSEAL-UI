@@ -69,6 +69,21 @@ export interface PreparedSwapRoute {
   splitSavingsBps?: number;
   approvalTarget?: string;
   recipient?: string;
+  executionRequest?: {
+    amountIn: bigint;
+    tokenIn: string;
+    tokenOut: string;
+    recipient: string;
+    options: {
+      routing: "single" | "auto";
+      maxSteps: number;
+      slippageBps: number;
+      maxSplits?: number;
+      minSavingsBps?: number;
+      splitSearchTimeoutMs?: number;
+      feeContext: { pairType: "V/V" | "V/S" | "S/S" };
+    };
+  };
   sdkError?: unknown;
 }
 
@@ -96,7 +111,7 @@ interface SdkTradeInfoLike {
 interface SdkPreparedRouteLike {
   routing: "single" | "split";
   tradeInfo: SdkTradeInfoLike;
-  calldata: SwapCalldata;
+  calldata?: SwapCalldata;
   swapType:
     | "WrapNative"
     | "UnwrapNative"

@@ -23,9 +23,53 @@ export function getPreparedApproval({ route, router, token, amount }) {
     : router.getApprovalCalldataForAmount(token, options);
 }
 
-export function isPreparedRouteExpired(route, now = Date.now()) {
+export async function prepareExecutableSdkRoute({ route, router, sender }) {
+  if (route?.source !== "sdk" || !route.executionRequest) {
+    throw new Error("SDK preview execution request is unavailable");
+  }
+  if (!router?.splitSwap) {
+    throw new Error("SDK executable route preparation is unavailable");
+  }
+  if (!sender) {
+    throw new Error("Connected wallet address is required for SDK route preparation");
+  }
+
+  const request = route.executionRequest;
+  const prepared = await router.splitSwap(
+    request.amountIn,
+    request.tokenIn,
+    request.tokenOut,
+    request.recipient,
+    {
+      ...request.options,
+      sender,
+    },
+  );
+
+  if (!prepared?.calldata) {
+    throw new Error("SDK executable calldata is unavailable");
+  }
+  if (prepared.routing !== route.routing) {
+    throw new Error(
+      "SDK route changed during preparation. Refresh and review the new route before swapping.",
+    );
+  }
+
+  return {
+    source: "sdk",
+    ...prepared,
+    recipient: request.recipient,
+    executionRequest: request,
+  };
+}
+
+export function isPreparedRouteExpired(route, now = Date.now(), minRemainingMs = 0) {
   const validUntil = Number(route?.tradeInfo?.validUntil);
-  return Number.isFinite(validUntil) && validUntil > 0 && now >= validUntil;
+  return (
+    Number.isFinite(validUntil) &&
+    validUntil > 0 &&
+    now + Math.max(0, minRemainingMs) >= validUntil
+  );
 }
 
 function collectErrorText(error) {
@@ -58,6 +102,25 @@ export function getSwapExecutionErrorMessage(error, { phase = "swap" } = {}) {
   }
 
   if (
+    error?.code === "QUOTE_EXPIRED" ||
+    errorText.includes("quote expired") ||
+    errorText.includes("quote is too close to expiry")
+  ) {
+    return "Quote expired. Refresh the quote and try again.";
+  }
+
+  if (
+    errorText.includes("connected wallet account changed") ||
+    errorText.includes("connected wallet network changed")
+  ) {
+    return "Wallet account or network changed. Review the swap and try again.";
+  }
+
+  if (errorText.includes("sdk route changed during preparation")) {
+    return "Route changed while preparing the swap. Refresh and review it before continuing.";
+  }
+
+  if (
     errorText.includes("insufficient amountout") ||
     errorText.includes("empsealrouter: insufficient output amount")
   ) {
@@ -79,9 +142,15 @@ export function getSwapExecutionErrorMessage(error, { phase = "swap" } = {}) {
   return "Swap failed. Check wallet status, quote freshness, and token approval, then retry.";
 }
 
-export async function submitPreparedSdkRoute({ route, signer }) {
+export async function submitPreparedSdkRoute({ route, signer, router, sender }) {
   if (route?.source !== "sdk" || !route.calldata) {
     throw new Error("SDK prepared calldata is unavailable");
+  }
+  if (route.routing === "split") {
+    if (!router?.validateSplitSwap || !sender) {
+      throw new Error("SDK split validation is unavailable");
+    }
+    await router.validateSplitSwap(route, sender);
   }
   const tx = await signer.sendTransaction({
     to: route.calldata.to,

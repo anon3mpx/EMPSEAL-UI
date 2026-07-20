@@ -59,6 +59,7 @@ import {
   getSwapExecutionErrorMessage,
   getPreparedApproval,
   isPreparedRouteExpired,
+  prepareExecutableSdkRoute,
   submitPreparedSdkRoute,
 } from "./swapPreparedExecution";
 
@@ -67,9 +68,33 @@ const NATIVE_ADDRESSES = new Set([
   "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
 ]);
 const EXPIRED_QUOTE_MESSAGE = "Quote expired. Refresh the quote and try again.";
+const MIN_EXECUTION_WINDOW_MS = 10_000;
 
 function isNativeAddress(addr) {
   return !!addr && NATIVE_ADDRESSES.has(addr.toLowerCase());
+}
+
+async function assertSignerContext({ signer, address, chainId }) {
+  const signerAddressPromise =
+    typeof signer?.getAddress === "function" && address
+      ? signer.getAddress()
+      : Promise.resolve(null);
+  const networkPromise =
+    typeof signer?.provider?.getNetwork === "function"
+      ? signer.provider.getNetwork()
+      : Promise.resolve(null);
+  const [signerAddress, network] = await Promise.all([
+    signerAddressPromise,
+    networkPromise,
+  ]);
+
+  if (signerAddress && signerAddress.toLowerCase() !== address.toLowerCase()) {
+    throw new Error("Connected wallet account changed. Review the swap and try again.");
+  }
+
+  if (network && Number(network.chainId) !== Number(chainId)) {
+    throw new Error("Connected wallet network changed. Switch back and try again.");
+  }
 }
 
 /**
@@ -225,7 +250,8 @@ export function useSwapExecution({
 
   // ─── Internal: SDK-driven swap submission ──────────────────────────────────
   //
-  // Sends the exact calldata produced by the SDK quote preparation step.
+  // Re-prepares from post-approval state, validates split calldata, then sends
+  // the exact SDK transaction request.
   const submitSwapViaSdk = async () => {
     if (!router) throw new Error("SDK router unavailable");
     if (!signer) throw new Error("No wallet signer connected");
@@ -239,7 +265,51 @@ export function useSwapExecution({
     ) {
       throw new Error("Prepared route recipient no longer matches the connected wallet");
     }
-    const hash = await submitPreparedSdkRoute({ route: preparedRoute, signer });
+    await assertSignerContext({ signer, address, chainId });
+    const executableRoute = await prepareExecutableSdkRoute({
+      route: preparedRoute,
+      router,
+      sender: address,
+    });
+    if (
+      isPreparedRouteExpired(
+        executableRoute,
+        Date.now(),
+        MIN_EXECUTION_WINDOW_MS,
+      )
+    ) {
+      const error = new Error("SDK quote is too close to expiry");
+      error.code = "QUOTE_EXPIRED";
+      throw error;
+    }
+
+    if (
+      selectedTokenA?.address &&
+      !isNativeAddress(selectedTokenA.address)
+    ) {
+      const amountInBigInt = convertToBigInt(
+        amountIn,
+        selectedTokenA.decimal,
+      );
+      const allowance = await checkPreparedAllowance({
+        route: executableRoute,
+        router,
+        token: selectedTokenA.address,
+        owner: address,
+        amount: amountInBigInt,
+      });
+      if (!allowance.approved) {
+        setNeedsApproval(true);
+        throw new Error("Token approval is required for the refreshed SDK route");
+      }
+    }
+
+    const hash = await submitPreparedSdkRoute({
+      route: executableRoute,
+      signer,
+      router,
+      sender: address,
+    });
     setSwapHash(hash);
     return hash;
   };

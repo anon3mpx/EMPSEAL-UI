@@ -102,10 +102,10 @@ export function defaultSettlementTicker(chainId: number): "USDC" | "USDT" {
 export type RailName =
   | "CCTP"
   | "CCTP Fast"
-  | "Axelar"
+  // | "Axelar"
   | "LayerZero"
-  | "Wormhole"
-  | "Via Labs"
+  // | "Wormhole"
+  // | "Via Labs"
   | "Gas.zip"
   | "THORChain"
   | "Chainflip"
@@ -188,22 +188,22 @@ export const RAILS: RailEntry[] = [
     supportsNativeL1: false,
     speciality: "Sub-minute USDC settlement",
   },
-  {
-    name: "Axelar",
-    mode: "A",
-    sources: [1, 42161, 8453, 10, 137, 56, 43114],
-    destinations: [1, 42161, 8453, 10, 137, 56, 43114],
-    etaSecondsBaseline: 240,
-    reliability: 99.1,
-    stuckThresholdMin: 15,
-    baseFeeUSD: 0.40,
-    supportsUSDC: true,
-    supportsUSDT: true,
-    nativeUSDC: false,
-    supportsOFT: false,
-    supportsNativeL1: false,
-    speciality: "Multi-asset, multi-chain",
-  },
+  // {
+  //   name: "Axelar",
+  //   mode: "A",
+  //   sources: [1, 42161, 8453, 10, 137, 56, 43114],
+  //   destinations: [1, 42161, 8453, 10, 137, 56, 43114],
+  //   etaSecondsBaseline: 240,
+  //   reliability: 99.1,
+  //   stuckThresholdMin: 15,
+  //   baseFeeUSD: 0.40,
+  //   supportsUSDC: true,
+  //   supportsUSDT: true,
+  //   nativeUSDC: false,
+  //   supportsOFT: false,
+  //   supportsNativeL1: false,
+  //   speciality: "Multi-asset, multi-chain",
+  // },
   {
     name: "LayerZero",
     mode: "A",
@@ -220,23 +220,23 @@ export const RAILS: RailEntry[] = [
     supportsNativeL1: false,
     speciality: "OFT + value transfer",
   },
-  {
-    name: "Wormhole",
-    mode: "A",
-    sources: [1, 42161, 8453, 10, 137, 56, 43114, BACKEND_NON_EVM_CHAIN_IDS.SOL],
-    destinations: [1, 42161, 8453, 10, 137, 56, 43114, BACKEND_NON_EVM_CHAIN_IDS.SOL],
-    etaSecondsBaseline: 540,
-    reliability: 98.2,
-    stuckThresholdMin: 25,
-    baseFeeUSD: 0.85,
-    supportsUSDC: true,
-    supportsUSDT: false,
-    nativeUSDC: false,
-    supportsOFT: false,
-    supportsNativeL1: true, // SOL via attestation
-    speciality: "SOL ↔ EVM attestation",
-  },
-  {
+  // {
+  //   name: "Wormhole",
+  //   mode: "A",
+  //   sources: [1, 42161, 8453, 10, 137, 56, 43114, BACKEND_NON_EVM_CHAIN_IDS.SOL],
+  //   destinations: [1, 42161, 8453, 10, 137, 56, 43114, BACKEND_NON_EVM_CHAIN_IDS.SOL],
+  //   etaSecondsBaseline: 540,
+  //   reliability: 98.2,
+  //   stuckThresholdMin: 25,
+  //   baseFeeUSD: 0.85,
+  //   supportsUSDC: true,
+  //   supportsUSDT: false,
+  //   nativeUSDC: false,
+  //   supportsOFT: false,
+  //   supportsNativeL1: true, // SOL via attestation
+  //   speciality: "SOL ↔ EVM attestation",
+  // },
+  // {
     // Via Labs new architecture per developer.vialabs.tech (post-rebuild):
     //   • Contract: VIAMintBurnTokenMinimal inherits ViaIntegrationV1
     //   • Call:     bridge(recipientBytes32, DEST_CHAIN_ID, AMOUNT) + 0.001 ETH msg fee
@@ -249,21 +249,21 @@ export const RAILS: RailEntry[] = [
     //
     // Gateway addresses pending publication per chain.  Mark as Mode A
     // (Solidity-escrow path with EmpX-side custody) until live deploy.
-    name: "Via Labs",
-    mode: "A",
-    sources:      [369, 8453, 1, 42161, 10, 137, 43114, 56, 146, 25],
-    destinations: [369, 8453, 1, 42161, 10, 137, 43114, 56, 146, 25],
-    etaSecondsBaseline: 180,
-    reliability: 98.6,
-    stuckThresholdMin: 10,
-    baseFeeUSD: 0.48,
-    supportsUSDC: true,
-    supportsUSDT: true,
-    nativeUSDC: false,
-    supportsOFT: false,
-    supportsNativeL1: false,
-    speciality: "PulseChain ↔ EVM (WETH / USDC / WPLS)",
-  },
+  //   name: "Via Labs",
+  //   mode: "A",
+  //   sources:      [369, 8453, 1, 42161, 10, 137, 43114, 56, 146, 25],
+  //   destinations: [369, 8453, 1, 42161, 10, 137, 43114, 56, 146, 25],
+  //   etaSecondsBaseline: 180,
+  //   reliability: 98.6,
+  //   stuckThresholdMin: 10,
+  //   baseFeeUSD: 0.48,
+  //   supportsUSDC: true,
+  //   supportsUSDT: true,
+  //   nativeUSDC: false,
+  //   supportsOFT: false,
+  //   supportsNativeL1: false,
+  //   speciality: "PulseChain ↔ EVM (WETH / USDC / WPLS)",
+  // },
   {
     name: "Gas.zip",
     mode: "A",

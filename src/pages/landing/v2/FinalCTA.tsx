@@ -4,10 +4,10 @@ import MagneticButton from "./MagneticButton";
 import { BrandMark, SocialTray, type SocialLink } from "../../../design-system/components";
 
 const LANDING_SOCIALS: SocialLink[] = [
-  { kind: "x",        href: "https://x.com/empx_network",      label: "Follow on X" },
-  { kind: "telegram", href: "https://t.me/empx_network",        label: "Join Telegram" },
-  { kind: "docs",     href: "https://docs.empx.network",        label: "Read the docs" },
-  { kind: "github",   href: "https://github.com/empx-network",  label: "Source on GitHub" },
+  { kind: "x",        href: "https://x.com/EmpXio",      label: "Follow on X" },
+  { kind: "telegram", href: "https://t.me/EmpXEmpseal",        label: "Join Telegram" },
+  { kind: "docs",     href: "https://docs.empx.io",        label: "Read the docs" },
+  { kind: "github",   href: "https://github.com/3mperorsSeal", label: "Source on GitHub" },
 ];
 
 export default function FinalCTA() {

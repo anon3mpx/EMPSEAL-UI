@@ -62,17 +62,23 @@ function flushCache(): void {
   try { window.localStorage.setItem(STORAGE_KEY, JSON.stringify(_cache)); } catch { /* noop */ }
 }
 
-function cacheKey(chainId: number, ticker: string): string {
-  return `${chainId}:${ticker.toUpperCase()}`;
+function cacheKey(chainId: number, ticker: string, tokenAddress?: string): string {
+  return tokenAddress
+    ? `${chainId}:${tokenAddress.toLowerCase()}`
+    : `${chainId}:${ticker.toUpperCase()}`;
 }
 
 /**
  * Synchronous read from cache.  Returns null when the price isn't cached
  * yet — caller should kick off an async fetch with getTokenPrice().
  */
-export function getCachedPrice(chainId: number, ticker: string): number | null {
+export function getCachedPrice(
+  chainId: number,
+  ticker: string,
+  tokenAddress?: string,
+): number | null {
   const c = loadCache();
-  return c[cacheKey(chainId, ticker)]?.price ?? null;
+  return c[cacheKey(chainId, ticker, tokenAddress)]?.price ?? null;
 }
 
 /**
@@ -80,18 +86,22 @@ export function getCachedPrice(chainId: number, ticker: string): number | null {
  * Caches the result with a 5-min TTL.  Concurrent calls for the same
  * key coalesce into one HTTP request.
  */
-export async function getTokenPrice(chainId: number, ticker: string): Promise<number | null> {
-  const key = cacheKey(chainId, ticker);
+export async function getTokenPrice(
+  chainId: number,
+  ticker: string,
+  tokenAddress?: string,
+): Promise<number | null> {
+  const key = cacheKey(chainId, ticker, tokenAddress);
 
   // Cache hit
-  const cached = getCachedPrice(chainId, ticker);
+  const cached = getCachedPrice(chainId, ticker, tokenAddress);
   if (cached != null) return cached;
 
   // In-flight dedupe
   if (_inflight.has(key)) return _inflight.get(key)!;
 
   const slug = LLAMA_CHAIN_SLUGS[chainId];
-  const addr = getTokenAddress(chainId, ticker);
+  const addr = tokenAddress || getTokenAddress(chainId, ticker);
   if (!slug || !addr) return null;
 
   const p = (async () => {
@@ -166,20 +176,26 @@ export async function getTokenPrices(
  * the cached value synchronously when available, then refreshes async.
  * Returns null when the (chain, token) isn't covered by DefiLlama yet.
  */
-export function useTokenPrice(chainId: number | undefined, ticker: string | undefined): number | null {
-  const initial = chainId != null && ticker ? getCachedPrice(chainId, ticker) : null;
+export function useTokenPrice(
+  chainId: number | undefined,
+  ticker: string | undefined,
+  tokenAddress?: string,
+): number | null {
+  const initial = chainId != null && ticker
+    ? getCachedPrice(chainId, ticker, tokenAddress)
+    : null;
   const [price, setPrice] = useState<number | null>(initial);
 
   useEffect(() => {
     if (chainId == null || !ticker) { setPrice(null); return; }
     // Re-sync with cache on identity change
-    setPrice(getCachedPrice(chainId, ticker));
+    setPrice(getCachedPrice(chainId, ticker, tokenAddress));
     let cancelled = false;
-    getTokenPrice(chainId, ticker).then((p) => {
+    getTokenPrice(chainId, ticker, tokenAddress).then((p) => {
       if (!cancelled && p != null) setPrice(p);
     });
     return () => { cancelled = true; };
-  }, [chainId, ticker]);
+  }, [chainId, ticker, tokenAddress]);
 
   return price;
 }

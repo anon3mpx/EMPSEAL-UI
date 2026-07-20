@@ -18,9 +18,10 @@ import { useTokenPrice as useDefiLlamaPrice } from "../data/priceService";
 export function useUnifiedPrice(
   chainId: number | undefined,
   ticker: string | undefined,
+  tokenAddress?: string,
 ): number | null {
   // Tier 1: DefiLlama (covers 7 of 14 chains)
-  const defiLlamaPrice = useDefiLlamaPrice(chainId, ticker);
+  const defiLlamaPrice = useDefiLlamaPrice(chainId, ticker, tokenAddress);
 
   // TODO Tier 2: SDK router.getTokenPriceUSD() when available
   // TODO Tier 3: GeckoTerminal / DexScreener from src/lib/api/

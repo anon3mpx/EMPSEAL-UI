@@ -1,7 +1,8 @@
 // ─── useEmpxRouter ───────────────────────────────────────────────────────────
 //
-// Root SDK seam for the swap surfaces. Returns a memoised EmpxRouter instance
-// (from the published empx-swap-sdk package) for the current chain and signer.
+// Root SDK seam for the swap surfaces. Returns a memoised read-only EmpxRouter
+// instance (from the published empx-swap-sdk package) for the current chain,
+// plus the wallet signer used only for transaction submission.
 //
 // The SDK prepares auto split/single routes and their exact calldata. Wagmi
 // remains the reactive wallet/read layer and powers the local quote fallback.
@@ -15,13 +16,12 @@
 //     Both unset → no affiliate; address set but bps unset → defaults to 2000.
 //
 // Lifecycle:
-//   • Disconnected (no signer): router runs in read-only mode against the
-//     chain's default RPC.  Read methods (findBestPath, getTokenPriceUSD,
-//     checkAllowance) work; write methods (approve, swap) fail.
-//   • Connected: router uses the wagmi-derived ethers Signer; full read
-//     + write surface available.
+//   • Router: always runs in read-only mode against the chain's default RPC.
+//     This keeps SDK calls inside the SDK's ethers instance.
+//   • Connected: the wagmi-derived ethers Signer is returned separately for
+//     approval and swap transaction submission.
 //   • Chain switch: router re-created (memo dep on chainId).
-//   • Account switch: router re-created (memo dep on address + signer ref).
+//   • Account switch: signer changes, but the read router stays stable.
 //
 // Returns:
 //   {
@@ -69,11 +69,13 @@ export function useEmpxRouter(options = {}) {
         pairTypeFees: {},
         ...(AFFILIATE_CONFIG ? { affiliate: AFFILIATE_CONFIG } : {}),
       };
-      // Pass signer when available, otherwise SDK creates a read-only router
-      // against the chain's default RPC.
+      // Never pass the app's ethers signer into the SDK. The app and the SDK
+      // can resolve different ethers copies, which makes the SDK's
+      // `instanceof AbstractSigner` provider detection fail. The signer is
+      // returned separately and only used to submit prepared calldata.
       return createRouter(
         chainId,
-        signer ?? undefined,
+        undefined,
         routerConfig,
       );
     } catch (err) {
@@ -82,7 +84,7 @@ export function useEmpxRouter(options = {}) {
       console.warn("[useEmpxRouter] failed to create router for chain", chainId, err);
       return null;
     }
-  }, [chainId, signer]);
+  }, [chainId]);
 
   return {
     router,

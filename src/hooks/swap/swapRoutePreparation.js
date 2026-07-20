@@ -19,32 +19,41 @@ const uniqueFallbackSteps = (maxSteps, fallbackPlan) =>
     .map(Number)
     .filter((step, index, steps) => steps.indexOf(step) === index);
 
+async function prepareSdkPreview(input, options) {
+  if (!input.router?.quoteSplitSwap) {
+    throw new Error("SDK split route preview is unavailable");
+  }
+  const sdkResult = await input.router.quoteSplitSwap(
+    input.amountIn,
+    input.tokenIn,
+    input.tokenOut,
+    input.recipient,
+    options,
+  );
+  return {
+    source: "sdk",
+    routing: sdkResult.routing,
+    sdkResult,
+    executionRequest: {
+      amountIn: input.amountIn,
+      tokenIn: input.tokenIn,
+      tokenOut: input.tokenOut,
+      recipient: input.recipient,
+      options,
+    },
+  };
+}
+
 export async function prepareSwapRoute(input) {
   let sdkError;
 
   try {
-    if (!input.router?.splitSwap) {
-      throw new Error("SDK split route preparation is unavailable");
-    }
-    const sdkResult = await input.router.splitSwap(
-      input.amountIn,
-      input.tokenIn,
-      input.tokenOut,
-      input.recipient,
-      {
-        routing: "auto",
-        maxSteps: input.maxSteps,
-        slippageBps: input.slippageBps,
-        maxSplits: 3,
-        minSavingsBps: 10,
-        feeContext: { pairType: input.pairType },
-      },
-    );
-    return {
-      source: "sdk",
-      routing: sdkResult.routing,
-      sdkResult,
-    };
+    return await prepareSdkPreview(input, {
+      routing: "single",
+      maxSteps: input.maxSteps,
+      slippageBps: input.slippageBps,
+      feeContext: { pairType: input.pairType },
+    });
   } catch (error) {
     sdkError = error;
   }
@@ -75,4 +84,16 @@ export async function prepareSwapRoute(input) {
   }
 
   throw new SwapRoutePreparationError(sdkError, localError);
+}
+
+export function prepareSplitSwapRoute(input) {
+  return prepareSdkPreview(input, {
+    routing: "auto",
+    maxSteps: input.maxSteps,
+    slippageBps: input.slippageBps,
+    maxSplits: 2,
+    minSavingsBps: 10,
+    splitSearchTimeoutMs: 3000,
+    feeContext: { pairType: input.pairType },
+  });
 }

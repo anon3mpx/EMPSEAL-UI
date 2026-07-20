@@ -35,10 +35,10 @@ const COLUMNS: Column[] = [
     items: [
       { name: "CCTP",            meta: "Native USDC · ~15 min finality" },
       { name: "CCTP Fast",       meta: "JIT USDC · < 1 min",       tag: "JIT" },
-      { name: "Axelar",          meta: "Multi-asset · 2 – 8 min" },
+      // { name: "Axelar",          meta: "Multi-asset · 2 – 8 min" },
       { name: "LayerZero",       meta: "OFT + messaging · 1 – 5 min" },
-      { name: "Wormhole",        meta: "SOL ↔ EVM · 5 – 15 min" },
-      { name: "Via Labs",        meta: "Validator messaging · 1 – 5 min" },
+      // { name: "Wormhole",        meta: "SOL ↔ EVM · 5 – 15 min" },
+      // { name: "Via Labs",        meta: "Validator messaging · 1 – 5 min" },
       { name: "Gas.zip",         meta: "Destination gas · 30s – 2 min" },
       { name: "THORChain",       meta: "Native BTC / DOGE / LTC", tag: "BTC" },
       { name: "Chainflip",       meta: "JIT · BTC + SOL",         tag: "JIT" },

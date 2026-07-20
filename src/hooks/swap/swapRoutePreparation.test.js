@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import { prepareSwapRoute } from "./swapRoutePreparation";
+import {
+  prepareSplitSwapRoute,
+  prepareSwapRoute,
+} from "./swapRoutePreparation";
 
 const baseInput = {
   chainId: 42161,
@@ -13,21 +16,69 @@ const baseInput = {
 };
 
 describe("prepareSwapRoute", () => {
-  it("returns an SDK split route without calling local quote", async () => {
-    const splitSwap = vi.fn().mockResolvedValue({
-      routing: "split",
-      splits: [{ shareBps: 6_000 }, { shareBps: 4_000 }],
+  it("returns a fast SDK single preview before split discovery", async () => {
+    const quoteSplitSwap = vi.fn().mockResolvedValue({
+      routing: "single",
     });
     const localQuote = vi.fn();
 
     const result = await prepareSwapRoute({
       ...baseInput,
-      router: { splitSwap },
+      router: { quoteSplitSwap },
       localQuote,
     });
 
-    expect(result).toMatchObject({ source: "sdk", routing: "split" });
-    expect(splitSwap).toHaveBeenCalledWith(
+    expect(result).toMatchObject({
+      source: "sdk",
+      routing: "single",
+      executionRequest: {
+        amountIn: baseInput.amountIn,
+        tokenIn: baseInput.tokenIn,
+        tokenOut: baseInput.tokenOut,
+        recipient: baseInput.recipient,
+      },
+    });
+    expect(quoteSplitSwap).toHaveBeenCalledWith(
+      baseInput.amountIn,
+      baseInput.tokenIn,
+      baseInput.tokenOut,
+      baseInput.recipient,
+      {
+        routing: "single",
+        maxSteps: 3,
+        slippageBps: 50,
+        feeContext: { pairType: "V/S" },
+      },
+    );
+    expect(localQuote).not.toHaveBeenCalled();
+  });
+
+  it("runs bounded auto split discovery as a separate preview", async () => {
+    const quoteSplitSwap = vi.fn().mockResolvedValue({
+      routing: "split",
+      splits: [{ shareBps: 6_000 }, { shareBps: 4_000 }],
+    });
+    const localQuote = vi.fn();
+
+    const result = await prepareSplitSwapRoute({
+      ...baseInput,
+      router: { quoteSplitSwap },
+      localQuote,
+    });
+
+    expect(result).toMatchObject({
+      source: "sdk",
+      routing: "split",
+      executionRequest: {
+        options: {
+          routing: "auto",
+          maxSplits: 2,
+          minSavingsBps: 1,
+          splitSearchTimeoutMs: 3_000,
+        },
+      },
+    });
+    expect(quoteSplitSwap).toHaveBeenCalledWith(
       baseInput.amountIn,
       baseInput.tokenIn,
       baseInput.tokenOut,
@@ -36,25 +87,12 @@ describe("prepareSwapRoute", () => {
         routing: "auto",
         maxSteps: 3,
         slippageBps: 50,
-        maxSplits: 3,
-        minSavingsBps: 10,
+        maxSplits: 2,
+        minSavingsBps: 1,
+        splitSearchTimeoutMs: 3_000,
         feeContext: { pairType: "V/S" },
       },
     );
-    expect(localQuote).not.toHaveBeenCalled();
-  });
-
-  it("returns an SDK single route without calling local quote", async () => {
-    const localQuote = vi.fn();
-    const result = await prepareSwapRoute({
-      ...baseInput,
-      router: {
-        splitSwap: vi.fn().mockResolvedValue({ routing: "single" }),
-      },
-      localQuote,
-    });
-
-    expect(result).toMatchObject({ source: "sdk", routing: "single" });
     expect(localQuote).not.toHaveBeenCalled();
   });
 
@@ -71,7 +109,7 @@ describe("prepareSwapRoute", () => {
 
     const result = await prepareSwapRoute({
       ...baseInput,
-      router: { splitSwap: vi.fn().mockRejectedValue(sdkError) },
+      router: { quoteSplitSwap: vi.fn().mockRejectedValue(sdkError) },
       localQuote,
       fallbackPlan: { enabled: true, secondStep: 2n, thirdStep: 1n },
     });
@@ -90,7 +128,7 @@ describe("prepareSwapRoute", () => {
     await prepareSwapRoute({
       ...baseInput,
       localTokenIn: "0x4444444444444444444444444444444444444444",
-      router: { splitSwap: vi.fn().mockRejectedValue(new Error("sdk")) },
+      router: { quoteSplitSwap: vi.fn().mockRejectedValue(new Error("sdk")) },
       localQuote,
     });
 
@@ -103,7 +141,7 @@ describe("prepareSwapRoute", () => {
     await expect(
       prepareSwapRoute({
         ...baseInput,
-        router: { splitSwap: vi.fn().mockRejectedValue(new Error("sdk")) },
+        router: { quoteSplitSwap: vi.fn().mockRejectedValue(new Error("sdk")) },
         localQuote: vi.fn().mockRejectedValue(new Error("local")),
       }),
     ).rejects.toMatchObject({ name: "SwapRoutePreparationError" });

@@ -277,6 +277,7 @@ export default function WidgetSwapPage() {
     data: quoteData,
     preparedRoute: rawPreparedRoute,
     quoteLoading,
+    splitQuoteLoading,
     quoteFallbackActive,
     quoteError,
     isDirectRoute,
@@ -297,13 +298,17 @@ export default function WidgetSwapPage() {
   const preparedRoute = useMemo(() => {
     if (!rawPreparedRoute || !fromToken || !toToken) return null;
     if (rawPreparedRoute.source === "sdk" && rawPreparedRoute.sdkResult) {
-      return normalizeSdkPreparedRoute({
+      const normalized = normalizeSdkPreparedRoute({
         prepared: rawPreparedRoute.sdkResult,
         selectedTokenA: fromToken,
         selectedTokenB: toToken,
         tokenOptions: tokensForChain,
         recipient: connectedAddress,
       });
+      return {
+        ...normalized,
+        executionRequest: rawPreparedRoute.executionRequest,
+      };
     }
 
     const tradeInfo = isDirectRoute
@@ -540,8 +545,14 @@ export default function WidgetSwapPage() {
             <WidgetStatusBadge tone={preparedRoute?.source === "local" ? "accent" : "neutral"}>
               {executionLabel}
             </WidgetStatusBadge>
-            <WidgetStatusBadge tone={quoteLoading ? "accent" : quoteFallbackActive ? "neutral" : "info"}>
-              {quoteLoading ? "Preparing auto route" : quoteFallbackActive ? "Local fallback" : "SDK quote"}
+            <WidgetStatusBadge tone={quoteLoading || splitQuoteLoading ? "accent" : quoteFallbackActive ? "neutral" : "info"}>
+              {quoteLoading
+                ? "Fetching single route"
+                : splitQuoteLoading
+                  ? "Optimizing split route"
+                  : quoteFallbackActive
+                    ? "Local fallback"
+                    : "SDK quote"}
             </WidgetStatusBadge>
           </div>
         </header>
