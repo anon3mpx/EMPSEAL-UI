@@ -33,6 +33,24 @@ interface CoinGeckoCoin {
 let lastRequestTime = 0;
 const MIN_REQUEST_INTERVAL = 1500; // 1.5s between requests for free tier
 
+export function appendCoinGeckoAuthHeaders(
+  headers: Headers,
+  env?: Record<string, string | undefined>,
+): Headers {
+  const nextHeaders = new Headers(headers);
+  if (env?.VITE_ENABLE_BROWSER_API_KEYS !== "true") {
+    return nextHeaders;
+  }
+
+  const proKey = env?.VITE_COINGECKO_PRO_API_KEY;
+  const demoKey = env?.VITE_COINGECKO_API_KEY || env?.VITE_COINGECKO_DEMO_API_KEY;
+
+  if (proKey) nextHeaders.set("x-cg-pro-api-key", proKey);
+  else if (demoKey) nextHeaders.set("x-cg-demo-api-key", demoKey);
+
+  return nextHeaders;
+}
+
 async function rateLimitedFetch(url: string, options?: RequestInit): Promise<Response> {
   const now = Date.now();
   const timeSinceLastRequest = now - lastRequestTime;
@@ -47,13 +65,7 @@ async function rateLimitedFetch(url: string, options?: RequestInit): Promise<Res
 
   const headers = new Headers(options?.headers);
   const env = (import.meta as unknown as { env?: Record<string, string | undefined> }).env;
-  const proKey = env?.VITE_COINGECKO_PRO_API_KEY;
-  const demoKey = env?.VITE_COINGECKO_API_KEY || env?.VITE_COINGECKO_DEMO_API_KEY;
-
-  if (proKey) headers.set("x-cg-pro-api-key", proKey);
-  else if (demoKey) headers.set("x-cg-demo-api-key", demoKey);
-
-  return fetch(url, { ...options, headers });
+  return fetch(url, { ...options, headers: appendCoinGeckoAuthHeaders(headers, env) });
 }
 
 export async function getTokenPrices(coinIds: string[]): Promise<Record<string, number>> {

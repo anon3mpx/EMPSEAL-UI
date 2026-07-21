@@ -3,6 +3,7 @@ import Routing from "./Routing";
 
 import { useSearchParams } from "react-router-dom";
 import Ar from "../../assets/images/reverse.svg";
+import Logo from "../../assets/images/empx-new.svg";
 import Amount from "./Amount";
 import Token from "./Token";
 import { formatEther, formatUnits } from "viem";
@@ -2063,9 +2064,10 @@ const Emp = ({
                           href="/"
                           target="_blank"
                           rel="noreferrer"
-                          className="hover:text-white/30 transition-colors"
+                          className="inline-flex items-center gap-2 hover:text-white/30 transition-colors"
                         >
-                          POWERED BY EMPX
+                          <span>POWERED BY</span>
+                          <img src={Logo} alt="EmpX" className="h-[9px] w-auto object-contain opacity-70" />
                         </a>{" "}
                         · 100+ DEXS · ZERO FEES
                       </p>

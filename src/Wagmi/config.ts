@@ -179,4 +179,4 @@ export const config = getDefaultConfig({
   },
   ssr: true,
   connectors: swapConnectors,
-});
+} as any);
