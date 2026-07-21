@@ -17,23 +17,6 @@
     "usdPriceChangePercentage7d": 2.35739861183821
   },
   {
-    "address": "0x3894085ef7ff0f0aedf52e2a2704928d1ec074f1",
-    "name": "USDC.n",
-    "ticker": "USDC.n",
-    "blockchainNetwork": "SEI",
-    "network": "SEI",
-    "whitelisted": true,
-    "decimal": 6,
-    "image": "http://api-assets.rubic.exchange/assets/coingecko/sei/0x3894085ef7ff0f0aedf52e2a2704928d1ec074f1/logo.png",
-    "rank": 8,
-    "source_rank": 99999,
-    "type": "STABLE",
-    "usdPrice": 1.003,
-    "token_security": null,
-    "usdPriceChangePercentage24h": 0.40844053113161,
-    "usdPriceChangePercentage7d": 0.20954299265317
-  },
-  {
     "address": "0xe15fc38f6d8c56af07bbcbe3baf5708a2bf42392",
     "name": "USDC",
     "ticker": "USDC",

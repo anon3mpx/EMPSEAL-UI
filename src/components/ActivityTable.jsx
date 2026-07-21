@@ -31,7 +31,7 @@ const ActivityTable = ({ activities }) => {
   const sortedActivities = sortActivities(activities);
 
   return (
-    <div className="border_gradient rounded-lg p-4 mx-auto text-white mt-8">
+    <div className="border_gradient  p-4 mx-auto text-white mt-8">
       <div className="flex justify-between items-center pb-2 relative z-10 roboto">
         <h2 className="text-lg font-semibold">Activity</h2>
         <div className="flex space-x-4">

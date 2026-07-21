@@ -55,12 +55,12 @@ const Wallet = ({ onTabChange }) => {
 
   return (
     <>
-      <div className="flex justify-center lg:gap-2 gap-2 wallet_bg md:z-10 z-10 md:mt-0 mt-0 absolute wallet-bg-bridge lefts1">
+      <div className="hidden justify-center lg:gap-2 gap-2 wallet_bg md:z-10 z-10 md:mt-0 mt-0 absolute wallet-bg-bridge lefts1">
         <WalletConnect
           icon={<img src={WalletImg} alt="Wallet Icon" />}
           onChainChange={handleChainChange}
         />
-        {/* https://empx.io/dapp */}
+        {/* //dapp */}
         <DotsMenu onTabChange={onTabChange} />
       </div>
     </>

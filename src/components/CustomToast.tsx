@@ -20,8 +20,8 @@ const toastStyles = {
     glowColor: "rgba(250, 106, 29, 0.3)",
   },
   warning: {
-    borderColor: "#FF9900",
-    iconColor: "#FF9900",
+    borderColor: "#FF8A00",
+    iconColor: "#FF8A00",
     glowColor: "rgba(255, 153, 0, 0.3)",
   },
   info: {
@@ -31,7 +31,7 @@ const toastStyles = {
   },
   default: {
     borderColor: "#ffa600",
-    iconColor: "#FF9900",
+    iconColor: "#FF8A00",
     glowColor: "rgba(255, 153, 0, 0.3)",
   },
 };
@@ -69,7 +69,7 @@ const CustomToast = ({ closeToast, toastProps, data }: CustomToastProps) => {
 
   return (
     <div
-      className={`relative min-w-[320px] max-w-[400px] bg-black rounded-2xl p-4 font-orbitron transition-all duration-200 ${
+      className={`relative min-w-[320px] max-w-[400px] bg-black rounded-2xl p-4  transition-all duration-200 ${
         isClosing ? "opacity-0 translate-x-4" : "opacity-100 translate-x-0"
       }`}
       style={{
@@ -80,10 +80,10 @@ const CustomToast = ({ closeToast, toastProps, data }: CustomToastProps) => {
       {/* Close Button */}
       <button
         onClick={handleClose}
-        className="absolute top-2 right-2 p-1 rounded-lg transition-all duration-200 hover:bg-white/10 group"
+        className="absolute top-2 right-2 p-1  transition-all duration-200 hover:bg-white/10 group"
         aria-label="Close notification"
       >
-        <X className="w-4 h-4 text-white/70 group-hover:text-[#FF9900] transition-colors" />
+        <X className="w-4 h-4 text-white/70 group-hover:text-[#FF8A00] transition-colors" />
       </button>
 
       {/* Content */}

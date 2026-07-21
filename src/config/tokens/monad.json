@@ -104,7 +104,6 @@
     "name": "aPriori",
     "ticker": "APR",
     "blockchainNetwork": "MONAD",
-    "featured": true,
     "network": "MONAD",
     "decimal": 18,
     "image": "http://api-assets.rubic.exchange/assets/coingecko/monad/0x0a332311633c0625f63cfc51ee33fc49826e0a3c/logo.png",
@@ -728,6 +727,16 @@
     "token_security": null,
     "usdPriceChangePercentage24h": -1.96468049498392,
     "usdPriceChangePercentage7d": 1.99054550609458
+  },
+  {
+    "address": "0x080Ec98FB587892c76d55eeabF3D52f0d7EAFE74",
+    "name": "Content Reward Token",
+    "ticker": "SAVVA.M",
+    "blockchainNetwork": "MONAD",
+    "network": "MONAD",
+    "decimal": 18,
+    "image": "http://api-assets.rubic.exchange/assets/coingecko/monad/0x080ec98fb587892c76d55eeabf3d52f0d7eafe74/logo.png",
+    "featured": true
   },
   {
     "address": "0x9c82eb49b51f7dc61e22ff347931ca32adc6cd90",

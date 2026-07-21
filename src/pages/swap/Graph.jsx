@@ -98,14 +98,14 @@ const ManualChart = ({
                 color: "rgba(255, 153, 0, 0.5)",
                 style: LineStyle.Solid,
                 labelVisible: true,
-                labelBackgroundColor: "#FF9900",
+                labelBackgroundColor: "#FF8A00",
               },
               horzLine: {
                 width: 1,
                 color: "rgba(255, 153, 0, 0.5)",
                 style: LineStyle.Solid,
                 labelVisible: true,
-                labelBackgroundColor: "#FF9900",
+                labelBackgroundColor: "#FF8A00",
               },
             },
             timeScale: {
@@ -196,7 +196,7 @@ const ManualChart = ({
             priceLineColor: "rgba(0, 255, 0, 0.5)",
             priceLineStyle: LineStyle.Dotted,
             baseLineVisible: true,
-            baseLineColor: "#FF9900",
+            baseLineColor: "#FF8A00",
             baseLineWidth: 1,
             baseLineStyle: LineStyle.Solid,
             priceFormat: {
@@ -259,7 +259,7 @@ export const Graph = ({ padding }) => {
   if (!path || path.length < 2) {
     return (
       <div
-        className={`border-[2px] border-[#FF9900] rounded-xl pt-4 bg-black ${padding}`}
+        className={`border-[2px] border-[#FF8A00]  pt-4 bg-black ${padding}`}
       >
         <div className="text-white roboto text-center">Select tokens to see chart</div>
       </div>
@@ -278,13 +278,13 @@ export const Graph = ({ padding }) => {
 
   return (
     <div
-      className={`border-[2px] border-[#FF9900] rounded-xl pt-4 bg-black ${padding}`}
+      className={`border-[2px] border-[#FF8A00]  pt-4 bg-black ${padding}`}
     >
       {loading && (
         <div className="text-white roboto text-center">Loading...</div>
       )}
       {error && (
-        <div className="flex items-center justify-center py-4 text-red-500">
+        <div className="flex items-center justify-center py-4 text-white">
           <svg
             xmlns="http://www.w3.org/2000/svg"
             className="h-6 w-6 mr-2"

@@ -31,7 +31,7 @@ const CollectionDetail = () => {
             <div className="md:col-span-3 col-span-12  roboto relative z-10">
               <div className="text-white">
                 {/* Profile Image */}
-                <div className="w rounded-lg overflow-hidden">
+                <div className="w  overflow-hidden">
                   <img
                     src={Image}
                     alt="Profile"
@@ -44,7 +44,7 @@ const CollectionDetail = () => {
                     <h2 className="text-xs font-semibold">
                       {name.replace(/-/g, ' ')}
                     </h2>
-                    <span className="text-[#FF9900]">★</span>
+                    <span className="text-[#FF8A00]">★</span>
                   </div>
                   <div className="flex space-x-4 text-gray-400">
                     <a href="#">
@@ -66,31 +66,31 @@ const CollectionDetail = () => {
             {/* Stats Section */}
             <div className="md:col-span-9 col-span-12 relative z-10">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 roboto">
-                <div className="bg-[#222222] p-5 rounded-lg shadow-md text-xs text-center">
+                <div className="bg-[#222222] p-5  shadow-md text-xs text-center">
                   <h3 className="text-white">Floor Price</h3>
-                  <p className="text-[#FF9900] font-semibold mt-1">220</p>
+                  <p className="text-[#FF8A00] font-semibold mt-1">220</p>
                 </div>
-                <div className="bg-[#222222] p-5 rounded-lg shadow-md text-xs text-center">
+                <div className="bg-[#222222] p-5  shadow-md text-xs text-center">
                   <h3 className="text-white">Total Volume</h3>
-                  <p className="text-[#FF9900] font-semibold mt-1">
+                  <p className="text-[#FF8A00] font-semibold mt-1">
                     6,256,460.45
                   </p>
                 </div>
-                <div className="bg-[#222222] p-5 rounded-lg shadow-md text-xs text-center">
+                <div className="bg-[#222222] p-5  shadow-md text-xs text-center">
                   <h3 className="text-white">24hr Volume</h3>
-                  <p className="text-[#FF9900] font-semibold mt-1">810</p>
+                  <p className="text-[#FF8A00] font-semibold mt-1">810</p>
                 </div>
-                <div className="bg-[#222222] p-5 rounded-lg shadow-md text-xs text-center">
+                <div className="bg-[#222222] p-5  shadow-md text-xs text-center">
                   <h3 className="text-white">Item</h3>
-                  <p className="text-[#FF9900] font-semibold mt-1">$450</p>
+                  <p className="text-[#FF8A00] font-semibold mt-1">$450</p>
                 </div>
-                <div className="bg-[#222222] p-5 rounded-lg shadow-md text-xs text-center">
+                <div className="bg-[#222222] p-5  shadow-md text-xs text-center">
                   <h3 className="text-white">Listed</h3>
-                  <p className="text-[#FF9900]  font-semibold mt-1">165</p>
+                  <p className="text-[#FF8A00]  font-semibold mt-1">165</p>
                 </div>
-                <div className="bg-[#222222] p-5 rounded-lg shadow-md text-xs text-center">
+                <div className="bg-[#222222] p-5  shadow-md text-xs text-center">
                   <h3 className="text-white">Owners</h3>
-                  <p className="text-[#FF9900] font-semibold mt-1">3,240</p>
+                  <p className="text-[#FF8A00] font-semibold mt-1">3,240</p>
                 </div>
               </div>
             </div>

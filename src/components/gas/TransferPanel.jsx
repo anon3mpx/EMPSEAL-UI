@@ -1,12 +1,20 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useAccount, useBalance } from "wagmi";
 import { useGasBridgeStore } from "../../redux/store/gasBridgeStore";
 import { useGetCalldataQuote } from "../../hooks/useGasBridgeAPI";
 import { useGasBridgeTx } from "../../hooks/useGasBridgeTx";
 import { formatEther } from "viem";
 import { toast } from "../../utils/toastHelper";
-import ChainSelector from "../../components/gas/ChainSelector";
+import ChainSelector, { ChainLogo } from "../../components/gas/ChainSelector";
 import UpDownAr from "../../assets/images/reverse.svg";
+import TransactionHistory from "./TransactionHistory";
+import { useGetChains } from "../../hooks/useGasBridgeAPI";
+import {
+  filterDisplayGasChains,
+  formatBridgeFee,
+  formatGasChainPrice,
+  GAS_CHAIN_PAGE_SIZE,
+} from "./gasPriceHelpers";
 
 // Chain ID to network symbol mapping for GeckoTerminal API
 const CHAIN_SYMBOLS = {
@@ -60,7 +68,7 @@ const useDebounce = (value, delay) => {
   return debouncedValue;
 };
 
-const TransferPanel = ({ setIsChainModalOpen }) => {
+const TransferPanel = () => {
   const { address: connectedAddress } = useAccount();
   const {
     fromChainId,
@@ -69,6 +77,7 @@ const TransferPanel = ({ setIsChainModalOpen }) => {
     recipientAddress,
     setAmount,
     setRecipientAddress,
+    setToChain,
   } = useGasBridgeStore();
 
   const { data: balanceData, isLoading: isBalanceLoading } = useBalance({
@@ -100,6 +109,8 @@ const TransferPanel = ({ setIsChainModalOpen }) => {
   // console.log("Calldata quote data: ", quoteData);
 
   const { executeBridge, isSending, isConfirming } = useGasBridgeTx();
+
+  const { data: chains = [], isLoading: chainsLoading } = useGetChains();
 
   const handleBridgeClick = () => {
     const txDetails = quoteData?.contractDepositTxn; // Get the transaction details object
@@ -137,6 +148,7 @@ const TransferPanel = ({ setIsChainModalOpen }) => {
     const expectedAmountInEth = formatEther(BigInt(expectedAmountInWei));
     formattedExpectedAmount = parseFloat(expectedAmountInEth).toFixed(6);
   }
+  const bridgeFeeLabel = formatBridgeFee(quoteData?.quotes?.[0]);
   const switchRef = useRef(null);
 
   const [selectedPercentage, setSelectedPercentage] = useState(null);
@@ -149,6 +161,7 @@ const TransferPanel = ({ setIsChainModalOpen }) => {
   const [toUsdValue, setToUsdValue] = useState("0.00");
   const [isFromPriceLoading, setIsFromPriceLoading] = useState(false);
   const [isToPriceLoading, setIsToPriceLoading] = useState(false);
+  const [isChainModalOpen, setIsChainModalOpen] = useState(false);
 
   const truncateToSixDecimals = (value) => {
     if (!value) return "";
@@ -256,20 +269,26 @@ const TransferPanel = ({ setIsChainModalOpen }) => {
             fetchSuccess = true;
           }
         } catch (error) {
-          console.warn("GeckoTerminal failed, falling back to DexScreener:", error);
+          console.warn(
+            "GeckoTerminal failed, falling back to DexScreener:",
+            error,
+          );
         }
 
         if (!fetchSuccess) {
           try {
             const response = await fetch(
-              `https://api.dexscreener.com/latest/dex/tokens/${wrappedTokenAddress}`
+              `https://api.dexscreener.com/latest/dex/tokens/${wrappedTokenAddress}`,
             );
             if (!response.ok) throw new Error("DexScreener API failed");
             const data = await response.json();
             if (data.pairs && data.pairs.length > 0) {
-              const pair = data.pairs.find(
-                (p) => p.baseToken.address.toLowerCase() === wrappedTokenAddress.toLowerCase()
-              ) || data.pairs[0];
+              const pair =
+                data.pairs.find(
+                  (p) =>
+                    p.baseToken.address.toLowerCase() ===
+                    wrappedTokenAddress.toLowerCase(),
+                ) || data.pairs[0];
               if (pair && pair.priceUsd) {
                 price = pair.priceUsd;
                 fetchSuccess = true;
@@ -333,20 +352,26 @@ const TransferPanel = ({ setIsChainModalOpen }) => {
             fetchSuccess = true;
           }
         } catch (error) {
-          console.warn("GeckoTerminal failed, falling back to DexScreener:", error);
+          console.warn(
+            "GeckoTerminal failed, falling back to DexScreener:",
+            error,
+          );
         }
 
         if (!fetchSuccess) {
           try {
             const response = await fetch(
-              `https://api.dexscreener.com/latest/dex/tokens/${wrappedTokenAddress}`
+              `https://api.dexscreener.com/latest/dex/tokens/${wrappedTokenAddress}`,
             );
             if (!response.ok) throw new Error("DexScreener API failed");
             const data = await response.json();
             if (data.pairs && data.pairs.length > 0) {
-              const pair = data.pairs.find(
-                (p) => p.baseToken.address.toLowerCase() === wrappedTokenAddress.toLowerCase()
-              ) || data.pairs[0];
+              const pair =
+                data.pairs.find(
+                  (p) =>
+                    p.baseToken.address.toLowerCase() ===
+                    wrappedTokenAddress.toLowerCase(),
+                ) || data.pairs[0];
               if (pair && pair.priceUsd) {
                 price = pair.priceUsd;
                 fetchSuccess = true;
@@ -379,211 +404,219 @@ const TransferPanel = ({ setIsChainModalOpen }) => {
     fetchToChainPrice();
   }, [fromChainId, toChainId, amount, formattedExpectedAmount]);
 
+  // New
+  const scaledFs = (val, isMobile = false) => {
+    const digits = val?.replace(/[^0-9]/g, "").length || 0;
+    if (isMobile) {
+      if (digits >= 14) return "1.25rem";
+      if (digits >= 12) return "1.4rem";
+      if (digits >= 10) return "1.6rem";
+      if (digits >= 8) return "1.8rem";
+      return "2rem";
+    }
+    if (digits >= 16) return "1.4rem";
+    if (digits >= 14) return "1.6rem";
+    if (digits >= 12) return "2rem";
+    if (digits >= 11) return "2.4rem";
+    return "clamp(2.2rem, 5vw, 3rem)";
+  };
+  const [page, setPage] = useState(0);
+  const displayGasChains = useMemo(
+    () => filterDisplayGasChains(chains),
+    [chains],
+  );
+  const totalPages = Math.ceil(displayGasChains.length / GAS_CHAIN_PAGE_SIZE);
+  const safeTotalPages = Math.max(totalPages, 1);
+  const paginatedChains = displayGasChains.slice(
+    page * GAS_CHAIN_PAGE_SIZE,
+    (page + 1) * GAS_CHAIN_PAGE_SIZE,
+  );
+
+  useEffect(() => {
+    setPage((currentPage) => Math.min(currentPage, safeTotalPages - 1));
+  }, [safeTotalPages]);
+  //
   return (
     <>
-      <div className="w-full md:px-0 px-1">
-        <div className="lg:max-w-[650px] md:max-w-[650px] mx-auto w-full">
-          <div className="relative bg_swap_box_chain">
-            <div className="flex justify-between gap-3 items-center">
-              <h2 className="font-orbitron md:text-[15px] text-xs font-extrabold leading-normal text-[#FF9900]">
-                Gas Out
-              </h2>
-              <div className="md:text-xs text-[10px] font-orbitron">
-                <span className="font-normal leading-normal text-[#FF9900]">
-                  BAL
-                </span>
-                <span className="font-normal leading-normal text-[#FF9900]">
-                  {" "}
-                  :{" "}
-                </span>
-                <span className="text-white leading-normal">
-                  {isBalanceLoading ? (
-                    <span>Fetching balance...</span>
-                  ) : balanceData ? (
-                    <span>
-                      {parseFloat(balanceData.formatted).toFixed(6)}{" "}
-                      {/* {balanceData.symbol} */}
-                    </span>
-                  ) : null}
-                </span>
-              </div>
-            </div>
-            <div className="flex w-full mt-3 md:gap-5 gap-2 mt6">
-              <div className="lg:md:max-w-[210px] w-full relative">
-                <div className="relative">
-                  <div className="absolute left-0 top45 z-[9]">
-                    <ChainSelector
-                      setIsChainModalOpen={setIsChainModalOpen}
-                      onSwitch={(fn) => {
-                        switchRef.current = fn;
+      <div className="gas-header">
+        <p className="gas-header-title">LIVE GAS PRICES</p>
+        <div className="flex items-center gap-2">
+          <span className="gas-page-indicator">
+            {page + 1} / {safeTotalPages}
+          </span>
+          <button
+            className={`gas-nav-btn ${page === 0 ? "disabled" : ""}`}
+            onClick={() => setPage((p) => Math.max(p - 1, 0))}
+            disabled={page === 0}
+          >
+            <svg width={10} height={10} viewBox="0 0 24 24">
+              <path d="m15 18-6-6 6-6" />
+            </svg>
+          </button>
+          <button
+            className={`gas-nav-btn ${
+              page >= safeTotalPages - 1 ? "disabled" : ""
+            }`}
+            onClick={() => setPage((p) => Math.min(p + 1, safeTotalPages - 1))}
+            disabled={page >= safeTotalPages - 1}
+          >
+            <svg width={10} height={10} viewBox="0 0 24 24">
+              <path d="m9 18 6-6-6-6" />
+            </svg>
+          </button>
+        </div>
+      </div>
+      <div className="gas-chain-grid">
+        {chainsLoading ? (
+          <p className="text-white text-xs">Loading chains...</p>
+        ) : paginatedChains.length === 0 ? (
+          <p className="text-white text-xs">No gas data available.</p>
+        ) : (
+          paginatedChains.map((chain) => {
+            const gasPrice = formatGasChainPrice(chain);
+
+            return (
+              <button
+                key={chain.chain}
+                onClick={() => setToChain(chain.chain)}
+                className={`gas-chain-card ${
+                  toChainId === chain.chain ? "active" : ""
+                }`}
+              >
+                <div className="gas-chain-top">
+                  <div className="gas-chain-icon uppercase overflow-hidden">
+                    <ChainLogo
+                      chain={{
+                        ...chain,
+                        logoURI: chain.logo,
+                        shortName:
+                          chain.name
+                            ?.match(/^\w+/)?.[0]
+                            .toLowerCase()
+                            .replace(/[^a-z0-9]/g, "") ?? "",
                       }}
+                      className="w-4 h-4 object-cover rounded-full"
                     />
+                  </div>
+                  <div className="gas-chain-status" />
+                </div>
+                <p className="gas-chain-name">{chain.name}</p>
+                <p className="gas-chain-price">{gasPrice.transferCost}</p>
+                <p className="gas-chain-meta">
+                  avg transfer · {gasPrice.gasUnit}
+                </p>
+              </button>
+            );
+          })
+        )}
+      </div>
+      <div className="md:max-w-[480px] mx-auto w-full md:px-0 px-1">
+        {/*  */}
+        <div className="w-full">
+          <div className="relative bg-[#070710] border border-white/10 shadow-[0_40px_80px_rgba(0,0,0,0.7)]">
+            <div className="px-[20px] py-[18px] border-b border-white/5">
+              <h3 className="text-[13px] font-bold text-white tracking-[0.08em]">
+                SEND GAS
+              </h3>
+              <p className="text-[10px] text-white/20 mt-[2px] tracking-[0.04em]">
+                Bridge native gas to any chain
+              </p>
+            </div>
+            <div className="p-4">
+              <div className="flex justify-between gap-3 items-center">
+                <h2 className="you_pay_heading">SOURCE CHAIN</h2>
+                <div className="md:text-xs text-[10px] ">
+                  <span className="font-normal leading-normal text-[#FF8A00]">
+                    BAL
+                  </span>
+                  <span className="font-normal leading-normal text-[#FF8A00]">
+                    {" "}
+                    :{" "}
+                  </span>
+                  <span className="text-white leading-normal">
+                    {isBalanceLoading ? (
+                      <span>Fetching balance...</span>
+                    ) : balanceData ? (
+                      <span>
+                        {parseFloat(balanceData.formatted).toFixed(6)}{" "}
+                        {/* {balanceData.symbol} */}
+                      </span>
+                    ) : null}
+                  </span>
+                </div>
+              </div>
+              <div className="flex w-full justify-end mt-3 md:gap-5 gap-2">
+                <div className="lg:md:max-w-[210px] w-full relative">
+                  <div className="relative">
+                    <div className="absolute right-0 top45 z-[8]">
+                      <ChainSelector
+                        setIsChainModalOpen={setIsChainModalOpen}
+                        onSwitch={(fn) => {
+                          switchRef.current = fn;
+                        }}
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
-              <div className="w-full md:h-[53px] h-9">
-                {(() => {
-                  const formattedValue = formatNumber(amount?.toString() || "");
-                  const defaultFontSize =
-                    window.innerWidth >= 1024
-                      ? 28
-                      : window.innerWidth >= 768
-                        ? 24
-                        : 20;
-                  const FREE_DIGITS = window.innerWidth >= 768 ? 15 : 8;
-                  const SHRINK_RATE = 3;
-
-                  const outputLength = formattedValue.replace(/\D/g, "").length;
-
-                  const excessDigits = Math.max(0, outputLength - FREE_DIGITS);
-                  const dynamicFontSize = Math.max(
-                    10,
-                    defaultFontSize - excessDigits * SHRINK_RATE,
-                  );
-
-                  return (
-                    <>
-                      <input
-                        id="amount"
-                        type="number"
-                        value={amount}
-                        onChange={handleAmountChange}
-                        placeholder="0.1"
-                        className="font-orbitron font-extrabold text-white rounded-[10px] px-1 py-3 text-end w-full h-full outline-none border-none transition-all duration-200 ease-in-out bg-black space"
-                        style={{
-                          fontSize: `${dynamicFontSize}px`,
-                        }}
-                      />
-                    </>
-                  );
-                })()}
-                <div
-                  onClick={() => {
-                    if (!isBalanceLoading && balanceData) {
-                      setAmount(truncateToSixDecimals(balanceData.formatted));
-                      setSelectedPercentage(100);
-                    }
-                  }}
-                  className="relative flex-flex-col justify-end items-end w-full cursor-pointer mt-2"
-                >
-                  <p className="ml-auto py-1 border border-[#FFE7C3] flex justify-center items-center rounded-xl md:text-[10px] text-[8px] font-medium font-orbitron md:w-[100px] w-[80px] px-2 bg-[#FFE7C3] text-[#040404] hover:border-black hover:bg-[#FF9900] hover:text-black">
-                    Max Amount
-                  </p>
+              <div className="flex justify-between gap-2 items-center md:mt-10 mt-7">
+                <div className="you_pay_heading flex flex-col relative top-2">
+                  {isFromPriceLoading ? (
+                    <span className="animate-pulse">Loading...</span>
+                  ) : fromTokenPrice ? (
+                    `$${parseFloat(fromTokenPrice).toFixed(6)}`
+                  ) : (
+                    "--"
+                  )}
+                  <span className="mt-1">Market Price</span>
                 </div>
               </div>
-            </div>
-            <div className="flex justify-between gap-2 items-center md:mt-10 mt-7">
-              <div className="text-[#FF9900] font-orbitron md:text-[15px] text-xs flex flex-col relative top-2">
+              {/* USD Value Display */}
+              <div className="text-right text-white text-xs mt-2 ">
                 {isFromPriceLoading ? (
-                  <span className="animate-pulse">Loading...</span>
+                  <span className="animate-pulse">Fetching...</span>
                 ) : fromTokenPrice ? (
-                  `$${parseFloat(fromTokenPrice).toFixed(6)}`
+                  <span>${fromUsdValue}</span>
                 ) : (
-                  "--"
+                  <span>--</span>
                 )}
-                <span className="font-bold mt-1">Market Price</span>
               </div>
-              <div className="text-zinc-200 text-[10px] font-normal font-orbitron leading-normal flex md:gap-2 gap-1 justify-end">
-                {[25, 50, 75, 100].map((value) => (
-                  <button
-                    key={value}
-                    type="button"
-                    // disabled={isLoading}
-                    disabled={isBalanceLoading || !balance}
-                    onClick={() => handlePercentageChange(value)}
-                    className={`py-1 border border-[#EEC485] flex justify-center items-center rounded-xl md:text-[10px] text-[8px] font-medium font-orbitron md:w-12 w-11 px-2
-        ${selectedPercentage === value
-                        ? "!text-black !bg-[#FF9900] border-[#FF9900]"
-                        : "bg-[#EEC485] text-[#040404] border-black hover:border-black hover:bg-[#FF9900] hover:text-black"
-                      }`}
-                  >
-                    {value}%
-                  </button>
-                ))}
-              </div>
-            </div>
-            {/* USD Value Display */}
-            <div className="text-right text-white text-xs mt-2 font-orbitron">
-              {isFromPriceLoading ? (
-                <span className="animate-pulse">Fetching...</span>
-              ) : fromTokenPrice ? (
-                <span>${fromUsdValue}</span>
-              ) : (
-                <span>--</span>
-              )}
             </div>
           </div>
         </div>
         {/*  */}
-        <button
-          onClick={() => switchRef.current && switchRef.current()}
-          className="cursor-pointer mx-auto my-4 relative md:w-[50px] w-10 flex"
-        >
-          {/* mtb */}
-          {/* scales-b scales-top-2 */}
-          <img
-            src={UpDownAr}
-            alt="Ar"
-            className="hoverswap transition-all rounded-xl"
-          />
-        </button>
+        <div className="separator">
+          <div className="separator-inner">
+            <button
+              onClick={() => switchRef.current && switchRef.current()}
+              className="separator-btn"
+            >
+              <svg
+                width="11"
+                height="11"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+              >
+                <path d="M7 16V4m0 0L3 8m4-4 4 4M17 8v12m0 0 4-4m-4 4-4-4" />
+              </svg>
+            </button>
+          </div>
+        </div>
         {/*  */}
-        <div className="lg:max-w-[650px] md:max-w-[650px] mx-auto w-full">
-          <div className="relative bg_swap_box_chain">
+        <div className="w-full">
+          <div className="relative bg-[#070710] border border-white/10 shadow-[0_40px_80px_rgba(0,0,0,0.7)] p-4">
             <div className="flex justify-between gap-3 items-center">
-              <h2 className="font-orbitron md:text-[15px] text-xs font-extrabold leading-normal text-[#FF9900]">
-                Gas In
-              </h2>
+              <h2 className="you_pay_heading">DESTINATION CHAIN</h2>
             </div>
-            <div className="flex w-full mt-3 md:gap-5 gap-2 mt6">
+            <div className="flex w-full justify-end mt-3 md:gap-5 gap-2">
               <div className="lg:md:max-w-[210px] w-full relative">
                 <div className="relative">{/*  */}</div>
               </div>
-              <div className="w-full md:h-[53px] h-9">
-                {(() => {
-                  const value = formattedExpectedAmount || "";
-
-                  // const defaultFontSize = 48;
-                  const defaultFontSize =
-                    window.innerWidth >= 1024
-                      ? 28
-                      : window.innerWidth >= 768
-                        ? 24
-                        : 20;
-
-                  const FREE_DIGITS = window.innerWidth >= 768 ? 15 : 8;
-                  const SHRINK_RATE = 3;
-                  const outputLength = value.replace(/\D/g, "").length;
-
-                  const excessDigits = Math.max(0, outputLength - FREE_DIGITS);
-
-                  const dynamicFontSize = Math.max(
-                    10,
-                    defaultFontSize - excessDigits * SHRINK_RATE,
-                  );
-                  return (
-                    <div className="font-orbitron font-extrabold text-white rounded-[10px] px-1 py-3 text-end w-full h-full flex justify-end items-center outline-none border-none transition-all duration-200 ease-in-out space">
-                      <div
-                        className={`text-white`}
-                        style={{
-                          fontSize: `${dynamicFontSize}px`,
-                        }}
-                      >
-                        <div> {isQuoteLoading ? "Loading" : value}</div>
-                      </div>
-
-                      {quoteError && (
-                        <p className="text-[#FF9900] text-xs mt-2 absolute bottom-4 right-4">
-                          Could not fetch quote. Please check inputs.
-                        </p>
-                      )}
-                    </div>
-                  );
-                })()}
-              </div>
             </div>
             <div className="flex justify-between gap-2 items-center md:mt-3 mt-2">
-              <div className="text-[#FF9900] font-orbitron md:text-[15px] text-xs flex flex-col relative top-2">
+              <div className="you_pay_heading flex flex-col relative top-2">
                 {isToPriceLoading ? (
                   <span className="animate-pulse">Loading...</span>
                 ) : toTokenPrice ? (
@@ -591,29 +624,11 @@ const TransferPanel = ({ setIsChainModalOpen }) => {
                 ) : (
                   "--"
                 )}
-                <span className="font-bold mt-1">Market Price</span>
+                <span className="mt-1">Market Price</span>
               </div>
-              {/* <div className="text-zinc-200 text-[10px] font-normal font-orbitron leading-normal flex md:gap-2 gap-1 justify-end">
-                {[25, 50, 75, 100].map((value) => (
-                  <button
-                    key={value}
-                    type="button"
-                    // disabled={isLoading}
-                    disabled={isBalanceLoading || !balance}
-                    onClick={() => handlePercentageChange(value)}
-                    className={`py-1 border border-[#EEC485] flex justify-center items-center rounded-xl md:text-[10px] text-[8px] font-medium font-orbitron md:w-12 w-11 px-2
-        ${selectedPercentage === value
-                        ? "!text-black !bg-[#FF9900] border-[#FF9900]"
-                        : "bg-[#EEC485] text-[#040404] border-black hover:border-black hover:bg-[#FF9900] hover:text-black"
-                      }`}
-                  >
-                    {value}%
-                  </button>
-                ))}
-              </div> */}
             </div>
             {/* USD Value Display for expected amount */}
-            <div className="text-right text-white text-xs mt-2 font-orbitron">
+            <div className="text-right text-white text-xs mt-2 ">
               {isToPriceLoading ? (
                 <span className="animate-pulse">Fetching...</span>
               ) : toTokenPrice ? (
@@ -622,33 +637,159 @@ const TransferPanel = ({ setIsChainModalOpen }) => {
                 <span>--</span>
               )}
             </div>
+            {/*  */}
+            <p className="text-[9px] font-bold tracking-[0.2em] text-white/20 my-2">
+              AMOUNT (BASE)
+            </p>
+            <div className="w-full">
+              {(() => {
+                const rawAmount = amount?.replace(/,/g, "") || "0";
+                const isMobile = window.innerWidth < 768;
+
+                return (
+                  <input
+                    id="amount"
+                    type="number"
+                    value={amount}
+                    onChange={handleAmountChange}
+                    className="
+                    w-full 
+                    bg-white/[0.03] 
+                    border border-white/[0.07] 
+                    rounded-none 
+                    outline-none 
+                    text-white 
+                    placeholder:text-white/15 
+                    px-3 py-1
+                    font-light
+                    text-[clamp(1.2rem,4vw,1.8rem)]"
+                    style={{
+                      fontSize: scaledFs(rawAmount, isMobile),
+                    }}
+                  />
+                );
+              })()}
+            </div>
+            <div
+              className={`mt-4 grid md:grid-cols-4 grid-cols-2 md:gap-2 gap-2 relative ${isChainModalOpen ? "z-[5]" : "z-[10]"}`}
+            >
+              {[25, 50, 75, 100].map((value) => (
+                <button
+                  key={value}
+                  type="button"
+                  // disabled={isLoading}
+                  disabled={isBalanceLoading || !balance}
+                  onClick={() => handlePercentageChange(value)}
+                  className={`slippage-btn
+         ${
+           selectedPercentage === value
+             ? "!text-[#FF8A00]/80 !bg-white/[0.03] border border-white/[0.07] !"
+             : "text-[#FF8A00]/80 !bg-white/[0.03] hover:text-[#FF8A00]/80 hover:border-[#FF8A00]/80 hover:bg-[#FF8A00]/5"
+         }`}
+                >
+                  {value}%
+                </button>
+              ))}
+            </div>
+            <div className="mb-[14px] py-[10px] border-t border-white/[0.05]">
+              <div className="flex justify-between py-[4px] border-b border-white/[0.04]">
+                <div className="text-[10px] text-white/[0.22] whitespace-nowrap">
+                  DESTINATION CHAIN
+                </div>
+                <div className="text-[10px] font-semibold text-white/[0.55] w-full text-right">
+                  <div className="w-full text-right">
+                    {(() => {
+                      const value = formattedExpectedAmount || "";
+                      const isMobile = window.innerWidth < 768;
+                      const rawValue = value.toString().replace(/,/g, "");
+                      return (
+                        <input
+                          type="text"
+                          value={isQuoteLoading ? "Loading..." : value}
+                          readOnly
+                          className="bg-transparent text-right w-full outline-none !text-[10px] font-semibold text-white/[0.55] placeholder:text-white/10"
+                          style={{
+                            fontSize: scaledFs(rawValue, isMobile),
+                            fontWeight: 200,
+                            letterSpacing: "-0.04em",
+                            lineHeight: 1,
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                          }}
+                        />
+                      );
+                    })()}
+                  </div>
+                  {quoteError && (
+                    <p className="text-[10px] text-white/[0.22] text-normal uppercase mt-2 text-right">
+                      Could not fetch quote. Please check inputs.
+                    </p>
+                  )}
+                </div>
+              </div>
+              {bridgeFeeLabel ? (
+                <div className="flex justify-between py-[4px] border-b border-white/[0.04]">
+                  <span className="text-[10px] text-white/[0.22]">
+                    Bridge Fee
+                  </span>
+                  <span className="text-[10px] font-semibold text-white/[0.55]">
+                    {bridgeFeeLabel}
+                  </span>
+                </div>
+              ) : null}
+
+              {/* <div className="flex justify-between py-[4px] border-b border-white/[0.04]">
+                <span className="text-[10px] text-white/[0.22]">
+                  Estimated Time
+                </span>
+                <span className="text-[10px] font-semibold text-white/[0.55]">
+                  ~8 min
+                </span>
+              </div>
+
+              <div className="flex justify-between py-[4px] border-b border-white/[0.04]">
+                <span className="text-[10px] text-white/[0.22]">
+                  You Receive
+                </span>
+                <span className="text-[10px] font-semibold text-white/[0.55]">
+                  233.719200 ETH
+                </span>
+              </div> */}
+              <div className="flex justify-between py-[4px]">
+                <span className="text-[10px] text-white/[0.22]">Route</span>
+                <span className="text-[10px] font-semibold text-white/[0.55]">
+                  {chains.find((c) => c.chain === fromChainId)?.symbol} →
+                  {chains.find((c) => c.chain === toChainId)?.symbol}
+                </span>
+              </div>
+            </div>
           </div>
         </div>
-        <div className="lg:max-w-[650px] md:max-w-[650px] mx-auto w-full">
-          <div className="my-5 relative ">
-            <div className="relative w-full bg_swap_box_chain !py-7">
+        <div className="w-full">
+          <div className="relative">
+            <div className="relative w-full !border-t-0 bg_swap_box p-4 flex justify-between gap-2 items-center">
               <input
                 type="text"
                 id="recipient"
                 value={recipientAddress}
                 onChange={(e) => setRecipientAddress(e.target.value)}
                 placeholder="Recipient Address"
-                className="absolute inset-0 top-0 bottom-0 my-auto w-full h-full md:pl-4 pl-4 md:pr-20 pr-20 py-10 bg-transparent text-white font-orbitron md:text-base text-[8px] truncate outline-none"
+                className="bg-transparent w-full outline-none text-white placeholder:text-white/10 md:text-xs text-[10px]"
               />
               <button
-                className={`!absolute !bg-transparent md:w-[90px] w-16 md:h-10 h-10 hover:opacity-70 bg-black !border !border-[#FF9900] top-2 right-3 flex justify-center items-center rounded-xl px-2 font-orbitron !text-[#FF9900] md:text-base text-xs font-bold`}
-              // onClick={handleSelfButtonClick}
+                className={`slippage-btn md:!px-5 !px-3 uppercase !py-3 hover:!text-white hover:!bg-[#FF8A00]/5 hover:border-[#FF8A00]`}
+                // onClick={handleSelfButtonClick}
               >
                 Self
               </button>
             </div>
           </div>
-          <div className="md:px-1 px-1 md:pt-2">
+          <div className="bg-[#070710] border border-white/10 shadow-[0_40px_80px_rgba(0,0,0,0.7)] p-4 !border-t-0">
             <button
               onClick={handleBridgeClick}
               disabled={!quoteData || isSending || isConfirming}
               type="button"
-              className="gtw relative w-full md:h-12 h-11 bg-[#F59216] md:rounded-[10px] rounded-md mx-auto cursor-pointer button-trans text-center flex justify-center items-center transition-all font-orbitron lg:text-base text-base font-extrabold"
+              className="cursor-pointer gtw relative z-50 w-full uppercase md:h-12 h-11 bg-[#FF8A00] mx-auto font-bold button-trans h- flex justify-center items-center transition-all"
             >
               <span>
                 {" "}
@@ -661,6 +802,12 @@ const TransferPanel = ({ setIsChainModalOpen }) => {
             </button>
           </div>
         </div>
+      </div>
+      <div className="md:max-w-[480px] mx-auto w-full md:px-0 px-1">
+        <p className="text-[9px] font-bold tracking-[0.25em] text-white/20 my-[10px]">
+          RECENT GAS TRANSFERS
+        </p>
+        <TransactionHistory />
       </div>
       {/*  */}
     </>

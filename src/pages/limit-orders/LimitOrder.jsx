@@ -3,7 +3,7 @@ import { CreateOrderForm } from "./CreateOrderForm";
 import { OrderList } from "./OrderList";
 import { useAccount } from "wagmi";
 import { toast } from "../../utils/toastHelper";
-import { Helmet } from "react-helmet";
+import { HelmetProvider } from "react-helmet-async";
 
 const ToastContent = ({ message }) => (
   <div className="space-y-1">
@@ -49,8 +49,8 @@ export default function LimitOrder({ slippage, onOpenSlippage = () => {} }) {
 
   return (
     // lg:pb-16 pb-[20rem]
-    <div className="w-full pt-2 pb-2 text-white rounded-lg font-orbitron">
-      <Helmet>
+    <div className="w-full pt-2 pb-2 text-white  ">
+      <HelmetProvider>
         <title>EMPX | Limit Orders - Advanced Crypto Order Management</title>
         <meta
           name="description"
@@ -60,7 +60,7 @@ export default function LimitOrder({ slippage, onOpenSlippage = () => {} }) {
           name="keywords"
           content="EMPX, DeFi, decentralized finance, crypto trading, multi-chain bridge, DEX aggregator, limit orders, Web3, blockchain, cryptocurrency, on-chain trading"
         />
-      </Helmet>
+      </HelmetProvider>
       <div className="space-y-8">
         {isConnected && address ? (
           <>
@@ -78,7 +78,7 @@ export default function LimitOrder({ slippage, onOpenSlippage = () => {} }) {
             />
           </>
         ) : (
-          <div className="rounded-lg border-4 bg-black border-[#FF9900] bg-card px-6 py-10 text-center md:max-w-[812px] mx-auto w-full">
+          <div className=" border-4 bg-black border-[#FF8A00] bg-card px-6 py-10 text-center md:max-w-[812px] mx-auto w-full">
             <h2 className="mb-2 text-lg font-semibold">
               Welcome to Limit Orders
             </h2>

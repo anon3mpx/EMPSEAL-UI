@@ -1,5 +1,6 @@
 import { defineChain } from 'viem';
 import { pulsechain, sonic, rootstock, avalanche } from 'wagmi/chains';
+import { getPrimaryRpcUrl } from '../config/rpc';
 
 export { pulsechain, sonic, rootstock, avalanche };
 
@@ -34,7 +35,7 @@ export const base = defineChain({
   },
   rpcUrls: {
     default: {
-      http: ['https://mainnet.base.org'],
+      http: [getPrimaryRpcUrl(8453, 'https://mainnet.base.org')],
     },
   },
   contracts: {
@@ -60,7 +61,7 @@ export const bsc = defineChain({
   },
   rpcUrls: {
     default: {
-      http: ['https://bsc-rpc.publicnode.com'],
+      http: [getPrimaryRpcUrl(56, 'https://bsc-rpc.publicnode.com')],
     },
   },
   contracts: {
@@ -86,7 +87,7 @@ export const sei = defineChain({
   },
   rpcUrls: {
     default: {
-      http: ['https://sei.api.pocket.network'],
+      http: [getPrimaryRpcUrl(1329, 'https://sei.api.pocket.network')],
       // https://evm-rpc.sei-apis.com
       // https://sei.drpc.org
       // https://sei-evm-rpc.stakeme.pro
@@ -116,7 +117,7 @@ export const berachain = defineChain({
   },
   rpcUrls: {
     default: {
-      http: ['https://berachain.drpc.org'],
+      http: [getPrimaryRpcUrl(80094, 'https://berachain.drpc.org')],
     },
   },
   contracts: {
@@ -142,7 +143,7 @@ export const monad = defineChain({
   },
   rpcUrls: {
     default: {
-      http: ['https://rpc.monad.xyz'],
+      http: [getPrimaryRpcUrl(143, 'https://rpc.monad.xyz')],
     },
   },
   contracts: {
@@ -164,7 +165,7 @@ export const arbitrum = defineChain({
   nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
   rpcUrls: {
     default: {
-      http: ['https://arb1.arbitrum.io/rpc'],
+      http: [getPrimaryRpcUrl(42161, 'https://arb1.arbitrum.io/rpc')],
     },
   },
   blockExplorers: {
@@ -187,7 +188,7 @@ export const optimism = defineChain({
   nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
   rpcUrls: {
     default: {
-      http: ['https://mainnet.optimism.io'],
+      http: [getPrimaryRpcUrl(10, 'https://mainnet.optimism.io')],
     },
   },
   blockExplorers: {
@@ -210,7 +211,7 @@ export const polygon = defineChain({
   nativeCurrency: { name: 'POL', symbol: 'POL', decimals: 18 },
   rpcUrls: {
     default: {
-      http: ['https://polygon.drpc.org'],
+      http: [getPrimaryRpcUrl(137, 'https://polygon.drpc.org')],
     },
   },
   blockExplorers: {

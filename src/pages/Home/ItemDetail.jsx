@@ -19,7 +19,7 @@ const ItemDetail = () => {
 
             <div className="p-4 relative z-10 roboto">
               <div className="flex justify-between items-center mb-2">
-                <h2 className="text-lg font-semibold text-[#FF9900]">
+                <h2 className="text-lg font-semibold text-[#FF8A00]">
                   Milady #872
                 </h2>
                 <div className="flex items-center gap-2">
@@ -32,7 +32,7 @@ const ItemDetail = () => {
                 </div>
               </div>
 
-              <div className="border border-white p-3 rounded-lg mb-4">
+              <div className="border border-white p-3  mb-4">
                 <div className="text-sm text-gray-400">Current Price:</div>
                 <div className="text-xl font-bold text-white">
                   255 SEI{' '}
@@ -49,12 +49,12 @@ const ItemDetail = () => {
 
               <div className="gap-4">
                 <div>
-                  <button className="bg-[#FF9900] hover:bg-yellow-600 text-black font-bold py-2 px-4 rounded w-full">
+                  <button className="bg-[#FF8A00] hover:bg-yellow-600 text-black font-bold py-2 px-4 rounded w-full">
                     BUY NOW
                   </button>
                 </div>
                 <div className="mt-4">
-                  <button className="border border-[#FF9900] text-[#FF9900] hover:bg-[#FF9900] hover:text-black font-medium py-2 px-4 rounded w-full">
+                  <button className="border border-[#FF8A00] text-[#FF8A00] hover:bg-[#FF8A00] hover:text-black font-medium py-2 px-4 rounded w-full">
                     PLACE BID
                   </button>
                 </div>

@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import Normal from "./Normal";
-import { Helmet } from "react-helmet";
+import { HelmetProvider } from "react-helmet-async";
 import bgPattern from "@/assets/images/bg-pattern.svg";
 
 const Main = () => {
@@ -25,7 +25,7 @@ const Main = () => {
 
   return (
     <>
-      <Helmet>
+      <HelmetProvider>
         <title>EMPX | On-Chain DEX Aggregator - Multi-Chain DeFi Trading Platform</title>
         <meta
           name="description"
@@ -35,7 +35,7 @@ const Main = () => {
           name="keywords"
           content="EMPX, DeFi, decentralized finance, crypto trading, multi-chain bridge, DEX aggregator, limit orders, Web3, blockchain, cryptocurrency, on-chain trading"
         />
-      </Helmet>
+      </HelmetProvider>
       <Normal />
     </>
   );

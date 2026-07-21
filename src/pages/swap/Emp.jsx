@@ -3,6 +3,7 @@ import Routing from "./Routing";
 
 import { useSearchParams } from "react-router-dom";
 import Ar from "../../assets/images/reverse.svg";
+import Logo from "../../assets/images/empx-new.svg";
 import Amount from "./Amount";
 import Token from "./Token";
 import { formatEther, formatUnits } from "viem";
@@ -20,14 +21,14 @@ import { useStore } from "../../redux/store/routeStore";
 import Transaction from "./Transaction";
 import { Copy, Check, InfoIcon } from "lucide-react";
 import { useChainConfig } from "../../hooks/useChainConfig";
-import ProvidersListNew from "../bridge/ProvidersList-new";
+// import ProvidersListNew from "../bridge/ProvidersList-new";
 // import { SmartRouter } from "../../utils/services/SmartRouter";
 import {
-  checkAllowance,
-  callApprove,
+  checkAllowance as defaultCheckAllowance,
+  callApprove as defaultCallApprove,
   EMPTY_ADDRESS,
 } from "../../utils/contractCalls";
-import { swapTokens } from "../../utils/contractCalls";
+import { swapTokens as defaultSwapTokens } from "../../utils/contractCalls";
 import { useConnectPopup } from "../../hooks/ConnectPopupContext";
 import {
   PLS_ROUTER_ABI,
@@ -49,6 +50,19 @@ import { toast } from "../../utils/toastHelper";
 import { usePriceMonitor } from "../../hooks/usePriceMonitor";
 import TokenLogo from "../../components/TokenLogo.jsx";
 import { fetchTokenPrice } from "../../utils/priceFetcher";
+import { convertToBigInt } from "../../utils/utils";
+import {
+  HIGH_PRICE_IMPACT_BLOCK_PERCENT,
+  HIGH_PRICE_IMPACT_WARNING_PERCENT,
+  calculateMinOut,
+  calculateMinReceived,
+  calculateRoutePriceImpactPercent,
+  calculateUsdPriceImpactPercent,
+  formatImpactPercent,
+  getEffectiveSlippagePercent,
+  hasUsableRouteQuote,
+  shouldSuppressQuoteDetails,
+} from "../../utils/swapMath";
 import { getQuoteHopFallbackPlan } from "../../config/quoteFallback";
 
 import { WPLS } from "../../utils/abis/wplsABI";
@@ -86,13 +100,13 @@ const getWrappedTokenABI = (chainId) => {
       return WMON;
     case 42161:
       return WETH;
-    case 10: 
+    case 10:
       return WETH;
-    case 137: 
+    case 137:
       return WPOL;
     case 43114:
       return WAVAX;
-    case 999: 
+    case 999:
       return WHYPE;
     case 369:
     default:
@@ -126,18 +140,39 @@ const getRouterABI = (chainId) => {
       return POLYGON_ROUTER_ABI;
     case 43114:
       return AVALANCHE_ROUTER_ABI;
-    case 999: 
-      return HYPEREVM_ROUTER_ABI
+    case 999:
+      return HYPEREVM_ROUTER_ABI;
     case 369:
     default:
       return PLS_ROUTER_ABI;
   }
 };
 
-const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
+const defaultDisplayConfig = {
+  isWidgetMode: false,
+  theme: "dark",
+  primaryColor: "#FF8A00",
+  background: "#000000",
+  borderColor: "#FF8A00",
+  showBackground: true,
+  showSlippage: true,
+  showPoweredBy: true,
+};
+
+const Emp = ({
+  setPadding,
+  setBestRoute,
+  onTokensChange,
+  activeTab,
+  initialConfig = {},
+  displayConfig = defaultDisplayConfig,
+  runtimeConfig,
+  contractApi,
+}) => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [isAmountVisible, setAmountVisible] = useState(false);
   const [isSlippageVisible, setSlippageVisible] = useState(false);
+  const [selectedSlippage, setSelectedSlippage] = useState(0.5);
   const [isSlippageApplied, setIsSlippageApplied] = useState(false);
   const [isTokenVisible, setTokenVisible] = useState(false);
   const [order, setOrder] = useState(false);
@@ -173,12 +208,11 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
   const [swapHash, setSwapHash] = useState("");
   const [swapSuccess, setSwapSuccess] = useState(false);
   const [selectedPercentage, setSelectedPercentage] = useState("");
-  const { address, chain } = useAccount();
+  const { address } = useAccount();
   const { openConnectPopup } = useConnectPopup();
   const [balanceAddress, setBalanceAddress] = useState(null);
   const { data: datas } = useBalance({ address });
   const [fees, setFees] = useState(0);
-  const [minAmountOut, setMinAmountOut] = useState("0");
   const [copySuccess, setCopySuccess] = useState(false);
   const [activeTokenAddress, setActiveTokenAddress] = useState(null);
   const [usdValue, setUsdValue] = useState("0.00");
@@ -200,8 +234,6 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
 
   // Debounce and request tracking for quote fetching
   const [debouncedAmountIn, setDebouncedAmountIn] = useState("0");
-  // const quoteRequestIdRef = useRef(0);
-  // const lastCompletedIdRef = useRef(0); // Track last completed request
 
   // Price monitor state
   const [initialQuote, setInitialQuote] = useState("");
@@ -212,6 +244,9 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
   // New state variables
   const [lastUpdated, setLastUpdated] = useState(null);
   const [isSell, setIsSell] = useState(true);
+  const [quoteTimeRemaining, setQuoteTimeRemaining] = useState(30);
+  const [isRefreshingQuote, setIsRefreshingQuote] = useState(false);
+  const [highImpactMessage, setHighImpactMessage] = useState("");
 
   const { writeContractAsync } = useWriteContract();
   // Toggle function
@@ -234,46 +269,61 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
     stableTokens,
   } = useChainConfig();
 
+  const effectiveRouterAddress =
+    runtimeConfig?.routerAddress || routerAddress;
+  const effectiveWethAddress = runtimeConfig?.wethAddress || wethAddress;
+  const isWidgetMode = !!displayConfig?.isWidgetMode;
+  const showBackground = displayConfig?.showBackground ?? true;
+  const showSlippage = displayConfig?.showSlippage ?? true;
+  const showPoweredBy = displayConfig?.showPoweredBy ?? false;
+  const widgetPrimaryColor = displayConfig?.primaryColor || "#FF8A00";
+  const normalizedWidgetPrimary = widgetPrimaryColor.replace("#", "");
+  const widgetPrimaryHex = normalizedWidgetPrimary.length >= 6
+    ? normalizedWidgetPrimary.slice(0, 6)
+    : "FF8A00";
+  const widgetPrimaryRgb = [
+    Number.parseInt(widgetPrimaryHex.slice(0, 2), 16),
+    Number.parseInt(widgetPrimaryHex.slice(2, 4), 16),
+    Number.parseInt(widgetPrimaryHex.slice(4, 6), 16),
+  ].join(", ");
+  const widgetAccentTextStyle = isWidgetMode
+    ? { color: widgetPrimaryColor }
+    : undefined;
+  const widgetPrimaryButtonStyle = isWidgetMode
+    ? {
+        backgroundColor: widgetPrimaryColor,
+        borderColor: widgetPrimaryColor,
+        color: "#03030a",
+      }
+    : undefined;
+
+  const swapContractApi = useMemo(
+    () => ({
+      checkAllowance: contractApi?.checkAllowance || defaultCheckAllowance,
+      callApprove: contractApi?.callApprove || defaultCallApprove,
+      swapTokens: contractApi?.swapTokens || defaultSwapTokens,
+    }),
+    [contractApi],
+  );
+
   const publicClient = usePublicClient({ chainId });
 
-  const convertToBigInt = (amount, decimals) => {
-    // Add input validation
-    if (!amount || isNaN(amount) || !decimals || isNaN(decimals)) {
-      return BigInt(0);
-    }
-
-    try {
-      const parsedAmount = parseFloat(amount);
-      const parsedAmountIn = BigInt(Math.floor(parsedAmount * Math.pow(10, 6)));
-
-      if (decimals >= 6) {
-        return parsedAmountIn * BigInt(10) ** BigInt(decimals - 6);
-      } else {
-        return parsedAmountIn / BigInt(10) ** BigInt(6 - decimals);
-      }
-    } catch (error) {
-      console.error("Error converting to BigInt:", error);
-      return BigInt(0);
-    }
-  };
-
   const normalizeAddress = (address) => address?.toLowerCase?.() || "";
-  const isSameAddress = (a, b) =>
-    normalizeAddress(a) === normalizeAddress(b);
+  const isSameAddress = (a, b) => normalizeAddress(a) === normalizeAddress(b);
   const getQuoteTokenAddress = (tokenAddress) =>
     isSameAddress(tokenAddress, EMPTY_ADDRESS)
-      ? wethAddress || EMPTY_ADDRESS
+      ? effectiveWethAddress || EMPTY_ADDRESS
       : tokenAddress || EMPTY_ADDRESS;
 
   // Check if it's a direct route (native to wrapped or wrapped to native)
   const isDirectRoute = useMemo(() => {
     return (
       (isSameAddress(selectedTokenA?.address, EMPTY_ADDRESS) &&
-        isSameAddress(selectedTokenB?.address, wethAddress)) ||
-      (isSameAddress(selectedTokenA?.address, wethAddress) &&
+        isSameAddress(selectedTokenB?.address, effectiveWethAddress)) ||
+      (isSameAddress(selectedTokenA?.address, effectiveWethAddress) &&
         isSameAddress(selectedTokenB?.address, EMPTY_ADDRESS))
     );
-  }, [selectedTokenA?.address, selectedTokenB?.address, wethAddress]);
+  }, [selectedTokenA?.address, selectedTokenB?.address, effectiveWethAddress]);
 
   // Get the appropriate router ABI based on chainId
   const routerABI = useMemo(() => getRouterABI(chainId), [chainId]);
@@ -290,11 +340,14 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
     !isDirectRoute &&
     !!selectedTokenA &&
     !!selectedTokenB &&
-    !!amountIn &&
-    parseFloat(amountIn) > 0;
+    !!debouncedAmountIn &&
+    parseFloat(debouncedAmountIn) > 0;
   const quoteAmountInWei =
-    amountIn && selectedTokenA && !isNaN(parseFloat(amountIn))
-      ? convertToBigInt(parseFloat(amountIn), parseInt(selectedTokenA.decimal) || 18)
+    debouncedAmountIn && selectedTokenA && !isNaN(parseFloat(debouncedAmountIn))
+      ? convertToBigInt(
+          debouncedAmountIn,
+          parseInt(selectedTokenA.decimal) || 18,
+        )
       : BigInt(0);
   const quoteTokenInAddress = getQuoteTokenAddress(selectedTokenA?.address);
   const quoteTokenOutAddress = getQuoteTokenAddress(selectedTokenB?.address);
@@ -307,7 +360,7 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
     error: primaryQuoteError,
   } = useReadContract({
     abi: routerABI,
-    address: routerAddress,
+    address: effectiveRouterAddress,
     functionName: "findBestPath",
     chainId,
     args: [
@@ -325,7 +378,7 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
     error: fallbackQuoteError,
   } = useReadContract({
     abi: routerABI,
-    address: routerAddress,
+    address: effectiveRouterAddress,
     functionName: "findBestPath",
     chainId,
     args: [
@@ -337,8 +390,8 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
     enabled:
       quoteFallbackPlan.enabled &&
       quoteEnabled &&
-      !primaryQuoteData &&
-      !!primaryQuoteError &&
+      !primaryQuoteLoading &&
+      !hasUsableRouteQuote(primaryQuoteData) &&
       !!quoteFallbackPlan.secondStep,
   });
 
@@ -348,7 +401,7 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
     error: fallbackQuoteErrorOne,
   } = useReadContract({
     abi: routerABI,
-    address: routerAddress,
+    address: effectiveRouterAddress,
     functionName: "findBestPath",
     chainId,
     args: [
@@ -360,15 +413,21 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
     enabled:
       quoteFallbackPlan.enabled &&
       quoteEnabled &&
-      !primaryQuoteData &&
-      !fallbackQuoteData &&
+      !primaryQuoteLoading &&
+      !fallbackQuoteLoading &&
+      !hasUsableRouteQuote(primaryQuoteData) &&
+      !hasUsableRouteQuote(fallbackQuoteData) &&
       !!quoteFallbackPlan.thirdStep &&
-      !!fallbackQuoteError,
+      (!!fallbackQuoteError || !hasUsableRouteQuote(primaryQuoteData)),
   });
 
-  const data = quoteFallbackPlan.enabled
-    ? primaryQuoteData ?? fallbackQuoteData ?? fallbackQuoteDataOne
-    : primaryQuoteData;
+  const data = hasUsableRouteQuote(primaryQuoteData)
+    ? primaryQuoteData
+    : hasUsableRouteQuote(fallbackQuoteData)
+      ? fallbackQuoteData
+      : hasUsableRouteQuote(fallbackQuoteDataOne)
+        ? fallbackQuoteDataOne
+        : primaryQuoteData ?? fallbackQuoteData ?? fallbackQuoteDataOne;
   const quoteLoading = quoteFallbackPlan.enabled
     ? primaryQuoteLoading || fallbackQuoteLoading || fallbackQuoteLoadingOne
     : primaryQuoteLoading;
@@ -376,7 +435,8 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
   const singleTokenAmountInWei = selectedTokenA?.decimal
     ? convertToBigInt(1, parseInt(selectedTokenA.decimal))
     : BigInt(0);
-  const singleTokenEnabled = !isDirectRoute && !!selectedTokenA && !!selectedTokenB;
+  const singleTokenEnabled =
+    !isDirectRoute && !!selectedTokenA && !!selectedTokenB;
 
   // Get single token price for rate display (with fallback max steps)
   const {
@@ -385,7 +445,7 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
     error: primarySingleTokenError,
   } = useReadContract({
     abi: routerABI,
-    address: routerAddress,
+    address: effectiveRouterAddress,
     functionName: "findBestPath",
     chainId,
     args: [
@@ -400,7 +460,7 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
   const { data: fallbackSingleToken, error: fallbackSingleTokenError } =
     useReadContract({
       abi: routerABI,
-      address: routerAddress,
+      address: effectiveRouterAddress,
       functionName: "findBestPath",
       chainId,
       args: [
@@ -412,14 +472,13 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
       enabled:
         quoteFallbackPlan.enabled &&
         singleTokenEnabled &&
-        !primarySingleToken &&
-        !!primarySingleTokenError &&
+        !hasUsableRouteQuote(primarySingleToken) &&
         !!quoteFallbackPlan.secondStep,
     });
 
   const { data: fallbackSingleTokenOne } = useReadContract({
     abi: routerABI,
-    address: routerAddress,
+    address: effectiveRouterAddress,
     functionName: "findBestPath",
     chainId,
     args: [
@@ -431,15 +490,19 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
     enabled:
       quoteFallbackPlan.enabled &&
       singleTokenEnabled &&
-      !primarySingleToken &&
-      !fallbackSingleToken &&
+      !hasUsableRouteQuote(primarySingleToken) &&
+      !hasUsableRouteQuote(fallbackSingleToken) &&
       !!quoteFallbackPlan.thirdStep &&
-      !!fallbackSingleTokenError,
+      (!!fallbackSingleTokenError || !hasUsableRouteQuote(primarySingleToken)),
   });
 
-  const singleToken = quoteFallbackPlan.enabled
-    ? primarySingleToken ?? fallbackSingleToken ?? fallbackSingleTokenOne
-    : primarySingleToken;
+  const singleToken = hasUsableRouteQuote(primarySingleToken)
+    ? primarySingleToken
+    : hasUsableRouteQuote(fallbackSingleToken)
+      ? fallbackSingleToken
+      : hasUsableRouteQuote(fallbackSingleTokenOne)
+        ? fallbackSingleTokenOne
+        : primarySingleToken ?? fallbackSingleToken ?? fallbackSingleTokenOne;
 
   // Update quoting state based on loading
   useEffect(() => {
@@ -447,7 +510,24 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
   }, [quoteLoading]);
 
   const DEADLINE_MINUTES = 10;
+  const QUOTE_TTL_SECONDS = 30;
   const deadline = Math.floor(Date.now() / 1000) + DEADLINE_MINUTES * 60;
+
+  const refreshQuotes = async () => {
+    setIsRefreshingQuote(true);
+    try {
+      await Promise.all([
+        quoteRefresh?.(),
+        singleTokenRefresh?.(),
+      ]);
+      setLastUpdated(Date.now());
+      setQuoteTimeRemaining(QUOTE_TTL_SECONDS);
+    } catch (error) {
+      console.error("Quote refresh failed:", error);
+    } finally {
+      setIsRefreshingQuote(false);
+    }
+  };
 
   // Process findBestPath data to update quotes
   useEffect(() => {
@@ -456,20 +536,7 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
       return;
     }
 
-    if (!data || !data.amounts || data.amounts.length === 0) {
-      handleEmptyData();
-      return;
-    }
-
-    // Check if router found a valid path (needs at least 2 amounts and 2 path elements)
-    if (data.amounts.length < 2 || !data.path || data.path.length < 2) {
-      console.warn("Router could not find a valid path for this token pair", {
-        amounts: data.amounts,
-        path: data.path,
-        adapters: data.adapters,
-        tokenIn: selectedTokenA?.address,
-        tokenOut: selectedTokenB?.address,
-      });
+    if (!hasUsableRouteQuote(data)) {
       handleEmptyData();
       return;
     }
@@ -481,23 +548,66 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
     }
 
     setCalculatedRoute();
-  }, [data, selectedTokenA, selectedTokenB, amountIn, isDirectRoute]);
+  }, [data, selectedTokenA, selectedTokenB, isDirectRoute, selectedSlippage]);
 
   // Refresh quotes when tokens or amount changes
   useEffect(() => {
-    if (quoteRefresh) {
-      quoteRefresh();
-    }
-    if (singleTokenRefresh) {
-      singleTokenRefresh();
-    }
     setPath([selectedTokenA?.address, selectedTokenB?.address]);
+  }, [selectedTokenA, selectedTokenB]);
+
+  useEffect(() => {
+    if (amountIn !== debouncedAmountIn) {
+      setQuoteTimeRemaining(QUOTE_TTL_SECONDS);
+      return;
+    }
+
+    if (!lastUpdated || isDirectRoute || !quoteEnabled) {
+      setQuoteTimeRemaining(QUOTE_TTL_SECONDS);
+      return;
+    }
+
+    const updateRemaining = () => {
+      const remaining = Math.max(
+        0,
+        Math.ceil((lastUpdated + QUOTE_TTL_SECONDS * 1000 - Date.now()) / 1000),
+      );
+      setQuoteTimeRemaining(remaining);
+    };
+
+    updateRemaining();
+    const intervalId = setInterval(updateRemaining, 1000);
+    return () => clearInterval(intervalId);
   }, [
     amountIn,
-    selectedTokenA,
-    selectedTokenB,
-    quoteRefresh,
-    singleTokenRefresh,
+    debouncedAmountIn,
+    isDirectRoute,
+    lastUpdated,
+    quoteEnabled,
+  ]);
+
+  useEffect(() => {
+    if (
+      !quoteEnabled ||
+      isDirectRoute ||
+      isQuoting ||
+      isRefreshingQuote ||
+      amountIn !== debouncedAmountIn ||
+      !lastUpdated ||
+      quoteTimeRemaining > 0
+    ) {
+      return;
+    }
+
+    refreshQuotes();
+  }, [
+    amountIn,
+    debouncedAmountIn,
+    isDirectRoute,
+    isQuoting,
+    isRefreshingQuote,
+    lastUpdated,
+    quoteEnabled,
+    quoteTimeRemaining,
   ]);
 
   // Reset selected tokens and quoting state when chain changes
@@ -509,7 +619,51 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
     setIsQuoting(false);
     setIsRoutingLoading(false);
     setTradeInfo(undefined);
+    setLastUpdated(null);
+    setQuoteTimeRemaining(QUOTE_TTL_SECONDS);
+    setIsRefreshingQuote(false);
   }, [chainId]);
+
+  useEffect(() => {
+    if (!isWidgetMode || !tokenList || tokenList.length === 0) {
+      return;
+    }
+
+    const getTokenByAddress = (address) => {
+      if (!address) return null;
+      return (
+        tokenList.find(
+          (token) => token.address.toLowerCase() === address.toLowerCase(),
+        ) || null
+      );
+    };
+
+    const fromConfig = getTokenByAddress(initialConfig.defaultTokenIn);
+    const toConfig = getTokenByAddress(initialConfig.defaultTokenOut);
+
+    setSelectedTokenA((prev) => {
+      if (fromConfig) return fromConfig;
+      if (!prev) return null;
+      const stillExists = tokenList.some(
+        (token) => token.address.toLowerCase() === prev.address.toLowerCase(),
+      );
+      return stillExists ? prev : null;
+    });
+
+    setSelectedTokenB((prev) => {
+      if (toConfig) return toConfig;
+      if (!prev) return null;
+      const stillExists = tokenList.some(
+        (token) => token.address.toLowerCase() === prev.address.toLowerCase(),
+      );
+      return stillExists ? prev : null;
+    });
+  }, [
+    initialConfig.defaultTokenIn,
+    initialConfig.defaultTokenOut,
+    isWidgetMode,
+    tokenList,
+  ]);
 
   // Dynamic Fee Update
   useEffect(() => {
@@ -543,10 +697,20 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
     return () => clearTimeout(timer);
   }, [amountIn]);
 
+  useEffect(() => {
+    if (!isWidgetMode) {
+      return;
+    }
+    setSelectedPercentage("");
+    setAmountIn(initialConfig.defaultAmountIn?.trim() || "");
+  }, [initialConfig.defaultAmountIn, isWidgetMode, selectedTokenA]);
+
   // Helper Functions
   const handleEmptyData = () => {
     setAmountOut("0");
     setTradeInfo(undefined);
+    setLastUpdated(null);
+    setQuoteTimeRemaining(QUOTE_TTL_SECONDS);
     setRoute([selectedTokenA?.address, selectedTokenB?.address]);
   };
 
@@ -557,11 +721,9 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
       return;
     }
 
-    const tokenAAddress =
-      getQuoteTokenAddress(selectedTokenA?.address);
+    const tokenAAddress = getQuoteTokenAddress(selectedTokenA?.address);
 
-    const tokenBAddress =
-      getQuoteTokenAddress(selectedTokenB?.address);
+    const tokenBAddress = getQuoteTokenAddress(selectedTokenB?.address);
 
     // Set route with replaced native token address
     setRoute([tokenAAddress, tokenBAddress]);
@@ -574,9 +736,9 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
     const amountInBigInt =
       amountIn && selectedTokenA && !isNaN(parseFloat(amountIn))
         ? convertToBigInt(
-          parseFloat(amountIn),
-          parseInt(selectedTokenA.decimal) || 18,
-        )
+            amountIn,
+            parseInt(selectedTokenA.decimal) || 18,
+          )
         : BigInt(0);
 
     const trade = {
@@ -590,26 +752,28 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
 
     setTradeInfo(trade);
     setIsSlippageApplied(false);
+    setLastUpdated(Date.now());
+    setQuoteTimeRemaining(QUOTE_TTL_SECONDS);
   };
 
   // Process the findBestPath result and set the calculated route
   const setCalculatedRoute = () => {
     if (isDirectRoute) return;
-    if (!data || !data.amounts || data.amounts.length === 0) {
+    if (!hasUsableRouteQuote(data)) {
       console.error("Invalid swap data received");
       return;
     }
 
+    const quotedOut = data.amounts[data.amounts.length - 1];
     const amountOutValue = formatUnits(
-      data.amounts[data.amounts.length - 1],
+      quotedOut,
       parseInt(selectedTokenB.decimal),
     );
     setAmountOut(amountOutValue);
 
     const trade = {
       amountIn: data.amounts[0],
-      amountOut:
-        (data.amounts[data.amounts.length - 1] * BigInt(98)) / BigInt(100),
+      amountOut: calculateMinOut(quotedOut, selectedSlippage),
       amounts: data.amounts,
       path: data.path,
       pathTokens: data.path.map(
@@ -617,8 +781,7 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
           tokenList.find(
             (token) =>
               token?.address?.toLowerCase() === pathAddress?.toLowerCase(),
-          ) ||
-          tokenList[0],
+          ) || tokenList[0],
       ),
       adapters: data.adapters,
     };
@@ -626,6 +789,8 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
     setAdapter(data.adapters);
     setTradeInfo(trade);
     setIsSlippageApplied(false);
+    setLastUpdated(Date.now());
+    setQuoteTimeRemaining(QUOTE_TTL_SECONDS);
   };
 
   // Check approval status whenever token or amount changes
@@ -647,7 +812,7 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
           debouncedAmountIn,
           selectedTokenA.decimal,
         );
-        const allowance = await checkAllowance(
+        const allowance = await swapContractApi.checkAllowance(
           chainId,
           selectedTokenA.address,
           address,
@@ -660,17 +825,27 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
     };
 
     checkApproval();
-  }, [chainId, address, selectedTokenA, debouncedAmountIn]);
+  }, [
+    chainId,
+    address,
+    selectedTokenA,
+    debouncedAmountIn,
+    swapContractApi,
+  ]);
 
   const handleApprove = async () => {
     try {
       setSwapStatus("APPROVING");
       const amountInBigInt = convertToBigInt(amountIn, selectedTokenA.decimal);
 
-      await callApprove(chainId, selectedTokenA.address, amountInBigInt);
+      await swapContractApi.callApprove(
+        chainId,
+        selectedTokenA.address,
+        amountInBigInt,
+      );
 
       // Re-check allowance to update UI immediately
-      const allowance = await checkAllowance(
+      const allowance = await swapContractApi.checkAllowance(
         chainId,
         selectedTokenA.address,
         address,
@@ -785,15 +960,9 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
   };
 
   const handleSlippageCalculated = (adjustedAmount) => {
-    const tokenDecimals = selectedTokenB.decimal;
-    const decimalAdjusted = Number(adjustedAmount) / 10 ** tokenDecimals;
-
-    // Update states
-    setMinAmountOut(adjustedAmount);
-    setAmountOut(decimalAdjusted);
-
-    // Reset minAmountOut if needed
-    setMinAmountOut("0");
+    if (adjustedAmount >= 0n) {
+      setIsSlippageApplied(true);
+    }
   };
 
   useEffect(() => {
@@ -805,8 +974,8 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
         }
 
         const addressToFetch =
-          selectedTokenA?.address === EMPTY_ADDRESS && wethAddress
-            ? wethAddress?.toLowerCase()
+          selectedTokenA?.address === EMPTY_ADDRESS && effectiveWethAddress
+            ? effectiveWethAddress?.toLowerCase()
             : selectedTokenA?.address?.toLowerCase();
 
         const tokenPrice = await fetchTokenPrice(symbol, addressToFetch);
@@ -815,6 +984,8 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
           setConversionRate(tokenPrice);
         } else {
           setConversionRate(null);
+          setUsdValue("0.00");
+          setUsdValueTokenA("0.00");
           console.error("Token A price could not be established.");
         }
       } catch (error) {
@@ -823,7 +994,7 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
     };
 
     fetchConversionRateTokenA();
-  }, [chainId, selectedTokenA?.address, wethAddress]);
+  }, [chainId, selectedTokenA?.address, effectiveWethAddress]);
 
   useEffect(() => {
     const fetchConversionRateTokenB = async () => {
@@ -834,8 +1005,8 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
         }
 
         const addressToFetch =
-          selectedTokenB?.address === EMPTY_ADDRESS && wethAddress
-            ? wethAddress?.toLowerCase()
+          selectedTokenB?.address === EMPTY_ADDRESS && effectiveWethAddress
+            ? effectiveWethAddress?.toLowerCase()
             : selectedTokenB?.address?.toLowerCase();
 
         const tokenPrice = await fetchTokenPrice(symbol, addressToFetch);
@@ -844,6 +1015,7 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
           setConversionRateTokenB(tokenPrice);
         } else {
           setConversionRateTokenB(null);
+          setUsdValueTokenB("0.00");
           console.error("Token B price could not be established.");
         }
       } catch (error) {
@@ -852,7 +1024,7 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
     };
 
     fetchConversionRateTokenB();
-  }, [chainId, selectedTokenB?.address, wethAddress]);
+  }, [chainId, selectedTokenB?.address, effectiveWethAddress]);
 
   useEffect(() => {
     if (conversionRate && !isNaN(conversionRate)) {
@@ -862,7 +1034,8 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
       setUsdValue(valueInUSD);
       setUsdValueTokenA(valueInUSD);
     } else {
-      console.error("Missing or invalid conversion rate:", conversionRate);
+      setUsdValue("0.00");
+      setUsdValueTokenA("0.00");
     }
   }, [amountIn, conversionRate]);
 
@@ -873,18 +1046,20 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
       ).toFixed(2);
       setUsdValueTokenB(valueInUSD);
     } else {
-      console.error(
-        "Missing or invalid conversion rate:",
-        conversionRateTokenB,
-      );
+      setUsdValueTokenB("0.00");
     }
   }, [amountOut, conversionRateTokenB]);
 
   const confirmSwap = async () => {
+    if (amountIn !== debouncedAmountIn || isRefreshingQuote) {
+      toast.error("Refreshing quote. Please wait.");
+      return null;
+    }
+
     if (selectedTokenA.address == selectedTokenB.address) {
       return null;
     }
-    await swapTokens(
+    await swapContractApi.swapTokens(
       (_swapStatus) => {
         setSwapStatus(_swapStatus);
       },
@@ -907,6 +1082,19 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
         setSwapSuccess(false);
       });
   };
+
+  const effectiveSlippage = getEffectiveSlippagePercent(selectedSlippage);
+  const isQuoteExpired =
+    quoteEnabled &&
+    !isDirectRoute &&
+    !!lastUpdated &&
+    quoteTimeRemaining <= 0;
+  const isQuoteStale = shouldSuppressQuoteDetails({
+    amountIn,
+    debouncedAmountIn,
+    isQuoting: isQuoting || isRefreshingQuote,
+    isQuoteExpired,
+  });
 
   // const getRateDisplay = () => {
   //   if (!singleToken?.amounts || singleToken.amounts.length < 2) {
@@ -940,6 +1128,18 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
       return "0";
     }
 
+    if (
+      amountIn &&
+      amountOut &&
+      parseFloat(amountIn) > 0 &&
+      parseFloat(amountOut) > 0
+    ) {
+      const rate = parseFloat(amountOut) / parseFloat(amountIn);
+      if (!isNaN(rate) && rate > 0) {
+        return isRateReversed ? (1 / rate).toFixed(6) : rate.toFixed(6);
+      }
+    }
+
     // Use the singleToken data for accurate 1 token price
     if (
       singleToken?.amounts &&
@@ -953,19 +1153,6 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
         ),
       );
 
-      if (!isNaN(rate) && rate > 0) {
-        return isRateReversed ? (1 / rate).toFixed(6) : rate.toFixed(6);
-      }
-    }
-
-    // Fallback: calculate from current amounts
-    if (
-      amountIn &&
-      amountOut &&
-      parseFloat(amountIn) > 0 &&
-      parseFloat(amountOut) > 0
-    ) {
-      const rate = parseFloat(amountOut) / parseFloat(amountIn);
       if (!isNaN(rate) && rate > 0) {
         return isRateReversed ? (1 / rate).toFixed(6) : rate.toFixed(6);
       }
@@ -1008,25 +1195,46 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
   const getButtonText = () => {
     if (!address) return "Connect Wallet";
     if (isInsufficientBalance()) return "Insufficient Balance";
+    if (amountIn !== debouncedAmountIn || isRefreshingQuote || isQuoteExpired) {
+      return "Refreshing Quote...";
+    }
     if (isQuoting) return "Loading...";
+    if (isHighImpactBlocked) return "Trade Blocked";
     if (needsApproval) return "Approve";
     if (order) return "Place Order";
     return "Swap";
   };
 
+  const isSwapDisabled = () =>
+    isInsufficientBalance() ||
+    isHighImpactBlocked ||
+    amountIn !== debouncedAmountIn ||
+    isRefreshingQuote ||
+    isQuoteExpired ||
+    isQuoting ||
+    !tradeInfo ||
+    !amountOut ||
+    parseFloat(amountOut) <= 0;
+
   // Function to format the number with commas
   const formatNumber = (value) => {
     if (!value) return ""; // Handle empty input
 
-    const [integerPart, decimalPart] = value.split("."); // Split into integer and decimal parts
+    const stringValue = value.toString();
+
+    const [integerPart, decimalPart] = stringValue.split("."); // Split into integer and decimal parts
     const formattedInteger = integerPart
       .replace(/\D/g, "") // Allow only digits
-      .replace(/\B(?=(\d{3})+(?!\d))/g, ""); // Add commas to integer part
+      .replace(/\B(?=(\d{3})+(?!\d))/g, ","); // Add commas to integer part
 
-    // If there's a decimal part, return formatted integer + decimal
-    return decimalPart !== undefined
-      ? `${formattedInteger}.${decimalPart.replace(/\D/g, "")}` // Remove non-numeric from decimal
-      : formattedInteger;
+    // If there's a decimal part, limit to 6 digits and remove non-numeric
+    if (decimalPart !== undefined) {
+      // Limit to 6 decimal places
+      const limitedDecimal = decimalPart.replace(/\D/g, "").slice(0, 6);
+      return `${formattedInteger}.${limitedDecimal}`;
+    }
+
+    return formattedInteger;
   };
 
   // Function to handle input changes
@@ -1036,8 +1244,10 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
     setAmountIn(rawValue); // Update the state with the raw number
   };
 
-  const minToReceive = amountOut * 0.0024;
-  const minToReceiveAfterFee = amountOut - minToReceive;
+  const minToReceiveAfterFee = calculateMinReceived(
+    amountOut,
+    selectedSlippage,
+  );
 
   // effect to clear amountOut and quotes when tokens are swapped
   useEffect(() => {
@@ -1045,6 +1255,9 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
     setInitialQuote("");
     setNewQuote("");
     setShowPriceAlert(false);
+    setLastUpdated(null);
+    setQuoteTimeRemaining(QUOTE_TTL_SECONDS);
+    setHighImpactMessage("");
   }, [selectedTokenA, selectedTokenB]);
 
   // Use price monitor hook
@@ -1109,21 +1322,52 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
   const handleOutputChange = () => {
     // This input is read-only, so we don't need an onChange handler
   };
-  // For Price Impact
-  const priceImpact =
-    usdValueTokenA > 0
-      ? (
-        ((parseFloat(usdValueTokenB) - parseFloat(usdValueTokenA)) /
-          parseFloat(usdValueTokenA)) *
-        100
-      ).toFixed(2)
-      : 0;
+  const routePriceImpactValue = calculateRoutePriceImpactPercent({
+    amountIn,
+    amountOut,
+    singleTokenOut:
+      singleToken?.amounts?.length >= 2 && selectedTokenB
+        ? formatUnits(
+            singleToken.amounts[singleToken.amounts.length - 1],
+            parseInt(selectedTokenB.decimal),
+          )
+        : null,
+  });
+  const usdPriceImpactValue = calculateUsdPriceImpactPercent({
+    usdValueTokenA,
+    usdValueTokenB,
+  });
+  const priceImpactValue = isQuoteStale
+    ? null
+    : usdPriceImpactValue ?? routePriceImpactValue;
+  const priceImpact = formatImpactPercent(priceImpactValue);
+  const isHighImpactWarning =
+    priceImpactValue !== null &&
+    priceImpactValue <= -HIGH_PRICE_IMPACT_WARNING_PERCENT;
+  const isHighImpactBlocked =
+    priceImpactValue !== null &&
+    priceImpactValue <= -HIGH_PRICE_IMPACT_BLOCK_PERCENT;
+
+  useEffect(() => {
+    if (isHighImpactBlocked) {
+      setHighImpactMessage(
+        `Trade blocked. Price impact ${priceImpact}% is too high for this amount.`,
+      );
+    } else if (isHighImpactWarning) {
+      setHighImpactMessage(
+        `High price impact detected: ${priceImpact}%. Review the route before swapping.`,
+      );
+    } else {
+      setHighImpactMessage("");
+    }
+  }, [isHighImpactBlocked, isHighImpactWarning, priceImpact]);
+
   // Determine color based on value
   const getPriceImpactColor = (impact) => {
     const value = parseFloat(impact);
     // Green for positive (profit), Red for negative (loss)
     if (value > 0) return "text-green-500";
-    if (value < 0) return "text-red-500";
+    if (value < 0) return "text-red-400";
     return "text-white";
   };
   //
@@ -1183,23 +1427,64 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
     if (length >= 6) return "text-xs md:text-xs";
     return "text-xs md:text-xs";
   };
+  // New
+  const scaledFs = (val, isMobile = false) => {
+    const digits = val?.replace(/[^0-9]/g, "").length || 0;
+    if (isMobile) {
+      if (digits >= 14) return "1.25rem";
+      if (digits >= 12) return "1.4rem";
+      if (digits >= 10) return "1.6rem";
+      if (digits >= 8) return "1.8rem";
+      return "2rem";
+    }
+    if (digits >= 16) return "1.4rem";
+    if (digits >= 14) return "1.6rem";
+    if (digits >= 12) return "2rem";
+    if (digits >= 11) return "2.4rem";
+    return "clamp(2.2rem, 5vw, 3rem)";
+  };
+
+  // New
 
   return (
     <>
       <div
-        className={`w-full rounded-xl xl:pb-2 lg:pt-1 pt-1 2xl:px-8 lg:px-8 md:px-6 px-1 md:mt-0 mt-1 relative ${order ? "pb-[0px]" : "2xl:pb-20 xl:pb-2 lg:pb-0 pb-5"
-          }`}
+        className={`w-full ${
+          isWidgetMode
+            ? `widget-embed-mode widget-theme-${displayConfig.theme || "dark"} ${
+                showBackground ? "" : "widget-no-background"
+              }`
+            : ""
+        }`}
+        style={
+          isWidgetMode
+            ? {
+                "--primary": widgetPrimaryColor,
+                "--widget-primary": widgetPrimaryColor,
+                "--widget-primary-rgb": widgetPrimaryRgb,
+                "--bg-color": showBackground
+                  ? displayConfig.background
+                  : "transparent",
+                "--border-color": displayConfig.borderColor,
+              }
+            : undefined
+        }
       >
         <div
-          className={`scales8 ${order ? `scales-top ${address ? "scales-top_limit" : ""}` : "top70"
-            }`}
+          className={`min-h-[calc(100vh-52px)] flex flex-col items-center px-4 py-20 bg-gradient`}
         >
           <div className="md:max-w-[1100px] mx-auto w-full flex flex-col justify-center items-center md:flex-nowrap flex-wrap lg:mt-1 mt-1 px-3 pb-2">
-            <h1 className="2xl:text-[43px] xl:leading-[40px] font40 text-2xl text-center text-[#FF9900] font-orbitron font-bold md:mb-2">
+            <p className="text-[9px] font-bold tracking-[0.4em] text-[rgba(255,138,0,0.45)] mb-2">
+              MULTI-CHAIN SWAP
+            </p>
+            <h1
+              className="text-[26px] text-center text-[#FF8A00]  font-bold md:mb-2"
+              style={widgetAccentTextStyle}
+            >
               {!order ? (
                 <>
-                  Optimized <br />{" "}
-                  <span className="text-white">Aggregation</span>
+                  <span className="text-white">Best Rates.</span>
+                  Every Trade.
                 </>
               ) : (
                 <>
@@ -1212,514 +1497,583 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
           {/* Swap */}
           {!order ? (
             <>
-              <div className="lg:max-w-[600px] md:max-w-[600px] mx-auto w-full flex gap-3 items-center md:justify-start justify-start md:flex-nowrap flex- mt-2 mb-3 lg:px-1 px-0">
-                <div
-                  onClick={() => setSlippageVisible(true)}
-                  className="ml-auto shrink-0 bg-black md:px-6 px-3 md:py-2 py-2 border-2 border-[#FF9900] rounded-lg flex justify-center items-center hoverswap transition-all cursor-pointer group"
-                >
-                  <p className="text-[#FF9900] md:text-[10px] text-[10px] font-extrabold font-orbitron">
-                    SETTINGS
-                  </p>
-                </div>
-              </div>
-              <div className="lg:max-w-[600px] md:max-w-[600px] mx-auto w-full">
+              <div className="lg:max-w-[450px] md:max-w-[450px] mx-auto w-full mt-4 relative">
                 <div className="relative bg_swap_box">
-                  <div className="flex justify-between gap-3 items-center">
-                    <div className="font-orbitron md:text-[15px] text-xs font-extrabold leading-normal text-[#FF9900]">
-                      You Sell
-                    </div>
-                    <div className="md:text-xs text-[10px] font-orbitron">
-                      <span className="font-normal leading-normal text-[#FF9900]">
-                        BAL
-                      </span>
-                      <span className="font-normal leading-normal text-[#FF9900]">
-                        {" "}
-                        :{" "}
-                      </span>
-                      <span className="text-white leading-normal">
-                        {!selectedTokenA
-                          ? "0.00"
-                          : isLoading
-                            ? "Loading.."
-                            : selectedTokenA.address === EMPTY_ADDRESS
-                              ? `${formatNumber(formattedBalance)}`
-                              : `${tokenBalance
-                                ? formatNumber(
-                                  parseFloat(
-                                    tokenBalance.formatted,
-                                  ).toFixed(6),
-                                )
-                                : "0.00"
-                              }`}
-                      </span>
+                  <div className="swap-header">
+                    <h3 className="swap-title">Swap</h3>
+                    <div className="swap-right">
+                      <div className="live-indicator">
+                        <div className="live-dot" />
+                        <span className="live-text">LIVE</span>
+                      </div>
+                      {showSlippage && (
+                        <button
+                          onClick={() => {
+                            setSlippageVisible((prev) => !prev);
+                            setTokenVisible(false);
+                          }}
+                          className="slippage-btn"
+                        >
+                          {selectedSlippage}% SLIP
+                        </button>
+                      )}
                     </div>
                   </div>
-                  <div className="flex w-full mt-3 mt6 md:gap-5 gap-2 items-center">
-                    <div className="lg:md:max-w-[200px] w-full">
-                      <div className="flex justify-between items-center cursor-pointer gap-4 w-full">
-                        <div className="flex gap-2 items-center w-full">
-                          <div className="flex md:gap-4 gap-1 items-center bg-black border border-[#FF9900] md:rounded-[7px] rounded-lg md:px-3 px-3 md:py-[8px] py-2 justify-center w-full">
-                            <div
-                              onClick={() => {
-                                setIsSelectingTokenA(true);
-                                setTokenVisible(true);
-                                setSelectedPercentage("");
-                                setAmountIn("");
+                  <div>
+                    {isSlippageVisible && !order && showSlippage && (
+                      <SlippageCalculator
+                        inputAmount={tradeInfo?.amountOut}
+                        selectedSlippage={selectedSlippage}
+                        onSlippageChange={setSelectedSlippage}
+                        onSlippageCalculated={handleSlippageCalculated}
+                        onClose={() => setSlippageVisible(false)}
+                      />
+                    )}
+                  </div>
+                  <div className="p-4">
+                    <div className="flex justify-between gap-3 items-center">
+                      <div className="you_pay_heading">You Sell</div>
+                      <div className="md:text-xs text-[10px] ">
+                        <span
+                          className="font-normal leading-normal text-[#FF8A00]"
+                          style={widgetAccentTextStyle}
+                        >
+                          BAL
+                        </span>
+                        <span
+                          className="font-normal leading-normal text-[#FF8A00]"
+                          style={widgetAccentTextStyle}
+                        >
+                          {" "}
+                          :{" "}
+                        </span>
+                        <span className="text-white leading-normal">
+                          {!selectedTokenA
+                            ? "0.00"
+                            : isLoading
+                              ? "Loading.."
+                              : selectedTokenA.address === EMPTY_ADDRESS
+                                ? `${formatNumber(formattedBalance)}`
+                                : `${
+                                    tokenBalance
+                                      ? formatNumber(
+                                          parseFloat(
+                                            tokenBalance.formatted,
+                                          ).toFixed(6),
+                                        )
+                                      : "0.00"
+                                  }`}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex w-full mt-3 md:gap-3 gap-2 items-center">
+                      <div className="w-full">
+                        {(() => {
+                          const rawAmount = amountIn?.replace(/,/g, "") || "0";
+                          const isMobile = window.innerWidth < 768;
+
+                          return (
+                            <input
+                              type="text"
+                              placeholder={
+                                formattedChainBalance === "0.000"
+                                  ? "0"
+                                  : calculateAmount(selectedPercentage)
+                              }
+                              value={formatNumber(amountIn)}
+                              onChange={(e) =>
+                                handleInputChange(e.target.value)
+                              }
+                              className="bg-transparent w-full outline-none text-white placeholder:text-white/10"
+                              style={{
+                                fontSize: scaledFs(rawAmount, isMobile),
+                                fontWeight: 200,
+                                letterSpacing: "-0.04em",
+                                lineHeight: 1,
+                                minWidth: 0,
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
                               }}
-                              className="flex items-center md:gap-4 gap-1 w-full justify-center"
-                            >
-                              {selectedTokenA ? (
-                                <>
-                                  <TokenLogo
-                                    token={selectedTokenA}
-                                    className="md:w-5 md:h-5 w-4 h-4"
-                                  />
-                                  <div
-                                    className={`${getFontSizeClass(
-                                      selectedTokenA.ticker ||
-                                      selectedTokenA.symbol,
-                                    )} text-white font-bold font-orbitron leading-normal bg-black appearance-none outline-none`}
-                                  >
-                                    {selectedTokenA.ticker ||
-                                      selectedTokenA.symbol}
-                                  </div>
-                                </>
-                              ) : (
-                                <span className="text-white font-extrabold font-orbitron md:text-xs text-xs capitalize">
-                                  Select token
-                                </span>
+                            />
+                          );
+                        })()}
+                      </div>
+                      <div className="lg:md:max-w-[180px] w-full">
+                        <div className="flex justify-between items-center cursor-pointer gap-4 w-full">
+                          <div className="flex gap-2 items-center justify-end w-full">
+                            <div className="flex items-center gap-2 shrink-0 transition-opacity duration-150 hover:opacity-60 select_token">
+                              <div
+                                onClick={() => {
+                                  setIsSelectingTokenA(true);
+                                  setTokenVisible(true);
+                                  setSelectedPercentage("");
+                                  setAmountIn("");
+                                }}
+                                className="flex items-center md:gap-4 gap-1 w-full justify-center"
+                              >
+                                {selectedTokenA ? (
+                                  <>
+                                    <TokenLogo
+                                      token={selectedTokenA}
+                                      className="md:w-5 md:h-5 w-4 h-4"
+                                    />
+                                    <div
+                                      className={`${getFontSizeClass(
+                                        selectedTokenA.ticker ||
+                                          selectedTokenA.symbol,
+                                      )} text-white font-bold  leading-normal appearance-none outline-none`}
+                                    >
+                                      {selectedTokenA.ticker ||
+                                        selectedTokenA.symbol}
+                                    </div>
+                                  </>
+                                ) : (
+                                  <span className="text-white font-semibold md:text-xs text-xs capitalize">
+                                    Select token
+                                  </span>
+                                )}
+                              </div>
+                              {selectedTokenA && (
+                                <button
+                                  onClick={() =>
+                                    handleCopyAddress(selectedTokenA.address)
+                                  }
+                                  className="rounded-md transition-colorss"
+                                >
+                                  {copySuccess &&
+                                  activeTokenAddress ===
+                                    selectedTokenA.address ? (
+                                    <Check className="md:w-4 md:h-4 w-3 h-3 text-green-500" />
+                                  ) : (
+                                    <Copy className="md:w-4 md:h-4 w-3 h-3 text-white hover:text-white" />
+                                  )}
+                                </button>
                               )}
                             </div>
-                            {selectedTokenA && (
-                              <button
-                                onClick={() =>
-                                  handleCopyAddress(selectedTokenA.address)
-                                }
-                                className="rounded-md transition-colorss"
-                              >
-                                {copySuccess &&
-                                  activeTokenAddress ===
-                                  selectedTokenA.address ? (
-                                  <Check className="md:w-4 md:h-4 w-3 h-3 text-green-500" />
-                                ) : (
-                                  <Copy className="md:w-4 md:h-4 w-3 h-3 text-white hover:text-white" />
-                                )}
-                              </button>
-                            )}
                           </div>
                         </div>
                       </div>
                     </div>
-                    <div className="w-full md:h-[53px] h-9">
-                      {(() => {
-                        const inputLength =
-                          formatNumber(amountIn)?.replace(/\D/g, "").length ||
-                          0;
-                        const defaultFontSize =
-                          window.innerWidth >= 1024
-                            ? 28
-                            : window.innerWidth >= 768
-                              ? 24
-                              : 20;
-                        const FREE_DIGITS = window.innerWidth >= 768 ? 12 : 5;
-                        const SHRINK_RATE = 3;
-
-                        const excessDigits = Math.max(
-                          0,
-                          inputLength - FREE_DIGITS,
-                        );
-
-                        const dynamicFontSize = Math.max(
-                          10,
-                          defaultFontSize - excessDigits * SHRINK_RATE,
-                        );
-                        return (
-                          <input
-                            type="text"
-                            placeholder={
-                              formattedChainBalance === "0.000"
-                                ? "0"
-                                : calculateAmount(selectedPercentage)
-                            }
-                            value={formatNumber(amountIn)}
-                            onChange={(e) => handleInputChange(e.target.value)}
-                            className="font-orbitron font-extrabold text-white rounded-[10px] px-1 py-3 text-end w-full h-full outline-none border-none transition-all duration-200 ease-in-out bg-black space"
-                            style={{
-                              fontSize: `${dynamicFontSize}px`,
-                            }}
-                          />
-                        );
-                      })()}
-                    </div>
-                  </div>
-                  <div className="flex justify-between gap-2 items-center 2xl:mt-3 mt-3 md:flex-nowrap flex-wrap mt6">
-                    <div className="text-[#FF9900] font-orbitron md:text-[15px] text-xs flex flex-col relative top-2">
-                      <span>
-                        {selectedTokenA ? (
-                          conversionRate ? (
-                            `$${parseFloat(conversionRate).toFixed(6)}`
+                    <div className="flex justify-between gap-2 items-center 2xl:mt-3 mt-3 md:flex-nowrap flex-wrap">
+                      <div className="you_pay_heading flex flex-col relative top-2">
+                        <span>
+                          {selectedTokenA ? (
+                            conversionRate ? (
+                              `$${parseFloat(conversionRate).toFixed(6)}`
+                            ) : (
+                              <span className="animate-pulse">Loading...</span>
+                            )
                           ) : (
-                            <span className="animate-pulse">Loading...</span>
-                          )
-                        ) : (
-                          "--"
-                        )}
-                      </span>
-                      <span className="font-bold mt-1">Market Price</span>
+                            "--"
+                          )}
+                        </span>
+                        <span className="mt-1">Market Price</span>
+                      </div>
+                      <div className="flex md:gap-2 gap-1 justify-end">
+                        <span></span>
+                        {[25, 50, 75, 100].map((value) => (
+                          <button
+                            key={value}
+                            type="button"
+                            className={`slippage-btn
+            ${
+              selectedPercentage === value
+                ? "!text-[#FF8A00]/80 !bg-[#FF8A00]/5 !border !border-[#FF8A00]/80"
+                : "text-[#FF8A00]/80 hover:text-[#FF8A00]/80 hover:border-[#FF8A00]/80 hover:bg-[#FF8A00]/5"
+            }`}
+                            style={
+                              isWidgetMode
+                                ? {
+                                    color: widgetPrimaryColor,
+                                    borderColor:
+                                      selectedPercentage === value
+                                        ? widgetPrimaryColor
+                                        : `rgba(${widgetPrimaryRgb}, 0.4)`,
+                                    backgroundColor:
+                                      selectedPercentage === value
+                                        ? `rgba(${widgetPrimaryRgb}, 0.12)`
+                                        : "transparent",
+                                  }
+                                : undefined
+                            }
+                            onClick={() => handlePercentageChange(value)}
+                            disabled={isLoading}
+                          >
+                            {value}%
+                          </button>
+                        ))}
+                      </div>
                     </div>
-                    <div className="text-zinc-200 text-[10px] font-normal font-orbitron leading-normal flex md:gap-2 gap-1 justify-end">
-                      <span></span>
-                      {[25, 50, 75, 100].map((value) => (
-                        <button
-                          key={value}
-                          type="button"
-                          className={`py-1 border bg-[#EEC485] text-black flex justify-center items-center rounded-full md:text-[10px] text-[8px] font-medium font-orbitron md:w-12 w-11 px-2
-            ${selectedPercentage === value
-                              ? "!text-black !bg-[#FF9900] border-[#FF9900]"
-                              : "bg-[#EEC485] text-[#040404] border-black hover:border-black hover:bg-[#FF9900] hover:text-black"
-                            }`}
-                          onClick={() => handlePercentageChange(value)}
-                          disabled={isLoading}
-                        >
-                          {value}%
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="text-right relative text-white md:text-xs text-[10px] usd-spacing truncate font-orbitron mt-2 text-sh1 flex justify-end gap-1">
-                    <div className="relative inline-block">
-                      <InfoIcon
-                        size={14}
-                        className="md:mt-[1.5px] mt-[-1px] cursor-pointer"
-                        onMouseEnter={() => setDollarInfo(true)}
-                        onMouseLeave={() => setDollarInfo(false)}
-                        onClick={() => setDollarInfo((prev) => !prev)}
-                      />
-
-                      {dollarinfo && (
-                        <div
-                          className="font-orbitron fixed rt0 z-50 mt-2 md:w-[450px] w-[300px] whitespace-pre-wrap rounded-lg bg-black px-4 py-3 text-center md:text-xs text-[9px] font-bold text-white shadow-lg"
+                    <div className="text-right relative text-white text-xs tracking-[0.04em] truncate mt-2 flex justify-end gap-1">
+                      <div className="relative inline-block">
+                        <InfoIcon
+                          size={12}
+                          className="md:mt-[1.5px] mt-[1.1px] cursor-pointer"
                           onMouseEnter={() => setDollarInfo(true)}
                           onMouseLeave={() => setDollarInfo(false)}
-                        >
-                          Dollar value display <br />
-                          The dollar value displayed are fetched from 3rd party
-                          API. They may not be 100% accurate in some cases. For
-                          accuracy please check the Output units.
-                        </div>
-                      )}
-                    </div>
-                    {selectedTokenA
-                      ? conversionRate
-                        ? `$${formatNumber(usdValue)}`
-                        : "Fetching Rate..."
-                      : "$0.00"}
-                  </div>
-                </div>
-                <div
-                  className="cursor-pointer mx-auto my-4 relative md:w-[50px] w-10"
-                  onClick={() => {
-                    const _tokenA = selectedTokenA;
-                    const _tokenB = selectedTokenB;
-                    setSelectedTokenA(_tokenB);
-                    setSelectedTokenB(_tokenA);
-                    setAmountOut("0");
-                    setAmountIn("0");
-                    setDebouncedAmountIn("0");
-                  }}
-                >
-                  <img
-                    src={Ar}
-                    alt="Ar"
-                    className="hoverswap transition-all rounded-xl"
-                  />
-                </div>
-                <div className="relative bg_swap_box_black">
-                  <div className="flex justify-between gap-3 items-center">
-                    <div className="font-orbitron md:text-[15px] text-xs font-extrabold leading-normal text-[#FF9900]">
-                      You Buy
-                    </div>
-                    <div className="md:text-xs text-[10px] font-orbitron">
-                      <span className="font-normal leading-normal text-[#FF9900]">
-                        BAL
-                      </span>{" "}
-                      <span className="font-normal leading-normal text-[#FF9900]">
-                        {" "}
-                        :{" "}
-                      </span>
-                      <span className="text-white leading-normal">
-                        {!selectedTokenB
-                          ? "0.00"
-                          : isLoading
-                            ? "Loading.."
-                            : selectedTokenB.address === EMPTY_ADDRESS
-                              ? `${formatNumber(formattedChainBalanceTokenB)}`
-                              : `${tokenBBalance
-                                ? formatNumber(
-                                  parseFloat(
-                                    tokenBBalance.formatted,
-                                  ).toFixed(6),
-                                )
-                                : "0.00"
-                              }`}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="flex w-full mt-3 mt6 md:gap-5 gap-2 items-center">
-                    <div className="lg:md:max-w-[200px] w-full">
-                      <div className="flex justify-between items-center cursor-pointer gap-4 w-full">
-                        <div className="flex gap-2 items-center w-full">
-                          <div className="flex md:gap-4 gap-1 items-center bg-black border border-[#FF9900] md:rounded-[7px] rounded-lg md:px-3 px-3 md:py-[8px] py-2 justify-center w-full">
-                            <div
-                              onClick={() => {
-                                setIsSelectingTokenA(false);
-                                setTokenVisible(true);
-                              }}
-                              className="flex items-center justify-center md:gap-4 gap-1 w-full"
-                            >
-                              {selectedTokenB ? (
-                                <>
-                                  <TokenLogo
-                                    token={selectedTokenB}
-                                    className="md:w-5 md:h-5 w-4 h-4"
-                                  />
-                                  <div
-                                    className={`${getFontSizeClass(
-                                      selectedTokenB.ticker ||
-                                      selectedTokenB.symbol,
-                                    )} text-white font-bold font-orbitron leading-normal bg-black appearance-none outline-none`}
-                                  >
-                                    {selectedTokenB.ticker ||
-                                      selectedTokenB.symbol}
-                                  </div>
-                                </>
-                              ) : (
-                                <span className="text-white font-extrabold font-orbitron md:text-xs text-xs capitalize">
-                                  Select token
-                                </span>
-                              )}
-                            </div>
-                            {selectedTokenB && (
-                              <button
-                                onClick={() =>
-                                  handleCopyAddress(selectedTokenB.address)
-                                }
-                                className="rounded-md transition-colors"
-                              >
-                                {copySuccess &&
-                                  activeTokenAddress ===
-                                  selectedTokenB.address ? (
-                                  <Check className="md:w-4 md:h-4 w-3 h-3 text-green-500" />
-                                ) : (
-                                  <Copy className="md:w-4 md:h-4 w-3 h-3 text-white hover:text-white" />
-                                )}
-                              </button>
-                            )}
-                          </div>
-                        </div>
+                          onClick={() => setDollarInfo((prev) => !prev)}
+                        />
                       </div>
+
+                      {selectedTokenA
+                        ? conversionRate
+                          ? `$${formatNumber(usdValue)}`
+                          : "Fetching Rate..."
+                        : "$0.00"}
                     </div>
-                    <div className="w-full md:h-[53px] h-9">
-                      {(() => {
-                        const numericValue = Number(amountOut);
-
-                        const formattedValue = isNaN(numericValue)
-                          ? ""
-                          : formatNumber(numericValue.toFixed(4));
-
-                        const outputLength =
-                          formattedValue.replace(/,/g, "").length || 0;
-
-                        const defaultFontSize =
-                          window.innerWidth >= 1024
-                            ? 28
-                            : window.innerWidth >= 768
-                              ? 24
-                              : 20;
-                        const FREE_DIGITS = window.innerWidth >= 768 ? 12 : 6;
-                        const SHRINK_RATE = 3;
-
-                        const excessDigits = Math.max(
-                          0,
-                          outputLength - FREE_DIGITS,
-                        );
-
-                        const dynamicFontSize = Math.max(
-                          10,
-                          defaultFontSize - excessDigits * SHRINK_RATE,
-                        );
-
-                        return (
-                          <>
-                            {isQuoting ? (
-                              <span className="font-orbitron text-white animate-pulse text-right w-full flex justify-end">
-                                Calculating...
-                              </span>
-                            ) : (
-                              <input
-                                type="text"
-                                placeholder="0.00"
-                                value={formattedValue}
-                                onChange={handleOutputChange}
-                                readOnly
-                                className="font-orbitron font-extrabold text-white rounded-[10px] px-1 py-3 text-end w-full h-full outline-none border-none transition-all duration-200 ease-in-out bg-black space"
-                                style={{
-                                  fontSize: `${dynamicFontSize}px`,
-                                }}
-                              />
-                            )}
-                          </>
-                        );
-                      })()}
-                    </div>
-                  </div>
-                  <div className="flex justify-between gap-2 items-center 2xl:mt-3 mt-3 md:flex-nowrap flex-wrap mt6">
-                    <div className="text-[#FF9900] font-orbitron md:text-[15px] text-xs flex flex-col relative top-2">
-                      <span>
-                        {selectedTokenB ? (
-                          conversionRateTokenB ? (
-                            `$${parseFloat(conversionRateTokenB).toFixed(6)}`
-                          ) : (
-                            <span className="animate-pulse">Loading...</span>
-                          )
-                        ) : (
-                          "--"
-                        )}
-                      </span>
-                      <span className="font-bold mt-1">Market Price</span>
-                    </div>
-                    {/* <div className="text-zinc-200 text-[10px] font-normal font-orbitron leading-normal flex md:gap-2 gap-1 justify-end">
-                      <span></span>
-                      {[25, 50, 75, 100].map((value) => (
-                        <button
-                          key={value}
-                          type="button"
-                          className={`py-1 border bg-[#EEC485] text-black flex justify-center items-center rounded-full md:text-[10px] text-[8px] font-medium font-orbitron md:w-12 w-11 px-2
-            ${selectedPercentageBuy === value
-                              ? "!text-black !bg-[#FF9900] border-[#FF9900]"
-                              : "bg-[#EEC485] text-[#040404] border-black hover:border-black hover:bg-[#FF9900] hover:text-black"
-                            }`}
-                          onClick={() => setSelectedPercentageBuy(value)}
-                          disabled={isLoading}
-                        >
-                          {value}%
-                        </button>
-                      ))}
-                    </div> */}
-                  </div>
-                  <div className="text-right relative text-white md:text-xs text-[10px] usd-spacing truncate font-orbitron mt-2 text-sh1 flex justify-end gap-1">
-                    <div className="relative inline-block">
-                      <InfoIcon
-                        size={14}
-                        className="md:mt-[1.5px] mt-[-1px] cursor-pointer"
-                        onMouseEnter={() => setDollarInfo1(true)}
-                        onMouseLeave={() => setDollarInfo1(false)}
-                        onClick={() => setDollarInfo1((prev) => !prev)}
-                      />
-                      {dollarinfo1 && (
-                        <div
-                          className="font-orbitron fixed rt0 z-50 mt-2 md:w-[450px] w-[300px] whitespace-pre-wrap rounded-lg bg-black px-4 py-3 text-center md:text-xs text-[9px] font-bold text-white shadow-lg"
-                          onMouseEnter={() => setDollarInfo1(true)}
-                          onMouseLeave={() => setDollarInfo1(false)}
-                        >
-                          Dollar value display <br />
-                          The dollar value displayed are fetched from 3rd party
-                          API. They may not be 100% accurate in some cases. For
-                          accuracy please check the Output units.
-                        </div>
-                      )}
-                    </div>
-                    {selectedTokenB ? (
-                      conversionRateTokenB ? (
-                        <span className="font-orbitron">
-                          ${formatNumber(usdValueTokenB)}
-                        </span>
-                      ) : (
-                        "Fetching Rate..."
-                      )
-                    ) : (
-                      "$0.00"
-                    )}
                   </div>
                 </div>
-                <div
-                  className={`relative flex justify-center flex-row md:mt-5 mt-4 xl:pt-0 ${order
-                    ? "xl:pt-[0px] lg:pt-[20px] pt-[350px] ttt xl:top-0 lg:top-[-140px] top-[-315px]"
-                    : "pt-0 top-0"
-                    }`}
-                >
-                  <button
-                    onClick={() => {
-                      if (!address) {
-                        openConnectPopup();
-                        return;
-                      }
-                      if (amountOut && parseFloat(amountOut) > 0) {
-                        setInitialQuote(amountOut);
-                        setAmountVisible(true);
-                      }
-                    }}
-                    disabled={address ? isInsufficientBalance() : false}
-                    className={`gtw relative z-50 w-full uppercase md:h-12 h-11 bg-[#F59216] md:rounded-[10px] rounded-md mx-auto button-trans h- flex justify-center items-center transition-all ${address && isInsufficientBalance()
-                      ? "opacity-50 cursor-not-allowed"
-                      : " "
-                      } font-orbitron lg:text-base text-base font-extrabold`}
+                {dollarinfo && (
+                  <div
+                    className="absolute right-0 z-[10000] mt-[-10px] md:w-[250px] w-[250px] whitespace-pre-wrap bg_swap_box px-3 py-3 text-center md:text-[9px] text-[8px] text-white"
+                    onMouseEnter={() => setDollarInfo(true)}
+                    onMouseLeave={() => setDollarInfo(false)}
                   >
-                    <span>{getButtonText()}</span>
-                  </button>
-                </div>
-                {selectedTokenA && selectedTokenB && (
-                  <div className="bg_swap_box mt-6 md:px-5 px-4 !py-6">
-                    <Routing isLoading={isRoutingLoading} />
-                    {selectedTokenA && selectedTokenB && (
-                      <div className="flex justify-between gap-2 items-center md:flex-nowrap flex-wrap">
-                        <div>
-                          <div className="text-[#FF9900] text-xs font-orbitron">
-                            Min Received :
-                            <span className="text-[#FF9900] text-xs font-bold mr-1">
-                              {" "}
-                              {formatNumber(
-                                parseFloat(minToReceiveAfterFee).toFixed(6),
-                              )}
-                            </span>
-                            {selectedTokenB.ticker}
-                          </div>
-                          <div className="text-[#FF9900] text-xs font-orbitron">
-                            Rate :
-                            <span className="text-[#FF9900] text-xs font-bold">
-                              {" "}
-                              1
-                            </span>
-                            {isRateReversed
-                              ? selectedTokenB.ticker
-                              : selectedTokenA.ticker}{" "}
-                            =
-                            <span className="text-[#FF9900] text-xs font-bold mr-1">
-                              {" "}
-                              {getRateDisplay()}
-                            </span>
-                            {isRateReversed
-                              ? selectedTokenA.ticker
-                              : selectedTokenB.ticker}
-                          </div>
-                        </div>
-                        <div className="flex gap-4 items-center">
-                          <div
-                            className={`font-orbitron truncate ${getPriceImpactColor(
-                              priceImpact,
-                            )}`}
-                          >
-                            Price Impact
-                          </div>
-                          <div className="text-center text-black text-xs font-normal font-orbitron px-3 py-1 bg-[#FFE3BA] rounded-lg">
-                            {priceImpact} %
-                          </div>
-                        </div>
-                      </div>
-                    )}
+                    Dollar value display <br />
+                    The dollar value displayed are fetched from 3rd party API.
+                    They may not be 100% accurate in some cases. For accuracy
+                    please check the Output units.
                   </div>
                 )}
+                <div className="separator">
+                  <div className="separator-inner">
+                    <button
+                      onClick={() => {
+                        const _tokenA = selectedTokenA;
+                        const _tokenB = selectedTokenB;
+                        setSelectedTokenA(_tokenB);
+                        setSelectedTokenB(_tokenA);
+                        setAmountOut("0");
+                        setAmountIn("0");
+                        setDebouncedAmountIn("0");
+                      }}
+                      className="separator-btn"
+                    >
+                      <svg
+                        width="11"
+                        height="11"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.5"
+                      >
+                        <path d="M7 16V4m0 0L3 8m4-4 4 4M17 8v12m0 0 4-4m-4 4-4-4" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+                <div className="relative bg_swap_box_black">
+                  <div className="p-4">
+                    <div className="flex justify-between gap-3 items-center">
+                      <div className="you_pay_heading">You Buy</div>
+                      <div className="md:text-xs text-[10px] ">
+                        <span
+                          className="font-normal leading-normal text-[#FF8A00]"
+                          style={widgetAccentTextStyle}
+                        >
+                          BAL
+                        </span>{" "}
+                        <span
+                          className="font-normal leading-normal text-[#FF8A00]"
+                          style={widgetAccentTextStyle}
+                        >
+                          {" "}
+                          :{" "}
+                        </span>
+                        <span className="text-white leading-normal">
+                          {!selectedTokenB
+                            ? "0.00"
+                            : isLoading
+                              ? "Loading.."
+                              : selectedTokenB.address === EMPTY_ADDRESS
+                                ? `${formatNumber(formattedChainBalanceTokenB)}`
+                                : `${
+                                    tokenBBalance
+                                      ? formatNumber(
+                                          parseFloat(
+                                            tokenBBalance.formatted,
+                                          ).toFixed(6),
+                                        )
+                                      : "0.00"
+                                  }`}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex w-full mt-3 md:gap-5 gap-2 items-center">
+                      <div className="w-full">
+                        {(() => {
+                          const rawAmount = (amountOut?.toString() || "0").replace(/,/g, "");
+                          const isMobile = window.innerWidth < 768;
+
+                          return (
+                            <>
+                              {isQuoting ? (
+                                <span className=" text-white animate-pulse">
+                                  Calculating...
+                                </span>
+                              ) : (
+                                <input
+                                  type="text"
+                                  placeholder={
+                                    formattedChainBalance === "0.000"
+                                      ? "0"
+                                      : calculateAmount(selectedPercentage)
+                                  }
+                                  value={(() => {
+                                    const num =
+                                      (amountOut?.toString() || "").replace(/,/g, "");
+                                    if (!num || isNaN(Number(num))) return "";
+
+                                    return Number(num)
+                                      .toFixed(6)
+                                      .replace(/\.?0+$/, "");
+                                  })()}
+                                  onChange={(e) =>
+                                    handleOutputChange(e.target.value)
+                                  }
+                                  className="bg-transparent w-full outline-none text-white placeholder:text-white/10"
+                                  style={{
+                                    fontSize: scaledFs(rawAmount, isMobile),
+                                    fontWeight: 200,
+                                    letterSpacing: "-0.04em",
+                                    lineHeight: 1,
+                                    transition: "font-size 0.15s ease",
+                                    color: rawAmount
+                                      ? "rgba(255,255,255,0.88)"
+                                      : "rgba(255,255,255,0.06)",
+                                    userSelect: "none",
+                                    minWidth: 0,
+                                    flex: 1,
+                                    overflow: "hidden",
+                                    textOverflow: "ellipsis",
+                                    whiteSpace: "nowrap",
+                                  }}
+                                />
+                              )}
+                            </>
+                          );
+                        })()}
+                      </div>
+                      <div className="lg:md:max-w-[200px] w-full">
+                        <div className="flex justify-between items-center cursor-pointer gap-4 w-full">
+                          <div className="flex gap-2 items-center justify-end w-full">
+                            <div className="flex items-center gap-2 shrink-0 transition-opacity duration-150 hover:opacity-60 select_token">
+                              <div
+                                onClick={() => {
+                                  setIsSelectingTokenA(false);
+                                  setTokenVisible(true);
+                                }}
+                                className="flex items-center justify-center md:gap-4 gap-1 w-full"
+                              >
+                                {selectedTokenB ? (
+                                  <>
+                                    <TokenLogo
+                                      token={selectedTokenB}
+                                      className="md:w-5 md:h-5 w-4 h-4"
+                                    />
+                                    <div
+                                      className={`${getFontSizeClass(
+                                        selectedTokenB.ticker ||
+                                          selectedTokenB.symbol,
+                                      )} text-white font-bold  leading-normal appearance-none outline-none`}
+                                    >
+                                      {selectedTokenB.ticker ||
+                                        selectedTokenB.symbol}
+                                    </div>
+                                  </>
+                                ) : (
+                                  <span className="text-white font-semibold md:text-xs text-xs capitalize">
+                                    Select token
+                                  </span>
+                                )}
+                              </div>
+                              {selectedTokenB && (
+                                <button
+                                  onClick={() =>
+                                    handleCopyAddress(selectedTokenB.address)
+                                  }
+                                  className="rounded-md transition-colors"
+                                >
+                                  {copySuccess &&
+                                  activeTokenAddress ===
+                                    selectedTokenB.address ? (
+                                    <Check className="md:w-4 md:h-4 w-3 h-3 text-green-500" />
+                                  ) : (
+                                    <Copy className="md:w-4 md:h-4 w-3 h-3 text-white hover:text-white" />
+                                  )}
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex justify-between gap-2 items-center 2xl:mt-3 mt-3 md:flex-nowrap flex-wrap">
+                      <div className="you_pay_heading flex flex-col relative top-2">
+                        <span>
+                          {selectedTokenB ? (
+                            conversionRateTokenB ? (
+                              `$${parseFloat(conversionRateTokenB).toFixed(6)}`
+                            ) : (
+                              <span className="animate-pulse">Loading...</span>
+                            )
+                          ) : (
+                            "--"
+                          )}
+                        </span>
+                        <span className="mt-1">Market Price</span>
+                      </div>
+                    </div>
+                    <div className="text-right relative text-white text-xs tracking-[0.04em] truncate mt-2 flex justify-end gap-1">
+                      <div className="relative inline-block">
+                        <InfoIcon
+                          size={12}
+                          className="md:mt-[1.5px] mt-[1.1px] cursor-pointer"
+                          onMouseEnter={() => setDollarInfo1(true)}
+                          onMouseLeave={() => setDollarInfo1(false)}
+                          onClick={() => setDollarInfo1((prev) => !prev)}
+                        />
+                      </div>
+
+                      {selectedTokenB ? (
+                        conversionRateTokenB ? (
+                          <span className="">
+                            ${formatNumber(usdValueTokenB)}
+                          </span>
+                        ) : (
+                          "Fetching Rate..."
+                        )
+                      ) : (
+                        "$0.00"
+                      )}
+                    </div>
+                  </div>
+                  {dollarinfo1 && (
+                    <div
+                      className="absolute right-0 z-[10000] mt-[-10px] md:w-[250px] w-[250px] whitespace-pre-wrap bg_swap_box px-3 py-3 text-center md:text-[9px] text-[8px] text-white"
+                      onMouseEnter={() => setDollarInfo1(true)}
+                      onMouseLeave={() => setDollarInfo1(false)}
+                    >
+                      Dollar value display <br />
+                      The dollar value displayed are fetched from 3rd party API.
+                      They may not be 100% accurate in some cases. For accuracy
+                      please check the Output units.
+                    </div>
+                  )}
+                  {selectedTokenA && selectedTokenB && (
+                    <div className="bg_swap_box p-4 !border-b-0 !border-l-0 !border-r-0 border-t">
+                      {selectedTokenA && selectedTokenB && (
+                        <div className="flex justify-between gap-2 items-center md:flex-nowrap flex-wrap">
+                          <div>
+                            <div className="text-[9px] text-white/20 tracking-[0.04em]">
+                              Rate :
+                              <span className="text-[9px] text-white/20 tracking-[0.04em] font-bold">
+                                {" "}
+                                1
+                              </span>
+                              {isRateReversed
+                                ? selectedTokenB.ticker
+                                : selectedTokenA.ticker}{" "}
+                              =
+                              <span className="text-[9px] text-white/20 tracking-[0.04em] font-bold mr-1">
+                                {" "}
+                                {isQuoteStale ? "..." : getRateDisplay()}
+                              </span>
+                              {isRateReversed
+                                ? selectedTokenA.ticker
+                                : selectedTokenB.ticker}
+                            </div>
+                          </div>
+                          <div className="flex gap-2 items-center">
+                            <div
+                              className={`text-[9px] text-white/20 tracking-[0.04em] truncate ${getPriceImpactColor(
+                                priceImpact,
+                              )}`}
+                            >
+                              Price Impact
+                            </div>
+                            <div
+                              className="text-[9px] text-[#FF8A00] tracking-[0.04em]"
+                              style={widgetAccentTextStyle}
+                            >
+                              {isQuoteStale ? "..." : `${priceImpact} %`}
+                            </div>
+                            <div className="text-[9px] text-white/20 tracking-[0.04em]">
+                              ROUTE
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      <Routing isLoading={isRoutingLoading} />
+                      <div className="flex justify-between gap-2 items-end md:flex-nowrap flex-wrap">
+                        <div className="text-[9px] text-white/20 tracking-[0.04em]">
+                          Min Received :
+                          <span className="text-[9px] text-white/20 tracking-[0.04em] font-bold ml-1">
+                            {isQuoteStale
+                              ? "..."
+                              : formatNumber(
+                                  parseFloat(minToReceiveAfterFee).toFixed(6),
+                                )}{" "}
+                            {!isQuoteStale ? selectedTokenB.ticker : ""}
+                          </span>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-[9px] text-white/20 tracking-[0.04em]">
+                            {isQuoteStale
+                              ? "Refreshing quote..."
+                              : `Quote refreshes in ${quoteTimeRemaining}s`}
+                          </div>
+                        </div>
+                      </div>
+                      {highImpactMessage && (
+                        <div className="mt-3 text-[9px] text-red-400 tracking-[0.04em]">
+                          {highImpactMessage}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  <div className="bg-[#06060efa]">
+                    <div
+                      className={`relative flex justify-center flex-row bt p-4`}
+                    >
+                      <button
+                        onClick={() => {
+                          if (!address) {
+                            openConnectPopup();
+                            return;
+                          }
+                          if (!isSwapDisabled()) {
+                            setInitialQuote(amountOut);
+                            setAmountVisible(true);
+                          }
+                        }}
+                        disabled={address ? isSwapDisabled() : false}
+                        className={`gtw relative z-50 w-full uppercase md:h-12 h-11 bg-[#FF8A00] mx-auto font-bold button-trans h- flex justify-center items-center transition-all ${
+                          address && isSwapDisabled()
+                            ? "opacity-50 cursor-not-allowed"
+                            : " "
+                        }  text-xs`}
+                        style={widgetPrimaryButtonStyle}
+                      >
+                        <span>{getButtonText()}</span>
+                      </button>
+                    </div>
+                    {showPoweredBy && (
+                      <p className="text-center text-[9px] text-white/10 mb-3 font-medium tracking-[0.14em]">
+                        <a
+                          href="/"
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-2 hover:text-white/30 transition-colors"
+                        >
+                          <span>POWERED BY</span>
+                          <img src={Logo} alt="EmpX" className="h-[9px] w-auto object-contain opacity-70" />
+                        </a>{" "}
+                        · 100+ DEXS · ZERO FEES
+                      </p>
+                    )}
+                  </div>
+                </div>
               </div>
             </>
           ) : (
@@ -1733,13 +2087,6 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
           {/* Ends */}
         </div>
       </div>
-      {isSlippageVisible && !order && (
-        <SlippageCalculator
-          inputAmount={tradeInfo?.amountOut}
-          onSlippageCalculated={handleSlippageCalculated}
-          onClose={() => setSlippageVisible(false)}
-        />
-      )}
 
       {isSlippageVisible && order && (
         <LimitOrderSlippageCalculator
@@ -1778,15 +2125,20 @@ const Emp = ({ setPadding, setBestRoute, onTokensChange, activeTab }) => {
             }}
             amountIn={amountIn}
             amountOut={parseFloat(amountOut).toFixed(6)}
+            minReceived={parseFloat(minToReceiveAfterFee).toFixed(6)}
             tokenA={selectedTokenA}
             tokenB={selectedTokenB}
-            refresh={() => { }}
+            refresh={() => {}}
             confirm={confirmSwap}
             handleApprove={handleApprove}
             needsApproval={needsApproval}
+            disabled={isSwapDisabled()}
             usdValueTokenA={usdValueTokenA}
             usdValueTokenB={usdValueTokenB}
             rate={getRateDisplay()}
+            priceImpact={priceImpact}
+            selectedSlippage={selectedSlippage}
+            effectiveSlippage={effectiveSlippage}
             showPriceAlert={showPriceAlert}
             newQuote={newQuote}
             initialQuote={initialQuote}

@@ -1,0 +1,56 @@
+/* ─── Landing v2 — section-scoped styles ─────────────────────────────────── */
+
+/* Hero rail marquee */
+@keyframes marquee {
+  0%   { transform: translate3d(0,    0, 0); }
+  100% { transform: translate3d(-33%, 0, 0); }
+}
+.animate-marquee {
+  animation: marquee 80s linear infinite;
+}
+
+/* Smooth focus reset for landing v2 anchor scroll */
+#landing-v2-root *:focus-visible {
+  outline: 1px solid rgba(255, 138, 0, 0.7);
+  outline-offset: 4px;
+}
+
+/* Hide native cursor inside cursor-reveal blocks */
+.cursor-none,
+.cursor-none * {
+  cursor: none !important;
+}
+
+/* Re-enable cursor on interactive elements inside reveal so users can
+   still click without losing their cursor entirely */
+.cursor-none a,
+.cursor-none button,
+.cursor-none input,
+.cursor-none textarea {
+  cursor: pointer !important;
+}
+
+/* Touch device — disable cursor-reveal entirely */
+@media (hover: none) and (pointer: coarse) {
+  .cursor-none,
+  .cursor-none * {
+    cursor: auto !important;
+  }
+}
+
+/* Mobile typography clamp helpers */
+@media (max-width: 480px) {
+  #landing-v2-root h1,
+  #landing-v2-root h2 {
+    line-height: 0.9 !important;
+  }
+}
+
+/* Smooth scrolling — horizontal mobile */
+#landing-v2-root section[id="integrations"] > div[style*="overflow-x-auto"] {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+#landing-v2-root section[id="integrations"] > div[style*="overflow-x-auto"]::-webkit-scrollbar {
+  display: none;
+}

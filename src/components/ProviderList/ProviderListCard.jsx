@@ -23,8 +23,8 @@ const ProvidersListCard = ({
     <>
       <div
         onClick={onSelect} // Set the selected card on click
-        className={`flex md:justify-between justify-center items-center md:flex-nowrap md:gap-2 gap-4 flex-wrap bg-black border border-[#FF9900] rounded-[10px] lg:px-10 lg:py-6 md:px-6 py-4 px-3 hover:bg-[#FF9900]/10 transition ${
-          isSelected ? "bg-[#FF9900]/10" : ""
+        className={`flex md:justify-between justify-center items-center md:flex-nowrap md:gap-2 gap-4 flex-wrap bg-black border border-[#FF8A00] rounded-[10px] lg:px-10 lg:py-6 md:px-6 py-4 px-3 hover:bg-[#FF8A00]/10 transition ${
+          isSelected ? "bg-[#FF8A00]/10" : ""
         }`}
       >
         <div className="grid grid-cols-[55%_50%]  justify-between p-3">
@@ -48,7 +48,7 @@ const ProvidersListCard = ({
             </span>
           </div>
         </div>
-        <div className="grid grid-cols-[40%_40%] justify-between bg-transparent gap-4 items-center text-[#FF9900] p-3 relative">
+        <div className="grid grid-cols-[40%_40%] justify-between bg-transparent gap-4 items-center text-[#FF8A00] p-3 relative">
           <div
             className=" flex items-center"
             onMouseEnter={() => setHovered(true)}
@@ -58,7 +58,7 @@ const ProvidersListCard = ({
             <span className="text-sm font-base roboto">~${fees}</span>
 
             {hovered && (
-              <div className="absolute bottom mb-2 z-50 md:-left-36 left-0 p-3 bg-[#FF9900]/90 text-white text-xs rounded-lg shadow-lg">
+              <div className="absolute bottom mb-2 z-50 md:-left-36 left-0 p-3 bg-[#FF8A00]/90 text-white text-xs  shadow-lg">
                 <p>
                   <strong>Protocol Fee:</strong> {protocolFee}
                 </p>

@@ -12,7 +12,7 @@
     "name": "ProveX",
     "address": "0xF6f8Db0aBa00007681F8fAF16A0FDa1c9B030b11",
     "symbol": "PRVX",
-    "decimals": 18,
+    "decimal": 18,
     "logoURI": "https://raw.githubusercontent.com/piteasio/app-tokens/main/token-logo/0xF6f8Db0aBa00007681F8fAF16A0FDa1c9B030b11.png"
   },
   {

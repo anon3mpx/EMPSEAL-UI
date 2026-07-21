@@ -13,8 +13,8 @@ export default function RoutingButton({ bestRoute, tokenA, tokenB }) {
       <button
         onClick={() => setIsRoutingModalOpen(true)}
         disabled={!hasValidRoute}
-        className={`rounded-md-r rounded px-4 py-2 font-bold font-orbitron ${hasValidRoute
-          ? "bg-[#FF9900] text-black hover:opacity-80 cursor-pointer"
+        className={`rounded-md-r rounded px-4 py-2 font-bold  ${hasValidRoute
+          ? "bg-[#FF8A00] text-black hover:opacity-80 cursor-pointer"
           : ""
           }`}
       >

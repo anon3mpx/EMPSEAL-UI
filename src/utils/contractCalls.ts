@@ -38,7 +38,6 @@ import {
 import Tokens from "../pages/tokenList.json";
 import { convertToBigInt } from "./utils";
 import { getChainConfig } from "./getChainConfig";
-import { useChainId } from 'wagmi';
 
 // Chain-specific router function names
 const ROUTER_FUNCTION_NAMES = {
@@ -226,6 +225,7 @@ export const checkAllowance = async (chainId: number, tokenInAddress: string, us
     let result = await readContract(config, {
       abi: erc20Abi,
       address: tokenInAddress as Address,
+      chainId,
       functionName: "allowance",
       args: [userAddress, routerAddress],
     });
@@ -244,10 +244,11 @@ export const callApprove = async (chainId: number, tokenInAddress: string, amoun
     let result = await writeContract(config, {
       abi: erc20Abi,
       address: tokenInAddress as Address,
+      chainId,
       functionName: "approve",
       args: [routerAddress, amountIn],
     });
-    await waitForTransaction(result);
+    await waitForTransaction(result, chainId);
     return {
       success: true,
       data: result,
@@ -264,6 +265,7 @@ const swapFromEth = async (chainId: number, tradeInfo: TradeInfo, userAddress: A
     let result = await writeContract(config, {
       abi: routerABI,
       address: routerAddress,
+      chainId,
       functionName: chainId === 369 ? "swapNoSplitFromPLS" : "swapNoSplitFromETH",
       args: [
         {
@@ -277,7 +279,7 @@ const swapFromEth = async (chainId: number, tradeInfo: TradeInfo, userAddress: A
       ],
       value: tradeInfo.amountIn,
     });
-    await waitForTransaction(result);
+    await waitForTransaction(result, chainId);
     return {
       success: true,
       data: result,
@@ -295,6 +297,7 @@ const swapToEth = async (chainId: number, tradeInfo: TradeInfo, userAddress: Add
     let result = await writeContract(config, {
       abi: routerABI,
       address: routerAddress,
+      chainId,
       functionName: chainId === 369 ? "swapNoSplitToPLS" : "swapNoSplitToETH",
       args: [
         {
@@ -307,7 +310,7 @@ const swapToEth = async (chainId: number, tradeInfo: TradeInfo, userAddress: Add
         BigInt(protocolFee.toString()),
       ],
     });
-    await waitForTransaction(result);
+    await waitForTransaction(result, chainId);
     return {
       success: true,
       data: result,
@@ -324,10 +327,11 @@ const swapNoSplitToEth = async (chainId: number, tradeInfo: TradeInfo, userAddre
     let result = await writeContract(config, {
       abi: wrappedTokenABI,
       address: wethAddress,
+      chainId,
       functionName: "withdraw",
       args: [tradeInfo.amountIn],
     });
-    await waitForTransaction(result);
+    await waitForTransaction(result, chainId);
     return {
       success: true,
       data: result,
@@ -348,11 +352,12 @@ const swapNoSplitFromEth = async (
     let result = await writeContract(config, {
       abi: wrappedTokenABI,
       address: wethAddress,
+      chainId,
       functionName: "deposit",
       args: [],
       value: tradeInfo.amountIn,
     });
-    await waitForTransaction(result);
+    await waitForTransaction(result, chainId);
     return {
       success: true,
       data: result,
@@ -369,6 +374,7 @@ const swap = async (chainId: number, tradeInfo: TradeInfo, userAddress: Address,
     let result = await writeContract(config, {
       abi: routerABI,
       address: routerAddress,
+      chainId,
       functionName: "swapNoSplit",
       args: [
         {
@@ -384,7 +390,7 @@ const swap = async (chainId: number, tradeInfo: TradeInfo, userAddress: Address,
         BigInt(protocolFee.toString()),
       ],
     });
-    await waitForTransaction(result);
+    await waitForTransaction(result, chainId);
     return {
       success: true,
       data: result,
@@ -394,9 +400,10 @@ const swap = async (chainId: number, tradeInfo: TradeInfo, userAddress: Address,
   }
 };
 
-const waitForTransaction = async (hash: Address) => {
+const waitForTransaction = async (hash: Address, chainId: number) => {
   try {
     const transactionReceipt = await waitForTransactionReceipt(config, {
+      chainId,
       confirmations: 2,
       hash,
     });
@@ -444,18 +451,26 @@ export const swapTokens = async (
       swapResponse = await swapToEth(chainId, tradeInfo, userAddress, protocolFee);
     } else {
       swapResponse = await swap(chainId, tradeInfo, userAddress, protocolFee);
-      toast.success("Transaction Successful");
     }
     setStatus("SWAPPED");
     setSwapHash(swapResponse.data);
+    toast.success("Transaction Successful");
     return swapResponse;
   } catch (error) {
+    const errorMessage = [
+      error?.message,
+      error?.shortMessage,
+      error?.reason,
+      error?.info?.error?.message,
+    ]
+      .filter(Boolean)
+      .join(" ");
     if (
-      error.message &&
-      error.message.includes("EmpsealRouter: Insufficient output amount")
+      errorMessage.includes("EmpsealRouter: Insufficient output amount") ||
+      errorMessage.includes("Insufficient amountOut")
     ) {
       setStatus("ERROR");
-      toast.error("Output amount too high. Adjust slippage and retry.");
+      toast.error("Minimum output is no longer available. Refresh the quote or increase slippage, then retry.");
     } else {
       setStatus("ERROR");
       toast.error("Transaction rejected");

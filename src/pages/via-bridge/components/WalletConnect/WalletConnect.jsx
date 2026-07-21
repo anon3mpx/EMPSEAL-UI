@@ -106,7 +106,7 @@ export default function WalletConnect({
           return (
             <>
               <button
-                className="new_shad !bg-black !rounded-2xl !text-[#FF9900] transition-all text-center font-extrabold"
+                className="v1-connect-btn"
                 onClick={() => setShowConnectPopup(true)}
                 type="button"
               >
@@ -128,108 +128,133 @@ export default function WalletConnect({
                       setShowConnectPopup(false);
                   }}
                 >
-                  <div className="relative text-white md:p-8 p-4 rounded-2xl md:max-w-[560px] w-full clip-bg font-orbitron">
-                    <svg
-                      onClick={() => setShowConnectPopup(false)}
-                      className="absolute cursor-pointer md:right-10 right-4 md:top-10 top-4 tilt"
-                      width={18}
-                      height={19}
-                      viewBox="0 0 18 19"
-                      fill="none"
-                      xmlns="http://www.w3.org/2000/svg"
-                    >
-                      <path
-                        d="M17 1.44824L1 17.6321M1 1.44824L17 17.6321"
-                        stroke="#fff"
-                        strokeWidth={2}
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                    <h2 className="mt-4 md:text-lg capitalize text-base font-medium text-white font-orbitron text-center tracking-widest flex gap-1 items-center justify-center">
-                      <img src={EL} alt="EL" className="w-10 object-contain" />
-                      Wallet Connect
-                    </h2>
-                    <div className="relative my-5">
-                      <svg
-                        className="flex flex-shrink-0 cursor-pointer absolute left-3 top-3"
-                        width={26}
-                        height={26}
-                        viewBox="0 0 26 26"
-                        fill="none"
-                        xmlns="http://www.w3.org/2000/svg"
+                  <div className="relative text-white p-4 rounded-2xl md:max-w-[560px] w-full clip-bg ">
+                    <div className="flex justify-between gap-2 items-center px-4 pb-2">
+                      <h2 className="text-[13px] uppercase font-bold text-white tracking-widest flex gap-1 items-center justify-center">
+                        <img
+                          src={EL}
+                          alt="EL"
+                          className="w-10 object-contain"
+                        />
+                        Wallet Connect
+                      </h2>
+                      <button
+                        onClick={() => setShowConnectPopup(false)}
+                        className="close-btn"
                       >
-                        <path
-                          d="M11.9167 20.5833C16.7031 20.5833 20.5833 16.7031 20.5833 11.9167C20.5833 7.1302 16.7031 3.25 11.9167 3.25C7.1302 3.25 3.25 7.1302 3.25 11.9167C3.25 16.7031 7.1302 20.5833 11.9167 20.5833Z"
-                          stroke="#FF9900"
-                          strokeWidth={2}
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                        <path
-                          d="M22.7496 22.7501L18.0371 18.0376"
-                          stroke="#FF9900"
-                          strokeWidth={2}
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
-                      <input
-                        type="text"
-                        placeholder="Search"
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="bg-[#382B19] h-12 rounded-lg text-[#FF9900] w-full pr-3 pl-12 outline-none border-none placeholder:text-[#FF9900] text-sm font-normal roboto leading-tight tracking-wide"
-                      />
+                        <svg
+                          width="10"
+                          height="10"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2.5"
+                        >
+                          <path d="M18 6 6 18M6 6l12 12" />
+                        </svg>
+                      </button>
                     </div>
-
-                    {/* Wallet options */}
-                    <div className="grid md:grid-cols-2 grid-cols-1 gap-x-2 gap-y-4 mt-2">
-                      {filteredConnectors.slice(0, 6).map((connector) => (
+                    <div className="px-4 border-top border-bottom">
+                      <div className="search-wrapper py-4">
+                        <svg
+                          className="search-icon"
+                          width="12"
+                          height="12"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                        >
+                          <circle cx="11" cy="11" r="8" />
+                          <path d="m21 21-4.35-4.35" />
+                        </svg>
+                        <input
+                          type="text"
+                          placeholder="Search token or paste address..."
+                          className="search-input"
+                          value={searchTerm}
+                          onChange={(e) => setSearchTerm(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                    <p className="text-[10px] tracking-widest text-[#ff8a0066] mb-3 px-4">
+                      POPULAR
+                    </p>
+                    <div className="grid grid-cols-2 gap-3 mt-2 px-4">
+                      {filteredConnectors.slice(0, 2).map((connector) => (
                         <div
                           key={connector.uid}
-                          className="flex items-center justify-start gap-4 cursor-pointer rounded-lg d:py-3 py-2 px-3 transition-all hoverclip_1"
+                          className="flex flex-col items-center justify-center gap-2 cursor-pointer py-4 px-3 border border-[#FFFFFF20] transition-all hover:bg-[#FF8A00]/5"
                           onClick={() => {
                             connect({ connector });
-                            setShowConnectPopup(false);
+                            closeConnectPopup();
                           }}
                         >
-                          <div className="relative">
-                            {/* <img
-                              src={Sbg}
-                              alt="sbg"
-                              className="absolute z-0 left-[-1.5px] top-0 bottom-0 my-auto min-w-[20px] h-[20px]"
-                            /> */}
+                          <div className="slippage-btn1 p-2">
                             <img
                               src={
                                 connector.name.includes("MetaMask")
                                   ? "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT3ymr3UNKopfI0NmUY95Dr-0589vG-91KuAA&s"
-                                  : // "https://raw.githubusercontent.com/MetaMask/brand-resources/master/SVG/metamask-fox.svg"
-                                    connector.name.includes("WalletConnect")
+                                  : connector.name.includes("WalletConnect")
                                     ? "https://avatars.githubusercontent.com/u/37784886?s=200&v=4"
                                     : connector.name.includes("Coinbase")
                                       ? "https://avatars.githubusercontent.com/u/18060234?s=200&v=4"
                                       : "https://rainbowkit.com/icons/wallet.svg"
                               }
                               alt={connector.name}
-                              className="w-5 h-5 relative z-10 flex flex-shrink-0 object-contain rounded-full"
+                              className="w-6 h-6 object-contain "
                             />
                           </div>
-                          <p className="md:text-base text-[10px] text-[#FF9900] font-orbitron font-bold">
+
+                          <p className="text-[11px] text-white font-bold uppercase">
+                            {connector.name}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-[9px] font-bold tracking-[0.25em] text-white/20 mb-2 px-4 pt-4">
+                      MORE OPTIONS
+                    </p>
+                    <div className="flex flex-col gap-2 mt-4 px-2">
+                      {filteredConnectors.slice(2, 6).map((connector) => (
+                        <div
+                          key={connector.uid}
+                          className="flex items-center gap-4 cursor-pointer py-3 px-3 transition-all hover:bg-[#FF8A00]/5"
+                          onClick={() => {
+                            connect({ connector });
+                            closeConnectPopup();
+                          }}
+                        >
+                          <div className="slippage-btn1 p-1">
+                            <img
+                              src={
+                                connector.name.includes("MetaMask")
+                                  ? "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT3ymr3UNKopfI0NmUY95Dr-0589vG-91KuAA&s"
+                                  : connector.name.includes("WalletConnect")
+                                    ? "https://avatars.githubusercontent.com/u/37784886?s=200&v=4"
+                                    : connector.name.includes("Coinbase")
+                                      ? "https://avatars.githubusercontent.com/u/18060234?s=200&v=4"
+                                      : "https://rainbowkit.com/icons/wallet.svg"
+                              }
+                              alt={connector.name}
+                              className="w-4 h-4 object-contain "
+                            />
+                          </div>
+                          <p className="md:text-xs uppercase text-[10px] text-white font-bold">
                             {connector.name}
                           </p>
                         </div>
                       ))}
                     </div>
                     <div className="bg-[#444444] w-full h-[1px] mb-4 mt-10"></div>
-                    <div className="text-white md:text-base text-sm mt-4 font-orbitron font-bold text-center">
-                      By logging in I agree to the
+                    <div className="text-white md:text-xs text-xs uppercase mt-4  font-bold text-center">
+                      By connecting, you agree to
                       <span
                         onClick={() => {
                           setShowTermsPopup(true);
                           setShowConnectPopup(false);
                         }}
-                        className="ml-1 text-[#FF9900] cursor-pointer hover:underline md:text-base text-sm font-orbitron font-bold"
+                        className="ml-1 text-[#FF8A00] cursor-pointer hover:underline md:text-xs text-xs font-bold"
                       >
                         Terms & Privacy Policy
                       </span>
@@ -254,7 +279,7 @@ export default function WalletConnect({
           return (
             <>
               <button
-                className="new_shad !bg-black !rounded-2xl hover:opacity-80 transition-all !text-[#FF494A] font-extrabold"
+                className="v1-connect-btn"
                 onClick={() => setShowChainPopup(true)}
                 type="button"
               >
@@ -281,7 +306,7 @@ export default function WalletConnect({
               allowUnsupported={allowUnsupported}
             />
             <button
-              className="new_shad !bg-black !rounded-2xl transition-all flex items-center justify-center gap-2 px-2"
+              className="v1-connect-btn"
               onClick={() => setShowChainPopup(true)}
               type="button"
             >
@@ -294,7 +319,7 @@ export default function WalletConnect({
                       dummyImage
                     }
                     alt={chain.name}
-                    className="w-5 h-5 object-contain rounded-full"
+                    className="w-4 h-4 object-contain rounded-full"
                     onError={(e) => (e.currentTarget.src = dummyImage)}
                   />
                   {/* <span
@@ -313,7 +338,7 @@ export default function WalletConnect({
             </button>
             <div className="flex flex-col sm:flex-row justify-center items-center gap-4">
               <button
-                className="new_shad !bg-black !text-[#FF9900] !rounded-2xl transition-all text-center font-extrabold font-orbitron"
+                className="v1-connect-btn"
                 onClick={() => setShowPopup(true)}
                 type="button"
               >

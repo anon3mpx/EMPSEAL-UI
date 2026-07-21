@@ -23,18 +23,18 @@ const SelectionModal = ({
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="relative text-white md:p-8 p-6 rounded-2xl md:max-w-[618px] w-full clip-bg font-orbitron"
+        className="relative text-white md:p-8 p-6 rounded-2xl md:max-w-[618px] w-full clip-bg "
       >
         {/* Header */}
         <div className="flex justify-center items-center mb-4">
-          <h2 className="md:text-lg capitalize text-lg font-medium text-white font-orbitron text-center tracking-widest flex gap-1 items-center justify-center">
+          <h2 className="md:text-lg capitalize text-lg font-medium text-white  text-center tracking-widest flex gap-1 items-center justify-center">
             <img src={EL} alt="EL" className="w-10 object-contain" />
             {title}
           </h2>
 
           <button
             onClick={onClose}
-            className="absolute md:right-10 right-7 top-10 cursor-pointer tilt hover:text-[#FF9900]"
+            className="absolute md:right-10 right-7 top-10 cursor-pointer tilt hover:text-[#FF8A00]"
           >
             <X size={30} />
           </button>
@@ -50,7 +50,7 @@ const SelectionModal = ({
               <div
                 key={item.id}
                 onClick={() => onSelect(item)}
-                className="p-3.5 flex items-center gap-3 hoverclip text-[#FFD484] hover:text-white rounded-lg cursor-pointer my-3.5"
+                className="p-3.5 flex items-center gap-3 hoverclip text-[#FFD484] hover:text-white  cursor-pointer my-3.5"
               >
                 {isToken ? (
                   <div className="w-[23px] h-[23px] flex justify-center items-center shrink-0">

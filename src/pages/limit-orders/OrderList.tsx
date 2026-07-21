@@ -440,7 +440,7 @@ export function OrderList({
   const SortArrow = ({ column }: { column: "id" | "status" }) => {
     if (sortBy !== column) return <span className="ml-1 opacity-70">↕</span>;
     return (
-      <span className="ml-1 text-[#FF9900]">
+      <span className="ml-1 text-[#FF8A00]">
         {sortDirection === "asc" ? "▲" : "▼"}
       </span>
     );
@@ -450,12 +450,12 @@ export function OrderList({
     // sctable
     <div className="text-white lg:max-w-[1200px] md:max-w-[1200px] mx-auto w-full pt-5">
       <div className="flex justify-between items-center flex-wrap gap-4 mb-5 w-full">
-        <div className="font-orbitron md:text-4xl text-2xl font-extrabold text-[#FF9900]">
+        <div className=" md:text-4xl text-2xl font-extrabold text-[#FF8A00]">
           Your Orders
         </div>
         <div className="flex gap-2 items-center flex-wrap">
           <Select value={filterStatus} onValueChange={setFilterStatus}>
-            <SelectTrigger className="w-[180px] border border-[#FF9900] bg-black text-white">
+            <SelectTrigger className="w-[180px] border border-[#FF8A00] bg-black text-white">
               <SelectValue placeholder="Filter by status" />
             </SelectTrigger>
             <SelectContent className="bg-black text-white">
@@ -472,7 +472,7 @@ export function OrderList({
             onClick={handleRefresh}
             disabled={isLoading && isPulseChain}
             data-testid="button-fetch-orders"
-            className="border border-[#FF9900]"
+            className="border border-[#FF8A00]"
           >
             <RefreshCw
               className={`mr-2 h-4 w-4 ${
@@ -485,7 +485,7 @@ export function OrderList({
       </div>
       <div className="clip-bg1 w-full md:rounded-tr-2xl md:rounded-0 rounded-2xl rounded-b-2xl lg:py-8 lg:px-8 md:px-6 px-4 md:py-6 py-6 space-y-3">
         {!isPulseChain ? (
-          <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border bg-muted/20 p-8 text-center">
+          <div className="flex flex-col items-center justify-center  border border-dashed border-border bg-muted/20 p-8 text-center">
             <p className="text-sm font-medium text-foreground">
               Incorrect Network
             </p>
@@ -495,14 +495,14 @@ export function OrderList({
             </p>
           </div>
         ) : isLoading ? (
-          <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border bg-muted/20 p-8 text-center">
+          <div className="flex flex-col items-center justify-center  border border-dashed border-border bg-muted/20 p-8 text-center">
             <RefreshCw className="mb-3 h-12 w-12 animate-spin text-muted-foreground/50" />
             <p className="text-sm font-medium text-foreground">
               Loading orders...
             </p>
           </div>
         ) : allOrders.length === 0 ? (
-          <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border bg-muted/20 p-8 text-center">
+          <div className="flex flex-col items-center justify-center  border border-dashed border-border bg-muted/20 p-8 text-center">
             <ListOrdered className="mb-3 h-12 w-12 text-muted-foreground/50" />
             <p className="text-sm font-medium text-foreground">
               No Orders Found
@@ -516,32 +516,32 @@ export function OrderList({
             <div className="md:grid hidden lg:grid-cols-8 grid-cols-8 gap-8 items-center w-full">
               <div
                 onClick={() => handleSort("id")}
-                className="font-semibold text-base text-[#FF9900] cursor-pointer"
+                className="font-semibold text-base text-[#FF8A00] cursor-pointer"
               >
                 Order ID <SortArrow column="id" />
               </div>
               <div
                 onClick={() => handleSort("status")}
-                className="font-semibold text-base text-[#FF9900] cursor-pointer"
+                className="font-semibold text-base text-[#FF8A00] cursor-pointer"
               >
                 Status <SortArrow column="status" />
               </div>
-              <div className="font-semibold text-base text-[#FF9900]">
+              <div className="font-semibold text-base text-[#FF8A00]">
                 Limit Price
               </div>
-              <div className="font-semibold text-base text-[#FF9900]">
+              <div className="font-semibold text-base text-[#FF8A00]">
                 Token In/Amount
               </div>
-              <div className="font-semibold text-base text-[#FF9900]">
+              <div className="font-semibold text-base text-[#FF8A00]">
                 Token Out/Amount
               </div>
-              <div className="font-semibold text-base text-[#FF9900]">
+              <div className="font-semibold text-base text-[#FF8A00]">
                 Progress
               </div>
-              <div className="font-semibold text-base text-[#FF9900]">
+              <div className="font-semibold text-base text-[#FF8A00]">
                 Date/Time
               </div>
-              <div className="font-semibold text-base text-[#FF9900]">
+              <div className="font-semibold text-base text-[#FF8A00]">
                 Action
               </div>
             </div>

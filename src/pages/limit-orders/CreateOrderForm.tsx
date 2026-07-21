@@ -1398,25 +1398,25 @@ export function CreateOrderForm({
               </p>
             )} */}
             {/* <div className="mb-3 text-center">
-              <span className="inline-flex items-center rounded-full border border-[#FF9900] px-3 py-1 text-[11px] font-bold font-orbitron text-[#FF9900]">
+              <span className="inline-flex items-center rounded-full border border-[#FF8A00] px-3 py-1 text-[11px] font-bold  text-[#FF8A00]">
                 {isSellLikeStrategy ? "Derived: Sell Limit" : "Derived: Buy Limit"}
               </span>
             </div> */}
             {/*  */}
             <div className="relative bg_swap_box">
               <div className="flex justify-between gap-3 items-center">
-                <div className="font-orbitron md:text-[15px] text-xs font-extrabold leading-normal text-[#FF9900]">
+                <div className="you_pay_heading">
                   {orderMode === OrderMode.POSITION
                     ? "Protected Token"
                     : isSellLikeStrategy
                       ? "Sell"
                       : "You sell at most"}
                 </div>
-                <div className="md:text-xs text-[10px] font-orbitron">
-                  <span className="font-normal leading-normal text-[#FF9900]">
+                <div className="md:text-xs text-[10px] ">
+                  <span className="font-normal leading-normal text-[#FF8A00]">
                     BAL
                   </span>
-                  <span className="font-normal leading-normal text-[#FF9900]">
+                  <span className="font-normal leading-normal text-[#FF8A00]">
                     {" "}
                     :{" "}
                   </span>
@@ -1440,7 +1440,7 @@ export function CreateOrderForm({
                   <div className="flex justify-between items-center cursor-pointer gap-4 w-full">
                     <div className="flex gap-2 items-center w-full">
                       {/* md:w-[220px] w-[160px] */}
-                      <div className="flex md:gap-4 gap-1 items-center bg-black border border-[#FF9900] md:rounded-[7px] rounded-lg md:px-5 px-3 py-[1px] justify-center w-full">
+                      <div className="flex md:gap-4 gap-1 items-center bg-black border border-[#FF8A00] md:rounded-[7px]  md:px-5 px-3 py-[1px] justify-center w-full">
                         {tokenInMode === "select" ? (
                           <div className="space-y-2 w-full">
                             <Select
@@ -1448,7 +1448,7 @@ export function CreateOrderForm({
                               value={selectedTokenIn || undefined}
                             >
                               <SelectTrigger
-                                className="md:h-8 h-7 border-none text-center bg-black focus:none px-0 !w-full outline-none text-white font-extrabold font-orbitron md:text-xs text-xs capitalize"
+                                className="md:h-8 h-7 border-none text-center bg-black focus:none px-0 !w-full outline-none text-white font-semibold md:text-xs text-xs capitalize"
                                 data-testid="select-token-in"
                               >
                                 <SelectValue placeholder="Select token" />
@@ -1465,7 +1465,7 @@ export function CreateOrderForm({
                                           symbol={token.symbol}
                                           className="md:h-5 md:w-5 w-4 h-4"
                                         />
-                                        <span className="md:text-sm text-sm font-extrabold font-orbitron text-white">
+                                        <span className="md:text-sm text-sm font-extrabold  text-white">
                                           {token.symbol}
                                         </span>
                                       </div>
@@ -1473,7 +1473,7 @@ export function CreateOrderForm({
                                   ),
                                 )}
                                 <SelectItem value="custom">
-                                  <span className="font-medium !text-sm font-orbitron cursor-pointer text-white">
+                                  <span className="font-medium !text-sm  cursor-pointer text-white">
                                     Custom Address..
                                   </span>
                                 </SelectItem>
@@ -1492,7 +1492,7 @@ export function CreateOrderForm({
                                       className="md:h-5 md:w-5 w-4 h-4 rounded-full"
                                     />
                                   )}
-                                  <span className="font-orbitron md:text-sm text-sm font-extrabold !text-white">
+                                  <span className=" md:text-sm text-sm font-extrabold !text-white">
                                     {customTokenIn.symbol}
                                   </span>
                                 </div>
@@ -1509,7 +1509,7 @@ export function CreateOrderForm({
                                 <Input
                                   {...form.register("tokenIn")}
                                   placeholder="0x..."
-                                  className="h-12 bg-transparent !focus:none !outline-0 !border-none md:text-sm text-sm !font-bold !font-orbitron" // Added padding for logo
+                                  className="h-12 bg-transparent !focus:none !outline-0 !border-none md:text-sm text-sm !font-bold !" // Added padding for logo
                                   data-testid="input-token-in-custom"
                                 />
                                 <X
@@ -1530,7 +1530,7 @@ export function CreateOrderForm({
                                 setTokenInMode("select");
                                 form.setValue("tokenIn", "");
                               }}
-                              className="md:text-base text-xs border-none font-orbitron"
+                              className="md:text-base text-xs border-none "
                             >
                               Back to token list
                             </Button> */}
@@ -1565,7 +1565,7 @@ export function CreateOrderForm({
                         {...form.register("amountIn")}
                         placeholder="0.0"
                         type="text"
-                        className="font-orbitron font-extrabold text-white rounded-[10px] px-1 py-3 text-end w-full h-full outline-none border-none transition-all duration-200 ease-in-out bg-black space"
+                        className=" font-extrabold text-white rounded-[10px] px-1 py-3 text-end w-full h-full outline-none border-none transition-all duration-200 ease-in-out bg-black space"
                         data-testid="input-amount-in"
                         onChange={(e) => {
                           const sanitized = sanitizeNumericInput(
@@ -1591,7 +1591,7 @@ export function CreateOrderForm({
                 </div>
               </div>
               <div className="flex justify-between gap-2 items-center md:mt-8 mt-5">
-                <div className="text-[#FF9900] font-orbitron md:text-[15px] text-xs flex flex-col relative top-2">
+                <div className="you_pay_heading flex flex-col relative top-2">
                   {selectedTokenIn ? (
                     tokenInUSDPrice ? (
                       `$${tokenInUSDPrice.toFixed(6)}`
@@ -1601,18 +1601,18 @@ export function CreateOrderForm({
                   ) : (
                     "--"
                   )}
-                  <span className="font-bold mt-1">Market Price</span>
+                  <span className="mt-1">Market Price</span>
                 </div>
-                <div className="text-zinc-200 text-[10px] font-normal font-orbitron leading-normal flex md:gap-2 gap-1 justify-end">
+                <div className="text-zinc-200 text-[10px] font-normal  leading-normal flex md:gap-2 gap-1 justify-end">
                   <span></span>
                   {[25, 50, 75, 100].map((value) => (
                     <button
                       key={value}
                       type="button"
-                      className={`py-1 border bg-[#EEC485] text-black flex justify-center items-center rounded-full md:text-[10px] text-[8px] font-medium font-orbitron md:w-12 w-11 px-2
+                      className={`py-1 border bg-[#EEC485] text-black flex justify-center items-center rounded-full md:text-[10px] text-[8px] font-medium  md:w-12 w-11 px-2
       ${selectedInPercentage === value
-                          ? "!text-black !bg-[#FF9900] border-[#FF9900]"
-                          : "bg-[#EEC485] text-[#040404] border-black hover:border-black hover:bg-[#FF9900] hover:text-black"
+                          ? "!text-black !bg-[#FF8A00] border-[#FF8A00]"
+                          : "bg-[#EEC485] text-[#040404] border-black hover:border-black hover:bg-[#FF8A00] hover:text-black"
                         }`}
                       onClick={() => handleTokenInPercentageChange(value)}
                     >
@@ -1621,7 +1621,7 @@ export function CreateOrderForm({
                   ))}
                 </div>
               </div>
-              <div className="mt-1 text-right relative text-white md:text-base text-[10px] usd-spacing truncate rigamesh text-sh1 flex justify-end gap-1">
+              <div className="mt-1 text-right relative text-white md:text-base text-[10px] usd-spacing truncate  text-sh1 flex justify-end gap-1">
                 {tokenInUSDPrice &&
                   amountIn &&
                   !isNaN(parseFloat(amountIn)) && (
@@ -1637,7 +1637,7 @@ export function CreateOrderForm({
 
                         {dollarinfo && (
                           <div
-                            className="font-orbitron fixed rt0 z-50 mt-2 md:w-[450px] w-[300px] whitespace-pre-wrap rounded-lg bg-black px-4 py-3 text-center md:text-xs text-[10px] font-bold text-white shadow-lg"
+                            className=" fixed rt0 z-50 mt-2 md:w-[450px] w-[300px] whitespace-pre-wrap  bg-black px-4 py-3 text-center md:text-xs text-[10px] font-bold text-white shadow-lg"
                             onMouseEnter={() => setDollarInfo(true)}
                             onMouseLeave={() => setDollarInfo(false)}
                           >
@@ -1648,7 +1648,7 @@ export function CreateOrderForm({
                           </div>
                         )}
                       </div>
-                      <span className="font-orbitron font-bold">
+                      <span className=" font-bold">
                         $
                         {formatNumber(
                           (parseFloat(amountIn) * tokenInUSDPrice).toFixed(2),
@@ -1657,7 +1657,7 @@ export function CreateOrderForm({
                     </div>
                   )}
               </div>
-              <div className="text-right text-white font-extrabold text-sm relative font-orbitron truncate">
+              <div className="text-right text-white font-extrabold text-sm relative  truncate">
                 {form.formState.errors.amountIn && (
                   <p className="mt-1 text-sm text-destructive">
                     {form.formState.errors.amountIn.message}
@@ -1678,7 +1678,7 @@ export function CreateOrderForm({
               data-testid="button-swap-tokens"
             >
               <svg
-                className="hoverswap transition-all rounded-xl md:w-[50px] w-12"
+                className="hoverswap transition-all  md:w-[50px] w-12"
                 width={50}
                 height={50}
                 viewBox="0 0 70 70"
@@ -1703,18 +1703,18 @@ export function CreateOrderForm({
             {/*  */}
             <div className="relative pb-4 bg_swap_box_black">
               <div className="flex justify-between gap-3 items-center lg:px-2">
-                <div className="font-orbitron md:text-[15px] text-xs font-extrabold leading-normal text-[#FF9900]">
+                <div className="you_pay_heading">
                   {orderMode === OrderMode.POSITION
                     ? "Exit Token"
                     : isSellLikeStrategy
                       ? "Receive at least"
                       : "Buy exactly"}
                 </div>
-                <div className="md:text-xs text-[10px] font-orbitron">
-                  <span className="font-normal leading-normal text-[#FF9900]">
+                <div className="md:text-xs text-[10px] ">
+                  <span className="font-normal leading-normal text-[#FF8A00]">
                     BAL
                   </span>{" "}
-                  <span className="font-normal leading-normal text-[#FF9900]">
+                  <span className="font-normal leading-normal text-[#FF8A00]">
                     {" "}
                     :{" "}
                   </span>
@@ -1738,7 +1738,7 @@ export function CreateOrderForm({
                   <div className="flex justify-between items-center cursor-pointer gap-4 w-full">
                     <div className="flex gap-2 items-center w-full">
                       {/* md:w-[220px] w-[160px] */}
-                      <div className="flex md:gap-4 gap-1 items-center bg-black border border-[#FF9900] md:rounded-[7px] rounded-lg md:px-5 px-3 py-[1px] justify-center w-full">
+                      <div className="flex md:gap-4 gap-1 items-center bg-black border border-[#FF8A00] md:rounded-[7px]  md:px-5 px-3 py-[1px] justify-center w-full">
                         {tokenOutMode === "select" ? (
                           <div className="space-y-2 w-full">
                             <Select
@@ -1746,7 +1746,7 @@ export function CreateOrderForm({
                               value={selectedTokenOut || undefined}
                             >
                               <SelectTrigger
-                                className="md:h-8 h-7 border-none text-center focus:none px-0 !w-full outline-none !text-white font-extrabold font-orbitron md:text-xs text-xs capitalize"
+                                className="md:h-8 h-7 border-none text-center focus:none px-0 !w-full outline-none !text-white font-semibold md:text-xs text-xs capitalize"
                                 data-testid="select-token-out"
                               >
                                 <SelectValue placeholder="Select token" />
@@ -1762,7 +1762,7 @@ export function CreateOrderForm({
                                           symbol={token.symbol}
                                           className="md:h-5 md:w-5 w-4 h-4"
                                         />
-                                        <span className="font-orbitron md:text-sm text-sm font-extrabold !text-white">
+                                        <span className=" md:text-sm text-sm font-extrabold !text-white">
                                           {token.symbol}
                                         </span>
                                       </div>
@@ -1770,7 +1770,7 @@ export function CreateOrderForm({
                                   ),
                                 )}
                                 <SelectItem value="custom">
-                                  <span className="font-medium text-white font-orbitron cursor-pointer !text-sm">
+                                  <span className="font-medium text-white  cursor-pointer !text-sm">
                                     Custom Address..
                                   </span>
                                 </SelectItem>
@@ -1789,7 +1789,7 @@ export function CreateOrderForm({
                                       className="md:h-5 md:w-5 w-4 h-4 rounded-full"
                                     />
                                   )}
-                                  <span className="font-orbitron md:text-sm text-sm font-extrabold !text-white">
+                                  <span className=" md:text-sm text-sm font-extrabold !text-white">
                                     {customTokenOut.symbol}
                                   </span>
                                 </div>
@@ -1806,7 +1806,7 @@ export function CreateOrderForm({
                                 <Input
                                   {...form.register("tokenOut")}
                                   placeholder="0x..."
-                                  className="h-12 bg-transparent !focus:none !outline-0 !border-none md:text-sm text-sm !font-bold !font-orbitron !text-white"
+                                  className="h-12 bg-transparent !focus:none !outline-0 !border-none md:text-sm text-sm !font-bold ! !text-white"
                                   data-testid="input-token-out-custom"
                                 />
                                 <X
@@ -1827,7 +1827,7 @@ export function CreateOrderForm({
                                 setTokenOutMode("select");
                                 form.setValue("tokenOut", "");
                               }}
-                              className="md:text-base text-xs border-none text-black font-orbitron"
+                              className="md:text-base text-xs border-none text-black "
                             >
                               Back to token list
                             </Button> */}
@@ -1866,7 +1866,7 @@ export function CreateOrderForm({
                         {...form.register("minAmountOut")}
                         placeholder="0.0"
                         type="text"
-                        className="font-orbitron font-extrabold text-white rounded-[10px] px-1 py-3 text-end w-full h-full outline-none border-none transition-all duration-200 ease-in-out bg-black space"
+                        className=" font-extrabold text-white rounded-[10px] px-1 py-3 text-end w-full h-full outline-none border-none transition-all duration-200 ease-in-out bg-black space"
                         data-testid="input-amount-in"
                         onChange={(e) => {
                           const sanitized = sanitizeNumericInput(
@@ -1892,7 +1892,7 @@ export function CreateOrderForm({
                 </div>
               </div>
               <div className="flex justify-between gap-2 items-center md:mt-8 mt-5">
-                <div className="text-[#FF9900] font-orbitron md:text-[15px] text-xs flex flex-col relative top-2">
+                <div className="you_pay_heading flex flex-col relative top-2">
                   {selectedTokenOut ? (
                     tokenOutUSDPrice ? (
                       `$${tokenOutUSDPrice.toFixed(6)}`
@@ -1902,18 +1902,18 @@ export function CreateOrderForm({
                   ) : (
                     "--"
                   )}
-                  <span className="font-bold mt-1">Market Price</span>
+                  <span className="mt-1">Market Price</span>
                 </div>
-                <div className="text-zinc-200 text-[10px] font-normal font-orbitron leading-normal flex md:gap-2 gap-1 justify-end">
+                <div className="text-zinc-200 text-[10px] font-normal  leading-normal flex md:gap-2 gap-1 justify-end">
                   <span></span>
                   {[25, 50, 75, 100].map((value) => (
                     <button
                       key={value}
                       type="button"
-                      className={`py-1 border bg-[#EEC485] text-black flex justify-center items-center rounded-full md:text-[10px] text-[8px] font-medium font-orbitron md:w-12 w-11 px-2
+                      className={`py-1 border bg-[#EEC485] text-black flex justify-center items-center rounded-full md:text-[10px] text-[8px] font-medium  md:w-12 w-11 px-2
             ${selectedOutPercentage === value
-                          ? "!text-black !bg-[#FF9900] border-[#FF9900]"
-                          : "bg-[#EEC485] text-[#040404] border-black hover:border-black hover:bg-[#FF9900] hover:text-black"
+                          ? "!text-black !bg-[#FF8A00] border-[#FF8A00]"
+                          : "bg-[#EEC485] text-[#040404] border-black hover:border-black hover:bg-[#FF8A00] hover:text-black"
                         }`}
                       onClick={() => handleTokenOutPercentageChange(value)}
                     >
@@ -1922,7 +1922,7 @@ export function CreateOrderForm({
                   ))}
                 </div>
               </div>
-              <div className="mt-1 text-right relative text-white md:text-base text-[10px] usd-spacing truncate rigamesh text-sh1 flex justify-end gap-1">
+              <div className="mt-1 text-right relative text-white md:text-base text-[10px] usd-spacing truncate  text-sh1 flex justify-end gap-1">
                 {tokenOutUSDPrice &&
                   currentMinAmountOut &&
                   !isNaN(parseFloat(currentMinAmountOut)) && (
@@ -1938,7 +1938,7 @@ export function CreateOrderForm({
 
                         {dollarinfo1 && (
                           <div
-                            className="font-orbitron fixed rt0 z-50 mt-2 md:w-[450px] w-[300px] whitespace-pre-wrap rounded-lg bg-black px-4 py-3 text-center md:text-xs text-[10px] font-bold text-white shadow-lg"
+                            className=" fixed rt0 z-50 mt-2 md:w-[450px] w-[300px] whitespace-pre-wrap  bg-black px-4 py-3 text-center md:text-xs text-[10px] font-bold text-white shadow-lg"
                             onMouseEnter={() => setDollarInfo1(true)}
                             onMouseLeave={() => setDollarInfo1(false)}
                           >
@@ -1949,7 +1949,7 @@ export function CreateOrderForm({
                           </div>
                         )}
                       </div>
-                      <span className="font-orbitron font-bold">
+                      <span className=" font-bold">
                         $
                         {formatNumber(
                           (
@@ -1962,7 +1962,7 @@ export function CreateOrderForm({
               </div>
 
               {/* Partial Fill */}
-              <div className="text-right text-white font-bold text-sm relative font-orbitron truncate">
+              <div className="text-right text-white font-bold text-sm relative  truncate">
                 {form.formState.errors.minAmountOut && (
                   <p className="mt-1 text-sm text-destructive">
                     {form.formState.errors.minAmountOut.message}
@@ -1984,12 +1984,12 @@ export function CreateOrderForm({
             )}
             {tradeError && (
               <div
-                className="my-3 rounded-xl border border-red-500/50 bg-black p-3 text-center shadow-[0_0_10px_rgba(239,68,68,0.2)]"
+                className="my-3  border border-red-500/50 bg-black p-3 text-center shadow-[0_0_10px_rgba(239,68,68,0.2)]"
                 data-testid="trade-error-message"
               >
                 <div className="flex items-center justify-center gap-2">
-                  <InfoIcon size={16} className="text-red-500" />
-                  <p className="text-sm font-semibold text-red-400 font-orbitron">
+                  <InfoIcon size={16} className="text-white" />
+                  <p className="text-sm font-semibold text-red-400 ">
                     {tradeError}
                   </p>
                 </div>
@@ -1999,14 +1999,14 @@ export function CreateOrderForm({
             {/* For Bracket */}
             {showBracketSettings && (
               <div className="relative bg_swap_box_black md:!py-5 md:!px-5 mt-5">
-                <div className="text-center text-[#FF9900] text-base font-bold font-orbitron">
+                <div className="text-center text-[#FF8A00] text-base font-bold ">
                   Advanced Settings
                 </div>
                 {/* Partial Fill */}
-                <div className={`flex flex-col rounded-lg font-orbitron`}>
+                <div className={`flex flex-col  `}>
                   <div className="text-white p-4">
                     <div className="flex gap-4 justify-center items-center">
-                      <p className="text-[#FF9900] font-orbitron md:text-[26px] text-xl font-extrabold ">
+                      <p className="text-[#FF8A00]  md:text-[26px] text-xl font-extrabold ">
                         Partial Fill
                       </p>
                       <label className="toggle-switch">
@@ -2033,7 +2033,7 @@ export function CreateOrderForm({
                         <button
                           type="button"
                           onClick={() => setFillMode(1)}
-                          className={`${fillMode === 1 ? "bg-[#FF9900]" : "bg-[#EEC485]"
+                          className={`${fillMode === 1 ? "bg-[#FF8A00]" : "bg-[#EEC485]"
                             } text-black text-sm font-medium px-4 py-1 rounded-full hover:opacity-90 transition`}
                         >
                           Split 3
@@ -2041,7 +2041,7 @@ export function CreateOrderForm({
                         <button
                           type="button"
                           onClick={() => setFillMode(2)}
-                          className={`${fillMode === 2 ? "bg-[#FF9900]" : "bg-[#EEC485]"
+                          className={`${fillMode === 2 ? "bg-[#FF8A00]" : "bg-[#EEC485]"
                             } text-black text-sm font-medium px-4 py-1 rounded-full hover:opacity-90 transition`}
                         >
                           Split 5
@@ -2049,7 +2049,7 @@ export function CreateOrderForm({
                         <button
                           type="button"
                           onClick={() => setFillMode(3)}
-                          className={`${fillMode === 3 ? "bg-[#FF9900]" : "bg-[#EEC485]"
+                          className={`${fillMode === 3 ? "bg-[#FF8A00]" : "bg-[#EEC485]"
                             } text-black text-sm font-medium px-4 py-1 rounded-full hover:opacity-90 transition`}
                         >
                           Split 10
@@ -2069,10 +2069,10 @@ export function CreateOrderForm({
                   )}
                 </div>
                 <div className="md:px-2 px-2">
-                  <hr className="border-[#FF9900]/30 my-2" />
+                  <hr className="border-[#FF8A00]/30 my-2" />
                   {/* Partial Fill */}
                   <div className="flex gap-4 items-center mt-4 px-4 md:flex-nowrap flex-wrap justify-center">
-                    <div className="md:text-xl font-bold text-base text-[#FF9900]">
+                    <div className="md:text-xl font-bold text-base text-[#FF8A00]">
                       Expiry{" "}
                     </div>
                     {/* Deadline */}
@@ -2081,10 +2081,10 @@ export function CreateOrderForm({
                         value={deadlinePreset}
                         onValueChange={handleDeadlinePresetChange}
                       >
-                        <SelectTrigger className="cursor bg-black md:w-[210px] w-[180px] text-right rounded-[4.83px] h-[43px] text-white px-2 outline-none border border-[#FF9900] text-sm font-normal leading-tight tracking-wide">
+                        <SelectTrigger className="cursor bg-black md:w-[210px] w-[180px] text-right rounded-[4.83px] h-[43px] text-white px-2 outline-none border border-[#FF8A00] text-sm font-normal leading-tight tracking-wide">
                           <SelectValue placeholder="Select expiry" />
                         </SelectTrigger>
-                        <SelectContent className="!bg-black text-white border border-[#FF9900]">
+                        <SelectContent className="!bg-black text-white border border-[#FF8A00]">
                           {EXPIRY_PRESET_OPTIONS.map((option) => (
                             <SelectItem key={option.value} value={option.value}>
                               {option.label}
@@ -2103,7 +2103,7 @@ export function CreateOrderForm({
                               onDeadlineInputChange(e);
                             }}
                             type="datetime-local"
-                            className="cursor bg-black md:w-[210px] w-[180px] text-right rounded-[4.83px] h-[43px] text-white px-2 outline-none border border-[#FF9900] text-white/opacity-70 text-sm font-normal leading-tight tracking-wide"
+                            className="cursor bg-black md:w-[210px] w-[180px] text-right rounded-[4.83px] h-[43px] text-white px-2 outline-none border border-[#FF8A00] text-white/opacity-70 text-sm font-normal leading-tight tracking-wide"
                             placeholder="Deadline"
                             data-testid="input-deadline"
                             min={minDeadline}
@@ -2116,9 +2116,9 @@ export function CreateOrderForm({
                     <div className="flex">
                       <div
                         onClick={onOpenSlippage}
-                        className="shrink-0 bg-black px-6 py-3 border border-white rounded-lg flex justify-center items-center hoverswap transition-all cursor-pointer group"
+                        className="shrink-0 bg-black px-6 py-3 border border-white  flex justify-center items-center hoverswap transition-all cursor-pointer group"
                       >
-                        <p className="text-[#FF9900] text-sm font-extrabold font-orbitron">
+                        <p className="text-[#FF8A00] text-sm font-extrabold ">
                           SLIPPAGE
                         </p>
                       </div>
@@ -2146,7 +2146,7 @@ export function CreateOrderForm({
                   (showBracketSettings &&
                     (!takeProfitPrice || !stopLossPrice || !takeProfitDeadline))
                 }
-                className={`gtw cursor-pointer relative w-full md:h-12 h-11 md:rounded-[10px] rounded-md mx-auto button-trans flex justify-center text-center items-center transition-all lg:text-base text-base font-extrabold ${isApproved
+                className={`gtw cursor-pointer relative w-full md:h-12 h-11 md:rounded-[10px] rounded-md mx-auto button-trans flex justify-center text-center items-center transition-all text-xs ${isApproved
                   ? "bg-[#F59216] hover:bg-[#e08a15 hover:text-white"
                   : "bg-[#F59216] hover:bg-[#e08a15]"
                   } ${hasInsufficientBalance ? "opacity-50 cursor-not-allowed" : ""}`}
@@ -2178,7 +2178,7 @@ export function CreateOrderForm({
                   <button
                     type="button"
                     onClick={handleToggleQuoteDirection}
-                    className="text-[#FF9900] md:text-[15px] text-xs font-extrabold leading-normal font-orbitron text-left hover:opacity-90 transition-opacity"
+                    className="text-[#FF8A00] md:text-[15px] text-xs font-extrabold leading-normal  text-left hover:opacity-90 transition-opacity"
                   >
                     {`When 1 ${displayedBaseSymbol} is worth`}
                     {(() => {
@@ -2200,12 +2200,12 @@ export function CreateOrderForm({
                       );
                     })()}
                   </button>
-                  <div className="text-right text-[#FF9900] md:text-xs text-[10px] font-orbitron whitespace-nowrap">
+                  <div className="text-right text-[#FF8A00] md:text-xs text-[10px]  whitespace-nowrap">
                     <button
                       type="button"
                       onClick={handleSetLimitPriceToMarket}
                       disabled={!displayedMarketPrice}
-                      className="hover:text-[#FF9900] transition-colors disabled:hover:text-[#FF9900] disabled:cursor-default"
+                      className="hover:text-[#FF8A00] transition-colors disabled:hover:text-[#FF8A00] disabled:cursor-default"
                     >
                       Market:{" "}
                       <span className="font-bold text-white underline decoration-dotted underline-offset-2">
@@ -2240,7 +2240,7 @@ export function CreateOrderForm({
                           {...form.register("limitPrice")}
                           placeholder="00.000"
                           type="text"
-                          className="w-full bg-transparent focus:none !outline-0 !border-0 text-left text-white placeholder:text-white/60 leading-none font-extrabold font-orbitron"
+                          className="w-full bg-transparent focus:none !outline-0 !border-0 text-left text-white placeholder:text-white/60 leading-none font-extrabold "
                           data-testid="input-limit-price"
                           onChange={(e) => {
                             const sanitized = limitDecimalPlaces(
@@ -2282,12 +2282,12 @@ export function CreateOrderForm({
                       );
                     })()}
                   </div>
-                  <div className="flex items-center bg-black border border-[#FF9900] rounded-xl overflow-hidden">
+                  <div className="flex items-center bg-black border border-[#FF8A00]  overflow-hidden">
                     {marketPrice && tokenInInfo && tokenOutInfo && (
                       <button
                         type="button"
                         onClick={handleToggleQuoteDirection}
-                        className="w-[28px] md:h-[40px] h-[34px] shrink-0 flex items-center justify-center rounded-none border-r border-[#FF9900] bg-[#F59216]"
+                        className="w-[28px] md:h-[40px] h-[34px] shrink-0 flex items-center justify-center rounded-none border-r border-[#FF8A00] bg-[#F59216]"
                       >
                         <svg
                           width={16}
@@ -2314,21 +2314,21 @@ export function CreateOrderForm({
                     <button
                       type="button"
                       onClick={handleToggleQuoteDirection}
-                      className="px-4 md:h-[40px] h-[34px] inline-flex items-center text-white font-extrabold font-orbitron md:text-sm text-xs"
+                      className="px-4 md:h-[40px] h-[34px] inline-flex items-center text-white font-extrabold  md:text-sm text-xs"
                     >
                       {displayedQuoteSymbol}
                     </button>
                     {/* <button
                       type="button"
                       onClick={handleToggleQuoteDirection}
-                      className="px-3 md:h-[40px] h-[34px] inline-flex items-center text-[#FFE3BA]/70 font-bold font-orbitron border-l border-[#FF9900]/40"
+                      className="px-3 md:h-[40px] h-[34px] inline-flex items-center text-[#FFE3BA]/70 font-bold  border-l border-[#FF8A00]/40"
                     >
                       $
                     </button> */}
                   </div>
                 </div>
-                <div className="mt-3 flex justify-between items-center rounded-[12px] border border-[#FF9900] bg-black px-4 py-3">
-                  <span className="text-white md:text-[20px] text-[16px] font-extrabold font-orbitron">
+                <div className="mt-3 flex justify-between items-center rounded-[12px] border border-[#FF8A00] bg-black px-4 py-3">
+                  <span className="text-white md:text-[20px] text-[16px] font-extrabold ">
                     ≈{" "}
                     {(
                       isSellLikeStrategy
@@ -2339,7 +2339,7 @@ export function CreateOrderForm({
                       ? tokenOutInfo?.symbol || "TOKEN"
                       : tokenInInfo?.symbol || "TOKEN"}
                   </span>
-                  <span className="text-[#FF9900] md:text-xs text-[10px] font-orbitron">
+                  <span className="text-[#FF8A00] md:text-xs text-[10px] ">
                     Est. partial fill price
                   </span>
                 </div>
@@ -2347,7 +2347,7 @@ export function CreateOrderForm({
                 {/* Legacy slider + percentage controls intentionally commented out per UX update.
                     Keep this block for potential reuse in future versions. */}
                 {/*
-                <div className="mt-2 font-orbitron">
+                <div className="mt-2 ">
                   <input type="range" min="0" max="100" step="0.01" value={0} readOnly />
                   <div className="mt-2">
                     <input
@@ -2362,13 +2362,13 @@ export function CreateOrderForm({
 
                 <div className="flex justify-between gap-4 items-center flex-wrap mt-3">
                   <div className="mt-1 md:text-xs text-[10px] text-muted-foreground flex items-center justify-left">
-                    <span className="text-[#FF9900] font-orbitron">
+                    <span className="text-[#FF8A00] ">
                       {marketPrice && tokenInInfo && tokenOutInfo ? (
                         <>
                           Market:{" "}
-                          <span className="font-orbitron font-bold">1</span>{" "}
+                          <span className=" font-bold">1</span>{" "}
                           {displayedBaseSymbol} ≈{" "}
-                          <span className="font-orbitron font-bold">
+                          <span className=" font-bold">
                             {displayedMarketPrice || "--"}
                           </span>{" "}
                           {displayedQuoteSymbol}
@@ -2397,7 +2397,7 @@ export function CreateOrderForm({
                 {orderMode === OrderMode.BRACKET && (
                   <div className="relative bg_swap_box_black md:!py-4 md:!px-5 mb-4">
                     <div className="flex justify-between items-center gap-3">
-                      <h2 className="text-[#FF9900] md:text-lg text-sm font-bold font-orbitron">
+                      <h2 className="text-[#FF8A00] md:text-lg text-sm font-bold ">
                         Exit Token (Optional)
                       </h2>
                       <button
@@ -2414,12 +2414,12 @@ export function CreateOrderForm({
                             setExitTokenAddress(selectedTokenIn || "");
                           }
                         }}
-                        className="px-3 py-1 text-[10px] md:text-xs bg-[#FFE3BA] text-black rounded-full font-bold font-orbitron"
+                        className="px-3 py-1 text-[10px] md:text-xs bg-[#FFE3BA] text-black rounded-full font-bold "
                       >
                         Use in token
                       </button>
                     </div>
-                    <div className="mt-3 flex md:gap-4 gap-1 items-center bg-black border border-[#FF9900] md:rounded-[7px] rounded-lg md:px-5 px-3 py-[1px] justify-center w-full">
+                    <div className="mt-3 flex md:gap-4 gap-1 items-center bg-black border border-[#FF8A00] md:rounded-[7px]  md:px-5 px-3 py-[1px] justify-center w-full">
                       {exitTokenMode === "select" ? (
                         <div className="space-y-2 w-full">
                           <Select
@@ -2428,12 +2428,12 @@ export function CreateOrderForm({
                           >
                             <div className="relative group">
                               <SelectTrigger
-                                className="md:h-8 h-7 border-none text-center focus:none px-0 !w-full outline-none !text-white font-extrabold font-orbitron md:text-xs text-xs capitalize"
+                                className="md:h-8 h-7 border-none text-center focus:none px-0 !w-full outline-none !text-white font-semibold md:text-xs text-xs capitalize"
                                 data-testid="select-exit-token"
                               >
                                 <SelectValue placeholder="Select token" />
                               </SelectTrigger>
-                              <div className="hidden group-hover:block font-orbitron absolute z-50 mt-2 top-10 w-max whitespace-nowrap rounded-lg bg-black px-4 py-3 text-center md:text-xs text-[9px] font-bold text-white shadow-lg">
+                              <div className="hidden group-hover:block  absolute z-50 mt-2 top-10 w-max whitespace-nowrap  bg-black px-4 py-3 text-center md:text-xs text-[9px] font-bold text-white shadow-lg">
                                 If empty, exits back to your token in.
                               </div>
                             </div>
@@ -2448,7 +2448,7 @@ export function CreateOrderForm({
                                         symbol={token.symbol}
                                         className="md:h-5 md:w-5 w-4 h-4"
                                       />
-                                      <span className="font-orbitron md:text-sm text-sm font-extrabold !text-white">
+                                      <span className=" md:text-sm text-sm font-extrabold !text-white">
                                         {token.symbol}
                                       </span>
                                     </div>
@@ -2456,7 +2456,7 @@ export function CreateOrderForm({
                                 ),
                               )}
                               <SelectItem value="custom">
-                                <span className="font-medium text-white font-orbitron cursor-pointer !text-sm">
+                                <span className="font-medium text-white  cursor-pointer !text-sm">
                                   Custom Address..
                                 </span>
                               </SelectItem>
@@ -2475,7 +2475,7 @@ export function CreateOrderForm({
                                     className="md:h-5 md:w-5 w-4 h-4 rounded-full"
                                   />
                                 )}
-                                <span className="font-orbitron md:text-sm text-sm font-extrabold !text-white">
+                                <span className=" md:text-sm text-sm font-extrabold !text-white">
                                   {customExitToken.symbol}
                                 </span>
                               </div>
@@ -2499,7 +2499,7 @@ export function CreateOrderForm({
                                   setExitTokenAddress(e.target.value)
                                 }
                                 placeholder="0x..."
-                                className="h-12 bg-transparent !focus:none !outline-0 !border-none md:text-sm text-sm !font-bold !font-orbitron !text-white"
+                                className="h-12 bg-transparent !focus:none !outline-0 !border-none md:text-sm text-sm !font-bold ! !text-white"
                                 data-testid="input-exit-token-custom"
                               />
                               <X
@@ -2526,8 +2526,8 @@ export function CreateOrderForm({
 
                 {/* Bracket Direction Helper */}
                 {/* {orderMode === OrderMode.BRACKET && (
-                  <div className="mb-4 p-3 bg-black border-4 border-[#FF9900] rounded-lg">
-                    <p className="text-white text-sm text-center font-orbitron">
+                  <div className="mb-4 p-3 bg-black border-4 border-[#FF8A00] ">
+                    <p className="text-white text-sm text-center ">
                       Bracket Order: Set Stop Loss ABOVE and Take Profit BELOW
                       entry price
                     </p>
@@ -2538,7 +2538,7 @@ export function CreateOrderForm({
                   {/* Stop Loss Section */}
                   <div className="w-full">
                     <div className="flex justify-between gap-2 items-center mt-1">
-                      <h2 className="text-[#FF9900] md:text-lg text-sm font-bold font-orbitron whitespace-nowrap">
+                      <h2 className="text-[#FF8A00] md:text-lg text-sm font-bold  whitespace-nowrap">
                         Stop Loss
                       </h2>
                       <div className="flex justify-center gap-2 items-center relative w-full">
@@ -2573,32 +2573,32 @@ export function CreateOrderForm({
                                 setStopLossPercent("");
                               }
                             }}
-                            className="w-full flex justify-center items-center mx-auto bg-transparent focus:none !outline-0 !border-0 text-right text-white placeholder:text-white md:text-xl text-base font-semibold font-orbitron"
+                            className="w-full flex justify-center items-center mx-auto bg-transparent focus:none !outline-0 !border-0 text-right text-white placeholder:text-white md:text-xl text-base font-semibold "
                           />
-                          {/* <span className="text-[#FF9900] md:text-4xl text-2xl font-extrabold font-orbitron">
+                          {/* <span className="text-[#FF8A00] md:text-4xl text-2xl font-extrabold ">
                             {tokenOutInfo?.symbol || "USDT"}
                           </span> */}
                         </div>
                       </div>
                     </div>
-                    <div className="text-right text-[#FF9900] text-xl font-normal font-orbitron">
-                      <span className="text-[#FF9900] md:text-lg text-base font-orbitron font-bold">
+                    <div className="text-right text-[#FF8A00] text-xl font-normal ">
+                      <span className="text-[#FF8A00] md:text-lg text-base  font-bold">
                         ${tokenInInfo?.symbol || "USDT"}{" "}
                         <span className="font-normal">per</span> $LINK
                         {/* {tokenInInfo?.symbol || "USDT"} */}
                       </span>
                     </div>
                     <div className="flex justify-between text-[10px] mb-3 text-gray-400">
-                      <span className="text-[#FF9900] font-bold">
+                      <span className="text-[#FF8A00] font-bold">
                         Target
                       </span>
-                      <span className="text-[#FF9900] font-bold">
+                      <span className="text-[#FF8A00] font-bold">
                         Market
                       </span>
                     </div>
 
                     {/* Stop Loss Slider */}
-                    <div className="mt-3 font-orbitron">
+                    <div className="mt-3 ">
                       <div className="relative h-2 bg-[#352E25] rounded-full">
                         {(() => {
                           const stopLossSliderPosition = getStopLossSliderPosition(
@@ -2659,13 +2659,13 @@ export function CreateOrderForm({
                             );
                             setStopLossPercent(0);
                           }}
-                          className="py-1 px-2 bg-[#FFE3BA] rounded-lg text-center text-black md:text-base text-sm font-normal font-orbitron disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="py-1 px-2 bg-[#FFE3BA]  text-center text-black md:text-base text-sm font-normal  disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           Market Price
                         </button>
                       </div>
                       <div className="flex flex-col items-center gap-2 text-xs text-[#FFE6C0]">
-                        <div className="py-1 px-2 bg-[#FFE3BA] rounded-lg text-center text-black md:text-base text-sm font-normal font-orbitron flex items-center gap-1">
+                        <div className="py-1 px-2 bg-[#FFE3BA]  text-center text-black md:text-base text-sm font-normal  flex items-center gap-1">
                           <input
                             type="text"
                             value={stopLossPercent}
@@ -2706,14 +2706,14 @@ export function CreateOrderForm({
                                 applyStopLossPercent(percent, false);
                               }
                             }}
-                            className="md:w-24 w-20 text-center bg-transparent text-black outline-none font-orbitron"
+                            className="md:w-24 w-20 text-center bg-transparent text-black outline-none "
                           />
                           <span className="text-black font-bold">%</span>
                         </div>
                         <span>Stop Loss</span>
                       </div>
                       {/* <div className="flex flex-col justify-center gap-2 items-center">
-                        <div className="py-1 px-2 bg-[#FFE3BA] rounded-lg text-center text-black text-base font-normal font-orbitron">
+                        <div className="py-1 px-2 bg-[#FFE3BA]  text-center text-black text-base font-normal ">
                           {marketPrice && tokenInInfo && tokenOutInfo ? (
                             <>
                               <span>1</span> {tokenInInfo.symbol} ≈{" "}
@@ -2723,7 +2723,7 @@ export function CreateOrderForm({
                             "0%"
                           )}
                         </div>
-                        <div className="text-[#FFE3BA] text-xs font-normal font-orbitron">
+                        <div className="text-[#FFE3BA] text-xs font-normal ">
                           Market
                         </div>
                       </div> */}
@@ -2734,7 +2734,7 @@ export function CreateOrderForm({
                   {/* Take Profit Section */}
                   <div className="mb-4">
                     <div className="flex justify-between gap-2 items-center mt-1">
-                      <h2 className="text-[#FF9900] md:text-lg text-sm font-bold font-orbitron">
+                      <h2 className="text-[#FF8A00] md:text-lg text-sm font-bold ">
                         Take Profit
                       </h2>
                       <div className="flex justify-center gap-2 items-center relative">
@@ -2766,30 +2766,30 @@ export function CreateOrderForm({
                                 setTakeProfitPercent("");
                               }
                             }}
-                            className="w-full flex justify-center items-center mx-auto bg-transparent focus:none !outline-0 !border-0 text-right text-white placeholder:text-white md:text-xl text-base font-semibold font-orbitron"
+                            className="w-full flex justify-center items-center mx-auto bg-transparent focus:none !outline-0 !border-0 text-right text-white placeholder:text-white md:text-xl text-base font-semibold "
                           />
-                          {/* <span className="text-[#FF9900] md:text-4xl text-2xl font-extrabold font-orbitron">
+                          {/* <span className="text-[#FF8A00] md:text-4xl text-2xl font-extrabold ">
                             {tokenOutInfo?.symbol || "USDT"}
                           </span> */}
                         </div>
                       </div>
                     </div>
-                    <p className="text-[#FF9900] text-right md:text-lg text-base font-orbitron font-bold">
+                    <p className="text-[#FF8A00] text-right md:text-lg text-base  font-bold">
                       ${tokenInInfo?.symbol || "USDT"}{" "}
                       <span className="font-normal">per</span> $LINK
                       {/* {tokenInInfo?.symbol || "USDT"} */}
                     </p>
                     <div className="flex justify-between text-[10px] mb-3 text-gray-400">
-                      <span className="text-[#FF9900] font-bold">
+                      <span className="text-[#FF8A00] font-bold">
                         Market
                       </span>
-                      <span className="text-[#FF9900] font-bold">
+                      <span className="text-[#FF8A00] font-bold">
                         Target
                       </span>
                     </div>
 
                     {/* Take Profit Slider */}
-                    <div className="mt-3 font-orbitron">
+                    <div className="mt-3 ">
                       <div className="relative h-2 bg-[#352E25] rounded-full">
                         {(() => {
                           const takeProfitSliderPosition = Math.min(
@@ -2849,13 +2849,13 @@ export function CreateOrderForm({
                             );
                             setTakeProfitPercent(0);
                           }}
-                          className="py-1 px-2 bg-[#FFE3BA] rounded-lg text-center text-black md:text-base text-sm font-normal font-orbitron disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="py-1 px-2 bg-[#FFE3BA]  text-center text-black md:text-base text-sm font-normal  disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           Market Price
                         </button>
                       </div>
                       <div className="flex flex-col items-center gap-2 text-xs mb-2 mt-4 text-[#FFE6C0]">
-                        <div className="py-1 px-2 bg-[#FFE3BA] rounded-lg text-center text-black md:text-base text-sm font-normal font-orbitron flex items-center gap-1">
+                        <div className="py-1 px-2 bg-[#FFE3BA]  text-center text-black md:text-base text-sm font-normal  flex items-center gap-1">
                           <input
                             type="text"
                             value={takeProfitPercent}
@@ -2878,26 +2878,26 @@ export function CreateOrderForm({
                                 applyTakeProfitPercent(percent, false);
                               }
                             }}
-                            className="md:w-24 w-20 text-center bg-transparent text-black outline-none font-orbitron"
+                            className="md:w-24 w-20 text-center bg-transparent text-black outline-none "
                           />
                           <span className="text-black font-bold">%</span>
                         </div>
                         <span>Entry Price</span>
                       </div>
                       {/* <div className="flex flex-col justify-center gap-2 items-center">
-                        <div className="py-1 px-2 bg-[#FFE3BA] rounded-lg text-center text-black text-base font-normal font-orbitron">
+                        <div className="py-1 px-2 bg-[#FFE3BA]  text-center text-black text-base font-normal ">
                           {marketPrice && tokenInInfo && tokenOutInfo ? (
                             <>
-                              <span className="rigamesh">1</span>{" "}
+                              <span className="">1</span>{" "}
                               {tokenInInfo.symbol} ≈{" "}
-                              <span className="rigamesh">{marketPrice}</span>{" "}
+                              <span className="">{marketPrice}</span>{" "}
                               {tokenOutInfo.symbol}
                             </>
                           ) : (
                             "0%"
                           )}
                         </div>
-                        <div className="text-[#FFE3BA] text-xs font-normal font-orbitron">
+                        <div className="text-[#FFE3BA] text-xs font-normal ">
                           Target Price
                         </div>
                       </div> */}
@@ -2906,7 +2906,7 @@ export function CreateOrderForm({
                     {/* SL/TP Expiry */}
                     <div className="mt-4">
                       <div className="flex gap-4 items-center px-4 md:flex-nowrap flex-wrap">
-                        <div className="md:text-lg text-base font-bold text-[#FF9900]">
+                        <div className="md:text-lg text-base font-bold text-[#FF8A00]">
                           SL/TP Expiry{" "}
                         </div>
                         <div>
@@ -2916,7 +2916,7 @@ export function CreateOrderForm({
                             onChange={(e) =>
                               setTakeProfitDeadline(e.target.value)
                             }
-                            className="cursor bg-black md:w-[210px] w-[180px] text-right rounded-[4.83px] h-[43px] text-white px-2 outline-none border border-[#FF9900] text-white/opacity-70 text-sm font-normal leading-tight tracking-wide"
+                            className="cursor bg-black md:w-[210px] w-[180px] text-right rounded-[4.83px] h-[43px] text-white px-2 outline-none border border-[#FF8A00] text-white/opacity-70 text-sm font-normal leading-tight tracking-wide"
                             min={minDeadline}
                             max={maxDeadline}
                           />
@@ -2930,14 +2930,14 @@ export function CreateOrderForm({
             {/* For Buy Sell */}
             {!showBracketSettings && (
               <div className="relative bg_swap_box_black md:!py-4 md:!px-5 mb-4">
-                <div className="text-center text-[#FF9900] md:text-lg text-base font-black font-orbitron">
+                <div className="text-center text-[#FF8A00] md:text-lg text-base font-black ">
                   Advanced Settings
                 </div>
                 {/* Partial Fill */}
-                <div className={`flex flex-col rounded-lg font-orbitron`}>
+                <div className={`flex flex-col  `}>
                   <div className="text-white p-4">
                     <div className="flex gap-4 justify-center items-center">
-                      <p className="text-[#FF9900] font-orbitron md:text-xl text-lg font-extrabold ">
+                      <p className="text-[#FF8A00]  md:text-xl text-lg font-extrabold ">
                         Partial Fill
                       </p>
                       <label className="toggle-switch">
@@ -2964,7 +2964,7 @@ export function CreateOrderForm({
                         <button
                           type="button"
                           onClick={() => setFillMode(1)}
-                          className={`${fillMode === 1 ? "bg-[#FF9900]" : "bg-[#EEC485]"
+                          className={`${fillMode === 1 ? "bg-[#FF8A00]" : "bg-[#EEC485]"
                             } text-black md:text-sm text-xs font-medium px-4 py-1 rounded-full hover:opacity-90 transition`}
                         >
                           Split 3
@@ -2972,7 +2972,7 @@ export function CreateOrderForm({
                         <button
                           type="button"
                           onClick={() => setFillMode(2)}
-                          className={`${fillMode === 2 ? "bg-[#FF9900]" : "bg-[#EEC485]"
+                          className={`${fillMode === 2 ? "bg-[#FF8A00]" : "bg-[#EEC485]"
                             } text-black md:text-sm text-xs font-medium px-4 py-1 rounded-full hover:opacity-90 transition`}
                         >
                           Split 5
@@ -2980,7 +2980,7 @@ export function CreateOrderForm({
                         <button
                           type="button"
                           onClick={() => setFillMode(3)}
-                          className={`${fillMode === 3 ? "bg-[#FF9900]" : "bg-[#EEC485]"
+                          className={`${fillMode === 3 ? "bg-[#FF8A00]" : "bg-[#EEC485]"
                             } text-black md:text-sm text-xs font-medium px-4 py-1 rounded-full hover:opacity-90 transition`}
                         >
                           Split 10
@@ -3000,10 +3000,10 @@ export function CreateOrderForm({
                   )}
                 </div>
                 <div className="md:px-2 px-2">
-                  <hr className="border-[#FF9900]/30 my-2" />
+                  <hr className="border-[#FF8A00]/30 my-2" />
                   {/* Partial Fill */}
                   <div className="flex gap-4 items-center mt-4 md:px-4 md:flex-nowrap flex-wrap">
-                    <div className="md:text-xl font-bold text-base text-[#FF9900]">
+                    <div className="md:text-xl font-bold text-base text-[#FF8A00]">
                       Expiry{" "}
                     </div>
                     {/* Deadline */}
@@ -3012,10 +3012,10 @@ export function CreateOrderForm({
                         value={deadlinePreset}
                         onValueChange={handleDeadlinePresetChange}
                       >
-                        <SelectTrigger className="cursor bg-black md:w-[210px] w-[180px] text-right rounded-[4.83px] h-[43px] text-white px-2 outline-none border border-[#FF9900] text-sm font-normal leading-tight tracking-wide">
+                        <SelectTrigger className="cursor bg-black md:w-[210px] w-[180px] text-right rounded-[4.83px] h-[43px] text-white px-2 outline-none border border-[#FF8A00] text-sm font-normal leading-tight tracking-wide">
                           <SelectValue placeholder="Select expiry" />
                         </SelectTrigger>
-                        <SelectContent className="!bg-black text-white border border-[#FF9900]">
+                        <SelectContent className="!bg-black text-white border border-[#FF8A00]">
                           {EXPIRY_PRESET_OPTIONS.map((option) => (
                             <SelectItem key={option.value} value={option.value}>
                               {option.label}
@@ -3034,7 +3034,7 @@ export function CreateOrderForm({
                               onDeadlineInputChange(e);
                             }}
                             type="datetime-local"
-                            className="cursor bg-black md:w-[210px] w-[180px] text-right rounded-[4.83px] h-[43px] text-white px-2 outline-none border border-[#FF9900] text-white/opacity-70 text-sm font-normal leading-tight tracking-wide"
+                            className="cursor bg-black md:w-[210px] w-[180px] text-right rounded-[4.83px] h-[43px] text-white px-2 outline-none border border-[#FF8A00] text-white/opacity-70 text-sm font-normal leading-tight tracking-wide"
                             placeholder="Deadline"
                             data-testid="input-deadline"
                             min={minDeadline}
@@ -3047,9 +3047,9 @@ export function CreateOrderForm({
                     <div className="flex w-full">
                       <div
                         onClick={onOpenSlippage}
-                        className="w-full shrink-0 bg-black px-6 py-2 border border-white rounded-lg flex justify-center items-center hoverswap transition-all cursor-pointer group"
+                        className="w-full shrink-0 bg-black px-6 py-2 border border-white  flex justify-center items-center hoverswap transition-all cursor-pointer group"
                       >
-                        <p className="text-[#FF9900] text-sm font-extrabold font-orbitron">
+                        <p className="text-[#FF8A00] text-sm font-extrabold ">
                           SLIPPAGE
                         </p>
                       </div>
@@ -3061,11 +3061,11 @@ export function CreateOrderForm({
             )}
             {/*  */}
             <div className="relative bg_swap_box_black md:!py-4">
-              <div className="text-center text-[#F59216] font-orbitron md:text-lg text-base font-extrabold">
+              <div className="text-center text-[#F59216]  md:text-lg text-base font-extrabold">
                 Order Details
               </div>
               <div className="md:px-5 px-2">
-                <div className="flex justify-between gap-3 items-center mt-2 font-orbitron">
+                <div className="flex justify-between gap-3 items-center mt-2 ">
                   <div className="md:max-w-[155px] w-full">
                     <div className="text-[#FFD484] md:text-[15px] text-xs font-bold">
                       {orderMode === OrderMode.BRACKET
@@ -3103,7 +3103,7 @@ export function CreateOrderForm({
                   </div>
                 </div>
                 <hr className="border border-[#7B653C] my-2" />
-                <div className="flex justify-between gap-3 items-center mt-2 font-orbitron">
+                <div className="flex justify-between gap-3 items-center mt-2 ">
                   <div className="md:max-w-[155px] w-full">
                     <div className="text-[#FFD484] md:text-[15px] text-xs font-bold">
                       {form.watch("deadline")
@@ -3132,7 +3132,7 @@ export function CreateOrderForm({
                   </div>
                 </div>
                 <hr className="border border-[#7B653C] my-2" />
-                <div className="flex justify-between gap-3 items-center mt-2 font-orbitron">
+                <div className="flex justify-between gap-3 items-center mt-2 ">
                   <div className="md:max-w-[155px] w-full">
                     <div className="text-[#FFD484] md:text-[15px] text-xs font-bold">
                       {/* {form.watch("minAmountOut") || "0"} */}

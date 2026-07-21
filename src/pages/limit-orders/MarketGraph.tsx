@@ -164,13 +164,13 @@ export default function MarketTargetChart({
   }, [isBracketStrategy, marketPrice, stopLossPrice, takeProfitPrice, height]);
 
   return (
-    <div className="w-full text-white font-orbitron">
+    <div className="w-full text-white ">
       <div className="relative">
         <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-[140px]">
           <defs>
             <linearGradient id="area" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#FF9900" stopOpacity="0.95" />
-              <stop offset="100%" stopColor="#FF9900" stopOpacity="0.95" />
+              <stop offset="0%" stopColor="#FF8A00" stopOpacity="0.95" />
+              <stop offset="100%" stopColor="#FF8A00" stopOpacity="0.95" />
             </linearGradient>
           </defs>
 
@@ -215,7 +215,7 @@ export default function MarketTargetChart({
                 x2={width}
                 y1={entryY}
                 y2={entryY}
-                stroke="#FF9900" // Orange for entry
+                stroke="#FF8A00" // Orange for entry
                 strokeWidth="2"
                 strokeDasharray="4 4"
                 opacity="0.8"
@@ -290,7 +290,7 @@ export default function MarketTargetChart({
               Entry
             </div>
             <div
-              className="absolute bg-[#FF9900] text-black text-xs px-2 py-1 rounded-md z-10"
+              className="absolute bg-[#FF8A00] text-black text-xs px-2 py-1 rounded-md z-10"
               style={{
                 right: "0.5rem",
                 top: `${Math.min(Math.max((takeProfitY / height) * 100, 5), 95)}%`,

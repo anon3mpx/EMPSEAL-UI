@@ -2,7 +2,47 @@ import { useState, useEffect } from "react";
 import { useAccount } from "wagmi";
 import { useGetUserHistory } from "../../hooks/useGasBridgeAPI";
 import { ExternalLink, Trash2 } from "lucide-react";
-
+// const dummyTransactions = [
+//   {
+//     deposit: {
+//       hash: "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+//       seen: Date.now() / 1000 - 300, // 5 min ago (unix seconds like your API)
+//       status: "completed",
+//       value: "0.5 ETH",
+//     },
+//     txs: [
+//       {
+//         chain: "Arbitrum",
+//       },
+//     ],
+//   },
+//   {
+//     deposit: {
+//       hash: "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+//       seen: Date.now() / 1000 - 3600,
+//       status: "pending",
+//       value: "1.2 ETH",
+//     },
+//     txs: [
+//       {
+//         chain: "Optimism",
+//       },
+//     ],
+//   },
+//   {
+//     deposit: {
+//       hash: "0x9876543210fedcba9876543210fedcba9876543210fedcba9876543210fedcba",
+//       seen: Date.now() / 1000 - 86400,
+//       status: "failed",
+//       value: "0.03 ETH",
+//     },
+//     txs: [
+//       {
+//         chain: "Base",
+//       },
+//     ],
+//   },
+// ];
 const TransactionHistory = () => {
   const { address } = useAccount();
   const {
@@ -10,6 +50,7 @@ const TransactionHistory = () => {
     isLoading,
     error,
   } = useGetUserHistory({ address });
+  // const USE_DUMMY = true;
   const [history, setHistory] = useState([]);
   const [isOpen, setIsOpen] = useState(true);
 
@@ -18,7 +59,24 @@ const TransactionHistory = () => {
       setHistory(initialHistory);
     }
   }, [initialHistory]);
+  // useEffect(() => {
+  //   if (initialHistory && initialHistory.length > 0) {
+  //     setHistory(initialHistory);
+  //   } else {
+  //     setHistory(dummyTransactions); // fallback for testing
+  //   }
+  // }, [initialHistory]);
 
+  // useEffect(() => {
+  //   if (USE_DUMMY) {
+  //     setHistory(dummyTransactions);
+  //     return;
+  //   }
+
+  //   if (initialHistory) {
+  //     setHistory(initialHistory);
+  //   }
+  // }, [initialHistory]);
   const handleRemoveTx = (hash) => {
     setHistory((currentHistory) =>
       currentHistory.filter((tx) => tx.deposit.hash !== hash),
@@ -26,32 +84,31 @@ const TransactionHistory = () => {
   };
 
   return (
-    <div className="text-white w-full sctable pb-10">
-      <h2 className="font-extrabold text-center text-[#FF9900] md:text-3xl text-lg font-orbitron transition-all duration-200">
-        Transaction History
-      </h2>
-      <div className="mt-6 clip-bg1 w-full rounded-2xl lg:py-8 lg:px-8 md:px-6 px-4 md:py-6 py-6 space-y-3 max-h-[350px] overflow-y-auto chain_scroll">
+    <div className="text-white w-full pb-4">
+      <div className="mt-4 clip-bg w-full lg:py-4 lg:px-3 md:px-3 px-2 py-4 space-y-3 max-h-[350px] overflow-y-auto chain_scroll">
         <>
           {isOpen && (
             <>
               {!address ? (
-                <p className="text-center text-white">
+                <p className="text-xs py-8 text-white/20 text-center">
                   Connect your wallet to view your history.
                 </p>
               ) : isLoading ? (
-                <p className="text-center text-white">Loading history...</p>
+                <p className="text-xs py-8 text-white/20 text-center">
+                  Loading history...
+                </p>
               ) : error ? (
-                <p className="text-center text-[#FF9900]">
+                <p className="text-xs py-8 text-white/20 text-center">
                   Could not fetch transaction history.
                 </p>
               ) : history.length === 0 ? (
-                <p className="text-center text-white">
+                <p className="text-xs py-8 text-white/20 text-center">
                   You have no past bridge transactions.
                 </p>
               ) : (
-                <div className="max-h-96 overflow-y-auto font-orbitron">
-                  <div className="min-w-full space-y-2">
-                    <div className="md:grid hidden grid-cols-6 text-sm font-semibold text-[#FF9900] px-6 py-3">
+                <div className="max-h-96 overflow-y-auto uppercase">
+                  <div className="min-w-full space-y-1">
+                    <div className="md:grid hidden grid-cols-6 text-[9px] font-bold text-white/20 px-1 py-1">
                       <div>Deposit Hash</div>
                       <div>Date</div>
                       <div>Status</div>
@@ -59,18 +116,17 @@ const TransactionHistory = () => {
                       <div>Destination</div>
                       <div className="text-right">Remove</div>
                     </div>
-
                     {history.map((tx) => (
                       <div
                         key={tx.deposit.hash}
-                        className="grid md:grid-cols-6 md:gap-4 gap-2 md:items-center md:text-center border border-[#FF9900] rounded-xl px-6 py-5 md:text-sm text-xs text-white hover:bg-[#FF9900]/10 transition"
+                        className="grid md:grid-cols-6 md:gap-4 gap-2 md:items-center px-1 py-2 text-[9px] text-white hover:bg-[#FF8A00]/5 transition"
                       >
                         <div className="font-medium text-white">
                           <a
                             href={`https://etherscan.io/tx/${tx.deposit.hash}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="flex items-center hover:text-[#FF9900]"
+                            className="flex items-center hover:text-[#FF8A00]"
                           >
                             {`${tx.deposit.hash.slice(
                               0,
@@ -88,7 +144,7 @@ const TransactionHistory = () => {
                         </div>
                         <div>{tx.deposit.status}</div>
                         <div
-                          className="max-w-[110px] md:mx-auto truncate cursor-help"
+                          className="truncate cursor-help"
                           title={tx.deposit.value}
                         >
                           {tx.deposit.value}
@@ -98,9 +154,9 @@ const TransactionHistory = () => {
                         <div className="text-right">
                           <button
                             onClick={() => handleRemoveTx(tx.deposit.hash)}
-                            className="text-[#FF9900] hover:text-red-500"
+                            className="text-gray-200 hover:text-white"
                           >
-                            <Trash2 size={20} />
+                            <Trash2 size={15} />
                           </button>
                         </div>
                       </div>

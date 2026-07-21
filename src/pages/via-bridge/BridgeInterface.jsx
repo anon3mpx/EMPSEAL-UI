@@ -918,7 +918,7 @@ const BridgeInterface = () => {
               refetchAll();
               toast.info("Checking approval status...");
             }}
-            className="text-xs text-[#FF9900] hover:text-[#FF9900]/80 underline w-full text-center"
+            className="text-xs text-[#FF8A00] hover:text-[#FF8A00]/80 underline w-full text-center"
           >
             Refresh approval status
           </button>
@@ -1012,7 +1012,7 @@ const BridgeInterface = () => {
       <div className="scales-b scales-top_via_1">
         <div className="w-full">
           <div className="md:max-w-[800px] mx-auto w-full flex flex-col justify-center items-center md:flex-nowrap flex-wrap px-3 pb-4 lg:mt-0 mt-1">
-            <h1 className="2xl:text-[43px] xl:leading-[40px] font40 text-2xl text-center text-[#FF9900] font-orbitron font-bold mb-1">
+            <h1 className="text-[26px] text-center text-[#FF8A00]  font-bold mb-1">
               EMPX <span className="text-white">X</span> VIA <br />
               <span className="text-white">BRIDGE</span>
             </h1>
@@ -1021,27 +1021,27 @@ const BridgeInterface = () => {
                 <Link to="/native-bridge" className="w-full">
                   <div
                     className={`border-2 ${activeTab === "native"
-                        ? "border-[#FF9900]"
+                        ? "border-[#FF8A00]"
                         : "border-black bg-black"
                       } 
               px-3 py-2 w-full md:h-10 h-[28px] flex justify-center items-center 
-              rounded-md border text-white md:text-[15px] text-xs font-bold font-orbitron`}
+              rounded-md border text-white md:text-[15px] text-xs font-bold `}
                   >
                     Native Bridge
                   </div>
                 </Link>
-                <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 px-2 py-1 bg-black border border-[#FF9900] rounded text-white text-lg font-orbitron opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+                <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 px-2 py-1 bg-black border border-[#FF8A00] rounded text-white text-lg  opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
                   Deprecating soon
                 </div>
               </div>
               <Link to="/via-bridge" className="w-full">
                 <div
                   className={`border-2 ${activeTab === "viabridge"
-                      ? "border-[#FF9900] bg-black"
+                      ? "border-[#FF8A00] bg-black"
                       : "border-white"
                     } 
               px-3 py-2 w-full md:h-10 h-[28px] flex justify-center items-center 
-              rounded-md border text-white md:text-[15px] text-xs font-bold font-orbitron`}
+              rounded-md border text-white md:text-[15px] text-xs font-bold `}
                 >
                   Via Bridge
                 </div>
@@ -1055,12 +1055,12 @@ const BridgeInterface = () => {
               className="mb-4 flex items-start gap-3 cursor-pointer bg_swap_box_chain"
               onClick={() => switchChain({ chainId: fromChainId })}
             >
-              <AlertCircle className="w-5 h-5 text-[#FF9900] mt-0.5 flex-shrink-0" />
+              <AlertCircle className="w-5 h-5 text-[#FF8A00] mt-0.5 flex-shrink-0" />
               <div>
-                <p className="text-sm font-medium text-[#FF9900]">
+                <p className="text-sm font-medium text-[#FF8A00]">
                   Wrong Network
                 </p>
-                <p className="text-sm text-[#FF9900]">
+                <p className="text-sm text-[#FF8A00]">
                   Click to switch to {sourceChain?.name}
                 </p>
               </div>
@@ -1076,14 +1076,14 @@ const BridgeInterface = () => {
               </div>
               <div className="relative bg_swap_box w-full">
                 <div className="flex justify-between gap-3 items-center">
-                  <div className="font-orbitron md:text-[15px] text-xs font-extrabold leading-normal text-[#FF9900]">
+                  <div className="you_pay_heading">
                     From
                   </div>
-                  <div className="md:text-xs text-[10px] font-orbitron">
-                    <span className="font-normal leading-normal text-[#FF9900]">
+                  <div className="md:text-xs text-[10px] ">
+                    <span className="font-normal leading-normal text-[#FF8A00]">
                       BAL
                     </span>
-                    <span className="font-normal leading-normal text-[#FF9900]">
+                    <span className="font-normal leading-normal text-[#FF8A00]">
                       {" "}
                       :{" "}
                     </span>
@@ -1098,7 +1098,7 @@ const BridgeInterface = () => {
                 </div>
                 <div className="flex w-full mt-3 md:gap-5 gap-2 mt6 items-center">
                   <div className="lg:md:max-w-[220px] w-full">
-                    <div className="relative flex md:gap-2 gap-1 items-center bg-black border border-[#FF9900] md:rounded-[10px] rounded-lg md:px-5 px-3 md:py-[10px] py-2 justify-center w-full">
+                    <div className="relative flex md:gap-2 gap-1 items-center bg-black border border-[#FF8A00] md:rounded-[10px]  md:px-5 px-3 md:py-[10px] py-2 justify-center w-full">
                       <TokenSelector
                         token={selectedToken}
                         chainId={fromChainId}
@@ -1109,7 +1109,7 @@ const BridgeInterface = () => {
                           }
                           setIsTokenModalOpen(true);
                         }}
-                        className="text-[#FF9900]"
+                        className="text-[#FF8A00]"
                       />
                       <button
                         onClick={() => handleCopyAddress(selectedToken.address)}
@@ -1120,7 +1120,7 @@ const BridgeInterface = () => {
                           activeTokenAddress === selectedToken.address ? (
                           <Check className="md:w-4 md:h-4 w-3 h-3 text-green-500" />
                         ) : (
-                          <Copy className="md:w-4 md:h-4 w-3 h-3 text-white hover:text-[#FF9900]" />
+                          <Copy className="md:w-4 md:h-4 w-3 h-3 text-white hover:text-[#FF8A00]" />
                         )}
                       </button>
                     </div>
@@ -1167,7 +1167,7 @@ const BridgeInterface = () => {
                                 ? "0"
                                 : "0.00"
                             }
-                            className="font-orbitron font-extrabold text-white rounded-[10px] px-1 py-3 text-end w-full h-full outline-none border-none transition-all duration-200 ease-in-out bg-black space"
+                            className=" font-extrabold text-white rounded-[10px] px-1 py-3 text-end w-full h-full outline-none border-none transition-all duration-200 ease-in-out bg-black space"
                             style={{
                               fontSize: `${dynamicFontSize}px`,
                             }}
@@ -1185,7 +1185,7 @@ const BridgeInterface = () => {
                                 setSelectedPercentage(100);
                               }
                             }}
-                            className="mt-2 ml-auto py-1 border border-[#FF9900] flex justify-center items-center rounded-xl md:text-[10px] text-[7px] font-medium font-orbitron md:w-[100px] w-[80px] px-2 bg-[#FFE7C3] text-[#040404] hover:border-black hover:bg-[#FF9900] hover:text-black"
+                            className="mt-2 ml-auto py-1 border border-[#FF8A00] flex justify-center items-center  md:text-[10px] text-[7px] font-medium  md:w-[100px] w-[80px] px-2 bg-[#FFE7C3] text-[#040404] hover:border-black hover:bg-[#FF8A00] hover:text-black"
                           >
                             MAX AMOUNT
                           </button>
@@ -1195,7 +1195,7 @@ const BridgeInterface = () => {
                   </div>
                 </div>
                 <div className="flex justify-between gap-2 items-center md:mt-10 mt-7">
-                  <div className="text-[#FF9900] font-orbitron md:text-[15px] text-xs flex flex-col relative top-2">
+                  <div className="you_pay_heading flex flex-col relative top-2">
                     {isPriceLoading ? (
                       <span className="animate-pulse">Loading...</span>
                     ) : tokenPrice ? (
@@ -1203,18 +1203,18 @@ const BridgeInterface = () => {
                     ) : (
                       "--"
                     )}
-                    <span className="font-bold mt-1">Market Price</span>
+                    <span className="mt-1">Market Price</span>
                   </div>
-                  <div className="text-zinc-200 text-[10px] font-normal font-orbitron leading-normal flex md:gap-2 gap-1 justify-end">
+                  <div className="text-zinc-200 text-[10px] font-normal  leading-normal flex md:gap-2 gap-1 justify-end">
                     <span></span>
                     {[25, 50, 75, 100].map((value) => (
                       <button
                         key={value}
                         type="button"
-                        className={`py-1 border border-[#EEC485] flex justify-center items-center rounded-xl md:text-[10px] text-[8px] font-medium font-orbitron md:w-12 w-11 px-2
+                        className={`py-1 border border-[#EEC485] flex justify-center items-center  md:text-[10px] text-[8px] font-medium  md:w-12 w-11 px-2
                 ${selectedPercentage === value
-                            ? "!text-black !bg-[#FF9900] border-[#FF9900]"
-                            : "bg-[#EEC485] text-[#040404] border-black hover:border-black hover:bg-[#FF9900] hover:text-black"
+                            ? "!text-black !bg-[#FF8A00] border-[#FF8A00]"
+                            : "bg-[#EEC485] text-[#040404] border-black hover:border-black hover:bg-[#FF8A00] hover:text-black"
                           }`}
                         onClick={() => handlePercentageChange(value)}
                         disabled={isLoading}
@@ -1225,7 +1225,7 @@ const BridgeInterface = () => {
                   </div>
                 </div>
                 {/* USD Value Display */}
-                <div className="text-right text-white md:text-sm text-xs mt-2 font-orbitron">
+                <div className="text-right text-white md:text-sm text-xs mt-2 ">
                   {isPriceLoading ? (
                     <span className="animate-pulse">Fetching...</span>
                   ) : tokenPrice ? (
@@ -1243,7 +1243,7 @@ const BridgeInterface = () => {
               <img
                 src={UpDownAr}
                 alt="Ar"
-                className="hoverswap transition-all rounded-xl"
+                className="hoverswap transition-all "
               />
             </div>
             {/* TO SECTION */}
@@ -1256,13 +1256,13 @@ const BridgeInterface = () => {
               </div>
               <div className="relative text-white bg_swap_box_black w-full">
                 <div className="flex justify-between gap-3 items-center">
-                  <div className="font-orbitron md:text-[15px] text-xs font-extrabold leading-normal text-[#FF9900]">
+                  <div className="you_pay_heading">
                     To
                   </div>
                 </div>
                 <div className="flex w-full mt-3 md:gap-5 gap-2 mt6 items-center">
                   <div className="lg:md:max-w-[220px] w-full">
-                    <div className="relative flex md:gap-2 gap-1 items-center bg-black border border-[#FF9900] md:rounded-[10px] rounded-lg md:px-5 px-3 md:py-[10px] py-2 justify-center w-full">
+                    <div className="relative flex md:gap-2 gap-1 items-center bg-black border border-[#FF8A00] md:rounded-[10px]  md:px-5 px-3 md:py-[10px] py-2 justify-center w-full">
                       <TokenSelector
                         token={selectedToken}
                         chainId={fromChainId}
@@ -1278,7 +1278,7 @@ const BridgeInterface = () => {
                           activeTokenAddress === selectedToken.address ? (
                           <Check className="md:w-4 md:h-4 w-3 h-3 text-green-500" />
                         ) : (
-                          <Copy className="md:w-4 md:h-4 w-3 h-3 text-white hover:text-[#FF9900]" />
+                          <Copy className="md:w-4 md:h-4 w-3 h-3 text-white hover:text-[#FF8A00]" />
                         )}
                       </button>
                     </div>
@@ -1325,13 +1325,13 @@ const BridgeInterface = () => {
                                 ? "0"
                                 : "0.00"
                             }
-                            className="font-orbitron font-extrabold text-white rounded-[10px] px-1 py-3 text-end w-full h-full outline-none border-none transition-all duration-200 ease-in-out bg-black space"
+                            className=" font-extrabold text-white rounded-[10px] px-1 py-3 text-end w-full h-full outline-none border-none transition-all duration-200 ease-in-out bg-black space"
                             style={{
                               fontSize: `${dynamicFontSize}px`,
                             }}
                           />
                           {/* USD Value Display for expected amount (using destination token price) */}
-                          <div className="text-right text-white md:text-sm text-xs mt-2 font-orbitron">
+                          <div className="text-right text-white md:text-sm text-xs mt-2 ">
                             {isDestPriceLoading ? (
                               <span className="animate-pulse">Fetching...</span>
                             ) : destTokenPrice ? (
@@ -1346,7 +1346,7 @@ const BridgeInterface = () => {
                   </div>
                 </div>
                 <div className="flex justify-between gap-2 items-center md:mt-8 mt-5">
-                  <div className="text-[#FF9900] font-orbitron md:text-[15px] text-xs flex flex-col relative top-2">
+                  <div className="you_pay_heading flex flex-col relative top-2">
                     {isDestPriceLoading ? (
                       <span className="animate-pulse">Loading...</span>
                     ) : destTokenPrice ? (
@@ -1354,18 +1354,18 @@ const BridgeInterface = () => {
                     ) : (
                       <span className="text-gray-400">Unknown</span>
                     )}
-                    <span className="font-bold mt-1">Market Price</span>
+                    <span className="mt-1">Market Price</span>
                   </div>
-                  {/* <div className="text-zinc-200 text-[10px] font-normal font-orbitron leading-normal flex md:gap-2 gap-1 justify-end">
+                  {/* <div className="text-zinc-200 text-[10px] font-normal  leading-normal flex md:gap-2 gap-1 justify-end">
                     <span></span>
                     {[25, 50, 75, 100].map((value) => (
                       <button
                         key={value}
                         type="button"
-                        className={`py-1 border border-[#EEC485] flex justify-center items-center rounded-xl md:text-[10px] text-[8px] font-medium font-orbitron md:w-12 w-11 px-2
+                        className={`py-1 border border-[#EEC485] flex justify-center items-center  md:text-[10px] text-[8px] font-medium  md:w-12 w-11 px-2
                 ${selectedPercentage === value
-                            ? "!text-black !bg-[#FF9900] border-[#FF9900]"
-                            : "bg-[#EEC485] text-[#040404] border-black hover:border-black hover:bg-[#FF9900] hover:text-black"
+                            ? "!text-black !bg-[#FF8A00] border-[#FF8A00]"
+                            : "bg-[#EEC485] text-[#040404] border-black hover:border-black hover:bg-[#FF8A00] hover:text-black"
                           }`}
                         onClick={() => handlePercentageChange(value)}
                         disabled={isLoading}
@@ -1385,10 +1385,10 @@ const BridgeInterface = () => {
                 value={recipient}
                 onChange={(e) => setRecipient(e.target.value)}
                 placeholder="0x..."
-                className="absolute inset-0 top-0 bottom-0 my-auto w-full h-full md:pl-4 pl-4 md:pr-36 pr-20 py-10 bg-transparent text-white font-orbitron md:text-lg text-[8px] truncate outline-none"
+                className="absolute inset-0 top-0 bottom-0 my-auto w-full h-full md:pl-4 pl-4 md:pr-36 pr-20 py-10 bg-transparent text-white  md:text-lg text-[8px] truncate outline-none"
               />
               <button
-                className={`!absolute !bg-transparent md:w-[90px] w-16 md:h-10 h-10 hover:opacity-70 bg-black !border !border-[#FF9900] top-2 right-3 flex justify-center items-center rounded-xl px-2 font-orbitron !text-[#FF9900] md:text-base text-xs font-bold`}
+                className={`!absolute !bg-transparent md:w-[90px] w-16 md:h-10 h-10 hover:opacity-70 bg-black !border !border-[#FF8A00] top-2 right-3 flex justify-center items-center  px-2  !text-[#FF8A00] md:text-base text-xs font-bold`}
               // onClick={handleSelfButtonClick}
               >
                 Self
@@ -1398,10 +1398,10 @@ const BridgeInterface = () => {
           {/* Fees Display */}
           {bridgeFees && (
             <div className="mb-5 flex justify-between gap-2 items-center bg_swap_box_chain">
-              <div className="block md:text-lg text-base font-medium text-white font-orbitron text-center">
+              <div className="block md:text-lg text-base font-medium text-white  text-center">
                 Estimated Fees:
               </div>
-              <div className="grid grid-cols-2 gap-1 text-center text-[#FF9900] text-xs md:text-base font-orbitron">
+              <div className="grid grid-cols-2 gap-1 text-center text-[#FF8A00] text-xs md:text-base ">
                 <div className="font-normal">Gas Token</div>
                 <div>
                   <span className="font-bold">
@@ -1421,7 +1421,7 @@ const BridgeInterface = () => {
           <div className="md:px-1 px-4 2xl:pb-4">
             <button
               type="button"
-              className="gtw relative w-full md:h-12 h-11 bg-[#F59216] md:rounded-[10px] rounded-md mx-auto button-trans text-center mt-4 flex justify-center items-center gap-2 transition-all font-orbitron lg:text-base text-base font-extrabold"
+              className="gtw relative w-full md:h-12 h-11 bg-[#FF8A00] mx-auto font-bold button-trans text-center mt-4 flex justify-center items-center gap-2 transition-all  text-xs"
             >
               {renderButton()}
             </button>
@@ -1429,7 +1429,7 @@ const BridgeInterface = () => {
         </div>
         <div className="lg:max-w-[1000px] md:max-w-[1000px] mx-auto w-full px-4">
           {/* {displayBridgeHash && (
-          <div className="bg_swap_box_chain p-4 w-full font-orbitron">
+          <div className="bg_swap_box_chain p-4 w-full ">
             <p className="text-lg text-[#FBB025] font-bold  mb-2 v">
               Bridge transaction submitted!
             </p>
@@ -1459,8 +1459,8 @@ const BridgeInterface = () => {
           <hr className="mt-4" />
           {/* Instructions */}
           <div className="w-full md:px-0 px-1 md:pb-10 pb-6">
-            <div className="mt-5 md:max-w-[1300px] w-full mx-auto bg-[#100C06] border border-[#100C06] rounded-xl lg:px-12 px-6 lg:py-10 py-10">
-              <h2 className="md:text-[40px] text-[32px] font-extrabold text-white mb-10 font-orbitron">
+            <div className="mt-5 md:max-w-[1300px] w-full mx-auto bg-[#100C06] border border-[#100C06]  lg:px-12 px-6 lg:py-10 py-10">
+              <h2 className="md:text-[40px] text-[32px] font-extrabold text-white mb-10 ">
                 How It Works
               </h2>
               <ol className="space-y-6">
@@ -1498,7 +1498,7 @@ const BridgeInterface = () => {
                       href="https://scan.vialabs.io"
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-[#FF9900] underline"
+                      className="text-[#FF8A00] underline"
                     >
                       VIA Scanner
                     </a>
