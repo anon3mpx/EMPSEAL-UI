@@ -187,33 +187,18 @@ function configTokensForChain(chainId: number): Token[] {
 // SOURCE→FROM rules:
 //   T1: full aggregator list (any input token, source-side aggregator swaps to settlement).
 //   T2: only tokens at least one source-eligible rail accepts (USDC / USDT / native).
-//   T3: only the chain's native L1 asset (BTC, SOL, DOGE, ...).
+//   T3: native L1 asset plus explicitly configured assets supported by an eligible rail.
 // DESTINATION→TO rules:
 //   T1: full aggregator list (rail delivers settlement asset, aggregator swaps to user's pick).
 //   T2: only tokens the eligible rail set can settle into (USDC / USDT / OFT / native).
-//   T3: only the chain's native L1 asset.
-function tokensFor(
+//   T3: native L1 asset plus explicitly configured settlement assets.
+export function tokensFor(
   chainId: number,
   role: "from" | "to",
   eligibleRails: RailEntry[],
 ): { tokens: Token[]; restrictedReason?: string } {
   const tier = tierForChainId(chainId);
   const full = configTokensForChain(chainId);
-
-  if (tier === 1) {
-    // Full token list (any token; aggregator handles input/output legs).
-    return { tokens: full };
-  }
-
-  if (tier === 3) {
-    // Non-EVM: only the chain's native asset, regardless of role.
-    return {
-      tokens: full.filter((t) => t.category === "native"),
-      restrictedReason: `${tierLabel(3)} chain — only the native L1 asset is supported here. Routes go via Mode B rails (THORChain / Chainflip / Maya / TeleSwap).`,
-    };
-  }
-
-  // T2: rail-only EVM. Filter to tickers ≥1 eligible rail accepts.
   const railSupportsTicker = (ticker: string): boolean => {
     const upper = ticker.toUpperCase();
     return eligibleRails.some((r) => {
@@ -223,6 +208,23 @@ function tokensFor(
       return r.supportsOFT;
     });
   };
+
+  if (tier === 1) {
+    // Full token list (any token; aggregator handles input/output legs).
+    return { tokens: full };
+  }
+
+  if (tier === 3) {
+    const supported = full.filter(
+      (token) => token.category === "native" || railSupportsTicker(token.ticker),
+    );
+    return {
+      tokens: supported,
+      restrictedReason: `${tierLabel(3)} chain — limited to the native L1 asset and configured settlement assets supported by an eligible rail.`,
+    };
+  }
+
+  // T2: rail-only EVM. Filter to tickers ≥1 eligible rail accepts.
   const filtered = full.filter((t) => railSupportsTicker(t.ticker));
   return {
     tokens: filtered.length > 0 ? filtered : full.filter((t) => t.category === "stable"),
@@ -541,12 +543,14 @@ export default function CrossPage() {
     }
   }, [quote.data]);
 
-  // Reset destination ticker when destination chain tier changes
+  // Reset the destination ticker only when it is unsupported on the new chain.
   useEffect(() => {
     if (toTier === 3) {
-      // Force native L1
-      const native = configTokensForChain(toChainId).find((t) => t.category === "native");
-      if (native && toTicker !== native.ticker) setToTicker(native.ticker);
+      const allowed = tokensFor(toChainId, "to", eligibleRailsFor(fromChainId, toChainId, undefined)).tokens;
+      if (!allowed.some((token) => token.ticker === toTicker)) {
+        const native = allowed.find((token) => token.category === "native");
+        if (native) setToTicker(native.ticker);
+      }
     } else if (toTier === 2) {
       // Force to a settlement stable if the current ticker isn't supported
       const allowed = tokensFor(toChainId, "to", eligibleRailsFor(fromChainId, toChainId, undefined)).tokens;

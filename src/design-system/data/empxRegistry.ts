@@ -81,7 +81,7 @@ export function tierHelp(tier: ChainTier): string {
   switch (tier) {
     case 1: return "EmpX aggregator deployed — full token list, any-to-any swaps on this chain.";
     case 2: return "Rail-only EVM chain — token list limited to assets the eligible rails accept.";
-    case 3: return "Non-EVM L1 — use rail-native asset (BTC/SOL/etc.) via Mode B rails only.";
+    case 3: return "Non-EVM L1 — native asset plus configured settlement assets supported by eligible rails.";
   }
 }
 
@@ -156,8 +156,8 @@ export const RAILS: RailEntry[] = [
   {
     name: "CCTP",
     mode: "A",
-    sources: [1, 42161, 8453, 10, 137, 43114],
-    destinations: [1, 42161, 8453, 10, 137, 43114],
+    sources: [1, 42161, 8453, 10, 137, 43114, BACKEND_NON_EVM_CHAIN_IDS.SOL],
+    destinations: [1, 42161, 8453, 10, 137, 43114, BACKEND_NON_EVM_CHAIN_IDS.SOL],
     // CCTP standard: ~15 min hard finality on Ethereum-source attestations
     etaSecondsBaseline: 900,
     reliability: 99.4,
