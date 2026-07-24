@@ -131,7 +131,7 @@ interface SdkPreparedRouteLike {
 }
 
 const QUOTE_TTL_MS = 30_000;
-const SDK_VERSION = "2.3.1";
+const SDK_VERSION = "2.4.0";
 const SWAP_QUOTE_DISPLAY_DECIMALS = 6;
 
 function buildQuoteMetadata() {
@@ -296,8 +296,11 @@ export function formatPreparedSwapOutput(
   outputDecimals: number,
 ): string {
   if (route?.routing === "split") {
+    const grossOutput = route.splits?.length
+      ? route.splits.reduce((total, leg) => total + leg.expectedOut, 0n)
+      : route.tradeInfo.amountOut;
     return formatDecimalString(
-      formatUnits(route.tradeInfo.amountOut, outputDecimals),
+      formatUnits(grossOutput, outputDecimals),
       SWAP_QUOTE_DISPLAY_DECIMALS,
     );
   }

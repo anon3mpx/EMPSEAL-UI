@@ -3036,10 +3036,10 @@ emoji-regex@^9.2.2:
   resolved "https://registry.npmjs.org/emoji-regex/-/emoji-regex-9.2.2.tgz"
   integrity sha512-L18DaJsXSUk2+42pv8mLs5jJT2hqFkFE4j21wOmgbUqsZ2hL72NsUU785g9RXgo3s0ZNgVl42TiHp3ZtOv/Vyg==
 
-empx-swap-sdk@2.3.1:
-  version "2.3.1"
-  resolved "https://registry.yarnpkg.com/empx-swap-sdk/-/empx-swap-sdk-2.3.1.tgz#951d0dcff6659bef0ad5961ec8d02629048516c8"
-  integrity sha512-POUW3gRm5vtZv0PTvgykBsR4wlNl4QZxT6+WQFfJbG0bPdMvWP+0AKwaj+QBZ61903c0Nu78iQ+5PTerZlo7iA==
+empx-swap-sdk@2.4.0:
+  version "2.4.0"
+  resolved "https://registry.npmjs.org/empx-swap-sdk/-/empx-swap-sdk-2.4.0.tgz"
+  integrity sha512-V85ptgAgA0dxnMha6Yd27uSitmW+Rqm6zAHNZYtUdxGmc+wJepifz0jlO+TNgcS/d4Vn1l7krhtB+vKbXfZyig==
   dependencies:
     ethers "^6.17.0"
 

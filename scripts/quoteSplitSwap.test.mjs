@@ -64,7 +64,12 @@ describe("quoteSplitSwap CLI", () => {
       tokenIn,
       tokenOut,
       recipient,
-      expect.objectContaining({ routing: "split" }),
+      expect.objectContaining({
+        routing: "split",
+        maxSplits: 3,
+        minSavingsBps: 1,
+        splitSearchTimeoutMs: 15_000,
+      }),
     );
     expect(result).toMatchObject({
       kind: "split_quote",
@@ -93,6 +98,8 @@ describe("quoteSplitSwap CLI", () => {
         "100",
         "--min-savings-bps",
         "20",
+        "--split-search-timeout-ms",
+        "25000",
       ]),
     ).toMatchObject({
       chainId: 42161,
@@ -103,11 +110,12 @@ describe("quoteSplitSwap CLI", () => {
       rpcUrl: "https://arb.example",
       slippageBps: 100,
       minSavingsBps: 20,
+      splitSearchTimeoutMs: 25_000,
       timeoutMs: 60_000,
     });
   });
 
-  it("defaults exploratory searches to two split legs", () => {
+  it("defaults exploratory searches to the recommended 2.4 split settings", () => {
     expect(
       parseCliArgs([
         "--chain",
@@ -119,7 +127,12 @@ describe("quoteSplitSwap CLI", () => {
         "--amount",
         "1",
       ]),
-    ).toMatchObject({ maxSplits: 2, timeoutMs: 60_000 });
+    ).toMatchObject({
+      maxSplits: 3,
+      minSavingsBps: 1,
+      splitSearchTimeoutMs: 15_000,
+      timeoutMs: 60_000,
+    });
   });
 
   it("rejects max-steps values outside the SDK-supported range", () => {

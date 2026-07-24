@@ -82,7 +82,7 @@ describe("swapV2Adapters", () => {
     expect(formatSwapQuoteOutput(quote, 18)).toBe("1.234568");
   });
 
-  it("uses the aggregate prepared amount for split output display", () => {
+  it("uses the aggregate gross output for split output display", () => {
     const dominantLegQuote = {
       amounts: [600n, 1_200n],
       path: [usdcToken.address, EMPTY_SWAP_TOKEN_ADDRESS],
@@ -91,7 +91,11 @@ describe("swapV2Adapters", () => {
     const route = {
       source: "sdk",
       routing: "split",
-      tradeInfo: { amountOut: 1_900n },
+      tradeInfo: { amountOut: 1_800n },
+      splits: [
+        { expectedOut: 1_200n },
+        { expectedOut: 700n },
+      ],
     };
 
     expect(formatPreparedSwapOutput(route as never, dominantLegQuote, 3)).toBe(
@@ -137,7 +141,7 @@ describe("swapV2Adapters", () => {
     expect(typeof tradeInfo?.quoteId).toBe("string");
     expect(typeof tradeInfo?.timestamp).toBe("number");
     expect(typeof tradeInfo?.validUntil).toBe("number");
-    expect(typeof tradeInfo?.sdkVersion).toBe("string");
+    expect(tradeInfo?.sdkVersion).toBe("2.4.0");
   });
 
   it("builds route hops with configured adapter names, never raw addresses", () => {
