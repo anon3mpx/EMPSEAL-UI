@@ -21,13 +21,15 @@ Usage:
     [--slippage-bps <0-1000>] \\
     [--max-splits <2-4>] \\
     [--min-savings-bps <0-10000>] \\
+    [--split-search-timeout-ms <1-60000>] \\
     [--timeout-ms <1000-300000>]
 
 Notes:
   - Uses quoteSplitSwap() with routing=\"split\".
   - Prints only genuine split previews; it never submits a transaction.
   - --amount is converted using token-in decimals fetched from chain.
-  - Defaults to two split legs for faster exploratory searches.
+  - Defaults to maxSplits=3, minSavingsBps=1, and a 15000ms SDK split search.
+  - --timeout-ms is the outer script safety timeout and defaults to 60000ms.
   - --recipient defaults to ${DEFAULT_RECIPIENT}.
 `;
 
@@ -42,6 +44,7 @@ const CLI_OPTIONS = new Map([
   ["--slippage-bps", "slippageBps"],
   ["--max-splits", "maxSplits"],
   ["--min-savings-bps", "minSavingsBps"],
+  ["--split-search-timeout-ms", "splitSearchTimeoutMs"],
   ["--timeout-ms", "timeoutMs"],
 ]);
 
@@ -115,11 +118,16 @@ export function parseCliArgs(argv) {
       min: 0,
       max: 1_000,
     }),
-    maxSplits: parseInteger(values.maxSplits ?? "2", "--max-splits", { min: 2, max: 4 }),
+    maxSplits: parseInteger(values.maxSplits ?? "3", "--max-splits", { min: 2, max: 4 }),
     minSavingsBps: parseInteger(
-      values.minSavingsBps ?? "10",
+      values.minSavingsBps ?? "1",
       "--min-savings-bps",
       { min: 0, max: 10_000 },
+    ),
+    splitSearchTimeoutMs: parseInteger(
+      values.splitSearchTimeoutMs ?? "15000",
+      "--split-search-timeout-ms",
+      { min: 1, max: 60_000 },
     ),
     timeoutMs: parseInteger(values.timeoutMs ?? "60000", "--timeout-ms", {
       min: 1_000,
@@ -152,7 +160,7 @@ export async function fetchSplitQuote(input, dependencies = {}) {
   onProgress("resolving token-in decimals");
   const tokenInDecimals = await router.getTokenDecimals(input.tokenIn);
   const amountRaw = parseUnits(input.amount, tokenInDecimals);
-  onProgress(`SDK is evaluating up to ${input.maxSplits ?? 2} split legs`);
+  onProgress(`SDK is evaluating up to ${input.maxSplits ?? 3} split legs`);
   const quote = await withTimeout(
     router.quoteSplitSwap(
       amountRaw,
@@ -163,8 +171,9 @@ export async function fetchSplitQuote(input, dependencies = {}) {
         routing: "split",
         maxSteps: input.maxSteps ?? 3,
         slippageBps: input.slippageBps ?? 200,
-        maxSplits: input.maxSplits ?? 2,
-        minSavingsBps: input.minSavingsBps ?? 10,
+        maxSplits: input.maxSplits ?? 3,
+        minSavingsBps: input.minSavingsBps ?? 1,
+        splitSearchTimeoutMs: input.splitSearchTimeoutMs ?? 15_000,
       },
     ),
     input.timeoutMs ?? 60_000,
