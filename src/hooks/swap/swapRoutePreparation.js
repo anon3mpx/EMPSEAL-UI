@@ -23,6 +23,14 @@ async function prepareSdkPreview(input, options) {
   if (!input.router?.quoteSplitSwap) {
     throw new Error("SDK split route preview is unavailable");
   }
+  // console.log("[swapRoutePreparation] SDK quote request:", {
+  //   chainId: input.chainId,
+  //   amountIn: input.amountIn,
+  //   tokenIn: input.tokenIn,
+  //   tokenOut: input.tokenOut,
+  //   recipient: input.recipient,
+  //   options,
+  // });
   const sdkResult = await input.router.quoteSplitSwap(
     input.amountIn,
     input.tokenIn,
@@ -30,6 +38,11 @@ async function prepareSdkPreview(input, options) {
     input.recipient,
     options,
   );
+  // console.log("[swapRoutePreparation] SDK quote result:", {
+  //   requestedRouting: options.routing,
+  //   selectedRouting: sdkResult.routing,
+  //   quote: sdkResult,
+  // });
   return {
     source: "sdk",
     routing: sdkResult.routing,
@@ -55,6 +68,7 @@ export async function prepareSwapRoute(input) {
       feeContext: { pairType: input.pairType },
     });
   } catch (error) {
+    // console.log("[swapRoutePreparation] No-split SDK quote failed:", error);
     sdkError = error;
   }
 
@@ -70,6 +84,10 @@ export async function prepareSwapRoute(input) {
         maxSteps,
       });
       if (hasUsableLocalQuote(quote)) {
+        // console.log("[swapRoutePreparation] Local quote result:", {
+        //   maxSteps,
+        //   quote,
+        // });
         return {
           source: "local",
           routing: "single",
@@ -91,9 +109,9 @@ export function prepareSplitSwapRoute(input) {
     routing: "auto",
     maxSteps: input.maxSteps,
     slippageBps: input.slippageBps,
-    maxSplits: 2,
-    minSavingsBps: 10,
-    splitSearchTimeoutMs: 3000,
+    maxSplits: 3,
+    minSavingsBps: 1,
+    splitSearchTimeoutMs: 30000,
     feeContext: { pairType: input.pairType },
   });
 }

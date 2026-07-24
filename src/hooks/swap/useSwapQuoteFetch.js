@@ -189,6 +189,7 @@ export function useSwapQuoteFetch({
       try {
         const result = await prepareSwapRoute(preparationInput);
         if (myId !== inflightId.current) return;
+        // console.log("[useSwapQuoteFetch] No-split quote:", result);
         publishRoute(result);
         setQuoteLoading(false);
 
@@ -198,10 +199,15 @@ export function useSwapQuoteFetch({
         try {
           const splitResult = await prepareSplitSwapRoute(preparationInput);
           if (myId !== inflightId.current) return;
+          // console.log("[useSwapQuoteFetch] Auto quote:", splitResult);
           if (splitResult.routing === "split") {
+            // console.log("[useSwapQuoteFetch] Split quote:", splitResult);
             publishRoute(splitResult);
+          } else {
+            // console.log("[useSwapQuoteFetch] Split quote:", null);
           }
-        } catch {
+        } catch (error) {
+          // console.log("[useSwapQuoteFetch] Auto/split quote failed:", error);
           // The fast single quote remains valid when optional split discovery
           // is unavailable or exceeds its bounded search window.
         } finally {

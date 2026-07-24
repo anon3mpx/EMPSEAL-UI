@@ -540,7 +540,7 @@ export default function SwapPage() {
                     {quoteLoading
                       ? "Fetching single route"
                       : splitQuoteLoading
-                        ? "Optimizing split route"
+                        ? "Optimizing for split trade"
                         : quoteFallbackActive
                           ? "Local fallback"
                           : isQuoteEnabled
