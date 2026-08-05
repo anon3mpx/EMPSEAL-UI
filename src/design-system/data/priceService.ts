@@ -78,7 +78,17 @@ export function getCachedPrice(
   tokenAddress?: string,
 ): number | null {
   const c = loadCache();
-  return c[cacheKey(chainId, ticker, tokenAddress)]?.price ?? null;
+  const key = cacheKey(chainId, ticker, tokenAddress);
+  const entry = c[key];
+  if (!entry) return null;
+
+  if (Date.now() - entry.fetchedAt >= TTL_MS) {
+    delete c[key];
+    flushCache();
+    return null;
+  }
+
+  return entry.price;
 }
 
 /**

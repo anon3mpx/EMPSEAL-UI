@@ -39,6 +39,7 @@ export interface DexScreenerTokenPrice {
 }
 
 const DEXSCREENER_CHAIN_BY_CHAIN_ID: Record<number, string> = {
+  1: "ethereum",
   369: "pulsechain",
   146: "sonic",
   8453: "base",

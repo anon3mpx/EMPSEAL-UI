@@ -101,6 +101,7 @@ import {
   buildSubmittedMessage,
 } from "../../features/cross/utils/signatures";
 import { useWalletConnection } from "../hooks/useWalletConnection";
+import { useUnifiedPrice } from "../hooks/useUnifiedPrice";
 import { useV2Balances } from "../hooks/useV2Balances";
 import EmpxCrossWidget from "../EmpxCrossWidget";
 import { getExplorerAddressUrl, getExplorerTxUrl } from "../data/explorers";
@@ -232,40 +233,6 @@ export function tokensFor(
   };
 }
 
-// Token USD-price source — DefiLlama prices via priceService.
-// `priceOf(ticker)` returns the cached live price when available; falls
-// back to the static seed table for chains/tokens DefiLlama doesn't cover
-// (PulseChain, Sonic, Sei, Bera, Monad, HyperEVM, EthPoW, Rootstock).
-// The static table also serves as the cold-start floor while async fetches
-// resolve — same pattern as NativeUsdOracle.STATIC_NATIVE_USD.
-import { getCachedPrice, getTokenPrices } from "../data/priceService";
-
-const PRICE_USD_FALLBACK: Record<string, number> = {
-  ETH: 3184, WETH: 3184, BTC: 67852, WBTC: 67852, SOL: 158,
-  USDC: 1, USDT: 1, DAI: 1, HONEY: 1,
-  POL: 0.72, BNB: 612, AVAX: 38, ARB: 0.79, OP: 1.84, PLS: 0.00007, SEI: 0.51, BERA: 6.2,
-  RBTC: 67852, MON: 1, HYPE: 23, ETHW: 2.1, S: 0.42, CAKE: 2.4, JOE: 0.43, GMX: 24,
-  PEPE: 0.0000091, DEGEN: 0.0098, AERO: 1.1, HEX: 0.0042, PLSX: 0.00004, RIF: 0.082, DOGE: 0.16, LTC: 71, BCH: 462,
-};
-
-/**
- * Lookup live price for (chainId, ticker).  Returns the cached DefiLlama
- * price when available, else the fallback seed.  Async fetches are kicked
- * off by useEffect in the page below so subsequent renders pick up live data.
- */
-function priceOf(ticker: string, chainId?: number): number {
-  if (chainId != null) {
-    const live = getCachedPrice(chainId, ticker);
-    if (live != null) return live;
-  }
-  return PRICE_USD_FALLBACK[ticker.toUpperCase()] ?? 1;
-}
-
-/** Trigger an async DefiLlama fetch for the (chainId, ticker) pairs in view. */
-function _prefetchPrices(pairs: { chainId: number; ticker: string }[]) {
-  void getTokenPrices(pairs); // fire-and-forget; cache picks up the result
-}
-
 // ─── Page-level constants ─────────────────────────────────────────────────
 
 type ChainPickerTarget = "from" | "to";
@@ -373,6 +340,16 @@ export default function CrossPage() {
   const toTokenConfig = useMemo(
     () => getTokensForChain(toChainId).find((t) => t.ticker === toTicker) ?? null,
     [toChainId, toTicker],
+  );
+  const fromTokenPriceUSD = useUnifiedPrice(
+    fromChainId,
+    fromTicker,
+    fromTokenConfig?.address,
+  );
+  const toTokenPriceUSD = useUnifiedPrice(
+    toChainId,
+    toTicker,
+    toTokenConfig?.address,
   );
   const toTokenDecimals = Number(toTokenConfig?.decimals ?? 18);
   const nativeDestinationRequired = isBackendNonEvmChainId(toChainId);
@@ -567,15 +544,6 @@ export default function CrossPage() {
     if (!gasDropAvailable && gasDropOnDestination) setGasDropOnDestination(false);
   }, [gasDropAvailable, gasDropOnDestination]);
 
-  // Prefetch live USD prices via DefiLlama for the current pair.  Falls
-  // back to PRICE_USD_FALLBACK silently when the chain isn't covered.
-  useEffect(() => {
-    _prefetchPrices([
-      { chainId: fromChainId, ticker: fromTicker },
-      { chainId: toChainId,   ticker: toTicker   },
-    ]);
-  }, [fromChainId, fromTicker, toChainId, toTicker]);
-
   const tracking = useCrossIntentTracking(
     session?.mode === "single" ? session.intentId : undefined,
     session?.mode === "composed" ? session.composedIds : undefined,
@@ -722,9 +690,16 @@ export default function CrossPage() {
   const toAmountDisplay =
     selectedOfferDisplay?.outputAmount ??
     (quote.isFetching ? "..." : "0");
+  const parsedFromAmount = Number(fromAmount.replace(/,/g, ""));
+  const fromUsdValue =
+    fromTokenPriceUSD != null && Number.isFinite(parsedFromAmount)
+      ? parsedFromAmount * fromTokenPriceUSD
+      : undefined;
   const toUsdValue =
-    selectedOfferDisplay && Number.isFinite(Number(selectedOfferDisplay.outputAmount))
-      ? Number(selectedOfferDisplay.outputAmount) * priceOf(toTicker, toChainId)
+    selectedOfferDisplay &&
+    toTokenPriceUSD != null &&
+    Number.isFinite(Number(selectedOfferDisplay.outputAmount))
+      ? Number(selectedOfferDisplay.outputAmount) * toTokenPriceUSD
       : undefined;
   const sourceTxHash =
     trackingData?.srcTxHash ??
@@ -1429,7 +1404,7 @@ export default function CrossPage() {
               fromToken={{ ticker: fromTicker }}
               fromAmount={fromAmount}
               fromBalance={fromBalanceLabel}
-              fromUsdValue={Number(fromAmount.replace(/,/g, "")) * priceOf(fromTicker, fromChainId)}
+              fromUsdValue={fromUsdValue}
               onFromAmountChange={setFromAmount}
               onSelectFromToken={() => setTokenPickerTarget("from")}
               onSelectFromChain={() => setChainPickerTarget("from")}
