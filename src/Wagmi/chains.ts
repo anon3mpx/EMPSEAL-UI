@@ -1,8 +1,30 @@
 import { defineChain } from 'viem';
-import { pulsechain, sonic, rootstock, avalanche } from 'wagmi/chains';
+import {
+  avalanche,
+  ink,
+  linea,
+  mainnet,
+  plumeMainnet,
+  pulsechain,
+  rootstock,
+  sonic,
+  unichain,
+  worldchain,
+} from 'wagmi/chains';
 import { getPrimaryRpcUrl } from '../config/rpc';
 
-export { pulsechain, sonic, rootstock, avalanche };
+export {
+  avalanche,
+  ink,
+  linea,
+  mainnet,
+  plumeMainnet,
+  pulsechain,
+  rootstock,
+  sonic,
+  unichain,
+  worldchain,
+};
 
 export const ethw = defineChain({
   id: 10001,
@@ -251,6 +273,7 @@ export const hyperEVM = defineChain({
 } as const);
 
 export const chains = [
+  mainnet,
   pulsechain,
   sonic,
   base,
@@ -265,4 +288,9 @@ export const chains = [
   polygon,
   avalanche,
   hyperEVM,
+  ink,
+  linea,
+  plumeMainnet,
+  unichain,
+  worldchain,
 ] as const;

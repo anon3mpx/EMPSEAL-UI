@@ -44,7 +44,7 @@ describe("cross-chain rail capability policy", () => {
   });
 
   it("disables inactive rails and Optimism withdrawals", () => {
-    for (const rail of ["TELESWAP", "VIA_LABS", "WORMHOLE", "AXELAR"]) {
+    for (const rail of ["TELESWAP", "VIA_LABS", "AXELAR"]) {
       expect(getRailCapability(rail).status).toBe("disabled");
       expect(getRailCapability(rail).selectable).toBe(false);
     }
@@ -59,6 +59,56 @@ describe("cross-chain rail capability policy", () => {
       status: "disabled",
       selectable: false,
     });
+  });
+
+  it("enables the active Wormhole, deBridge, and Garden rail expansion", () => {
+    for (const rail of ["WORMHOLE", "DEBRIDGE", "GARDEN"]) {
+      expect(getRailCapability(rail)).toMatchObject({
+        status: "executable",
+        selectable: true,
+      });
+    }
+  });
+
+  it("accepts the expanded Hyperlane chain families", () => {
+    expect(
+      getOfferCapability({
+        rail: "HYPERLANE_NEXUS",
+        srcChainId: 1,
+        dstChainId: 57073,
+        routeAsset: {
+          canonicalAssetId: "USDC",
+          providerAssetId: "USDC",
+          decimals: 6,
+          assetKind: "erc20",
+        },
+      }),
+    ).toMatchObject({ status: "executable", selectable: true });
+
+    expect(
+      getOfferCapability({
+        rail: "HYPERLANE_NEXUS",
+        srcChainId: 57073,
+        dstChainId: 1,
+        routeAsset: {
+          canonicalAssetId: "USDC",
+          providerAssetId: "USDC",
+          decimals: 6,
+          assetKind: "erc20",
+        },
+      }),
+    ).toMatchObject({ status: "executable", selectable: true });
+  });
+
+  it("keeps LayerZero native Stargate offers hidden", () => {
+    expect(
+      getOfferCapability({
+        rail: "LAYERZERO",
+        offerType: "lz_stargate_native",
+        srcChainId: 8453,
+        dstChainId: 42161,
+      } as any),
+    ).toMatchObject({ status: "disabled", selectable: false });
   });
 
   it("restricts non-EVM source actions even when a provider returns an offer", () => {

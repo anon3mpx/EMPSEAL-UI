@@ -7,6 +7,7 @@ import {
   formatCrossOffer,
   getCrossQuoteUiState,
 } from "./crossV2Adapters";
+import * as crossV2Adapters from "./crossV2Adapters";
 import { getTokensForChain } from "./v2TokenView";
 
 const arbitrum = { id: 42161, name: "Arbitrum", ticker: "ETH", color: "#28A0F0" };
@@ -159,6 +160,111 @@ describe("crossV2Adapters", () => {
       urgency: "fast",
       destinationGas: undefined,
     });
+  });
+
+  it("preserves LayerZero provider-native chain, token, and wallet identifiers", () => {
+    expect(
+      buildCrossQuoteRequest({
+        fromToken: {
+          ...fromToken,
+          address: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+          providerAssetId: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+        },
+        toToken: {
+          chainId: 99,
+          ticker: "USDC",
+          name: "USD Coin",
+          providerAssetId: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+          decimal: 6,
+        },
+        fromAmount: "1",
+        fromChainId: 1,
+        toChainId: 1,
+        userAddress: "0xabc",
+        nativeDstAddress: "Dz93pUVjXuaMnSsPSn7V99V4cUzhKoQdx9ECwZJZiafG",
+        layerZeroValueTransferApi: {
+          srcChainKey: "ethereum",
+          dstChainKey: "solana",
+          srcChainType: "EVM",
+          dstChainType: "SOLANA",
+          srcWalletAddress: "0xabc",
+          dstWalletAddress: "Dz93pUVjXuaMnSsPSn7V99V4cUzhKoQdx9ECwZJZiafG",
+        },
+      }),
+    ).toMatchObject({
+      tokenIn: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+      tokenOut: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+      srcChainId: 1,
+      dstChainId: 1,
+      layerZeroValueTransferApi: {
+        srcChainKey: "ethereum",
+        dstChainKey: "solana",
+        srcChainType: "EVM",
+        dstChainType: "SOLANA",
+        srcWalletAddress: "0xabc",
+        dstWalletAddress: "Dz93pUVjXuaMnSsPSn7V99V4cUzhKoQdx9ECwZJZiafG",
+      },
+    });
+  });
+
+  it("maps provider chains to collision-safe UI ids while preserving quote ids", () => {
+    const buildCatalog = (crossV2Adapters as any).buildLayerZeroChainCatalog;
+    expect(typeof buildCatalog).toBe("function");
+
+    const catalog = buildCatalog([
+      { name: "Ethereum", shortName: "ETH", chainKey: "ethereum", chainType: "EVM", chainId: 1 },
+      { name: "Solana", shortName: "SOL", chainKey: "solana", chainType: "SOLANA", chainId: 1 },
+      { name: "Aptos", shortName: "APT", chainKey: "aptos", chainType: "APTOS", chainId: 1 },
+    ]);
+
+    expect(catalog.map((chain: any) => chain.id)).toEqual([1, 99, 230]);
+    expect(catalog.map((chain: any) => chain.quoteChainId)).toEqual([1, 1, 1]);
+    expect(catalog[1].providerChainKey).toBe("solana");
+  });
+
+  it("enriches local chains with provider refs and keeps newly discovered chains", () => {
+    const mergeChains = (crossV2Adapters as any).mergeLayerZeroChainOptions;
+    expect(typeof mergeChains).toBe("function");
+
+    const merged = mergeChains(
+      [
+        { id: 1, name: "Ethereum", ticker: "ETH", color: "#627EEA", kind: "EVM" },
+        { id: 99, name: "Solana", ticker: "SOL", color: "#9945FF", kind: "SOL" },
+        { id: 0, name: "Bitcoin", ticker: "BTC", color: "#F7931A", kind: "BTC" },
+      ],
+      (crossV2Adapters as any).buildLayerZeroChainCatalog([
+        { name: "Ethereum", shortName: "ETH", chainKey: "ethereum", chainType: "EVM", chainId: 1 },
+        { name: "Solana", shortName: "SOL", chainKey: "solana", chainType: "SOLANA", chainId: 1 },
+        { name: "Aptos", shortName: "APT", chainKey: "aptos", chainType: "APTOS", chainId: 1 },
+      ]),
+    );
+
+    expect(merged.map((chain: any) => chain.id)).toEqual([1, 99, 0, 230]);
+    expect(merged.find((chain: any) => chain.id === 1)).toMatchObject({
+      providerChainKey: "ethereum",
+      quoteChainId: 1,
+    });
+    expect(merged.find((chain: any) => chain.id === 99)).toMatchObject({
+      providerChainKey: "solana",
+      quoteChainId: 1,
+    });
+  });
+
+  it("merges provider-discovered tokens by exact identifier without collapsing same-symbol assets", () => {
+    const mergeTokens = (crossV2Adapters as any).mergeLayerZeroTokens;
+    expect(typeof mergeTokens).toBe("function");
+
+    const merged = mergeTokens(
+      [{ chainId: 8453, ticker: "USDC", name: "USD Coin", address: "0x1", decimals: 6 }],
+      [
+        { chainKey: "base", symbol: "USDC", name: "USD Coin", address: "0x1", decimals: 6 },
+        { chainKey: "base", symbol: "USDC", name: "USD Coin v2", address: "0x2", decimals: 6 },
+        { chainKey: "arbitrum", symbol: "USDC", name: "USD Coin", address: "0x3", decimals: 6 },
+      ],
+      { uiChainId: 8453, chainKey: "base", chainType: "EVM" },
+    );
+
+    expect(merged.map((token: any) => token.providerAssetId)).toEqual(["0x1", "0x2"]);
   });
 
   it("requires and forwards native destination addresses for non-EVM destinations", () => {

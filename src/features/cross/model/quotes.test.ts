@@ -202,4 +202,25 @@ describe("normalizeOfferSet", () => {
 
     expect(findMatchingRefreshedOffer(normalized, previousOffer)).toBeNull();
   });
+
+  it("keeps deferred rails out of the advertised primary offer list", () => {
+    const normalized = normalizeOfferSet({
+      offerSet: {
+        offerSetId: "set-hidden",
+        expiresAt: 1740000000000,
+        offers: [
+          { offerId: "cctp", rail: "CCTP", srcChainId: 1, dstChainId: 10, economics: {} },
+          { offerId: "chainflip", rail: "CHAINFLIP", srcChainId: 1, dstChainId: 0, economics: {} },
+          { offerId: "maya", rail: "MAYA", srcChainId: 1, dstChainId: 0, economics: {} },
+          { offerId: "lz-native", rail: "LAYERZERO", offerType: "lz_stargate_native", srcChainId: 8453, dstChainId: 42161, economics: {} },
+        ] as any,
+      },
+    });
+
+    expect(getPrimaryOffers(normalized).map((offer) => offer.offerId)).toEqual(["cctp"]);
+    expect(getPrimaryOffers({
+      ...normalized,
+      offers: normalized.offers.filter((offer) => offer.offerId !== "cctp"),
+    })).toEqual([]);
+  });
 });

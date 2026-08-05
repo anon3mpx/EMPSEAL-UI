@@ -38,7 +38,10 @@ export interface RailCapability {
   reason?: string;
 }
 
-const HYPERLANE_CHAINS = [8453, 42161, 10] as const;
+const HYPERLANE_CHAINS = [
+  1, 10, 56, 137, 146, 369, 480, 999, 1329, 8453, 42161, 43114,
+  57073, 59144, 98866, 130,
+] as const;
 
 const RAIL_CAPABILITIES: Record<string, RailCapability> = {
   CCTP: {
@@ -103,6 +106,30 @@ const RAIL_CAPABILITIES: Record<string, RailCapability> = {
     providerApprovalMayBeRequired: true,
     selectable: true,
   },
+  WORMHOLE: {
+    rail: "WORMHOLE",
+    label: "Wormhole",
+    status: "executable",
+    requiredSourceWallet: "evm",
+    providerApprovalMayBeRequired: false,
+    selectable: true,
+  },
+  DEBRIDGE: {
+    rail: "DEBRIDGE",
+    label: "deBridge DLN",
+    status: "executable",
+    requiredSourceWallet: "evm",
+    providerApprovalMayBeRequired: true,
+    selectable: true,
+  },
+  GARDEN: {
+    rail: "GARDEN",
+    label: "Garden",
+    status: "executable",
+    requiredSourceWallet: "evm",
+    providerApprovalMayBeRequired: true,
+    selectable: true,
+  },
   MAYA: {
     rail: "MAYA",
     label: "Maya",
@@ -131,7 +158,6 @@ const RAIL_CAPABILITIES: Record<string, RailCapability> = {
     reason: "This rail is disabled for the current rollout.",
   },
   VIA_LABS: disabledCapability("VIA_LABS", "Via Labs"),
-  WORMHOLE: disabledCapability("WORMHOLE", "Wormhole"),
   AXELAR: disabledCapability("AXELAR", "Axelar"),
 };
 
@@ -160,7 +186,7 @@ export function getOfferCapability(
     Partial<
       Pick<
         RailOffer,
-        "routeAsset" | "sourceSettlementAsset" | "destinationSettlementAsset"
+        "routeAsset" | "sourceSettlementAsset" | "destinationSettlementAsset" | "offerType"
       >
     > & {
     actionKind?: string;
@@ -172,6 +198,14 @@ export function getOfferCapability(
     ...base,
     nativeDestinationAddressRequired: !isEvmChain(offer.dstChainId),
   };
+  if (offer.offerType === "lz_stargate_native") {
+    return {
+      ...contextualBase,
+      status: "disabled",
+      selectable: false,
+      reason: "LayerZero native Stargate is not enabled for this rollout.",
+    };
+  }
   const nonEvmSourceWallet: SourceWalletType =
     offer.srcChainId === 0
       ? "bitcoin"

@@ -82,6 +82,8 @@ const EVM_CHAIN_IDS = new Set<number>([
   137,    // Polygon
   143,    // Monad
   146,    // Sonic
+  130,    // Unichain
+  480,    // World Chain
   369,    // PulseChain
   999,    // HyperEVM
   1329,   // Sei (EVM-compat)
@@ -89,6 +91,9 @@ const EVM_CHAIN_IDS = new Set<number>([
   10001,  // EthereumPOW
   42161,  // Arbitrum
   43114,  // Avalanche
+  57073,  // Ink
+  59144,  // Linea
+  98866,  // Plume
   80094,  // Berachain
 ]);
 

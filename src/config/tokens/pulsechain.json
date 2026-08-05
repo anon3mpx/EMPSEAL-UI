@@ -43,6 +43,15 @@
     "featured": true
   },
   {
+    "chainId": 369,
+    "name": "USD Coin from Hyperlane",
+    "address": "0xa5B0D537CeBE97f087Dc5FE5732d70719caaEc1D",
+    "symbol": "hUSDC",
+    "decimals": 6,
+    "featured": true,
+    "logoURI": "https://raw.githubusercontent.com/piteasio/app-tokens/main/token-logo/0xa5B0D537CeBE97f087Dc5FE5732d70719caaEc1D.png"
+  },
+  {
     "name": "Hedron",
     "address": "0x3819f64f282bf135d62168C1e513280dAF905e06",
     "ticker": "HDRN",

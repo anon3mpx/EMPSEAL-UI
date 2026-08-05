@@ -6,6 +6,7 @@ export interface QuoteRequest {
   dstChainId: number;
   userAddress: string;
   nativeDstAddress?: string;
+  layerZeroValueTransferApi?: LayerZeroValueTransferApiQuoteContext;
   urgency?: "normal" | "fast";
   destinationGas?: Array<{
     provider: "gaszip";
@@ -15,6 +16,45 @@ export interface QuoteRequest {
   }>;
 }
 
+export interface LayerZeroValueTransferApiQuoteContext {
+  srcChainKey: string;
+  dstChainKey: string;
+  srcChainType: string;
+  dstChainType: string;
+  srcWalletAddress: string;
+  dstWalletAddress: string;
+}
+
+export interface LayerZeroValueTransferApiToken {
+  isSupported?: boolean;
+  chainKey: string;
+  address: string;
+  decimals: number;
+  symbol: string;
+  name: string;
+  logoUrl?: string;
+  price?: { usd?: number };
+}
+
+export interface LayerZeroValueTransferApiChain {
+  name: string;
+  shortName: string;
+  chainKey: string;
+  nativeCurrency?: LayerZeroValueTransferApiToken;
+  chainType: string;
+  chainId?: number;
+}
+
+export interface LayerZeroValueTransferApiChainsResponse {
+  chains: LayerZeroValueTransferApiChain[];
+  pagination?: { nextToken?: string };
+}
+
+export interface LayerZeroValueTransferApiTokensResponse {
+  tokens: LayerZeroValueTransferApiToken[];
+  pagination?: { nextToken?: string };
+}
+
 export type RailIdentifier =
   | "CCTP"
   | "CCTP_FAST"
@@ -22,6 +62,8 @@ export type RailIdentifier =
   | "LAYERZERO"
   | "VIA_LABS"
   | "WORMHOLE"
+  | "DEBRIDGE"
+  | "GARDEN"
   | "GASZIP"
   | "HYPERLANE_NEXUS"
   | "OPTIMISM_NATIVE_BRIDGE"
@@ -39,7 +81,11 @@ export type RailOfferType =
   | "lz_oft_adapter"
   | "lz_stargate_pool"
   | "lz_stargate_oft"
+  | "lz_stargate_native"
   | "lz_api_direct"
+  | "wormhole_token_bridge"
+  | "debridge_dln_direct"
+  | "garden_htlc"
   | "gaszip_api_direct"
   | "thor_api_direct"
   | "hyperlane_nexus_direct"
@@ -224,6 +270,8 @@ export type ProviderDirectAction =
   | { kind: "chainflip_deposit"; [key: string]: unknown }
   | { kind: "maya_swap"; [key: string]: unknown }
   | { kind: "optimism_standard_bridge"; direction: "deposit" | "withdraw"; [key: string]: unknown }
+  | { kind: "debridge_dln_order"; [key: string]: unknown }
+  | { kind: "garden_htlc_order"; [key: string]: unknown }
   | { kind: "teleswap_transfer" | "teleswap_deposit"; [key: string]: unknown };
 
 export interface ProviderDirectIntegration {
