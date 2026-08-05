@@ -121,6 +121,8 @@ export function classifyProviderDirectAction(
     "hyperlane_transfer_remote",
     "maya_swap",
     "optimism_standard_bridge",
+    "debridge_dln_order",
+    "garden_htlc_order",
   ]);
 
   if (

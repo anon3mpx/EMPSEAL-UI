@@ -32,6 +32,8 @@ const CHAIN_COLORS: Record<number, string> = {
   0: "#F7931A", 98: "#C2A633", 99: "#9945FF", 100: "#345D9D",
   101: "#0AC18E", 102: "#2E3148", 103: "#E6007A", 104: "#1B1B1B",
   105: "#008CE7", 106: "#F4B728",
+  130: "#FF007A", 480: "#4B6BFB", 57073: "#7132F5", 59144: "#61DFFF",
+  98866: "#111827",
 };
 
 const NATIVE_TICKERS: Record<number, string> = {
@@ -40,6 +42,7 @@ const NATIVE_TICKERS: Record<number, string> = {
   8453: "ETH", 42161: "ETH", 43114: "AVAX", 80094: "BERA", 10001: "ETHW",
   0: "BTC", 98: "DOGE", 99: "SOL", 100: "LTC", 101: "BCH",
   102: "ATOM", 103: "DOT", 104: "KUJI", 105: "DASH", 106: "ZEC",
+  130: "ETH", 480: "ETH", 57073: "ETH", 59144: "ETH", 98866: "PLUME",
 };
 
 const CHAIN_KINDS: Record<number, "EVM" | "BTC" | "SOL" | "OTHER"> = {
@@ -79,6 +82,19 @@ function buildNonEvm(chainId: number, name: string): V2ChainConfig {
   };
 }
 
+function buildRailOnlyEvm(chainId: number, name: string): V2ChainConfig {
+  return {
+    id: chainId,
+    name,
+    ticker: NATIVE_TICKERS[chainId] ?? "ETH",
+    color: CHAIN_COLORS[chainId] ?? "#888888",
+    kind: "EVM",
+    tier: 2,
+    supportsAggregator: false,
+    supportsPaymaster: false,
+  };
+}
+
 /** All EVM chains from canonical config */
 export const V2_AGGREGATOR_CHAINS: V2ChainConfig[] = Object.keys(SUPPORTED_CHAINS)
   .map(Number)
@@ -90,6 +106,11 @@ export const V2_AGGREGATOR_CHAINS: V2ChainConfig[] = Object.keys(SUPPORTED_CHAIN
 export const V2_ALL_CHAINS: V2ChainConfig[] = [
   buildFromConfig(1) ?? { id: 1, name: "Ethereum", ticker: "ETH", color: "#627EEA", kind: "EVM", tier: 2, supportsAggregator: false, supportsPaymaster: true },
   ...V2_AGGREGATOR_CHAINS,
+  buildRailOnlyEvm(130, "Unichain"),
+  buildRailOnlyEvm(480, "World Chain"),
+  buildRailOnlyEvm(57073, "Ink"),
+  buildRailOnlyEvm(59144, "Linea"),
+  buildRailOnlyEvm(98866, "Plume"),
   buildNonEvm(NON_EVM_CHAIN_IDS.BTC, "Bitcoin"),
   buildNonEvm(NON_EVM_CHAIN_IDS.DOGE, "Dogecoin"),
   buildNonEvm(NON_EVM_CHAIN_IDS.SOL, "Solana"),

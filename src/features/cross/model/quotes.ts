@@ -68,8 +68,13 @@ export function getPrimaryOffers(quote: NormalizedOfferSet | null | undefined) {
       [],
   );
 
-  const primaryOffers = offers.filter((offer) => !gasOfferIds.has(offer.offerId));
-  return primaryOffers.length ? primaryOffers : offers;
+  const hiddenRails = new Set(["CHAINFLIP", "MAYA", "TELESWAP", "AXELAR", "VIA_LABS"]);
+  const visibleOffers = offers.filter((offer) =>
+    !hiddenRails.has(String(offer.rail).toUpperCase()) &&
+    offer.offerType !== "lz_stargate_native"
+  );
+  const primaryOffers = visibleOffers.filter((offer) => !gasOfferIds.has(offer.offerId));
+  return primaryOffers.length ? primaryOffers : visibleOffers;
 }
 
 export function findMatchingRefreshedOffer(

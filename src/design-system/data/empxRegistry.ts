@@ -104,7 +104,9 @@ export type RailName =
   | "CCTP Fast"
   // | "Axelar"
   | "LayerZero"
-  // | "Wormhole"
+  | "Wormhole"
+  | "deBridge DLN"
+  | "Garden"
   // | "Via Labs"
   | "Gas.zip"
   | "THORChain"
@@ -152,12 +154,12 @@ export interface RailEntry {
   speciality: string;
 }
 
-export const RAILS: RailEntry[] = [
+const RAIL_CATALOG: RailEntry[] = [
   {
     name: "CCTP",
     mode: "A",
-    sources: [1, 42161, 8453, 10, 137, 43114, BACKEND_NON_EVM_CHAIN_IDS.SOL],
-    destinations: [1, 42161, 8453, 10, 137, 43114, BACKEND_NON_EVM_CHAIN_IDS.SOL],
+    sources: [43114, 10, 42161, 8453, 137, 143, 1329, 146, 999],
+    destinations: [43114, 10, 42161, 8453, 137, 143, 1329, 146, 999],
     // CCTP standard: ~15 min hard finality on Ethereum-source attestations
     etaSecondsBaseline: 900,
     reliability: 99.4,
@@ -174,8 +176,8 @@ export const RAILS: RailEntry[] = [
     name: "CCTP Fast",
     mode: "A",
     badge: "JIT",
-    sources: [1, 42161, 8453, 10],
-    destinations: [1, 42161, 8453, 10],
+    sources: [42161, 8453, 10],
+    destinations: [43114, 10, 42161, 8453, 137, 143, 1329, 146, 999],
     // CCTP Fast: JIT attestation, typically 30-60s
     etaSecondsBaseline: 45,
     reliability: 98.7,
@@ -207,8 +209,8 @@ export const RAILS: RailEntry[] = [
   {
     name: "LayerZero",
     mode: "A",
-    sources: [1, 42161, 8453, 10, 137, 56, 43114, 146, 999],
-    destinations: [1, 42161, 8453, 10, 137, 56, 43114, 146, 999],
+    sources: [1, 10, 56, 130, 137, 143, 146, 369, 480, 999, 1329, 8453, 42161, 43114, 57073, 59144, 98866],
+    destinations: [1, 10, 56, 130, 137, 143, 146, 369, 480, 999, 1329, 8453, 42161, 43114, 57073, 59144, 98866],
     etaSecondsBaseline: 150,
     reliability: 98.9,
     stuckThresholdMin: 10,
@@ -219,6 +221,54 @@ export const RAILS: RailEntry[] = [
     supportsOFT: true,
     supportsNativeL1: false,
     speciality: "OFT + value transfer",
+  },
+  {
+    name: "Wormhole",
+    mode: "A",
+    sources: [1],
+    destinations: [42161, 43114, 8453, 56, 10, 137],
+    etaSecondsBaseline: 540,
+    reliability: 98.2,
+    stuckThresholdMin: 25,
+    baseFeeUSD: 0.85,
+    supportsUSDC: true,
+    supportsUSDT: false,
+    nativeUSDC: false,
+    supportsOFT: false,
+    supportsNativeL1: false,
+    speciality: "Attested Ethereum-origin USDC",
+  },
+  {
+    name: "deBridge DLN",
+    mode: "B",
+    sources: [1, 10, 56, 137, 8453, 42161, 43114, 999, 1329, 143],
+    destinations: [1, 10, 56, 137, 8453, 42161, 43114, 999, 1329, 143],
+    etaSecondsBaseline: 120,
+    reliability: 0,
+    stuckThresholdMin: 30,
+    baseFeeUSD: 0,
+    supportsUSDC: true,
+    supportsUSDT: true,
+    nativeUSDC: false,
+    supportsOFT: false,
+    supportsNativeL1: true,
+    speciality: "Provider-direct DLN orders",
+  },
+  {
+    name: "Garden",
+    mode: "B",
+    sources: [1, 42161, 8453, 56, 999, 143, BACKEND_NON_EVM_CHAIN_IDS.BTC, BACKEND_NON_EVM_CHAIN_IDS.LTC, BACKEND_NON_EVM_CHAIN_IDS.SOL],
+    destinations: [1, 42161, 8453, 56, 999, 143, BACKEND_NON_EVM_CHAIN_IDS.BTC, BACKEND_NON_EVM_CHAIN_IDS.LTC, BACKEND_NON_EVM_CHAIN_IDS.SOL],
+    etaSecondsBaseline: 600,
+    reliability: 0,
+    stuckThresholdMin: 45,
+    baseFeeUSD: 0,
+    supportsUSDC: true,
+    supportsUSDT: true,
+    nativeUSDC: false,
+    supportsOFT: false,
+    supportsNativeL1: true,
+    speciality: "HTLC atomic swaps",
   },
   // {
   //   name: "Wormhole",
@@ -284,8 +334,8 @@ export const RAILS: RailEntry[] = [
     name: "THORChain",
     mode: "B",
     badge: "BTC",
-    sources: [BACKEND_NON_EVM_CHAIN_IDS.BTC, 1, 42161, 8453, 43114, 56, BACKEND_NON_EVM_CHAIN_IDS.DOGE, BACKEND_NON_EVM_CHAIN_IDS.LTC],
-    destinations: [BACKEND_NON_EVM_CHAIN_IDS.BTC, 1, 42161, 8453, 43114, 56, BACKEND_NON_EVM_CHAIN_IDS.DOGE, BACKEND_NON_EVM_CHAIN_IDS.LTC],
+    sources: [BACKEND_NON_EVM_CHAIN_IDS.BTC, BACKEND_NON_EVM_CHAIN_IDS.SOL, BACKEND_NON_EVM_CHAIN_IDS.DOGE, BACKEND_NON_EVM_CHAIN_IDS.LTC, BACKEND_NON_EVM_CHAIN_IDS.BCH, BACKEND_NON_EVM_CHAIN_IDS.COSMOS, 1, 10, 56, 137, 8453, 42161, 43114],
+    destinations: [BACKEND_NON_EVM_CHAIN_IDS.BTC, BACKEND_NON_EVM_CHAIN_IDS.SOL, BACKEND_NON_EVM_CHAIN_IDS.DOGE, BACKEND_NON_EVM_CHAIN_IDS.LTC, BACKEND_NON_EVM_CHAIN_IDS.BCH, BACKEND_NON_EVM_CHAIN_IDS.COSMOS, 1, 10, 56, 137, 8453, 42161, 43114],
     etaSecondsBaseline: 1200,
     reliability: 97.5,
     stuckThresholdMin: 45,
@@ -352,8 +402,8 @@ export const RAILS: RailEntry[] = [
     name: "Hyperlane Nexus",
     mode: "B",
     badge: "FREE",
-    sources: [1, 42161, 8453, 10, 137, 56, 43114],
-    destinations: [1, 42161, 8453, 10, 137, 56, 43114],
+    sources: [1, 10, 56, 130, 137, 146, 369, 480, 999, 1329, 8453, 42161, 43114, 57073, 59144, 98866],
+    destinations: [1, 10, 56, 130, 137, 146, 369, 480, 999, 1329, 8453, 42161, 43114, 57073, 59144, 98866],
     etaSecondsBaseline: 75,
     reliability: 99.2,
     stuckThresholdMin: 5,
@@ -383,6 +433,11 @@ export const RAILS: RailEntry[] = [
     speciality: "Ethereum → Optimism deposits",
   },
 ];
+
+const DEFERRED_RAILS = new Set<RailName>(["Chainflip", "Maya", "TeleSwap"]);
+export const RAILS: RailEntry[] = RAIL_CATALOG.filter(
+  (rail) => !DEFERRED_RAILS.has(rail.name),
+);
 
 // ─── Pair-type fees (Mode A) ───────────────────────────────────────────────
 // SOURCE: empx-cross-bridge/src/vps/services/_pairTypeFees.ts + FEE-STRUCTURE-AND-STRATEGY.md
@@ -458,8 +513,8 @@ export function backendRailId(name: RailName): string {
       return "CCTP_FAST";
     case "LayerZero":
       return "LAYERZERO";
-    case "Via Labs":
-      return "VIA_LABS";
+    case "deBridge DLN":
+      return "DEBRIDGE";
     case "Gas.zip":
       return "GASZIP";
     case "THORChain":

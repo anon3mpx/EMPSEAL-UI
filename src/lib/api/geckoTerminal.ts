@@ -27,6 +27,7 @@ export interface GeckoTerminalTokenPrice {
 }
 
 const NETWORK_BY_CHAIN_ID: Record<number, string> = {
+  1: "eth",
   369: "pulsechain",
   8453: "base",
   42161: "arbitrum",

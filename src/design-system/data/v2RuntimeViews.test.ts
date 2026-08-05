@@ -23,6 +23,10 @@ describe("V2 runtime views", () => {
     expect(getV2Chain(101)?.ticker).toBe("BCH");
     expect(getV2Chain(102)?.ticker).toBe("ATOM");
     expect(V2_ALL_CHAINS.some((chain) => chain.id >= 900 && chain.id <= 904)).toBe(false);
+    for (const chainId of [130, 480, 57073, 59144, 98866]) {
+      expect(getV2Chain(chainId)).toMatchObject({ id: chainId, kind: "EVM", tier: 2 });
+      expect(getTokensForChain(chainId).some((token) => token.ticker === "USDC")).toBe(true);
+    }
   });
 
   it("builds token views from canonical per-chain token files", () => {

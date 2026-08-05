@@ -1,6 +1,12 @@
 import { formatUnits, parseUnits } from "viem";
 import type { RouteHop, TradeTimelineStep } from "../components";
-import type { QuoteRequest } from "../../features/cross/api/contracts";
+import type {
+  LayerZeroValueTransferApiChain,
+  LayerZeroValueTransferApiQuoteContext,
+  LayerZeroValueTransferApiToken,
+  QuoteRequest,
+} from "../../features/cross/api/contracts";
+import { NON_EVM_CHAIN_IDS } from "../../lib/wallet/chainKind";
 import { isBackendNonEvmChainId } from "../../lib/wallet/chainKind";
 import {
   getOfferMinimumOutputAmount,
@@ -20,6 +26,149 @@ export const CROSS_V2_DEFAULT_SELECTION = {
   toTicker: "USDC",
   fromAmount: "10",
 } as const;
+
+export type LayerZeroChainCatalogEntry = LayerZeroValueTransferApiChain & {
+  id: number;
+  quoteChainId: number;
+  providerChainKey: string;
+  providerChainType: string;
+};
+
+export type LayerZeroAwareChainOption = {
+  id: number;
+  name: string;
+  ticker: string;
+  color: string;
+  kind?: "EVM" | "BTC" | "SOL" | "OTHER";
+  quoteChainId?: number;
+  providerChainKey?: string;
+  providerChainType?: string;
+};
+
+const LAYERZERO_NON_EVM_UI_IDS: Record<string, number> = {
+  bitcoin: NON_EVM_CHAIN_IDS.BTC,
+  dogecoin: NON_EVM_CHAIN_IDS.DOGE,
+  solana: NON_EVM_CHAIN_IDS.SOL,
+  litecoin: NON_EVM_CHAIN_IDS.LTC,
+  bitcoin_cash: NON_EVM_CHAIN_IDS.BCH,
+  cosmos: NON_EVM_CHAIN_IDS.COSMOS,
+  polkadot: NON_EVM_CHAIN_IDS.DOT,
+  kujira: NON_EVM_CHAIN_IDS.KUJIRA,
+  dash: NON_EVM_CHAIN_IDS.DASH,
+  zcash: NON_EVM_CHAIN_IDS.ZCASH,
+  aptos: NON_EVM_CHAIN_IDS.APTOS,
+};
+
+function providerUiChainId(chain: LayerZeroValueTransferApiChain, index: number): number {
+  if (chain.chainType.trim().toUpperCase() === "EVM" && Number.isSafeInteger(chain.chainId)) {
+    return Number(chain.chainId);
+  }
+  const key = chain.chainKey.trim().toLowerCase().replace(/[\s-]+/g, "_");
+  return LAYERZERO_NON_EVM_UI_IDS[key] ?? -(index + 1);
+}
+
+export function buildLayerZeroChainCatalog(
+  chains: LayerZeroValueTransferApiChain[],
+): LayerZeroChainCatalogEntry[] {
+  return chains.map((chain, index) => ({
+    ...chain,
+    id: providerUiChainId(chain, index),
+    quoteChainId: Number.isSafeInteger(chain.chainId) ? Number(chain.chainId) : providerUiChainId(chain, index),
+    providerChainKey: chain.chainKey,
+    providerChainType: chain.chainType,
+  }));
+}
+
+function providerChainKind(chain: LayerZeroChainCatalogEntry): LayerZeroAwareChainOption["kind"] {
+  const type = chain.chainType.trim().toUpperCase();
+  const key = chain.chainKey.trim().toLowerCase();
+  if (type === "EVM") return "EVM";
+  if (type === "SOLANA" || key === "solana") return "SOL";
+  if (key === "bitcoin") return "BTC";
+  return "OTHER";
+}
+
+export function mergeLayerZeroChainOptions<T extends LayerZeroAwareChainOption>(
+  localChains: T[],
+  providerChains: LayerZeroChainCatalogEntry[],
+): Array<T | LayerZeroAwareChainOption> {
+  const remaining = new Map(providerChains.map((chain) => [chain.id, chain]));
+  const enriched = localChains.map((chain) => {
+    const provider = remaining.get(chain.id);
+    if (!provider) return chain;
+    remaining.delete(chain.id);
+    return {
+      ...chain,
+      quoteChainId: provider.quoteChainId,
+      providerChainKey: provider.providerChainKey,
+      providerChainType: provider.providerChainType,
+    };
+  });
+
+  const discovered = [...remaining.values()].map((chain) => ({
+    id: chain.id,
+    name: chain.name,
+    ticker: chain.nativeCurrency?.symbol ?? chain.shortName,
+    color: "#6B7280",
+    kind: providerChainKind(chain),
+    quoteChainId: chain.quoteChainId,
+    providerChainKey: chain.providerChainKey,
+    providerChainType: chain.providerChainType,
+  }));
+  return [...enriched, ...discovered];
+}
+
+type CatalogToken = {
+  chainId: number;
+  ticker: string;
+  name: string;
+  address?: string;
+  providerAssetId?: string;
+  decimals: number;
+  isNative?: boolean;
+  badge?: "VERIFIED" | "TRENDING" | "WARNING";
+};
+
+function normalizeProviderTokenId(value: string, chainType: string): string {
+  return chainType.trim().toUpperCase() === "EVM"
+    ? value.trim().toLowerCase()
+    : value.trim();
+}
+
+export function mergeLayerZeroTokens(
+  configuredTokens: CatalogToken[],
+  providerTokens: LayerZeroValueTransferApiToken[],
+  chain: { uiChainId: number; chainKey: string; chainType: string },
+): CatalogToken[] {
+  const relevant = providerTokens.filter(
+    (token) => token.chainKey === chain.chainKey && token.isSupported !== false,
+  );
+  const byIdentifier = new Map<string, CatalogToken>();
+
+  for (const token of relevant) {
+    const providerAssetId = token.address.trim();
+    const key = normalizeProviderTokenId(providerAssetId, chain.chainType);
+    const configured = configuredTokens.find((candidate) => {
+      const identifier = candidate.providerAssetId ?? candidate.address;
+      return identifier
+        ? normalizeProviderTokenId(identifier, chain.chainType) === key
+        : false;
+    });
+    byIdentifier.set(key, {
+      ...configured,
+      chainId: chain.uiChainId,
+      ticker: token.symbol,
+      name: token.name,
+      address: chain.chainType.trim().toUpperCase() === "EVM" ? providerAssetId : configured?.address,
+      providerAssetId,
+      decimals: token.decimals,
+      isNative: configured?.isNative,
+      badge: configured?.badge ?? "VERIFIED",
+    });
+  }
+
+  return [...byIdentifier.values()];
+}
 
 export function getCrossQuoteUiState({
   walletConnected,
@@ -70,7 +219,9 @@ type ChainLike = {
 };
 
 type TokenLike = {
+  chainId?: number;
   ticker: string;
+  name?: string;
   address?: string;
   providerAssetId?: string;
   decimal?: number | string;
@@ -147,6 +298,7 @@ export function buildCrossQuoteRequest({
   toChainId,
   userAddress,
   nativeDstAddress,
+  layerZeroValueTransferApi,
   includeDestinationGas = false,
   destinationGasAmount = "0",
 }: {
@@ -157,6 +309,7 @@ export function buildCrossQuoteRequest({
   toChainId: number;
   userAddress?: string;
   nativeDstAddress?: string;
+  layerZeroValueTransferApi?: LayerZeroValueTransferApiQuoteContext;
   includeDestinationGas?: boolean;
   destinationGasAmount?: string;
 }): QuoteRequest | null {
@@ -191,6 +344,7 @@ export function buildCrossQuoteRequest({
     dstChainId: toChainId,
     userAddress,
     nativeDstAddress: nativeDstAddress?.trim() || undefined,
+    layerZeroValueTransferApi,
     urgency: "fast",
     destinationGas:
       includeDestinationGas && destinationGasAmountWei !== "0"

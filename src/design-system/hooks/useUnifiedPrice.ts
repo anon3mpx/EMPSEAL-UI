@@ -3,30 +3,93 @@
 // Priority order per V2_COMPLETION_PLAN.md Phase 1.5:
 //   1. NativeUsdOracle / SDK router price (when available)
 //   2. DefiLlama for covered chains (priceService.ts)
-//   3. GeckoTerminal / DexScreener fallback (from legacy src/lib/api/)
-//   4. null — rendered as "price unavailable" instead of fake USD values
+//   3. GeckoTerminal fallback (from legacy src/lib/api/)
+//   4. DexScreener fallback (from legacy src/lib/api/)
+//   5. null — rendered as "price unavailable" instead of fake USD values
 //
-// Currently wired: DefiLlama via priceService.ts. SDK and GeckoTerminal
-// fallbacks can be added incrementally without changing page call sites.
+// Currently wired: DefiLlama, GeckoTerminal, and DexScreener. The SDK source
+// can be added incrementally without changing page call sites.
 
-import { useTokenPrice as useDefiLlamaPrice } from "../data/priceService";
+import { useEffect, useState } from "react";
+import { getDexScreenerTokenPrices } from "../../lib/api/dexScreener";
+import { getGeckoTerminalTokenPrices } from "../../lib/api/geckoTerminal";
+import { getTokenAddress } from "../data/logoRegistry";
+import { getCachedPrice, getTokenPrice } from "../data/priceService";
 
 /**
  * Returns the current USD price for a token on a chain, or null if unavailable.
- * Uses DefiLlama first, with extension points for SDK and GeckoTerminal.
+ * Uses DefiLlama first, then GeckoTerminal and DexScreener fallbacks.
  */
 export function useUnifiedPrice(
   chainId: number | undefined,
   ticker: string | undefined,
   tokenAddress?: string,
 ): number | null {
-  // Tier 1: DefiLlama (covers 7 of 14 chains)
-  const defiLlamaPrice = useDefiLlamaPrice(chainId, ticker, tokenAddress);
+  const resolvedTokenAddress = chainId != null && ticker
+    ? tokenAddress ??
+      getTokenAddress(chainId, ticker) ??
+      getTokenAddress(chainId, `W${ticker}`)
+    : null;
+  const identity = chainId != null && ticker && resolvedTokenAddress
+    ? `${chainId}:${resolvedTokenAddress.toLowerCase()}`
+    : null;
+  const cachedPrice = chainId != null && ticker
+    ? getCachedPrice(chainId, ticker, resolvedTokenAddress ?? undefined)
+    : null;
+  const [resolved, setResolved] = useState<{
+    identity: string | null;
+    price: number | null;
+  }>({ identity: null, price: null });
 
-  // TODO Tier 2: SDK router.getTokenPriceUSD() when available
-  // TODO Tier 3: GeckoTerminal / DexScreener from src/lib/api/
+  useEffect(() => {
+    if (!identity || chainId == null || !ticker || !resolvedTokenAddress) {
+      return;
+    }
 
-  return defiLlamaPrice;
+    let cancelled = false;
+    setResolved({ identity, price: cachedPrice });
+
+    const token = {
+      id: identity,
+      address: resolvedTokenAddress,
+      chainId,
+    };
+
+    void (async () => {
+      const defiLlamaPrice = await getTokenPrice(
+        chainId,
+        ticker,
+        resolvedTokenAddress,
+      );
+      if (defiLlamaPrice != null) {
+        if (!cancelled) setResolved({ identity, price: defiLlamaPrice });
+        return;
+      }
+
+      const geckoTerminalPrices = await getGeckoTerminalTokenPrices([token]);
+      const geckoTerminalPrice = geckoTerminalPrices[identity]?.price;
+      if (geckoTerminalPrice != null) {
+        if (!cancelled) setResolved({ identity, price: geckoTerminalPrice });
+        return;
+      }
+
+      const dexScreenerPrices = await getDexScreenerTokenPrices([token]);
+      if (!cancelled) {
+        setResolved({
+          identity,
+          price: dexScreenerPrices[identity]?.price ?? null,
+        });
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [cachedPrice, chainId, identity, resolvedTokenAddress, ticker]);
+
+  // TODO priority 1: SDK router.getTokenPriceUSD() when available.
+
+  return resolved.identity === identity ? resolved.price : cachedPrice;
 }
 
 /**

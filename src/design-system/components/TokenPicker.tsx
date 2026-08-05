@@ -10,6 +10,7 @@ import LogoTile from "./LogoTile";
 import TokenLogo from "./TokenLogo";
 
 export interface PickerToken {
+  tokenKey?: string;
   address?: string;
   ticker: string;
   name?: string;

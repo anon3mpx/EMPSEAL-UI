@@ -32,6 +32,7 @@ import {
 import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
 import { erc20Abi, formatUnits, type Address } from "viem";
 import { useBalance, useChainId, useSignMessage, useSwitchChain } from "wagmi";
+import { useQuery } from "@tanstack/react-query";
 import { config } from "../../Wagmi/config";
 import {
   AccountModal,
@@ -89,7 +90,10 @@ import {
   getRailCapability,
 } from "../../features/cross/model/capabilities";
 import { mapCrossApiError } from "../../features/cross/utils/errors";
-import type { CrossExecutionSession } from "../../features/cross/api/contracts";
+import type {
+  CrossExecutionSession,
+  LayerZeroValueTransferApiQuoteContext,
+} from "../../features/cross/api/contracts";
 import {
   clearCrossSession,
   loadCrossSession,
@@ -101,6 +105,7 @@ import {
   buildSubmittedMessage,
 } from "../../features/cross/utils/signatures";
 import { useWalletConnection } from "../hooks/useWalletConnection";
+import { useUnifiedPrice } from "../hooks/useUnifiedPrice";
 import { useV2Balances } from "../hooks/useV2Balances";
 import EmpxCrossWidget from "../EmpxCrossWidget";
 import { getExplorerAddressUrl, getExplorerTxUrl } from "../data/explorers";
@@ -112,8 +117,11 @@ import {
   buildCrossQuoteRequest,
   buildCrossRouteHops,
   buildCrossTimeline,
+  buildLayerZeroChainCatalog,
   formatCrossOffer,
   getCrossQuoteUiState,
+  mergeLayerZeroChainOptions,
+  mergeLayerZeroTokens,
   shortHash,
   type CrossV2OfferDisplay,
 } from "../data/crossV2Adapters";
@@ -143,6 +151,9 @@ interface ChainDef {
   color: string;
   ticker: string;
   kind?: "EVM" | "BTC" | "SOL" | "OTHER";
+  quoteChainId?: number;
+  providerChainKey?: string;
+  providerChainType?: string;
 }
 
 const V2_CHAIN_OPTIONS: ChainDef[] = V2_ALL_CHAINS;
@@ -153,11 +164,8 @@ const V2_CHAIN_OPTIONS: ChainDef[] = V2_ALL_CHAINS;
 
 type ChainTier = 1 | 2 | 3;
 
-interface Token {
-  ticker: string;
-  name: string;
+interface Token extends V2TokenConfig {
   category: "stable" | "native" | "wrapped" | "oft" | "other";
-  badge?: PickerToken["badge"];
 }
 
 function tokenCategory(token: V2TokenConfig): Token["category"] {
@@ -170,6 +178,7 @@ function tokenCategory(token: V2TokenConfig): Token["category"] {
 
 function configTokensForChain(chainId: number): Token[] {
   const configured = getTokensForChain(chainId).map<Token>((t) => ({
+    ...t,
     ticker: t.ticker,
     name: t.name,
     category: tokenCategory(t),
@@ -179,7 +188,14 @@ function configTokensForChain(chainId: number): Token[] {
 
   const chain = getV2Chain(chainId);
   return chain
-    ? [{ ticker: chain.ticker, name: chain.name, category: "native" }]
+    ? [{
+        chainId,
+        ticker: chain.ticker,
+        name: chain.name,
+        decimals: 18,
+        isNative: true,
+        category: "native",
+      }]
     : [];
 }
 
@@ -196,9 +212,11 @@ export function tokensFor(
   chainId: number,
   role: "from" | "to",
   eligibleRails: RailEntry[],
+  catalogOverride?: Token[],
+  providerDiscovered = false,
 ): { tokens: Token[]; restrictedReason?: string } {
   const tier = tierForChainId(chainId);
-  const full = configTokensForChain(chainId);
+  const full = catalogOverride ?? configTokensForChain(chainId);
   const railSupportsTicker = (ticker: string): boolean => {
     const upper = ticker.toUpperCase();
     return eligibleRails.some((r) => {
@@ -208,6 +226,13 @@ export function tokensFor(
       return r.supportsOFT;
     });
   };
+
+  if (providerDiscovered) {
+    return {
+      tokens: full,
+      restrictedReason: "LayerZero-discovered candidates. An exact live quote is still required before a route is available.",
+    };
+  }
 
   if (tier === 1) {
     // Full token list (any token; aggregator handles input/output legs).
@@ -230,40 +255,6 @@ export function tokensFor(
     tokens: filtered.length > 0 ? filtered : full.filter((t) => t.category === "stable"),
     restrictedReason: `${tierLabel(2)} chain — token list limited to assets the ${eligibleRails.length} eligible rail${eligibleRails.length === 1 ? "" : "s"} can ${role === "from" ? "source from" : "settle into"} on this chain.`,
   };
-}
-
-// Token USD-price source — DefiLlama prices via priceService.
-// `priceOf(ticker)` returns the cached live price when available; falls
-// back to the static seed table for chains/tokens DefiLlama doesn't cover
-// (PulseChain, Sonic, Sei, Bera, Monad, HyperEVM, EthPoW, Rootstock).
-// The static table also serves as the cold-start floor while async fetches
-// resolve — same pattern as NativeUsdOracle.STATIC_NATIVE_USD.
-import { getCachedPrice, getTokenPrices } from "../data/priceService";
-
-const PRICE_USD_FALLBACK: Record<string, number> = {
-  ETH: 3184, WETH: 3184, BTC: 67852, WBTC: 67852, SOL: 158,
-  USDC: 1, USDT: 1, DAI: 1, HONEY: 1,
-  POL: 0.72, BNB: 612, AVAX: 38, ARB: 0.79, OP: 1.84, PLS: 0.00007, SEI: 0.51, BERA: 6.2,
-  RBTC: 67852, MON: 1, HYPE: 23, ETHW: 2.1, S: 0.42, CAKE: 2.4, JOE: 0.43, GMX: 24,
-  PEPE: 0.0000091, DEGEN: 0.0098, AERO: 1.1, HEX: 0.0042, PLSX: 0.00004, RIF: 0.082, DOGE: 0.16, LTC: 71, BCH: 462,
-};
-
-/**
- * Lookup live price for (chainId, ticker).  Returns the cached DefiLlama
- * price when available, else the fallback seed.  Async fetches are kicked
- * off by useEffect in the page below so subsequent renders pick up live data.
- */
-function priceOf(ticker: string, chainId?: number): number {
-  if (chainId != null) {
-    const live = getCachedPrice(chainId, ticker);
-    if (live != null) return live;
-  }
-  return PRICE_USD_FALLBACK[ticker.toUpperCase()] ?? 1;
-}
-
-/** Trigger an async DefiLlama fetch for the (chainId, ticker) pairs in view. */
-function _prefetchPrices(pairs: { chainId: number; ticker: string }[]) {
-  void getTokenPrices(pairs); // fire-and-forget; cache picks up the result
 }
 
 // ─── Page-level constants ─────────────────────────────────────────────────
@@ -307,6 +298,8 @@ export default function CrossPage() {
   const [toChainId,   setToChainId]   = useState<number>(CROSS_V2_DEFAULT_SELECTION.toChainId);
   const [fromTicker, setFromTicker] = useState<string>(CROSS_V2_DEFAULT_SELECTION.fromTicker);
   const [toTicker,   setToTicker]   = useState<string>(CROSS_V2_DEFAULT_SELECTION.toTicker);
+  const [fromTokenKey, setFromTokenKey] = useState<string | null>(null);
+  const [toTokenKey, setToTokenKey] = useState<string | null>(null);
   const [fromAmount, setFromAmount] = useState<string>(CROSS_V2_DEFAULT_SELECTION.fromAmount);
   const [nativeDstAddress, setNativeDstAddress] = useState("");
   const [nativeDstAddressValid, setNativeDstAddressValid] = useState(false);
@@ -347,6 +340,26 @@ export default function CrossPage() {
   const [sidePanel, setSidePanel] = useState<SidePanelTab>("offers");
   const deferredFromAmount = useDeferredValue(fromAmount);
 
+  const layerZeroCatalog = useQuery({
+    queryKey: ["cross-layerzero-value-transfer-catalog"],
+    queryFn: async ({ signal }) => {
+      const [chains, tokens] = await Promise.all([
+        crossApi.listAllLayerZeroChains(signal),
+        crossApi.listAllLayerZeroTokens({}, signal),
+      ]);
+      return { chains, tokens };
+    },
+    ...crossApi.layerZeroDiscoveryQueryPolicy,
+    retry: false,
+  });
+  const chainOptions = useMemo<ChainDef[]>(
+    () => mergeLayerZeroChainOptions(
+      V2_CHAIN_OPTIONS,
+      buildLayerZeroChainCatalog(layerZeroCatalog.data?.chains ?? []),
+    ) as ChainDef[],
+    [layerZeroCatalog.data?.chains],
+  );
+
   useEffect(() => {
     const interval = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(interval);
@@ -354,29 +367,110 @@ export default function CrossPage() {
 
   // Resolve chain defs
   const fromChain = useMemo(
-    () => V2_CHAIN_OPTIONS.find((c) => c.id === fromChainId) ?? V2_CHAIN_OPTIONS[1],
-    [fromChainId],
+    () => chainOptions.find((c) => c.id === fromChainId) ?? chainOptions[1],
+    [chainOptions, fromChainId],
   );
   const toChain = useMemo(
-    () => V2_CHAIN_OPTIONS.find((c) => c.id === toChainId) ?? V2_CHAIN_OPTIONS[2],
-    [toChainId],
+    () => chainOptions.find((c) => c.id === toChainId) ?? chainOptions[2],
+    [chainOptions, toChainId],
   );
 
   const fromTier: ChainTier = tierForChainId(fromChainId);
   const toTier:   ChainTier = tierForChainId(toChainId);
 
 
+  const tokenCatalogForChain = useCallback((chain: ChainDef): Token[] => {
+    const configured = configTokensForChain(chain.id);
+    if (!chain.providerChainKey || !chain.providerChainType) return configured;
+    const merged = mergeLayerZeroTokens(
+      configured,
+      layerZeroCatalog.data?.tokens ?? [],
+      {
+        uiChainId: chain.id,
+        chainKey: chain.providerChainKey,
+        chainType: chain.providerChainType,
+      },
+    );
+    const byKey = new Map<string, Token>();
+    for (const token of [...configured, ...merged]) {
+      const key = (token.providerAssetId ?? token.address ?? `${token.ticker}:${token.name}`).trim();
+      const normalized = chain.providerChainType.toUpperCase() === "EVM" ? key.toLowerCase() : key;
+      byKey.set(normalized, { ...token, category: tokenCategory(token) });
+    }
+    return [...byKey.values()];
+  }, [layerZeroCatalog.data?.tokens]);
+  const fromTokenCatalog = useMemo(
+    () => tokenCatalogForChain(fromChain),
+    [fromChain, tokenCatalogForChain],
+  );
+  const toTokenCatalog = useMemo(
+    () => tokenCatalogForChain(toChain),
+    [toChain, tokenCatalogForChain],
+  );
+  const tokenKey = useCallback(
+    (token: Token) => token.providerAssetId ?? token.address ?? `${token.ticker}:${token.name}`,
+    [],
+  );
   const fromTokenConfig = useMemo(
-    () => getTokensForChain(fromChainId).find((t) => t.ticker === fromTicker) ?? null,
-    [fromChainId, fromTicker],
+    () => fromTokenCatalog.find((token) => tokenKey(token) === fromTokenKey) ??
+      fromTokenCatalog.find((token) => token.ticker === fromTicker) ?? null,
+    [fromTicker, fromTokenCatalog, fromTokenKey, tokenKey],
   );
   const toTokenConfig = useMemo(
-    () => getTokensForChain(toChainId).find((t) => t.ticker === toTicker) ?? null,
-    [toChainId, toTicker],
+    () => toTokenCatalog.find((token) => tokenKey(token) === toTokenKey) ??
+      toTokenCatalog.find((token) => token.ticker === toTicker) ?? null,
+    [toTicker, toTokenCatalog, toTokenKey, tokenKey],
+  );
+  const fromTokenPriceUSD = useUnifiedPrice(
+    fromChainId,
+    fromTicker,
+    fromTokenConfig?.address,
+  );
+  const toTokenPriceUSD = useUnifiedPrice(
+    toChainId,
+    toTicker,
+    toTokenConfig?.address,
   );
   const toTokenDecimals = Number(toTokenConfig?.decimals ?? 18);
-  const nativeDestinationRequired = isBackendNonEvmChainId(toChainId);
+  const providerDestinationIsNonEvm = Boolean(
+    toChain.providerChainType && toChain.providerChainType.toUpperCase() !== "EVM",
+  );
+  const nativeDestinationRequired = providerDestinationIsNonEvm || isBackendNonEvmChainId(toChainId);
   const nativeDestinationKind = chainKindFor(toChainId);
+  const sourceWalletSupported =
+    (fromChain.kind ?? "EVM") === "EVM" &&
+    (!fromChain.providerChainType || fromChain.providerChainType.toUpperCase() === "EVM");
+  const layerZeroValueTransferApi = useMemo<LayerZeroValueTransferApiQuoteContext | undefined>(() => {
+    if (
+      !connectedAddress ||
+      !fromChain.providerChainKey ||
+      !fromChain.providerChainType ||
+      !toChain.providerChainKey ||
+      !toChain.providerChainType ||
+      !sourceWalletSupported
+    ) return undefined;
+    const destinationWallet = providerDestinationIsNonEvm
+      ? nativeDstAddress.trim()
+      : connectedAddress;
+    if (!destinationWallet) return undefined;
+    return {
+      srcChainKey: fromChain.providerChainKey,
+      dstChainKey: toChain.providerChainKey,
+      srcChainType: fromChain.providerChainType,
+      dstChainType: toChain.providerChainType,
+      srcWalletAddress: connectedAddress,
+      dstWalletAddress: destinationWallet,
+    };
+  }, [
+    connectedAddress,
+    fromChain.providerChainKey,
+    fromChain.providerChainType,
+    nativeDstAddress,
+    providerDestinationIsNonEvm,
+    sourceWalletSupported,
+    toChain.providerChainKey,
+    toChain.providerChainType,
+  ]);
   const handleNativeDestinationValidation = useCallback(
     (result: { valid: boolean }) => {
       setNativeDstAddressValid(result.valid);
@@ -397,12 +491,13 @@ export default function CrossPage() {
         fromToken: fromTokenConfig,
         toToken: toTokenConfig,
         fromAmount: deferredFromAmount,
-        fromChainId,
-        toChainId,
+        fromChainId: layerZeroValueTransferApi ? (fromChain.quoteChainId ?? fromChainId) : fromChainId,
+        toChainId: layerZeroValueTransferApi ? (toChain.quoteChainId ?? toChainId) : toChainId,
         userAddress: connectedAddress,
         nativeDstAddress: nativeDestinationRequired
           ? nativeDstAddress
           : undefined,
+        layerZeroValueTransferApi,
         includeDestinationGas: gasDropOnDestination,
         destinationGasAmount: "0.001",
       }),
@@ -410,11 +505,14 @@ export default function CrossPage() {
       connectedAddress,
       deferredFromAmount,
       fromChainId,
+      fromChain.quoteChainId,
       fromTokenConfig,
       gasDropOnDestination,
       nativeDestinationRequired,
       nativeDstAddress,
+      layerZeroValueTransferApi,
       toChainId,
+      toChain.quoteChainId,
       toTokenConfig,
     ],
   );
@@ -423,6 +521,7 @@ export default function CrossPage() {
       quoteRequest &&
       fromChainId !== toChainId &&
       quoteRequest.amountIn !== "0" &&
+      sourceWalletSupported &&
       (!nativeDestinationRequired || nativeDstAddressValid),
   );
   const quote = useCrossQuote(quoteEnabled, quoteRequest);
@@ -543,22 +642,44 @@ export default function CrossPage() {
     }
   }, [quote.data]);
 
-  // Reset the destination ticker only when it is unsupported on the new chain.
+  // Keep exact provider assets selected when possible. If discovery or a chain
+  // change removes the selected asset, fall back to a supported settlement token.
   useEffect(() => {
-    if (toTier === 3) {
-      const allowed = tokensFor(toChainId, "to", eligibleRailsFor(fromChainId, toChainId, undefined)).tokens;
-      if (!allowed.some((token) => token.ticker === toTicker)) {
-        const native = allowed.find((token) => token.category === "native");
-        if (native) setToTicker(native.ticker);
-      }
-    } else if (toTier === 2) {
-      // Force to a settlement stable if the current ticker isn't supported
-      const allowed = tokensFor(toChainId, "to", eligibleRailsFor(fromChainId, toChainId, undefined)).tokens;
-      if (!allowed.some((t) => t.ticker === toTicker)) {
-        setToTicker(defaultSettlementTicker(toChainId));
-      }
-    }
-  }, [toChainId, toTier, fromChainId]); // eslint-disable-line react-hooks/exhaustive-deps
+    const allowed = tokensFor(
+      toChainId,
+      "to",
+      eligibleRailsFor(fromChainId, toChainId, undefined),
+      toTokenCatalog,
+      Boolean(toChain.providerChainKey && layerZeroCatalog.data?.tokens?.some(
+        (token) => token.chainKey === toChain.providerChainKey,
+      )),
+    ).tokens;
+    const exactSelection = toTokenKey
+      ? allowed.find((token) => tokenKey(token) === toTokenKey)
+      : allowed.find((token) => token.ticker === toTicker);
+    if (exactSelection) return;
+
+    const preferredTicker = defaultSettlementTicker(toChainId);
+    const fallback =
+      allowed.find((token) => token.ticker === toTicker) ??
+      allowed.find((token) => token.ticker === preferredTicker) ??
+      (toTier === 3 ? allowed.find((token) => token.category === "native") : undefined) ??
+      allowed.find((token) => token.category === "stable") ??
+      allowed[0];
+    if (!fallback) return;
+    setToTicker(fallback.ticker);
+    setToTokenKey(tokenKey(fallback));
+  }, [
+    fromChainId,
+    layerZeroCatalog.data?.tokens,
+    toChain.providerChainKey,
+    toChainId,
+    toTier,
+    toTicker,
+    toTokenCatalog,
+    toTokenKey,
+    tokenKey,
+  ]);
 
   // Gas-drop eligibility — Gas.zip must support the destination
   const gasZipRail = RAILS.find((r) => r.name === "Gas.zip");
@@ -566,15 +687,6 @@ export default function CrossPage() {
   useEffect(() => {
     if (!gasDropAvailable && gasDropOnDestination) setGasDropOnDestination(false);
   }, [gasDropAvailable, gasDropOnDestination]);
-
-  // Prefetch live USD prices via DefiLlama for the current pair.  Falls
-  // back to PRICE_USD_FALLBACK silently when the chain isn't covered.
-  useEffect(() => {
-    _prefetchPrices([
-      { chainId: fromChainId, ticker: fromTicker },
-      { chainId: toChainId,   ticker: toTicker   },
-    ]);
-  }, [fromChainId, fromTicker, toChainId, toTicker]);
 
   const tracking = useCrossIntentTracking(
     session?.mode === "single" ? session.intentId : undefined,
@@ -683,19 +795,18 @@ export default function CrossPage() {
         ? (fromTokenConfig.address as Address)
         : undefined,
     query: {
-      enabled: Boolean(connectedAddress && fromTokenConfig),
+      enabled: Boolean(connectedAddress && fromTokenConfig && sourceWalletSupported),
     },
   });
 
+  const activeSourceChainId = session?.mode === "single"
+    ? (session.sourceChainId ?? session.quote?.srcChainId ?? fromChainId)
+    : fromChainId;
   const { data: sourceNativeBalance } = useBalance({
     address: connectedAddress,
-    chainId: (
-      session?.mode === "single"
-        ? (session.sourceChainId ?? session.quote?.srcChainId ?? fromChainId)
-        : fromChainId
-    ) as any,
+    chainId: activeSourceChainId as any,
     query: {
-      enabled: Boolean(connectedAddress),
+      enabled: Boolean(connectedAddress && chainKindFor(activeSourceChainId) === "evm"),
     },
   });
 
@@ -722,9 +833,16 @@ export default function CrossPage() {
   const toAmountDisplay =
     selectedOfferDisplay?.outputAmount ??
     (quote.isFetching ? "..." : "0");
+  const parsedFromAmount = Number(fromAmount.replace(/,/g, ""));
+  const fromUsdValue =
+    fromTokenPriceUSD != null && Number.isFinite(parsedFromAmount)
+      ? parsedFromAmount * fromTokenPriceUSD
+      : undefined;
   const toUsdValue =
-    selectedOfferDisplay && Number.isFinite(Number(selectedOfferDisplay.outputAmount))
-      ? Number(selectedOfferDisplay.outputAmount) * priceOf(toTicker, toChainId)
+    selectedOfferDisplay &&
+    toTokenPriceUSD != null &&
+    Number.isFinite(Number(selectedOfferDisplay.outputAmount))
+      ? Number(selectedOfferDisplay.outputAmount) * toTokenPriceUSD
       : undefined;
   const sourceTxHash =
     trackingData?.srcTxHash ??
@@ -741,7 +859,7 @@ export default function CrossPage() {
 
   // Pickers — chain & token lists with tier badging
   const chainPickerList: PickerChain[] = useMemo(() => {
-    return V2_CHAIN_OPTIONS.map((c) => {
+    return chainOptions.map((c) => {
       const tier = tierForChainId(c.id);
       return {
         id: c.id,
@@ -753,7 +871,7 @@ export default function CrossPage() {
         tierLabel: tierLabel(tier),
       };
     });
-  }, []);
+  }, [chainOptions]);
 
   const tokenPickerData = useMemo(() => {
     if (!tokenPickerTarget) return null;
@@ -762,11 +880,25 @@ export default function CrossPage() {
     // For destination filtering we ignore destTicker so we get the full
     // rail set; for source filtering we just need any eligible rail.
     const eligible = eligibleRailsFor(fromChainId, toChainId, undefined);
-    const { tokens, restrictedReason } = tokensFor(chainId, role, eligible);
-    const chainName = V2_CHAIN_OPTIONS.find((c) => c.id === chainId)?.name ?? "";
-    const chainColor = V2_CHAIN_OPTIONS.find((c) => c.id === chainId)?.color;
+    const selectedChain = role === "from" ? fromChain : toChain;
+    const catalog = role === "from" ? fromTokenCatalog : toTokenCatalog;
+    const providerDiscovered = Boolean(
+      selectedChain.providerChainKey &&
+      (layerZeroCatalog.data?.tokens ?? []).some((token) => token.chainKey === selectedChain.providerChainKey),
+    );
+    const { tokens, restrictedReason } = tokensFor(
+      chainId,
+      role,
+      eligible,
+      catalog,
+      providerDiscovered,
+    );
+    const chainName = selectedChain.name;
+    const chainColor = selectedChain.color;
     return {
       tokens: tokens.map<PickerToken>((t) => ({
+        tokenKey: tokenKey(t),
+        address: t.address ?? t.providerAssetId,
         ticker: t.ticker,
         name: t.name,
         chainName,
@@ -781,7 +913,7 @@ export default function CrossPage() {
       })),
       restrictedReason,
     };
-  }, [tokenPickerTarget, fromChainId, toChainId, connectedBalance.nativeBalance, connectedBalance.nativeBalanceUSD, connectedBalance.nativeTicker]);
+  }, [tokenPickerTarget, fromChainId, toChainId, connectedBalance.nativeBalance, connectedBalance.nativeBalanceUSD, connectedBalance.nativeTicker, fromChain, toChain, fromTokenCatalog, toTokenCatalog, layerZeroCatalog.data?.tokens, tokenKey]);
 
   const routeHops: RouteHop[] = useMemo(() => {
     if (!selectedOffer) return [];
@@ -791,8 +923,10 @@ export default function CrossPage() {
   // Flip
   const flip = () => {
     const fc = fromChainId, ft = fromTicker;
+    const fk = fromTokenKey;
     setFromChainId(toChainId); setToChainId(fc);
     setFromTicker(toTicker); setToTicker(ft);
+    setFromTokenKey(toTokenKey); setToTokenKey(fk);
     setSelectedOfferId(null);
   };
 
@@ -1429,7 +1563,7 @@ export default function CrossPage() {
               fromToken={{ ticker: fromTicker }}
               fromAmount={fromAmount}
               fromBalance={fromBalanceLabel}
-              fromUsdValue={Number(fromAmount.replace(/,/g, "")) * priceOf(fromTicker, fromChainId)}
+              fromUsdValue={fromUsdValue}
               onFromAmountChange={setFromAmount}
               onSelectFromToken={() => setTokenPickerTarget("from")}
               onSelectFromChain={() => setChainPickerTarget("from")}
@@ -1618,17 +1752,53 @@ export default function CrossPage() {
           selectedId={chainPickerTarget === "from" ? fromChainId : toChainId}
           mode="cross"
           onSelect={(c) => {
+            const selectedChain = chainOptions.find((chain) => chain.id === c.id);
+            if (!selectedChain) return;
+            const catalog = tokenCatalogForChain(selectedChain);
+            const providerDiscovered = Boolean(
+              selectedChain.providerChainKey &&
+              layerZeroCatalog.data?.tokens?.some(
+                (token) => token.chainKey === selectedChain.providerChainKey,
+              ),
+            );
             if (chainPickerTarget === "from") {
               setFromChainId(c.id);
               const newFromTier = tierForChainId(c.id);
-              // Reset source ticker to a safe default on new tier
-              if (newFromTier === 3) {
-                const native = configTokensForChain(c.id).find((t) => t.category === "native");
-                if (native) setFromTicker(native.ticker);
-              }
+              const allowed = tokensFor(
+                c.id,
+                "from",
+                eligibleRailsFor(c.id, toChainId, undefined),
+                catalog,
+                providerDiscovered,
+              ).tokens;
+              const fallback =
+                (newFromTier === 3
+                  ? allowed.find((token) => token.category === "native")
+                  : undefined) ??
+                allowed.find((token) => token.ticker === fromTicker) ??
+                allowed.find((token) => token.category === "stable") ??
+                allowed.find((token) => token.category === "native") ??
+                allowed[0];
+              setFromTicker(fallback?.ticker ?? selectedChain.ticker);
+              setFromTokenKey(fallback ? tokenKey(fallback) : null);
             } else {
               setToChainId(c.id);
-              setToTicker(defaultSettlementTicker(c.id));
+              const allowed = tokensFor(
+                c.id,
+                "to",
+                eligibleRailsFor(fromChainId, c.id, undefined),
+                catalog,
+                providerDiscovered,
+              ).tokens;
+              const settlementTicker = defaultSettlementTicker(c.id);
+              const fallback =
+                allowed.find((token) => token.ticker === toTicker) ??
+                allowed.find((token) => token.ticker === settlementTicker) ??
+                allowed.find((token) => token.category === "stable") ??
+                allowed.find((token) => token.category === "native") ??
+                allowed[0];
+              setToTicker(fallback?.ticker ?? selectedChain.ticker);
+              setToTokenKey(fallback ? tokenKey(fallback) : null);
             }
             setSelectedOfferId(null);
             setChainPickerTarget(null);
@@ -1645,8 +1815,13 @@ export default function CrossPage() {
           recent={tokenPickerData.tokens.slice(0, Math.min(4, tokenPickerData.tokens.length))}
           restrictedReason={tokenPickerData.restrictedReason}
           onSelect={(t) => {
-            if (tokenPickerTarget === "from") setFromTicker(t.ticker);
-            else setToTicker(t.ticker);
+            if (tokenPickerTarget === "from") {
+              setFromTicker(t.ticker);
+              setFromTokenKey(t.tokenKey ?? null);
+            } else {
+              setToTicker(t.ticker);
+              setToTokenKey(t.tokenKey ?? null);
+            }
             setSelectedOfferId(null);
             setTokenPickerTarget(null);
           }}

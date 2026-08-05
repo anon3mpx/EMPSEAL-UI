@@ -37,6 +37,22 @@ describe("classifyProviderDirectAction", () => {
     ).toBe("evm_transaction");
   });
 
+  it("accepts deBridge and Garden EVM order transactions", () => {
+    for (const kind of ["debridge_dln_order", "garden_htlc_order"]) {
+      expect(
+        classifyProviderDirectAction({
+          action: { kind },
+          tx: {
+            to: "0x1111111111111111111111111111111111111111",
+            data: "0x1234",
+            value: "0",
+            chainId: 8453,
+          },
+        }),
+      ).toBe("evm_transaction");
+    }
+  });
+
   it("flags non-EVM source steps as requiring a compatible wallet", () => {
     expect(
       classifyProviderDirectAction({
