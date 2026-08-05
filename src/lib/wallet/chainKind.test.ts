@@ -27,6 +27,12 @@ describe("chainKindFor", () => {
     ])("classifies chainId %i (%s) as evm", (chainId) => {
       expect(chainKindFor(chainId)).toBe("evm");
     });
+
+    it("recognizes the expanded Hyperlane EVM chain family", () => {
+      for (const chainId of [130, 480, 57073, 59144, 98866]) {
+        expect(chainKindFor(chainId)).toBe("evm");
+      }
+    });
   });
 
   describe("non-EVM chains (published in VPS registry)", () => {

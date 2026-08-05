@@ -25,6 +25,12 @@ import {
   polygon,
   avalanche,
   hyperEVM,
+  ink,
+  linea,
+  mainnet,
+  plumeMainnet,
+  unichain,
+  worldchain,
 } from "./chains";
 
 // Wallet configuration for swap
@@ -77,6 +83,7 @@ export const config = getDefaultConfig({
   projectId: "YOUR_PROJECT_ID",
   chains,
   transports: {
+    [mainnet.id]: chainTransport(mainnet.id, mainnet),
     [pulsechain.id]: chainTransport(pulsechain.id, pulsechain, [
       "https://rpc.pulsechain.com",
       "https://rpc.pulsechain.box",
@@ -176,6 +183,11 @@ export const config = getDefaultConfig({
       "https://hyperliquid.drpc.org",
       "https://rpc.hyperliquid.xyz/evm",
     ]),
+    [ink.id]: chainTransport(ink.id, ink),
+    [linea.id]: chainTransport(linea.id, linea),
+    [plumeMainnet.id]: chainTransport(plumeMainnet.id, plumeMainnet),
+    [unichain.id]: chainTransport(unichain.id, unichain),
+    [worldchain.id]: chainTransport(worldchain.id, worldchain),
   },
   ssr: true,
   connectors: swapConnectors,
