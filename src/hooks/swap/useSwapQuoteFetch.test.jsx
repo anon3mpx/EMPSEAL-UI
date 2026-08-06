@@ -10,9 +10,14 @@ const recipient = "0x3333333333333333333333333333333333333333";
 const mocks = vi.hoisted(() => ({
   prepareSwapRoute: vi.fn(),
   prepareSplitSwapRoute: vi.fn(),
+  isSplitSwapUiEnabled: vi.fn(),
   router: {
     findBestPath: vi.fn(),
   },
+}));
+
+vi.mock("../../config/splitSwapUi", () => ({
+  isSplitSwapUiEnabled: mocks.isSplitSwapUiEnabled,
 }));
 
 vi.mock("./useEmpxRouter", () => ({
@@ -69,6 +74,8 @@ describe("useSwapQuoteFetch progressive routing", () => {
   beforeEach(() => {
     mocks.prepareSwapRoute.mockReset();
     mocks.prepareSplitSwapRoute.mockReset();
+    mocks.isSplitSwapUiEnabled.mockReset();
+    mocks.isSplitSwapUiEnabled.mockReturnValue(true);
     mocks.router.findBestPath.mockReset();
     mocks.router.findBestPath.mockResolvedValue({
       amounts: ["1000000", "2000000"],
@@ -76,6 +83,22 @@ describe("useSwapQuoteFetch progressive routing", () => {
       adapters: [],
       gasEstimate: "100000",
     });
+  });
+
+  it("does not run split discovery while the UI split flag is disabled", async () => {
+    const fast = sdkResult("single", "2000000");
+    mocks.isSplitSwapUiEnabled.mockReturnValue(false);
+    mocks.prepareSwapRoute.mockResolvedValue(fast);
+
+    const { result } = renderHook(() => useSwapQuoteFetch(hookInput()));
+
+    await waitFor(() => {
+      expect(result.current.quoteLoading).toBe(false);
+      expect(result.current.splitQuoteLoading).toBe(false);
+      expect(result.current.routing).toBe("single");
+    });
+    expect(result.current.preparedRoute).toBe(fast);
+    expect(mocks.prepareSplitSwapRoute).not.toHaveBeenCalled();
   });
 
   it("publishes the single quote before the split preview finishes", async () => {

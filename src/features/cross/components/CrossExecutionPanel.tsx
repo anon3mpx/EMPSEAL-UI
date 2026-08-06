@@ -37,11 +37,14 @@ export function CrossExecutionPanel({
   const singleClassificationBlocked =
     singleClassification === "unsupported" ||
     singleClassification === "non_evm_wallet_required" ||
-    singleClassification === "deposit_instructions" ||
     singleClassification === "quote_only";
   const singleAction =
     session.mode === "single" && session.integration.mode === "provider_direct"
       ? session.integration.action
+      : null;
+  const depositAction =
+    singleClassification === "deposit_instructions" && singleAction
+      ? singleAction
       : null;
   const singleRail =
     session.mode === "single" && session.quote?.rail
@@ -95,10 +98,11 @@ export function CrossExecutionPanel({
               ? "Contract-backed execution is ready."
               : singleClassification === "layerzero_steps"
                 ? "LayerZero provider steps are ready for execution."
+                : singleClassification === "deposit_instructions"
+                  ? "Provider deposit instructions are ready. Send the exact source transaction from your source wallet."
                 : singleClassification === "quote_only"
                   ? "This route is quote only and cannot be selected or executed."
-                  : singleClassification === "non_evm_wallet_required" ||
-                      singleClassification === "deposit_instructions"
+                  : singleClassification === "non_evm_wallet_required"
                     ? "This route needs a compatible non-EVM source wallet or reviewed deposit flow."
                     : singleClassification === "unsupported"
                       ? "The returned provider action is not supported by this wallet."
@@ -143,6 +147,34 @@ export function CrossExecutionPanel({
             </div>
           ) : null}
 
+          {depositAction ? (
+            <div className="space-y-2 border border-[#FF8A00]/20 bg-[#FF8A00]/[0.04] p-3 text-[10px] text-white/60">
+              <div>
+                <span className="text-white/35">Deposit address: </span>
+                <span className="break-all text-white/80">
+                  {String(depositAction.depositAddress)}
+                </span>
+              </div>
+              {typeof depositAction.memo === "string" && depositAction.memo ? (
+                <div>
+                  <span className="text-white/35">Memo: </span>
+                  <span className="break-all text-white/80">
+                    {depositAction.memo}
+                  </span>
+                </div>
+              ) : null}
+              {typeof depositAction.refundAddress === "string" &&
+              depositAction.refundAddress ? (
+                <div>
+                  <span className="text-white/35">Refund address: </span>
+                  <span className="break-all text-white/80">
+                    {depositAction.refundAddress}
+                  </span>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+
           {singleExecutionHint ? (
             <p className="text-[11px] leading-5 text-[#FF8A00]/75">
               {singleExecutionHint}
@@ -171,7 +203,12 @@ export function CrossExecutionPanel({
                 : "bg-[#FF8A00] text-[#03030a]"
             }`}
           >
-            {isExecuting ? "Executing..." : (singleActionLabel ?? "Execute Route")}
+            {isExecuting
+              ? "Executing..."
+              : (singleActionLabel ??
+                (singleClassification === "deposit_instructions"
+                  ? "Review Deposit Instructions"
+                  : "Execute Route"))}
           </button>
         </div>
       ) : (

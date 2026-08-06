@@ -64,6 +64,28 @@ describe("classifyProviderDirectAction", () => {
     ).toBe("non_evm_wallet_required");
   });
 
+  it("accepts LayerZero Solana steps when a serialized transaction is returned", () => {
+    expect(
+      classifyProviderDirectAction({
+        action: {
+          kind: "layerzero_value_transfer_api",
+          userSteps: [
+            {
+              type: "TRANSACTION",
+              chainType: "SOLANA",
+              transaction: {
+                encoded: {
+                  serializedTransaction: "AQIDBA==",
+                  encoding: "base64",
+                },
+              },
+            },
+          ],
+        },
+      }),
+    ).toBe("layerzero_steps");
+  });
+
   it("rejects LayerZero steps that do not expose a wallet tx or signable message", () => {
     expect(
       classifyProviderDirectAction({
@@ -137,6 +159,19 @@ describe("classifyProviderDirectAction", () => {
         },
       }),
     ).toBe("non_evm_wallet_required");
+  });
+
+  it("classifies THORChain Bitcoin source payloads as deposit instructions", () => {
+    expect(
+      classifyProviderDirectAction({
+        action: {
+          kind: "thorchain_swap",
+          depositAddress: "bc1qthorvault",
+          memo: "=:ETH.ETH:0x1111111111111111111111111111111111111111",
+          refundAddress: "bc1quserrefund",
+        },
+      }),
+    ).toBe("deposit_instructions");
   });
 
   it("rejects an EVM tx when its chain does not match the selected source", () => {

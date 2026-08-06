@@ -56,15 +56,20 @@ import {
   type PickerToken,
   type RouteHop,
   type TradeTimelineStep,
+  type WalletOption,
 } from "../components";
+import type { WalletKind } from "../components/WalletModal";
 import { crossApi } from "../../features/cross/api/crossApi";
 import { CrossExecutionPanel } from "../../features/cross/components/CrossExecutionPanel";
 import { CrossTrackingPanel } from "../../features/cross/components/CrossTrackingPanel";
 import {
+  classifyProviderDirectAction,
   getLayerZeroStepMessage,
   getLayerZeroStepTx,
+  isLayerZeroSolanaStep,
   mergeLayerZeroUserSteps,
 } from "../../features/cross/execution/providerDirect";
+import { sendLayerZeroSolanaTransaction } from "../../features/cross/execution/solanaLayerZero";
 import {
   executeProviderApprovals,
   findMissingProviderApprovals,
@@ -93,6 +98,7 @@ import { mapCrossApiError } from "../../features/cross/utils/errors";
 import type {
   CrossExecutionSession,
   LayerZeroValueTransferApiQuoteContext,
+  NativeSourceWallet,
 } from "../../features/cross/api/contracts";
 import {
   clearCrossSession,
@@ -112,6 +118,7 @@ import { getExplorerAddressUrl, getExplorerTxUrl } from "../data/explorers";
 import { V2_ALL_CHAINS, getV2Chain } from "../data/v2ChainView";
 import { getTokensForChain, type V2TokenConfig } from "../data/v2TokenView";
 import { createV2NavLinks } from "../data/v2ProductRoutes";
+import { calculatePriceImpactBps } from "../data/tradeMetrics";
 import {
   CROSS_V2_DEFAULT_SELECTION,
   buildCrossQuoteRequest,
@@ -136,6 +143,10 @@ import {
   type RailEntry,
 } from "../data/empxRegistry";
 import DestinationAddressInput from "../../components/DestinationAddressInput";
+import {
+  loadAdaptersFor,
+  type ConnectResult,
+} from "../../lib/wallet/adapters";
 import {
   chainKindFor,
   isBackendNonEvmChainId,
@@ -168,6 +179,19 @@ interface Token extends V2TokenConfig {
   category: "stable" | "native" | "wrapped" | "oft" | "other";
 }
 
+type NativeSourceWalletConnection = {
+  kind: Extract<WalletKind, "solana" | "bitcoin">;
+  address: string;
+  providerName: string;
+  publicKey?: string;
+  addressType?: "p2wpkh" | "p2tr";
+  chain: {
+    id: number;
+    name: string;
+    color: string;
+  };
+};
+
 function tokenCategory(token: V2TokenConfig): Token["category"] {
   const ticker = token.ticker.toUpperCase();
   if (token.isNative) return "native";
@@ -197,6 +221,55 @@ function configTokensForChain(chainId: number): Token[] {
         category: "native",
       }]
     : [];
+}
+
+function walletKindForSourceChain(chain: ChainDef): WalletKind | undefined {
+  const kind = chain.kind ?? "EVM";
+  const providerType = chain.providerChainType?.trim().toUpperCase();
+  if (kind === "BTC" || providerType === "BITCOIN") return "bitcoin";
+  if (kind === "SOL" || providerType === "SOLANA") return "solana";
+  if (kind === "EVM" && (!providerType || providerType === "EVM")) return "evm";
+  return undefined;
+}
+
+function isNativeSourceWalletKind(
+  kind: WalletKind | undefined,
+): kind is NativeSourceWalletConnection["kind"] {
+  return kind === "solana" || kind === "bitcoin";
+}
+
+function nativeSourceWalletForQuote(
+  wallet: NativeSourceWalletConnection | null,
+): NativeSourceWallet | undefined {
+  if (!wallet) return undefined;
+  if (wallet.kind === "solana") {
+    return {
+      runtime: "solana",
+      network: "mainnet-beta",
+      ownerAddress: wallet.address,
+      refundAddress: wallet.address,
+      signingAccount: {
+        address: wallet.address,
+        feePayer: wallet.address,
+      },
+    };
+  }
+  if (!wallet.publicKey || !wallet.addressType) return undefined;
+  return {
+    runtime: "bitcoin",
+    network: "mainnet",
+    ownerAddress: wallet.address,
+    refundAddress: wallet.address,
+    signingAccount: {
+      address: wallet.address,
+      publicKey: wallet.publicKey,
+      addressType: wallet.addressType,
+    },
+  };
+}
+
+function nativeWalletOptionId(kind: NativeSourceWalletConnection["kind"], brand: string): string {
+  return `native:${kind}:${brand.toLowerCase().replace(/\s+/g, "-")}`;
 }
 
 // Token list for a given (chain, role, eligibleRails).
@@ -263,6 +336,19 @@ type ChainPickerTarget = "from" | "to";
 type TokenPickerTarget = "from" | "to";
 type SidePanelTab = "offers" | "settings" | "rails" | "lifecycle";
 
+const CROSS_SWAP_LEG_EVM_CHAIN_IDS = new Set([
+  8453,   // Base
+  42161,  // Arbitrum
+  10,     // Optimism
+  43114,  // Avalanche
+  143,    // Monad
+  137,    // Polygon
+  56,     // BSC
+  999,    // HyperEVM
+  1329,   // Sei
+  146,    // Sonic
+]);
+
 // Gas-drop typical USD value per destination chain (rough — production reads
 // from DestinationGasAutoFund.ts policy).
 const GAS_DROP_USD = 2.5;
@@ -303,6 +389,10 @@ export default function CrossPage() {
   const [fromAmount, setFromAmount] = useState<string>(CROSS_V2_DEFAULT_SELECTION.fromAmount);
   const [nativeDstAddress, setNativeDstAddress] = useState("");
   const [nativeDstAddressValid, setNativeDstAddressValid] = useState(false);
+  const [destinationAddress, setDestinationAddress] = useState("");
+  const [destinationAddressValid, setDestinationAddressValid] = useState(false);
+  const [nativeSourceWallet, setNativeSourceWallet] = useState<NativeSourceWalletConnection | null>(null);
+  const [nativeWalletOptions, setNativeWalletOptions] = useState<WalletOption[]>([]);
 
   const [selectedOfferId, setSelectedOfferId] = useState<string | null>(null);
   const [selectedGasOfferId, setSelectedGasOfferId] = useState<string | null>(null);
@@ -437,37 +527,59 @@ export default function CrossPage() {
   );
   const nativeDestinationRequired = providerDestinationIsNonEvm || isBackendNonEvmChainId(toChainId);
   const nativeDestinationKind = chainKindFor(toChainId);
+  const sourceWalletKind = walletKindForSourceChain(fromChain);
+  const sourceUsesEvmWallet = sourceWalletKind === "evm";
+  const sourceUsesNativeWallet = isNativeSourceWalletKind(sourceWalletKind);
+  const activeNativeSourceWallet =
+    sourceUsesNativeWallet && nativeSourceWallet?.kind === sourceWalletKind
+      ? nativeSourceWallet
+      : null;
+  const sourceWalletAddress = sourceUsesEvmWallet
+    ? connectedAddress
+    : activeNativeSourceWallet?.address;
+  const sourceWalletConnected = Boolean(sourceWalletAddress);
+  const destinationAddressRequired =
+    sourceUsesNativeWallet && chainKindFor(toChainId) === "evm";
+  const destinationWalletAddress = destinationAddressRequired
+    ? destinationAddress.trim()
+    : undefined;
+  const quoteNativeSourceCandidate = useMemo(
+    () => nativeSourceWalletForQuote(activeNativeSourceWallet),
+    [activeNativeSourceWallet],
+  );
   const sourceWalletSupported =
-    (fromChain.kind ?? "EVM") === "EVM" &&
-    (!fromChain.providerChainType || fromChain.providerChainType.toUpperCase() === "EVM");
+    sourceUsesEvmWallet || sourceUsesNativeWallet;
   const layerZeroValueTransferApi = useMemo<LayerZeroValueTransferApiQuoteContext | undefined>(() => {
     if (
-      !connectedAddress ||
+      !sourceWalletAddress ||
       !fromChain.providerChainKey ||
       !fromChain.providerChainType ||
       !toChain.providerChainKey ||
-      !toChain.providerChainType ||
-      !sourceWalletSupported
+      !toChain.providerChainType
     ) return undefined;
     const destinationWallet = providerDestinationIsNonEvm
       ? nativeDstAddress.trim()
-      : connectedAddress;
+      : destinationAddressRequired
+        ? destinationWalletAddress
+        : connectedAddress;
     if (!destinationWallet) return undefined;
     return {
       srcChainKey: fromChain.providerChainKey,
       dstChainKey: toChain.providerChainKey,
       srcChainType: fromChain.providerChainType,
       dstChainType: toChain.providerChainType,
-      srcWalletAddress: connectedAddress,
+      srcWalletAddress: sourceWalletAddress,
       dstWalletAddress: destinationWallet,
     };
   }, [
     connectedAddress,
+    destinationAddressRequired,
+    destinationWalletAddress,
     fromChain.providerChainKey,
     fromChain.providerChainType,
     nativeDstAddress,
     providerDestinationIsNonEvm,
-    sourceWalletSupported,
+    sourceWalletAddress,
     toChain.providerChainKey,
     toChain.providerChainType,
   ]);
@@ -477,11 +589,60 @@ export default function CrossPage() {
     },
     [],
   );
+  const handleDestinationAddressValidation = useCallback(
+    (result: { valid: boolean }) => {
+      setDestinationAddressValid(result.valid);
+    },
+    [],
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!sourceUsesNativeWallet || !sourceWalletKind) {
+      setNativeWalletOptions([]);
+      return;
+    }
+
+    loadAdaptersFor(sourceWalletKind)
+      .then((adapters) => {
+        if (cancelled) return;
+        setNativeWalletOptions(
+          adapters.map((adapter) => ({
+            id: nativeWalletOptionId(sourceWalletKind, adapter.brand),
+            name: adapter.brand,
+            kind: sourceWalletKind,
+            installed: adapter.isInstalled(),
+            description:
+              sourceWalletKind === "solana"
+                ? "Use as Solana source wallet"
+                : "Use as Bitcoin source wallet",
+          })),
+        );
+      })
+      .catch(() => {
+        if (!cancelled) setNativeWalletOptions([]);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [sourceUsesNativeWallet, sourceWalletKind]);
 
   useEffect(() => {
     setNativeDstAddress("");
     setNativeDstAddressValid(false);
   }, [toChainId]);
+
+  useEffect(() => {
+    if (!destinationAddressRequired) {
+      setDestinationAddress("");
+      setDestinationAddressValid(false);
+      return;
+    }
+    if (connectedAddress && !destinationAddress.trim()) {
+      setDestinationAddress(connectedAddress);
+    }
+  }, [connectedAddress, destinationAddress, destinationAddressRequired]);
 
   const quoteRequest = useMemo(
     () =>
@@ -493,17 +654,26 @@ export default function CrossPage() {
         fromAmount: deferredFromAmount,
         fromChainId: layerZeroValueTransferApi ? (fromChain.quoteChainId ?? fromChainId) : fromChainId,
         toChainId: layerZeroValueTransferApi ? (toChain.quoteChainId ?? toChainId) : toChainId,
-        userAddress: connectedAddress,
+        userAddress: sourceWalletAddress,
+        destinationAddress: destinationAddressRequired
+          ? destinationWalletAddress
+          : undefined,
         nativeDstAddress: nativeDestinationRequired
           ? nativeDstAddress
+          : destinationAddressRequired
+            ? destinationWalletAddress
           : undefined,
+        refundAddress: activeNativeSourceWallet?.address,
+        nativeSource: layerZeroValueTransferApi ? undefined : quoteNativeSourceCandidate,
         layerZeroValueTransferApi,
         includeDestinationGas: gasDropOnDestination,
         destinationGasAmount: "0.001",
       }),
     [
-      connectedAddress,
+      activeNativeSourceWallet?.address,
       deferredFromAmount,
+      destinationAddressRequired,
+      destinationWalletAddress,
       fromChainId,
       fromChain.quoteChainId,
       fromTokenConfig,
@@ -511,18 +681,21 @@ export default function CrossPage() {
       nativeDestinationRequired,
       nativeDstAddress,
       layerZeroValueTransferApi,
+      quoteNativeSourceCandidate,
+      sourceWalletAddress,
       toChainId,
       toChain.quoteChainId,
       toTokenConfig,
     ],
   );
   const quoteEnabled = Boolean(
-    connectedAddress &&
+    sourceWalletConnected &&
       quoteRequest &&
       fromChainId !== toChainId &&
       quoteRequest.amountIn !== "0" &&
       sourceWalletSupported &&
-      (!nativeDestinationRequired || nativeDstAddressValid),
+      (!nativeDestinationRequired || nativeDstAddressValid) &&
+      (!destinationAddressRequired || destinationAddressValid),
   );
   const quote = useCrossQuote(quoteEnabled, quoteRequest);
   const execution = useCrossExecutionSession();
@@ -569,7 +742,7 @@ export default function CrossPage() {
     }));
   }, [displayOffers, toTokenDecimals]);
   const quoteUiState = getCrossQuoteUiState({
-    walletConnected: walletState.status === "connected",
+    walletConnected: sourceWalletConnected,
     quoteReady: quoteEnabled,
     isFetching: quote.isFetching,
     offerCount: offerEntries.length,
@@ -795,7 +968,7 @@ export default function CrossPage() {
         ? (fromTokenConfig.address as Address)
         : undefined,
     query: {
-      enabled: Boolean(connectedAddress && fromTokenConfig && sourceWalletSupported),
+      enabled: Boolean(connectedAddress && fromTokenConfig && sourceUsesEvmWallet),
     },
   });
 
@@ -824,7 +997,7 @@ export default function CrossPage() {
   const quoteErrorMessage = quote.error ? mapCrossApiError(quote.error) : null;
   const trackingData = tracking.data as any;
   const fromBalanceLabel =
-    walletState.status === "connected" && fromTokenBalance
+    sourceUsesEvmWallet && walletState.status === "connected" && fromTokenBalance
       ? `${Number(fromTokenBalance.formatted).toLocaleString(undefined, {
           maximumFractionDigits: 6,
         })} ${fromTicker}`
@@ -844,6 +1017,7 @@ export default function CrossPage() {
     Number.isFinite(Number(selectedOfferDisplay.outputAmount))
       ? Number(selectedOfferDisplay.outputAmount) * toTokenPriceUSD
       : undefined;
+  const priceImpactBps = calculatePriceImpactBps(fromUsdValue, toUsdValue);
   const sourceTxHash =
     trackingData?.srcTxHash ??
     trackingData?.sourceTxHash ??
@@ -861,14 +1035,22 @@ export default function CrossPage() {
   const chainPickerList: PickerChain[] = useMemo(() => {
     return chainOptions.map((c) => {
       const tier = tierForChainId(c.id);
+      const kind = c.kind ?? "EVM";
+      const isSwapLegEvmChain = kind === "EVM" && CROSS_SWAP_LEG_EVM_CHAIN_IDS.has(c.id);
       return {
         id: c.id,
         name: c.name,
         ticker: c.ticker,
         color: c.color,
-        kind: c.kind ?? "EVM",
+        kind,
         tier,
         tierLabel: tierLabel(tier),
+        groupLabel: isSwapLegEvmChain
+          ? "EVM chains with source/destination swaps"
+          : kind === "EVM"
+            ? "Other EVM chains"
+            : undefined,
+        groupOrder: isSwapLegEvmChain ? 0 : kind === "EVM" ? 1 : undefined,
       };
     });
   }, [chainOptions]);
@@ -930,8 +1112,52 @@ export default function CrossPage() {
     setSelectedOfferId(null);
   };
 
+  const handleWalletSelect = useCallback(async (wallet: WalletOption) => {
+    setShowWalletModal(false);
+    if (wallet.kind !== "solana" && wallet.kind !== "bitcoin") {
+      onSelectWallet(wallet);
+      return;
+    }
+    const nativeKind = wallet.kind;
+
+    try {
+      const adapters = await loadAdaptersFor(nativeKind);
+      const adapter = adapters.find(
+        (candidate) => nativeWalletOptionId(nativeKind, candidate.brand) === wallet.id,
+      );
+      if (!adapter) {
+        throw new Error(`No ${wallet.name} adapter is available for ${nativeKind}.`);
+      }
+      const result: ConnectResult = await adapter.connect();
+      setNativeSourceWallet({
+        kind: nativeKind,
+        address: result.address,
+        publicKey: result.publicKey,
+        addressType: result.addressType,
+        providerName: adapter.brand,
+        chain: {
+          id: fromChainId,
+          name: fromChain.name,
+          color: fromChain.color,
+        },
+      });
+      toast.success(`${adapter.brand} connected.`);
+    } catch (error: any) {
+      if (error?.code !== "USER_REJECTED") {
+        toast.error(error?.message ?? "Wallet connection failed.");
+      }
+    }
+  }, [fromChain.color, fromChain.name, fromChainId, onSelectWallet]);
+
   const onSwap = () => {
-    if (walletState.status !== "connected") { setShowWalletModal(true); return; }
+    if (!sourceWalletConnected) { setShowWalletModal(true); return; }
+    if (
+      destinationAddressRequired &&
+      (!destinationWalletAddress || !destinationAddressValid)
+    ) {
+      toast.error(`Enter a valid ${toChain.name} destination address before quoting.`);
+      return;
+    }
     if (
       nativeDestinationRequired &&
       (!nativeDstAddress.trim() || !nativeDstAddressValid)
@@ -1012,8 +1238,9 @@ export default function CrossPage() {
 
   const executeLayerZeroIntent = useCallback(
     async (intentId: string, integration: any, sourceChainId: number) => {
-      if (!connectedAddress) {
-        throw new Error("Wallet not connected.");
+      const layerZeroSourceWallet = sourceWalletAddress ?? connectedAddress;
+      if (!layerZeroSourceWallet) {
+        throw new Error("Source wallet not connected.");
       }
 
       const action = integration?.action ?? integration;
@@ -1031,6 +1258,14 @@ export default function CrossPage() {
       // transaction. Preserve signature steps separately from lifecycle
       // submitted/cancel/refund signatures.
       for (const step of steps) {
+        if (isLayerZeroSolanaStep(step)) {
+          sourceTxHash = await sendLayerZeroSolanaTransaction(
+            step,
+            layerZeroSourceWallet,
+          );
+          continue;
+        }
+
         const tx = getLayerZeroStepTx(step);
         if (tx?.to) {
           sourceTxHash = await sendEvmTransaction(tx, sourceChainId);
@@ -1039,6 +1274,9 @@ export default function CrossPage() {
 
         const message = getLayerZeroStepMessage(step);
         if (typeof message === "string") {
+          if (!connectedAddress) {
+            throw new Error("LayerZero signature step requires an EVM wallet signature.");
+          }
           signatures.push(await signMessageAsync({ account: connectedAddress, message }));
           continue;
         }
@@ -1055,13 +1293,13 @@ export default function CrossPage() {
       }
 
       await crossApi.markLayerZeroSubmitted(intentId, {
-        userAddress: connectedAddress,
+        userAddress: layerZeroSourceWallet,
         sourceTxHash,
       });
 
       return sourceTxHash;
     },
-    [connectedAddress, sendEvmTransaction, signMessageAsync],
+    [connectedAddress, sendEvmTransaction, signMessageAsync, sourceWalletAddress],
   );
 
   const executeIntent = useCallback(
@@ -1078,9 +1316,10 @@ export default function CrossPage() {
           executeLayerZeroIntent,
           submitStandardIntent,
           markLayerZeroSubmitted: async (selectedIntentId, txHash) => {
-            if (!connectedAddress) throw new Error("Wallet not connected.");
+            const layerZeroSourceWallet = sourceWalletAddress ?? connectedAddress;
+            if (!layerZeroSourceWallet) throw new Error("Source wallet not connected.");
             await crossApi.markLayerZeroSubmitted(selectedIntentId, {
-              userAddress: connectedAddress,
+              userAddress: layerZeroSourceWallet,
               sourceTxHash: txHash,
             });
           },
@@ -1092,6 +1331,7 @@ export default function CrossPage() {
       executeLayerZeroIntent,
       hasRequiredApproval,
       sendEvmTransaction,
+      sourceWalletAddress,
       submitStandardIntent,
     ],
   );
@@ -1103,7 +1343,7 @@ export default function CrossPage() {
     const quoteForSelection = options?.quoteOverride ?? effectiveQuote;
     const offerForSelection = options?.offerOverride ?? selectedOffer;
 
-    if (!connectedAddress || !offerForSelection || !quoteForSelection) {
+    if (!sourceWalletAddress || !offerForSelection || !quoteForSelection) {
       return null;
     }
 
@@ -1112,7 +1352,7 @@ export default function CrossPage() {
     const response = await execution.selectSingleIntent({
       offerSetId: quoteForSelection.offerSetId,
       offerId: offerForSelection.offerId,
-      userAddress: connectedAddress,
+      userAddress: sourceWalletAddress,
     });
 
     let nextIntegration = response.integration;
@@ -1144,10 +1384,10 @@ export default function CrossPage() {
 
     setSession(nextSession);
     return nextSession;
-  }, [connectedAddress, effectiveQuote, execution, selectedOffer]);
+  }, [effectiveQuote, execution, selectedOffer, sourceWalletAddress]);
 
   const handlePrepareExecution = useCallback(async () => {
-    if (!connectedAddress || !selectedOffer || !effectiveQuote) {
+    if (!sourceWalletAddress || !selectedOffer || !effectiveQuote) {
       return;
     }
 
@@ -1166,7 +1406,7 @@ export default function CrossPage() {
           offerSetId: effectiveQuote.offerSetId,
           primaryTransferOfferId: selectedOffer.offerId,
           gasZipDestinationGasOfferId: selectedGasOfferId,
-          userAddress: connectedAddress,
+          userAddress: sourceWalletAddress,
         });
 
         setSession({
@@ -1196,13 +1436,13 @@ export default function CrossPage() {
       toast.error(mapCrossApiError(error));
     }
   }, [
-    connectedAddress,
     effectiveQuote,
     execution,
     gasDropOnDestination,
     prepareSingleExecution,
     selectedGasOfferId,
     selectedOffer,
+    sourceWalletAddress,
   ]);
 
   const handleExecuteSingle = useCallback(async () => {
@@ -1212,6 +1452,31 @@ export default function CrossPage() {
       setSession(null);
       toast.error("Prepared route expired. Prepare execution again.");
       return;
+    }
+
+    if (session.integration.mode === "provider_direct") {
+      const classification = classifyProviderDirectAction(session.integration, {
+        selectedSourceChainId:
+          session.sourceChainId ?? session.quote?.srcChainId ?? fromChainId,
+      });
+      const action = session.integration.action;
+      if (classification === "deposit_instructions") {
+        const instructions = [
+          `Intent: ${session.intentId}`,
+          `Deposit address: ${String(action.depositAddress ?? "")}`,
+          typeof action.memo === "string" && action.memo
+            ? `Memo: ${action.memo}`
+            : null,
+          typeof action.refundAddress === "string" && action.refundAddress
+            ? `Refund address: ${action.refundAddress}`
+            : null,
+          `Amount in: ${session.quote?.amountIn ?? ""}`,
+        ].filter(Boolean).join("\n");
+
+        await navigator.clipboard?.writeText(instructions).catch(() => undefined);
+        toast.info("THORChain deposit instructions copied. Send the exact BTC amount with the memo from your BTC wallet.");
+        return;
+      }
     }
 
     try {
@@ -1493,6 +1758,28 @@ export default function CrossPage() {
   }, [shownSuccessIntentId, session, trackingData]);
 
   const navLinks = createV2NavLinks("cross");
+  const activeWalletDisplay = sourceUsesNativeWallet && activeNativeSourceWallet
+    ? {
+        address: activeNativeSourceWallet.address,
+        providerName: activeNativeSourceWallet.providerName,
+        chainName: fromChain.name,
+        chainColor: fromChain.color,
+        balanceUSD: undefined as number | undefined,
+        nativeBalance: undefined as string | undefined,
+        nativeTicker: fromChain.ticker,
+      }
+    : walletState.status === "connected"
+      ? {
+          address: walletState.address,
+          providerName: walletState.providerName,
+          chainName: walletState.chain.name,
+          chainColor: walletState.chain.color,
+          balanceUSD: connectedBalance.nativeBalanceUSD ?? undefined,
+          nativeBalance: connectedBalance.nativeBalance,
+          nativeTicker: connectedBalance.nativeTicker,
+        }
+      : null;
+  const sourceWalletModalOptions = sourceUsesNativeWallet ? nativeWalletOptions : walletOptions;
 
   // ─── Render ──────────────────────────────────────────────────────────────
   return (
@@ -1503,14 +1790,14 @@ export default function CrossPage() {
         controls={
           <>
             <NetworkSelector
-              name={walletState.status === "connected" ? walletState.chain.name : fromChain.name}
-              color={walletState.status === "connected" ? walletState.chain.color : fromChain.color}
+              name={activeWalletDisplay?.chainName ?? fromChain.name}
+              color={activeWalletDisplay?.chainColor ?? fromChain.color}
               onClick={() => setChainPickerTarget("from")}
             />
             <WalletButton
-              connected={walletState.status === "connected"}
-              address={walletState.status === "connected" ? walletState.address : undefined}
-              balanceUSD={walletState.status === "connected" ? connectedBalance.nativeBalanceUSD ?? undefined : undefined}
+              connected={sourceWalletConnected}
+              address={activeWalletDisplay?.address}
+              balanceUSD={activeWalletDisplay?.balanceUSD}
               onConnect={() => setShowWalletModal(true)}
               onClick={() => setShowAccountModal(true)}
             />
@@ -1584,9 +1871,10 @@ export default function CrossPage() {
               estimatedTime={selectedOfferDisplay?.estimatedTimeSeconds ? formatEtaSeconds(selectedOfferDisplay.estimatedTimeSeconds) : undefined}
               minimumReceived={selectedOfferDisplay ? `${selectedOfferDisplay.minimumReceived} ${toTicker}` : undefined}
               slippageBps={30}
+              priceImpactBps={priceImpactBps}
               routeHops={routeHops}
 
-              walletConnected={walletState.status === "connected"}
+              walletConnected={sourceWalletConnected}
               onConnect={() => setShowWalletModal(true)}
               onSwap={onSwap}
               onFlip={flip}
@@ -1595,11 +1883,12 @@ export default function CrossPage() {
                 !selectedOfferDisplay?.selectable ||
                 quote.isFetching ||
                 execution.isSelecting ||
-                (nativeDestinationRequired && !nativeDstAddressValid)
+                (nativeDestinationRequired && !nativeDstAddressValid) ||
+                (destinationAddressRequired && !destinationAddressValid)
               }
               swapLoading={quote.isFetching || execution.isSelecting}
               swapLabel={
-                walletState.status !== "connected"
+                !sourceWalletConnected
                   ? "Connect wallet"
                   : quote.isFetching
                     ? "Fetching route..."
@@ -1629,7 +1918,25 @@ export default function CrossPage() {
                 )}
                 <p style={{ margin: "10px 0 0", color: "rgba(255,138,0,0.72)", fontSize: 10.5, lineHeight: 1.45 }}>
                   This address receives funds on {toChain.name}. Your connected
-                  EVM address remains the source user address.
+                  source wallet remains the source/refund address.
+                </p>
+              </Card>
+            ) : null}
+            {destinationAddressRequired ? (
+              <Card style={{ width: "100%", maxWidth: 620, padding: 16 }}>
+                <DestinationAddressInput
+                  id="cross-v2-evm-destination"
+                  chainKind="evm"
+                  chainLabel={toChain.name}
+                  value={destinationAddress}
+                  onChange={setDestinationAddress}
+                  onValidate={handleDestinationAddressValidation}
+                  required
+                  label="Destination address"
+                />
+                <p style={{ margin: "10px 0 0", color: "rgba(255,138,0,0.72)", fontSize: 10.5, lineHeight: 1.45 }}>
+                  This address receives funds on {toChain.name}. Your connected
+                  {sourceWalletKind === "solana" ? " Solana" : " Bitcoin"} wallet remains the source/refund address.
                 </p>
               </Card>
             ) : null}
@@ -1637,7 +1944,7 @@ export default function CrossPage() {
 
           {/* RIGHT — context panel */}
           <aside style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            {walletState.status === "connected" && (
+            {sourceWalletConnected && (
               <Card style={{ padding: 14 }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
                   {quoteEnabled ? (
@@ -1731,17 +2038,9 @@ export default function CrossPage() {
       <WalletModal
         open={showWalletModal}
         onClose={() => setShowWalletModal(false)}
-        wallets={walletOptions}
-        kindFilter={(() => {
-          const k = fromChain.kind ?? "EVM";
-          if (k === "BTC") return "bitcoin";
-          if (k === "SOL") return "solana";
-          return undefined; // EVM / OTHER → show full modal (no scope)
-        })()}
-        onSelect={(w) => {
-          setShowWalletModal(false);
-          onSelectWallet(w);
-        }}
+        wallets={sourceWalletModalOptions}
+        kindFilter={sourceUsesNativeWallet ? sourceWalletKind : undefined}
+        onSelect={handleWalletSelect}
       />
 
       {chainPickerTarget && (
@@ -1814,6 +2113,8 @@ export default function CrossPage() {
           tokens={tokenPickerData.tokens}
           recent={tokenPickerData.tokens.slice(0, Math.min(4, tokenPickerData.tokens.length))}
           restrictedReason={tokenPickerData.restrictedReason}
+          showBalances={false}
+          showBadges={false}
           onSelect={(t) => {
             if (tokenPickerTarget === "from") {
               setFromTicker(t.ticker);
@@ -1851,6 +2152,9 @@ export default function CrossPage() {
                 ...(gasDropOnDestination ? [{ label: "Gas drop", value: `+$${GAS_DROP_USD.toFixed(2)} ${toChain.ticker}` }] : []),
                 ...(selectedOfferDisplay.estimatedTimeSeconds ? [{ label: "Est. time", value: formatEtaSeconds(selectedOfferDisplay.estimatedTimeSeconds) }] : []),
                 { label: "Minimum received", value: `${selectedOfferDisplay.minimumReceived} ${toTicker}`, muted: true },
+                ...(priceImpactBps !== undefined
+                  ? [{ label: "Price impact", value: `${(priceImpactBps / 100).toFixed(2)}%`, muted: true, accent: priceImpactBps > 100 }]
+                  : []),
               ]
             : []
         }
@@ -1896,22 +2200,30 @@ export default function CrossPage() {
         onViewPortfolio={() => { setShowSuccess(false); toast.info("Navigate to /portfolio-v2"); }}
       />
 
-      {walletState.status === "connected" && (
+      {activeWalletDisplay && (
         <AccountModal
           open={showAccountModal}
           onClose={() => setShowAccountModal(false)}
-          address={walletState.address}
-          providerName={walletState.providerName}
-          chainName={walletState.chain.name}
-          chainColor={walletState.chain.color}
-          balanceUSD={connectedBalance.nativeBalanceUSD ?? undefined}
-          nativeBalance={connectedBalance.nativeBalance}
-          nativeTicker={connectedBalance.nativeTicker}
-          explorerUrl={getExplorerAddressUrl(fromChainId, walletState.address) ?? undefined}
+          address={activeWalletDisplay.address}
+          providerName={activeWalletDisplay.providerName}
+          chainName={activeWalletDisplay.chainName}
+          chainColor={activeWalletDisplay.chainColor}
+          balanceUSD={activeWalletDisplay.balanceUSD}
+          nativeBalance={activeWalletDisplay.nativeBalance}
+          nativeTicker={activeWalletDisplay.nativeTicker}
+          explorerUrl={getExplorerAddressUrl(fromChainId, activeWalletDisplay.address) ?? undefined}
           onCopy={() => toast.success("Address copied")}
           onSwitchNetwork={() => { setShowAccountModal(false); setChainPickerTarget("from"); }}
           onSwitchWallet={() => { setShowAccountModal(false); setShowWalletModal(true); }}
-          onDisconnect={() => { setShowAccountModal(false); disconnect(); toast.info("Wallet disconnected"); }}
+          onDisconnect={() => {
+            setShowAccountModal(false);
+            if (sourceUsesNativeWallet) {
+              setNativeSourceWallet(null);
+            } else {
+              disconnect();
+            }
+            toast.info("Wallet disconnected");
+          }}
         />
       )}
 
@@ -2350,6 +2662,7 @@ function LifecycleStatus({
         tracking={tracking}
         isCancelling={isCancelling}
         isRefunding={isRefunding}
+        recoveryActionsDisabled
         onCancel={onCancel}
         onRefund={onRefund}
       />

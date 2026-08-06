@@ -44,6 +44,7 @@ interface UnisatProvider {
   requestAccounts(): Promise<string[]>;
   getAccounts?(): Promise<string[]>;
   getNetwork?(): Promise<string>;
+  getPublicKey?(): Promise<string>;
 }
 interface UnisatWindow {
   unisat?: UnisatProvider;
@@ -52,6 +53,21 @@ interface UnisatWindow {
 function getUnisatProvider(): UnisatProvider | null {
   if (typeof window === "undefined") return null;
   return (window as unknown as UnisatWindow).unisat ?? null;
+}
+
+function inferBitcoinAddressType(address: string): "p2wpkh" | "p2tr" | undefined {
+  const lower = address.toLowerCase();
+  if (lower.startsWith("bc1p")) return "p2tr";
+  if (lower.startsWith("bc1q") || address.startsWith("1")) return "p2wpkh";
+  return undefined;
+}
+
+function normalizePhantomBtcAddressType(value?: string): "p2wpkh" | "p2tr" | undefined {
+  const normalized = value?.trim().toLowerCase();
+  if (!normalized) return undefined;
+  if (normalized === "p2wpkh" || normalized === "segwit" || normalized === "native_segwit") return "p2wpkh";
+  if (normalized === "p2tr" || normalized === "taproot") return "p2tr";
+  return undefined;
 }
 
 const unisatAdapter: WalletAdapter = {
@@ -94,7 +110,9 @@ const unisatAdapter: WalletAdapter = {
         // anyway.
         if ((netErr as WalletAdapterError).code === "WRONG_NETWORK") throw netErr;
       }
-      return { address };
+      const publicKey = await provider.getPublicKey?.().catch(() => undefined);
+      const addressType = inferBitcoinAddressType(address);
+      return { address, publicKey, addressType };
     } catch (err: unknown) {
       const code = (err as WalletAdapterError).code;
       if (code) throw err; // already wrapped
@@ -154,7 +172,11 @@ const phantomBtcAdapter: WalletAdapter = {
       if (!payment?.address) {
         throw wrapError("UNKNOWN", "Phantom returned no usable BTC accounts");
       }
-      return { address: payment.address };
+      return {
+        address: payment.address,
+        addressType: normalizePhantomBtcAddressType(payment.addressType) ??
+          inferBitcoinAddressType(payment.address),
+      };
     } catch (err: unknown) {
       const e = err as { code?: number; message?: string };
       const msg = e?.message ?? String(err);

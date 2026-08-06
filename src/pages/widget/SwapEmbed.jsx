@@ -12,8 +12,10 @@ import { useWalletConnection } from "../../design-system/hooks/useWalletConnecti
 import { useV2Balances } from "../../design-system/hooks/useV2Balances";
 import { getExplorerAddressUrl, getExplorerTxUrl } from "../../design-system/data/explorers";
 import { classifyPair, modeAFeeBps } from "../../design-system/data/empxRegistry";
+import { calculatePriceImpactBps } from "../../design-system/data/tradeMetrics";
 import { getV2Chain } from "../../design-system/data/v2ChainView";
 import { getTokensForChain } from "../../design-system/data/v2TokenView";
+import { useUnifiedPrice } from "../../design-system/hooks/useUnifiedPrice";
 import {
   buildDirectSwapTradeInfo,
   buildSwapRouteHops,
@@ -84,6 +86,12 @@ const resolveInitialToken = (tokens, rawDefault, fallbackIndex) =>
   tokens.find((token) => tokenMatchesDefault(token, rawDefault)) ??
   tokens[fallbackIndex] ??
   null;
+
+const calculateUSDValue = (amount, price) => {
+  const numericAmount = Number(String(amount || "").replace(/,/g, ""));
+  if (price == null || !Number.isFinite(numericAmount)) return null;
+  return numericAmount * price;
+};
 
 function WidgetStatusBadge({ children, tone = "neutral" }) {
   const palette = {
@@ -272,6 +280,14 @@ export default function WidgetSwapPage() {
   const selectedFromToken = fromToken ? { ...fromToken, balance: fromBalance } : null;
   const pairType = fromToken && toToken ? classifyPair(fromToken.ticker, toToken.ticker) : "V/V";
   const feeBps = modeAFeeBps(pairType);
+  const fromPriceAddress = fromToken?.address === EMPTY_SWAP_TOKEN_ADDRESS
+    ? activeChainConfig?.wethAddress ?? configuredRuntime.wethAddress
+    : fromToken?.address;
+  const toPriceAddress = toToken?.address === EMPTY_SWAP_TOKEN_ADDRESS
+    ? activeChainConfig?.wethAddress ?? configuredRuntime.wethAddress
+    : toToken?.address;
+  const fromTokenPriceUSD = useUnifiedPrice(chainId, fromToken?.ticker, fromPriceAddress);
+  const toTokenPriceUSD = useUnifiedPrice(chainId, toToken?.ticker, toPriceAddress);
 
   const {
     data: quoteData,
@@ -352,6 +368,9 @@ export default function WidgetSwapPage() {
       : formatPreparedSwapOutput(preparedRoute, quoteData, toToken?.decimal ?? 18)),
     [fromAmount, isDirectRoute, preparedRoute, quoteData, toToken?.decimal],
   );
+  const fromUSDValue = calculateUSDValue(fromAmount, fromTokenPriceUSD);
+  const toUSDValue = calculateUSDValue(toAmount, toTokenPriceUSD);
+  const priceImpactBps = calculatePriceImpactBps(fromUSDValue, toUSDValue);
   const minimumReceived = useMemo(
     () =>
       formatSwapQuoteOutput(
@@ -562,7 +581,7 @@ export default function WidgetSwapPage() {
           fromToken={fromToken ? { ticker: fromToken.ticker, address: fromToken.address, decimals: fromToken.decimal } : null}
           fromAmount={fromAmount}
           fromBalance={isTokenBalanceLoading ? "Loading..." : selectedFromToken?.balance}
-          fromUsdValue={null}
+          fromUsdValue={fromUSDValue}
           onFromAmountChange={setFromAmount}
           onSelectFromToken={() => setShowTokenPicker("from")}
           onPercentClick={(pct) => {
@@ -571,7 +590,7 @@ export default function WidgetSwapPage() {
           }}
           toToken={toToken ? { ticker: toToken.ticker, address: toToken.address, decimals: toToken.decimal } : null}
           toAmount={toAmount}
-          toUsdValue={null}
+          toUsdValue={toUSDValue}
           onSelectToToken={() => setShowTokenPicker("to")}
           pairType={pairType}
           protocolFeeBps={feeBps}
@@ -579,6 +598,7 @@ export default function WidgetSwapPage() {
           routeLabel={routeLabel}
           minimumReceived={`${minimumReceived} ${toToken?.ticker || ""}`}
           slippageBps={config.showSlippage ? slippageBps : undefined}
+          priceImpactBps={priceImpactBps}
           routeHops={routeHops}
           splitBranches={splitBranches}
           swapDisabled={!canOpenConfirm || isRefreshingQuote}
@@ -655,6 +675,8 @@ export default function WidgetSwapPage() {
           recent={tokensForChain.slice(0, 4)}
           chains={[{ name: activeChain.name, color: activeChain.color }]}
           selected={(showTokenPicker === "from" ? fromToken : toToken)?.address || ""}
+          showBalances={false}
+          showBadges={false}
           onSelect={(token) => {
             const nextToken = tokensForChain.find(
               (candidate) =>
@@ -681,9 +703,11 @@ export default function WidgetSwapPage() {
         confirmLabel={needsApproval ? "Approve and swap" : "Confirm swap"}
         fromTicker={fromToken?.ticker || ""}
         fromAmount={fromAmount}
+        fromUsdValue={fromUSDValue ?? undefined}
         fromChainName={activeChain.name}
         toTicker={toToken?.ticker || ""}
         toAmount={toAmount}
+        toUsdValue={toUSDValue ?? undefined}
         toChainName={activeChain.name}
         routeHops={routeHops}
         routeLabel={routeLabel}
@@ -696,6 +720,9 @@ export default function WidgetSwapPage() {
           ...(routeLabel ? [{ label: "Route type", value: routeLabel, accent: true }] : []),
           { label: "Min. received", value: `${minimumReceived} ${toToken?.ticker || ""}`, muted: true },
           ...(config.showSlippage ? [{ label: "Slippage", value: `${(slippageBps / 100).toFixed(2)}%`, muted: true }] : []),
+          ...(priceImpactBps !== undefined
+            ? [{ label: "Price impact", value: `${(priceImpactBps / 100).toFixed(2)}%`, muted: true, accent: priceImpactBps > 100 }]
+            : []),
           ...(needsApproval ? [{ label: "Approval", value: `${fromToken?.ticker ?? "Token"} approval required`, accent: true }] : []),
         ]}
         quoteIssuedAt={quoteFreshness?.issuedAt}

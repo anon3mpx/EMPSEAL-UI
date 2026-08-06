@@ -5,7 +5,10 @@ export interface QuoteRequest {
   srcChainId: number;
   dstChainId: number;
   userAddress: string;
+  destinationAddress?: string;
   nativeDstAddress?: string;
+  refundAddress?: string;
+  nativeSource?: NativeSourceWallet;
   layerZeroValueTransferApi?: LayerZeroValueTransferApiQuoteContext;
   urgency?: "normal" | "fast";
   destinationGas?: Array<{
@@ -15,6 +18,29 @@ export interface QuoteRequest {
     recipient?: string;
   }>;
 }
+
+export type NativeSourceWallet =
+  | {
+      runtime: "bitcoin";
+      network: "mainnet";
+      ownerAddress: string;
+      refundAddress: string;
+      signingAccount: {
+        address: string;
+        publicKey: string;
+        addressType: "p2wpkh" | "p2tr";
+      };
+    }
+  | {
+      runtime: "solana";
+      network: "mainnet-beta";
+      ownerAddress: string;
+      refundAddress: string;
+      signingAccount: {
+        address: string;
+        feePayer: string;
+      };
+    };
 
 export interface LayerZeroValueTransferApiQuoteContext {
   srcChainKey: string;
