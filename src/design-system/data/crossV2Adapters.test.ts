@@ -207,6 +207,51 @@ describe("crossV2Adapters", () => {
     });
   });
 
+  it("forwards non-EVM source quote metadata without dropping destination or refund fields", () => {
+    const nativeSource = {
+      runtime: "solana" as const,
+      network: "mainnet-beta" as const,
+      ownerAddress: "Dz93pUVjXuaMnSsPSn7V99V4cUzhKoQdx9ECwZJZiafG",
+      refundAddress: "Dz93pUVjXuaMnSsPSn7V99V4cUzhKoQdx9ECwZJZiafG",
+      signingAccount: {
+        address: "Dz93pUVjXuaMnSsPSn7V99V4cUzhKoQdx9ECwZJZiafG",
+        feePayer: "Dz93pUVjXuaMnSsPSn7V99V4cUzhKoQdx9ECwZJZiafG",
+      },
+    };
+
+    expect(
+      buildCrossQuoteRequest({
+        fromToken: {
+          chainId: 99,
+          ticker: "USDC",
+          name: "USD Coin",
+          providerAssetId: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+          decimal: 6,
+        },
+        toToken,
+        fromAmount: "1",
+        fromChainId: 99,
+        toChainId: 8453,
+        userAddress: "Dz93pUVjXuaMnSsPSn7V99V4cUzhKoQdx9ECwZJZiafG",
+        destinationAddress: "0x1111111111111111111111111111111111111111",
+        nativeDstAddress: "0x1111111111111111111111111111111111111111",
+        refundAddress: "Dz93pUVjXuaMnSsPSn7V99V4cUzhKoQdx9ECwZJZiafG",
+        nativeSource,
+      } as any),
+    ).toMatchObject({
+      tokenIn: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+      tokenOut: "0x833589fcd6edb6e08f4c7c32d4f71b54bdA02913",
+      amountIn: "1000000",
+      srcChainId: 99,
+      dstChainId: 8453,
+      userAddress: "Dz93pUVjXuaMnSsPSn7V99V4cUzhKoQdx9ECwZJZiafG",
+      destinationAddress: "0x1111111111111111111111111111111111111111",
+      nativeDstAddress: "0x1111111111111111111111111111111111111111",
+      refundAddress: "Dz93pUVjXuaMnSsPSn7V99V4cUzhKoQdx9ECwZJZiafG",
+      nativeSource,
+    });
+  });
+
   it("maps provider chains to collision-safe UI ids while preserving quote ids", () => {
     const buildCatalog = (crossV2Adapters as any).buildLayerZeroChainCatalog;
     expect(typeof buildCatalog).toBe("function");

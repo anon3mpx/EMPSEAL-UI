@@ -28,6 +28,8 @@ export interface ConnectResult {
   address: string;
   /** Optional public-key string (different from address on some chains; e.g. Solana). */
   publicKey?: string;
+  /** UTXO signing address family when a BTC/LTC wallet exposes it. */
+  addressType?: "p2wpkh" | "p2tr";
 }
 
 export interface WalletAdapter {
