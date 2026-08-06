@@ -5,6 +5,7 @@ interface CrossTrackingPanelProps {
   session: CrossExecutionSession | null;
   isCancelling: boolean;
   isRefunding: boolean;
+  recoveryActionsDisabled?: boolean;
   onCancel: () => void;
   onRefund: () => void;
 }
@@ -14,6 +15,7 @@ export function CrossTrackingPanel({
   session,
   isCancelling,
   isRefunding,
+  recoveryActionsDisabled = false,
   onCancel,
   onRefund,
 }: CrossTrackingPanelProps) {
@@ -81,16 +83,21 @@ export function CrossTrackingPanel({
         </div>
       </div>
 
+      {/* Recovery controls are intentionally hidden until cancel/refund UX is re-enabled.
       {session.mode === "single" ? (
         <div className="mt-4 flex gap-3">
           <button
             type="button"
             onClick={onCancel}
             disabled={
-              isCancelling || !(tracking?.canCancel || tracking?.canCancelInWallet)
+              recoveryActionsDisabled ||
+              isCancelling ||
+              !(tracking?.canCancel || tracking?.canCancelInWallet)
             }
             className={`flex-1 px-4 py-3 text-[11px] font-bold uppercase tracking-[0.08em] ${
-              isCancelling || !(tracking?.canCancel || tracking?.canCancelInWallet)
+              recoveryActionsDisabled ||
+              isCancelling ||
+              !(tracking?.canCancel || tracking?.canCancelInWallet)
                 ? "cursor-not-allowed bg-white/[0.06] text-white/25"
                 : "bg-white text-[#03030a]"
             }`}
@@ -100,9 +107,9 @@ export function CrossTrackingPanel({
           <button
             type="button"
             onClick={onRefund}
-            disabled={isRefunding || !tracking?.canRequestRefund}
+            disabled={recoveryActionsDisabled || isRefunding || !tracking?.canRequestRefund}
             className={`flex-1 px-4 py-3 text-[11px] font-bold uppercase tracking-[0.08em] ${
-              isRefunding || !tracking?.canRequestRefund
+              recoveryActionsDisabled || isRefunding || !tracking?.canRequestRefund
                 ? "cursor-not-allowed bg-white/[0.06] text-white/25"
                 : "bg-[#FF8A00] text-[#03030a]"
             }`}
@@ -111,6 +118,7 @@ export function CrossTrackingPanel({
           </button>
         </div>
       ) : null}
+      */}
     </div>
   );
 }

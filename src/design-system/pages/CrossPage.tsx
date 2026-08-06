@@ -118,6 +118,7 @@ import { getExplorerAddressUrl, getExplorerTxUrl } from "../data/explorers";
 import { V2_ALL_CHAINS, getV2Chain } from "../data/v2ChainView";
 import { getTokensForChain, type V2TokenConfig } from "../data/v2TokenView";
 import { createV2NavLinks } from "../data/v2ProductRoutes";
+import { calculatePriceImpactBps } from "../data/tradeMetrics";
 import {
   CROSS_V2_DEFAULT_SELECTION,
   buildCrossQuoteRequest,
@@ -334,6 +335,19 @@ export function tokensFor(
 type ChainPickerTarget = "from" | "to";
 type TokenPickerTarget = "from" | "to";
 type SidePanelTab = "offers" | "settings" | "rails" | "lifecycle";
+
+const CROSS_SWAP_LEG_EVM_CHAIN_IDS = new Set([
+  8453,   // Base
+  42161,  // Arbitrum
+  10,     // Optimism
+  43114,  // Avalanche
+  143,    // Monad
+  137,    // Polygon
+  56,     // BSC
+  999,    // HyperEVM
+  1329,   // Sei
+  146,    // Sonic
+]);
 
 // Gas-drop typical USD value per destination chain (rough — production reads
 // from DestinationGasAutoFund.ts policy).
@@ -1003,6 +1017,7 @@ export default function CrossPage() {
     Number.isFinite(Number(selectedOfferDisplay.outputAmount))
       ? Number(selectedOfferDisplay.outputAmount) * toTokenPriceUSD
       : undefined;
+  const priceImpactBps = calculatePriceImpactBps(fromUsdValue, toUsdValue);
   const sourceTxHash =
     trackingData?.srcTxHash ??
     trackingData?.sourceTxHash ??
@@ -1020,14 +1035,22 @@ export default function CrossPage() {
   const chainPickerList: PickerChain[] = useMemo(() => {
     return chainOptions.map((c) => {
       const tier = tierForChainId(c.id);
+      const kind = c.kind ?? "EVM";
+      const isSwapLegEvmChain = kind === "EVM" && CROSS_SWAP_LEG_EVM_CHAIN_IDS.has(c.id);
       return {
         id: c.id,
         name: c.name,
         ticker: c.ticker,
         color: c.color,
-        kind: c.kind ?? "EVM",
+        kind,
         tier,
         tierLabel: tierLabel(tier),
+        groupLabel: isSwapLegEvmChain
+          ? "EVM chains with source/destination swaps"
+          : kind === "EVM"
+            ? "Other EVM chains"
+            : undefined,
+        groupOrder: isSwapLegEvmChain ? 0 : kind === "EVM" ? 1 : undefined,
       };
     });
   }, [chainOptions]);
@@ -1848,6 +1871,7 @@ export default function CrossPage() {
               estimatedTime={selectedOfferDisplay?.estimatedTimeSeconds ? formatEtaSeconds(selectedOfferDisplay.estimatedTimeSeconds) : undefined}
               minimumReceived={selectedOfferDisplay ? `${selectedOfferDisplay.minimumReceived} ${toTicker}` : undefined}
               slippageBps={30}
+              priceImpactBps={priceImpactBps}
               routeHops={routeHops}
 
               walletConnected={sourceWalletConnected}
@@ -2089,6 +2113,8 @@ export default function CrossPage() {
           tokens={tokenPickerData.tokens}
           recent={tokenPickerData.tokens.slice(0, Math.min(4, tokenPickerData.tokens.length))}
           restrictedReason={tokenPickerData.restrictedReason}
+          showBalances={false}
+          showBadges={false}
           onSelect={(t) => {
             if (tokenPickerTarget === "from") {
               setFromTicker(t.ticker);
@@ -2126,6 +2152,9 @@ export default function CrossPage() {
                 ...(gasDropOnDestination ? [{ label: "Gas drop", value: `+$${GAS_DROP_USD.toFixed(2)} ${toChain.ticker}` }] : []),
                 ...(selectedOfferDisplay.estimatedTimeSeconds ? [{ label: "Est. time", value: formatEtaSeconds(selectedOfferDisplay.estimatedTimeSeconds) }] : []),
                 { label: "Minimum received", value: `${selectedOfferDisplay.minimumReceived} ${toTicker}`, muted: true },
+                ...(priceImpactBps !== undefined
+                  ? [{ label: "Price impact", value: `${(priceImpactBps / 100).toFixed(2)}%`, muted: true, accent: priceImpactBps > 100 }]
+                  : []),
               ]
             : []
         }
@@ -2633,6 +2662,7 @@ function LifecycleStatus({
         tracking={tracking}
         isCancelling={isCancelling}
         isRefunding={isRefunding}
+        recoveryActionsDisabled
         onCancel={onCancel}
         onRefund={onRefund}
       />

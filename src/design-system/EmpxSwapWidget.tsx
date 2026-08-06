@@ -136,7 +136,7 @@ export default function EmpxSwapWidget({
   if (priceImpactBps !== undefined)
     advancedRows.push({
       label: "Price impact",
-      value: `${(priceImpactBps / 100).toFixed(3)}%`,
+      value: `${(priceImpactBps / 100).toFixed(2)}%`,
       muted: true,
       accent: priceImpactBps > 100,
     });
