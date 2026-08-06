@@ -74,7 +74,7 @@ describe("prepareSwapRoute", () => {
           routing: "auto",
           maxSplits: 3,
           minSavingsBps: 1,
-          splitSearchTimeoutMs: 15_000,
+          splitSearchTimeoutMs: 30_000,
         },
       },
     });
@@ -89,7 +89,7 @@ describe("prepareSwapRoute", () => {
         slippageBps: 50,
         maxSplits: 3,
         minSavingsBps: 1,
-        splitSearchTimeoutMs: 15_000,
+        splitSearchTimeoutMs: 30_000,
         feeContext: { pairType: "V/S" },
       },
     );

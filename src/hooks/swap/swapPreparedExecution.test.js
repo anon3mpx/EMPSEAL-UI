@@ -1,4 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
+
+const featureMocks = vi.hoisted(() => ({
+  isSplitSwapUiEnabled: vi.fn(() => true),
+}));
+
+vi.mock("../../config/splitSwapUi", () => ({
+  isSplitSwapUiEnabled: featureMocks.isSplitSwapUiEnabled,
+}));
+
 import {
   checkPreparedAllowance,
   getSwapExecutionErrorMessage,
@@ -9,6 +18,11 @@ import {
 } from "./swapPreparedExecution";
 
 describe("prepared swap execution", () => {
+  beforeEach(() => {
+    featureMocks.isSplitSwapUiEnabled.mockReset();
+    featureMocks.isSplitSwapUiEnabled.mockReturnValue(true);
+  });
+
   it("uses split allowance and approval for an SDK split", async () => {
     const router = {
       checkSplitAllowance: vi
@@ -153,6 +167,33 @@ describe("prepared swap execution", () => {
       recipient: previewRoute.executionRequest.recipient,
       calldata: prepared.calldata,
     });
+  });
+
+  it("rejects split route execution while the UI split flag is disabled", async () => {
+    featureMocks.isSplitSwapUiEnabled.mockReturnValue(false);
+    const previewRoute = {
+      source: "sdk",
+      routing: "split",
+      executionRequest: {
+        amountIn: 5n,
+        tokenIn: "0x1111111111111111111111111111111111111111",
+        tokenOut: "0x2222222222222222222222222222222222222222",
+        recipient: "0x3333333333333333333333333333333333333333",
+        options: { routing: "auto" },
+      },
+    };
+    const router = {
+      splitSwap: vi.fn(),
+    };
+
+    await expect(
+      prepareExecutableSdkRoute({
+        route: previewRoute,
+        router,
+        sender: "0x5555555555555555555555555555555555555555",
+      }),
+    ).rejects.toThrow("Split swap is temporarily paused in the UI");
+    expect(router.splitSwap).not.toHaveBeenCalled();
   });
 
   it("validates a split immediately before asking the signer to send", async () => {
