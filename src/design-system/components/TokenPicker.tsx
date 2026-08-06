@@ -37,6 +37,8 @@ interface TokenPickerProps {
   title?: string;
   /** When the list is filtered by rail capability, show this banner explaining why. */
   restrictedReason?: string;
+  showBalances?: boolean;
+  showBadges?: boolean;
 }
 
 export default function TokenPicker({
@@ -49,6 +51,8 @@ export default function TokenPicker({
   chains,
   title = "Select a token",
   restrictedReason,
+  showBalances = true,
+  showBadges = true,
 }: TokenPickerProps) {
   const [query, setQuery] = useState("");
   const [activeChain, setActiveChain] = useState<string>("ALL");
@@ -69,12 +73,13 @@ export default function TokenPicker({
   // Sort: balance-holders first, then alphabetical
   const sorted = useMemo(() => {
     return [...filtered].sort((a, b) => {
+      if (!showBalances) return 0;
       const aHas = (a.balanceUSD ?? 0) > 0 ? 1 : 0;
       const bHas = (b.balanceUSD ?? 0) > 0 ? 1 : 0;
       if (aHas !== bHas) return bHas - aHas;
       return (b.balanceUSD ?? 0) - (a.balanceUSD ?? 0);
     });
-  }, [filtered]);
+  }, [filtered, showBalances]);
 
   return (
     <Modal open={open} onClose={onClose} title={title} eyebrow="TOKEN" maxWidth={500}>
@@ -294,7 +299,7 @@ export default function TokenPicker({
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
                     <span style={{ fontWeight: 600, fontSize: 13.5 }}>{token.ticker}</span>
-                    {token.badge && (
+                    {showBadges && token.badge && (
                       <Pill
                         variant={
                           token.badge === "VERIFIED"
@@ -329,7 +334,7 @@ export default function TokenPicker({
                   )}
                 </div>
 
-                {token.balance && (
+                {showBalances && token.balance && (
                   <div style={{ textAlign: "right" }}>
                     <p
                       style={{

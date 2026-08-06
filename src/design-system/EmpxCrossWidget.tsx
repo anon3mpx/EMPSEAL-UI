@@ -64,6 +64,7 @@ export interface EmpxCrossWidgetProps {
   estimatedTime?: string;
   minimumReceived?: string;
   slippageBps?: number;
+  priceImpactBps?: number;
   routeHops?: RouteHop[];
 
   // CTA
@@ -114,6 +115,7 @@ export default function EmpxCrossWidget({
   estimatedTime,
   minimumReceived,
   slippageBps,
+  priceImpactBps,
   routeHops,
 
   swapDisabled,
@@ -155,6 +157,14 @@ export default function EmpxCrossWidget({
     advancedRows.push({ label: "Destination gas (est.)", value: `$${destinationGasUSD.toFixed(2)}`, muted: true });
   if (minimumReceived) advancedRows.push({ label: "Min. received", value: minimumReceived, muted: true });
   if (slippageBps !== undefined) advancedRows.push({ label: "Slippage", value: `${(slippageBps / 100).toFixed(2)}%`, muted: true });
+  if (priceImpactBps !== undefined) {
+    advancedRows.push({
+      label: "Price impact",
+      value: `${(priceImpactBps / 100).toFixed(2)}%`,
+      muted: true,
+      accent: priceImpactBps > 100,
+    });
+  }
 
   return (
     <Card style={{ width: "100%", maxWidth: 480, padding: 22 }}>

@@ -4,6 +4,7 @@ import type {
   LayerZeroValueTransferApiChain,
   LayerZeroValueTransferApiQuoteContext,
   LayerZeroValueTransferApiToken,
+  NativeSourceWallet,
   QuoteRequest,
 } from "../../features/cross/api/contracts";
 import { NON_EVM_CHAIN_IDS } from "../../lib/wallet/chainKind";
@@ -297,7 +298,10 @@ export function buildCrossQuoteRequest({
   fromChainId,
   toChainId,
   userAddress,
+  destinationAddress,
   nativeDstAddress,
+  refundAddress,
+  nativeSource,
   layerZeroValueTransferApi,
   includeDestinationGas = false,
   destinationGasAmount = "0",
@@ -308,7 +312,10 @@ export function buildCrossQuoteRequest({
   fromChainId: number;
   toChainId: number;
   userAddress?: string;
+  destinationAddress?: string;
   nativeDstAddress?: string;
+  refundAddress?: string;
+  nativeSource?: NativeSourceWallet;
   layerZeroValueTransferApi?: LayerZeroValueTransferApiQuoteContext;
   includeDestinationGas?: boolean;
   destinationGasAmount?: string;
@@ -343,7 +350,10 @@ export function buildCrossQuoteRequest({
     srcChainId: fromChainId,
     dstChainId: toChainId,
     userAddress,
+    destinationAddress: destinationAddress?.trim() || undefined,
     nativeDstAddress: nativeDstAddress?.trim() || undefined,
+    refundAddress: refundAddress?.trim() || undefined,
+    nativeSource,
     layerZeroValueTransferApi,
     urgency: "fast",
     destinationGas:

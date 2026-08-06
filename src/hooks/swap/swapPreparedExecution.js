@@ -1,3 +1,11 @@
+import { isSplitSwapUiEnabled } from "../../config/splitSwapUi";
+
+function assertSplitSwapUiEnabled(route) {
+  if (route?.routing === "split" && !isSplitSwapUiEnabled()) {
+    throw new Error("Split swap is temporarily paused in the UI.");
+  }
+}
+
 export async function checkPreparedAllowance({
   route,
   router,
@@ -8,6 +16,7 @@ export async function checkPreparedAllowance({
   if (route?.source !== "sdk") {
     throw new Error("SDK prepared route is required for SDK allowance checks");
   }
+  assertSplitSwapUiEnabled(route);
   return route.routing === "split"
     ? router.checkSplitAllowance(token, owner, amount)
     : router.checkAllowance(token, owner, amount);
@@ -17,6 +26,7 @@ export function getPreparedApproval({ route, router, token, amount }) {
   if (route?.source !== "sdk") {
     throw new Error("SDK prepared route is required for SDK approval calldata");
   }
+  assertSplitSwapUiEnabled(route);
   const options = { mode: "exact", amount };
   return route.routing === "split"
     ? router.getSplitApprovalCalldataForAmount(token, options)
@@ -27,6 +37,7 @@ export async function prepareExecutableSdkRoute({ route, router, sender }) {
   if (route?.source !== "sdk" || !route.executionRequest) {
     throw new Error("SDK preview execution request is unavailable");
   }
+  assertSplitSwapUiEnabled(route);
   if (!router?.splitSwap) {
     throw new Error("SDK executable route preparation is unavailable");
   }
@@ -146,6 +157,7 @@ export async function submitPreparedSdkRoute({ route, signer, router, sender }) 
   if (route?.source !== "sdk" || !route.calldata) {
     throw new Error("SDK prepared calldata is unavailable");
   }
+  assertSplitSwapUiEnabled(route);
   if (route.routing === "split") {
     if (!router?.validateSplitSwap || !sender) {
       throw new Error("SDK split validation is unavailable");

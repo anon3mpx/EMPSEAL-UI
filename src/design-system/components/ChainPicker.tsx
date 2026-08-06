@@ -28,6 +28,10 @@ export interface PickerChain {
   tier?: 1 | 2 | 3;
   /** Short tier label ("Aggregator" / "Rail-only" / "Native L1") */
   tierLabel?: string;
+  /** Optional cross-mode grouping label. */
+  groupLabel?: string;
+  /** Optional cross-mode grouping sort order. Lower renders first. */
+  groupOrder?: number;
 }
 
 interface ChainPickerProps {
@@ -88,16 +92,33 @@ export default function ChainPicker({
   // Cross mode: group by kind; Swap mode: flat list
   const grouped = useMemo(() => {
     if (mode === "swap") return [{ kind: undefined as PickerChain["kind"], label: "", list: sorted }];
-    const map = new Map<string, PickerChain[]>();
+    const map = new Map<string, { kind: PickerChain["kind"]; label: string; order: number; list: PickerChain[] }>();
     sorted.forEach((c) => {
       const k = c.kind || "EVM";
-      if (!map.has(k)) map.set(k, []);
-      map.get(k)!.push(c);
+      const label = c.groupLabel ?? KIND_LABEL[k];
+      const key = `${c.groupOrder ?? 100}:${label}`;
+      if (!map.has(key)) {
+        map.set(key, {
+          kind: k,
+          label,
+          order: c.groupOrder ?? 100,
+          list: [],
+        });
+      }
+      map.get(key)!.list.push(c);
     });
-    const order: PickerChain["kind"][] = ["EVM", "BTC", "SOL", "OTHER"];
-    return order
-      .filter((k) => map.has(k!))
-      .map((k) => ({ kind: k, label: KIND_LABEL[k!], list: map.get(k!)! }));
+    const kindOrder: Record<NonNullable<PickerChain["kind"]>, number> = {
+      EVM: 0,
+      BTC: 1,
+      SOL: 2,
+      OTHER: 3,
+    };
+    return [...map.values()].sort((a, b) => {
+      if (a.order !== b.order) return a.order - b.order;
+      const kindDelta = kindOrder[a.kind ?? "EVM"] - kindOrder[b.kind ?? "EVM"];
+      if (kindDelta !== 0) return kindDelta;
+      return a.label.localeCompare(b.label);
+    });
   }, [sorted, mode]);
 
   const resolvedTitle = title ?? (mode === "swap" ? "Switch network" : "Select chain");
@@ -157,7 +178,7 @@ export default function ChainPicker({
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
           {grouped.map((group) => (
-            <div key={group.kind || "default"}>
+            <div key={`${group.kind || "default"}:${group.label}`}>
               {/* Group header (cross mode only) */}
               {mode === "cross" && group.label && (
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8, padding: "0 2px" }}>

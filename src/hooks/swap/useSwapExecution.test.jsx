@@ -7,6 +7,11 @@ const mocks = vi.hoisted(() => ({
   routerState: { current: { router: null, signer: null } },
   toastError: vi.fn(),
   toastSuccess: vi.fn(),
+  isSplitSwapUiEnabled: vi.fn(() => true),
+}));
+
+vi.mock("../../config/splitSwapUi", () => ({
+  isSplitSwapUiEnabled: mocks.isSplitSwapUiEnabled,
 }));
 
 vi.mock("./useEmpxRouter", () => ({
@@ -62,6 +67,8 @@ describe("useSwapExecution", () => {
   beforeEach(() => {
     mocks.toastError.mockReset();
     mocks.toastSuccess.mockReset();
+    mocks.isSplitSwapUiEnabled.mockReset();
+    mocks.isSplitSwapUiEnabled.mockReturnValue(true);
   });
 
   it("blocks expired prepared calldata before asking the signer to submit", async () => {

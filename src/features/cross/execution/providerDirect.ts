@@ -32,6 +32,50 @@ export const getLayerZeroStepMessage = (step: any) =>
   step?.walletAction?.signMessage ??
   null;
 
+export const isLayerZeroSolanaStep = (step: any) =>
+  (typeof step?.type === "string" && step.type.startsWith("svm_")) ||
+  String(step?.chainType ?? "").toUpperCase() === "SOLANA";
+
+export function getLayerZeroSolanaSerializedTransaction(step: any):
+  | { serializedTransaction: string; encoding: "base64" | "hex" }
+  | null {
+  const candidates = [
+    step?.transaction?.encoded,
+    step?.transaction,
+    step?.payload?.transaction?.encoded,
+    step?.payload?.transaction,
+    step?.walletAction?.transaction?.encoded,
+    step?.walletAction?.transaction,
+    step?.data?.transaction?.encoded,
+    step?.data?.transaction,
+  ];
+
+  for (const candidate of candidates) {
+    if (typeof candidate === "string" && candidate.trim()) {
+      return { serializedTransaction: candidate.trim(), encoding: "base64" };
+    }
+    if (candidate && typeof candidate === "object") {
+      const raw =
+        candidate.serializedTransaction ??
+        candidate.serialized ??
+        candidate.transaction ??
+        candidate.data ??
+        candidate.message;
+      if (typeof raw === "string" && raw.trim()) {
+        const encoding = String(candidate.encoding ?? "base64").toLowerCase();
+        if (encoding === "hex") {
+          return { serializedTransaction: raw.trim(), encoding: "hex" };
+        }
+        if (encoding === "base64") {
+          return { serializedTransaction: raw.trim(), encoding: "base64" };
+        }
+      }
+    }
+  }
+
+  return null;
+}
+
 export function mergeLayerZeroUserSteps(integration: any, refreshed: any) {
   const nextSteps =
     refreshed?.userSteps ??
@@ -78,15 +122,16 @@ export function classifyProviderDirectAction(
   }
 
   if (action?.kind === "layerzero_value_transfer_api") {
-    const hasNonEvmStep = userSteps.some(
+    const hasUnsupportedSolanaStep = userSteps.some(
       (step: any) =>
-        (typeof step?.type === "string" && step.type.startsWith("svm_")) ||
-        String(step?.chainType ?? "").toUpperCase() === "SOLANA",
+        isLayerZeroSolanaStep(step) &&
+        !getLayerZeroSolanaSerializedTransaction(step),
     );
-    if (hasNonEvmStep) return "non_evm_wallet_required";
+    if (hasUnsupportedSolanaStep) return "non_evm_wallet_required";
 
     const hasUnsupportedStep = userSteps.some(
       (step: any) =>
+        !isLayerZeroSolanaStep(step) &&
         (!getLayerZeroStepTx(step)?.to &&
           typeof getLayerZeroStepMessage(step) !== "string"),
     );
@@ -110,6 +155,7 @@ export function classifyProviderDirectAction(
 
   if (
     context.selectedSourceChainId !== undefined &&
+    Number.isFinite(txChainId) &&
     txChainId !== context.selectedSourceChainId
   ) {
     return "unsupported";

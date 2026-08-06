@@ -46,6 +46,7 @@ import { formatUSD, useUnifiedPrice } from "../hooks/useUnifiedPrice";
 import { classifyPair, modeAFeeBps } from "../data/empxRegistry";
 import { createV2NavLinks } from "../data/v2ProductRoutes";
 import { resolveSwapPageChain } from "../data/swapPageChainState";
+import { calculatePriceImpactBps } from "../data/tradeMetrics";
 import { SUPPORTED_CHAINS } from "../../config/chains";
 import { useSwapBalances } from "../../hooks/swap/useSwapBalances";
 import { useSwapExecution } from "../../hooks/swap/useSwapExecution";
@@ -287,6 +288,7 @@ export default function SwapPage() {
     [fromAmount, isDirectRoute, preparedRoute, quoteData, toToken?.decimal],
   );
   const toUSDValue = calculateUSDValue(toAmount, toTokenPriceUSD);
+  const priceImpactBps = calculatePriceImpactBps(fromUSDValue, toUSDValue);
   const minimumReceived = useMemo(
     () => formatSwapQuoteOutput(
       quoteTradeInfo
@@ -495,6 +497,7 @@ export default function SwapPage() {
               routeLabel={routeLabel}
               minimumReceived={`${minimumReceived} ${toToken?.ticker || ""}`}
               slippageBps={slippageBps}
+              priceImpactBps={priceImpactBps}
               routeHops={routeHops}
               splitBranches={splitBranches}
               swapDisabled={!canOpenConfirm || isRefreshingQuote}
@@ -628,8 +631,8 @@ export default function SwapPage() {
               <Tabs
                 options={[
                   { value: "slippage" as const, label: "Slippage" },
-                  { value: "route" as const,    label: "Routing" },
-                  { value: "mev" as const,      label: "MEV" },
+                  // { value: "route" as const,    label: "Routing" },
+                  // { value: "mev" as const,      label: "MEV" },
                 ]}
                 active={settingsTab}
                 onChange={setSettingsTab}
@@ -642,7 +645,7 @@ export default function SwapPage() {
                     onChange={(bps) => { setSlippageBps(bps); toast.info(`Slippage set to ${(bps / 100).toFixed(2)}%`); }}
                   />
                 )}
-                {settingsTab === "route" && (
+                {/* {settingsTab === "route" && (
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                     <RouteToggle
                       label="Automatic split routing"
@@ -660,8 +663,8 @@ export default function SwapPage() {
                       the pair-type fee model — no toggle needed.
                     </p>
                   </div>
-                )}
-                {settingsTab === "mev" && (
+                )} */}
+                {/* {settingsTab === "mev" && (
                   <div>
                     <RouteToggle
                       label="MEV protection"
@@ -675,7 +678,7 @@ export default function SwapPage() {
                       RPC swap at submit time, no extra fees.
                     </p>
                   </div>
-                )}
+                )} */}
               </div>
             </Card>
 
@@ -758,6 +761,8 @@ export default function SwapPage() {
           recent={tokensForChain.slice(0, 4)}
           chains={[{ name: activeChain.name, color: activeChain.color }]}
           selected={(showTokenPicker === "from" ? fromToken : toToken)?.address || ""}
+          showBalances={false}
+          showBadges={false}
           onSelect={(t) => {
             const nextToken = tokensForChain.find((token) => token.address === t.address || token.ticker === t.ticker);
             if (showTokenPicker === "from") setFromToken(nextToken ?? null);
@@ -796,6 +801,9 @@ export default function SwapPage() {
           ...(routeLabel ? [{ label: "Route type", value: routeLabel, accent: true as const }] : []),
           { label: "Min. received", value: `${minimumReceived} ${toToken?.ticker || ""}`, muted: true },
           { label: "Slippage",      value: `${(slippageBps / 100).toFixed(2)}%`, muted: true },
+          ...(priceImpactBps !== undefined
+            ? [{ label: "Price impact", value: `${(priceImpactBps / 100).toFixed(2)}%`, muted: true, accent: priceImpactBps > 100 }]
+            : []),
           ...(needsApproval ? [{ label: "Approval", value: `${fromToken?.ticker ?? "Token"} approval required`, accent: true as const }] : []),
         ]}
         quoteIssuedAt={quoteFreshness?.issuedAt}

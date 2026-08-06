@@ -85,13 +85,21 @@ describe("Bitcoin adapters (no extension in test env)", () => {
   });
 
   it("Unisat connect returns first account address", async () => {
-    const w = window as unknown as { unisat?: { requestAccounts: () => Promise<string[]> } };
+    const w = window as unknown as {
+      unisat?: {
+        requestAccounts: () => Promise<string[]>;
+        getPublicKey: () => Promise<string>;
+      };
+    };
     w.unisat = {
       requestAccounts: async () => ["bc1qrealaddress1", "bc1qrealaddress2"],
+      getPublicKey: async () => "02".padEnd(66, "1"),
     };
     const [unisat] = await loadAdaptersFor("bitcoin");
     const result = await unisat.connect();
     expect(result.address).toBe("bc1qrealaddress1");
+    expect(result.publicKey).toBe("02".padEnd(66, "1"));
+    expect(result.addressType).toBe("p2wpkh");
   });
 
   it("Unisat throws WRONG_NETWORK when on testnet", async () => {

@@ -12,6 +12,7 @@ import {
   prepareSplitSwapRoute,
   prepareSwapRoute,
 } from "./swapRoutePreparation";
+import { isSplitSwapUiEnabled } from "../../config/splitSwapUi";
 import { getQuoteHopFallbackPlan } from "../../config/quoteFallback";
 import { convertToBigInt } from "../../utils/utils";
 import { EMPTY_ADDRESS } from "../../utils/contractCalls";
@@ -60,6 +61,7 @@ export function useSwapQuoteFetch({
   // SDK router (memoised on chainId+signer in useEmpxRouter).  When router
   // is null (unknown chain / signer not ready), the hook returns no data.
   const { router } = useEmpxRouter({ chainId });
+  const splitSwapUiEnabled = isSplitSwapUiEnabled();
 
   const [data, setData] = useState(undefined);
   const [preparedRoute, setPreparedRoute] = useState(undefined);
@@ -193,7 +195,7 @@ export function useSwapQuoteFetch({
         publishRoute(result);
         setQuoteLoading(false);
 
-        if (result.source !== "sdk" || isDirectRoute) return;
+        if (result.source !== "sdk" || isDirectRoute || !splitSwapUiEnabled) return;
 
         setSplitQuoteLoading(true);
         try {
@@ -244,6 +246,7 @@ export function useSwapQuoteFetch({
     pairType,
     quoteFallbackPlan,
     refreshTick,
+    splitSwapUiEnabled,
   ]);
 
   // ─── Single-token spot rate (for the "1 X = Y Z" display) ────────────────
