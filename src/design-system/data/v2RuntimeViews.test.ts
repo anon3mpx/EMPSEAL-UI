@@ -32,6 +32,7 @@ describe("V2 runtime views", () => {
   it("builds token views from canonical per-chain token files", () => {
     const arbitrumTokens = getTokensForChain(42161);
     const ethereumTokens = getTokensForChain(1);
+    const optimismTokens = getTokensForChain(10);
     const solanaTokens = getTokensForChain(99);
     const ethereumNative = getNativeToken(1);
     const pulseNative = getNativeToken(369);
@@ -54,6 +55,18 @@ describe("V2 runtime views", () => {
       providerAssetId: "SOL.USDC",
       decimals: 6,
       badge: "VERIFIED",
+    });
+    expect(optimismTokens.find((token) => token.ticker === "USDC")).toMatchObject({
+      chainId: 10,
+      ticker: "USDC",
+      address: "0x0b2c639c533813f4aa9d7837caf62653d097ff85",
+      decimals: 6,
+    });
+    expect(optimismTokens.find((token) => token.ticker === "USDC.e")).toMatchObject({
+      chainId: 10,
+      ticker: "USDC.e",
+      address: "0x7f5c764cbc14f9669b88837ca1490cca17c31607",
+      decimals: 6,
     });
     expect(ethereumNative).toMatchObject({
       chainId: 1,

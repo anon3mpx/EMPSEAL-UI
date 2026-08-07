@@ -27,6 +27,11 @@ export interface CrossExecutionDependencies {
     intentId: string,
     txHash: string,
   ) => Promise<unknown>;
+  executeThorchainBitcoinIntent: (
+    intentId: string,
+    integration: SelectedOfferIntegration,
+    sourceChainId: number,
+  ) => Promise<string>;
 }
 
 export async function executeCrossIntegration(
@@ -81,9 +86,18 @@ export async function executeCrossIntegration(
   }
 
   if (
-    classification === "non_evm_wallet_required" ||
-    classification === "deposit_instructions"
+    classification === "deposit_instructions" &&
+    sourceChainId === 0 &&
+    integration.action.kind === "thorchain_swap"
   ) {
+    return dependencies.executeThorchainBitcoinIntent(
+      intentId,
+      integration,
+      sourceChainId,
+    );
+  }
+
+  if (classification === "non_evm_wallet_required" || classification === "deposit_instructions") {
     throw new Error(
       "UNSUPPORTED_SOURCE_WALLET: This route requires a compatible non-EVM source wallet.",
     );

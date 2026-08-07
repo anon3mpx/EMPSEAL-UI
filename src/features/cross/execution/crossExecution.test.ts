@@ -14,6 +14,7 @@ function dependencies() {
     executeLayerZeroIntent: vi.fn().mockResolvedValue("0xlz"),
     submitStandardIntent: vi.fn().mockResolvedValue(undefined),
     markLayerZeroSubmitted: vi.fn().mockResolvedValue(undefined),
+    executeThorchainBitcoinIntent: vi.fn().mockResolvedValue("btctxid"),
   };
 }
 
@@ -87,5 +88,36 @@ describe("executeCrossIntegration", () => {
       ),
     ).rejects.toThrow(/quote only/i);
     expect(deps.sendEvmTransaction).not.toHaveBeenCalled();
+  });
+
+  it("executes THORChain BTC deposit instructions through the BTC wallet path", async () => {
+    const deps = dependencies();
+    const integration = {
+      mode: "provider_direct" as const,
+      action: {
+        kind: "thorchain_swap" as const,
+        depositAddress: "bc1qthorvault",
+        memo: "=:e:0x1111111111111111111111111111111111111111",
+        amountIn: "100000",
+      },
+    };
+
+    await expect(
+      executeCrossIntegration(
+        {
+          intentId: "intent-1",
+          sourceChainId: 0,
+          approvalsComplete: true,
+          integration,
+        },
+        deps,
+      ),
+    ).resolves.toBe("btctxid");
+    expect(deps.executeThorchainBitcoinIntent).toHaveBeenCalledWith(
+      "intent-1",
+      integration,
+      0,
+    );
+    expect(deps.submitStandardIntent).not.toHaveBeenCalled();
   });
 });

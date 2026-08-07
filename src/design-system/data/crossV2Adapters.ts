@@ -158,11 +158,11 @@ export function mergeLayerZeroTokens(
     byIdentifier.set(key, {
       ...configured,
       chainId: chain.uiChainId,
-      ticker: token.symbol,
-      name: token.name,
+      ticker: configured?.ticker ?? token.symbol,
+      name: configured?.name ?? token.name,
       address: chain.chainType.trim().toUpperCase() === "EVM" ? providerAssetId : configured?.address,
       providerAssetId,
-      decimals: token.decimals,
+      decimals: configured?.decimals ?? token.decimals,
       isNative: configured?.isNative,
       badge: configured?.badge ?? "VERIFIED",
     });
@@ -271,6 +271,145 @@ function formatBaseUnits(value: string | undefined, decimals: number): string {
   }
 }
 
+function readAmountString(...values: unknown[]): string | undefined {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) return value.trim();
+    if (typeof value === "number" && Number.isFinite(value)) return Math.trunc(value).toString();
+    if (typeof value === "bigint") return value.toString();
+  }
+  return undefined;
+}
+
+function amountIsZero(value: string | undefined) {
+  if (!value) return true;
+  try {
+    return BigInt(value) === 0n;
+  } catch {
+    return Number(value) === 0;
+  }
+}
+
+function findNestedAmountByKeys(value: unknown, keys: string[], seen = new Set<unknown>()): string | undefined {
+  if (!value || typeof value !== "object" || seen.has(value)) return undefined;
+  seen.add(value);
+
+  const record = value as Record<string, unknown>;
+  for (const key of keys) {
+    const direct = readAmountString(record[key]);
+    if (direct && !amountIsZero(direct)) return direct;
+  }
+
+  for (const child of Object.values(record)) {
+    const nested = findNestedAmountByKeys(child, keys, seen);
+    if (nested) return nested;
+  }
+
+  return undefined;
+}
+
+function findNestedNumberByKeys(value: unknown, keys: string[], seen = new Set<unknown>()): number | undefined {
+  if (!value || typeof value !== "object" || seen.has(value)) return undefined;
+  seen.add(value);
+
+  const record = value as Record<string, unknown>;
+  for (const key of keys) {
+    const parsed = Number(record[key]);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+
+  for (const child of Object.values(record)) {
+    const nested = findNestedNumberByKeys(child, keys, seen);
+    if (nested !== undefined) return nested;
+  }
+
+  return undefined;
+}
+
+function isThorchainOffer(offer: any) {
+  return (
+    String(offer?.rail ?? "").toUpperCase() === "THORCHAIN" ||
+    String(offer?.offerType ?? "").toLowerCase() === "thor_api_direct" ||
+    String(offer?.execution?.action?.kind ?? offer?.actionKind ?? "").toLowerCase() === "thorchain_swap"
+  );
+}
+
+function readThorchainProviderOutput(offer: any, field: "output" | "minimum") {
+  const output = findNestedAmountByKeys(
+    offer,
+    [
+      "expected_amount_out",
+      "expectedAmountOut",
+      "expected_out",
+      "expectedOut",
+      "amountOut",
+      "outputAmount",
+      "outAmount",
+      "toAmount",
+      "dstAmount",
+      "destinationAmount",
+    ],
+  );
+  if (field === "output") return output;
+
+  const explicitMinimum = findNestedAmountByKeys(
+    offer,
+    [
+      "minimum_amount_out",
+      "minimumAmountOut",
+      "min_amount_out",
+      "minAmountOut",
+      "minOut",
+      "minimumOut",
+      "minReceived",
+      "minimumReceived",
+    ],
+  );
+  if (explicitMinimum) return explicitMinimum;
+
+  const slippageBps = findNestedNumberByKeys(
+    offer,
+    ["slippage_bps", "slippageBps"],
+  );
+  if (!output || !Number.isFinite(slippageBps) || slippageBps <= 0) return output;
+
+  try {
+    return ((BigInt(output) * BigInt(Math.max(0, 10_000 - Math.trunc(slippageBps)))) / 10_000n).toString();
+  } catch {
+    return output;
+  }
+}
+
+function readThorchainDisplayDecimals(offer: any, fallback: number) {
+  const explicit = findNestedNumberByKeys(
+    offer,
+    [
+      "outputDecimals",
+      "destinationAssetDecimals",
+      "destinationDecimals",
+      "dstDecimals",
+    ],
+  );
+  if (Number.isFinite(explicit)) return explicit;
+  return isThorchainOffer(offer) ? 8 : fallback;
+}
+
+function hasThorchainNativeAsset(offer: any) {
+  const values = [
+    offer?.routeAsset?.assetStandard,
+    offer?.sourceSettlementAsset?.assetStandard,
+    offer?.destinationSettlementAsset?.assetStandard,
+    offer?.amounts?.output?.symbol,
+    offer?.amounts?.minimumOutput?.symbol,
+    offer?.execution?.quote?.amounts?.output?.symbol,
+    offer?.execution?.quote?.routeAsset?.assetStandard,
+    offer?.execution?.thorQuote?.fees?.asset,
+  ];
+  return values.some((value) =>
+    typeof value === "string" &&
+    (value.toLowerCase() === "thor_native" || /^[A-Z0-9]+(?:\.[A-Z0-9]+)+$/.test(value)),
+  );
+}
+
 function readUsd(value: unknown): number {
   if (value == null || value === "") return 0;
   const parsed = Number(value);
@@ -372,8 +511,22 @@ export function buildCrossQuoteRequest({
 export function formatCrossOffer(offer: any, tokenOutDecimals = 18): CrossV2OfferDisplay {
   // Backend offers can represent output/minimum amounts in a few legacy shapes.
   // Reuse the cross feature amount helpers so V2 displays match the old page.
-  const outputAmount = getOfferOutputAmount(offer);
-  const minimumAmount = getOfferMinimumOutputAmount(offer);
+  const quotedOutputAmount = getOfferOutputAmount(offer);
+  const quotedMinimumAmount = getOfferMinimumOutputAmount(offer);
+  const thorchainOffer = isThorchainOffer(offer);
+  const useThorchainProviderOutput =
+    thorchainOffer && amountIsZero(quotedOutputAmount);
+  const outputAmount = useThorchainProviderOutput
+    ? readThorchainProviderOutput(offer, "output") ?? quotedOutputAmount
+    : quotedOutputAmount;
+  const minimumAmount = useThorchainProviderOutput
+    ? readThorchainProviderOutput(offer, "minimum") ?? quotedMinimumAmount
+    : quotedMinimumAmount;
+  const outputDecimals = thorchainOffer && hasThorchainNativeAsset(offer)
+    ? 8
+    : useThorchainProviderOutput
+    ? readThorchainDisplayDecimals(offer, tokenOutDecimals)
+    : tokenOutDecimals;
   const bridgeFeeUSD = readUsd(offer?.economics?.providerFeeUSD ?? offer?.fees?.providerFeeUSD);
   const protocolFeeUSD = readUsd(offer?.economics?.protocolFeeUSD ?? offer?.fees?.protocolFeeUSD);
   const capability = getOfferCapability(offer);
@@ -381,8 +534,8 @@ export function formatCrossOffer(offer: any, tokenOutDecimals = 18): CrossV2Offe
   return {
     offerId: offer.offerId,
     railName: capability.label,
-    outputAmount: normalizeDisplayAmount(formatBaseUnits(outputAmount, tokenOutDecimals)),
-    minimumReceived: normalizeDisplayAmount(formatBaseUnits(minimumAmount, tokenOutDecimals)),
+    outputAmount: normalizeDisplayAmount(formatBaseUnits(outputAmount, outputDecimals)),
+    minimumReceived: normalizeDisplayAmount(formatBaseUnits(minimumAmount, outputDecimals)),
     bridgeFeeUSD,
     protocolFeeUSD,
     totalFeeUSD: bridgeFeeUSD + protocolFeeUSD,

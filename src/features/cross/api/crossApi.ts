@@ -131,6 +131,14 @@ export const crossApi = {
         body: JSON.stringify(payload),
       },
     ),
+  markThorchainSubmitted: (intentId: string, payload: SubmittedRequest) =>
+    crossApiFetch<unknown>(
+      `/api/v1/thorchain/intents/${intentId}/submitted`,
+      {
+        method: "POST",
+        body: JSON.stringify(payload),
+      },
+    ),
   rebuildLayerZeroUserSteps: (intentId: string) =>
     crossApiFetch(
       `/api/v1/layerzero-value-transfer-api/intents/${intentId}/build-user-steps`,
