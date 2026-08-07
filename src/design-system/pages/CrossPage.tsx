@@ -70,6 +70,7 @@ import {
   mergeLayerZeroUserSteps,
 } from "../../features/cross/execution/providerDirect";
 import { sendLayerZeroSolanaTransaction } from "../../features/cross/execution/solanaLayerZero";
+import { executeBitcoinThorchainIntent } from "../../features/cross/execution/bitcoinThorchain";
 import {
   executeProviderApprovals,
   findMissingProviderApprovals,
@@ -110,6 +111,7 @@ import {
   buildRefundMessage,
   buildSubmittedMessage,
 } from "../../features/cross/utils/signatures";
+import { buildCrossTrackingLinks } from "../../features/cross/utils/trackingLinks";
 import { useWalletConnection } from "../hooks/useWalletConnection";
 import { useUnifiedPrice } from "../hooks/useUnifiedPrice";
 import { useV2Balances } from "../hooks/useV2Balances";
@@ -336,6 +338,8 @@ type ChainPickerTarget = "from" | "to";
 type TokenPickerTarget = "from" | "to";
 type SidePanelTab = "offers" | "settings" | "rails" | "lifecycle";
 
+const MONAD_CHAIN_ID = 143;
+
 const CROSS_SWAP_LEG_EVM_CHAIN_IDS = new Set([
   8453,   // Base
   42161,  // Arbitrum
@@ -348,6 +352,28 @@ const CROSS_SWAP_LEG_EVM_CHAIN_IDS = new Set([
   1329,   // Sei
   146,    // Sonic
 ]);
+
+function applyCrossPageTokenLimits(
+  chainId: number,
+  result: { tokens: Token[]; restrictedReason?: string },
+): { tokens: Token[]; restrictedReason?: string } {
+  if (chainId !== MONAD_CHAIN_ID) return result;
+
+  const tokens = result.tokens.filter(
+    (token) => token.ticker.toUpperCase() === "USDC",
+  );
+  return {
+    tokens,
+    restrictedReason: result.restrictedReason
+      ? `${result.restrictedReason} Monad is temporarily limited to USDC on Cross.`
+      : "Monad is temporarily limited to USDC on Cross.",
+  };
+}
+
+function findTokenByTicker(tokens: Token[], ticker: string) {
+  const normalized = ticker.toUpperCase();
+  return tokens.find((token) => token.ticker.toUpperCase() === normalized);
+}
 
 // Gas-drop typical USD value per destination chain (rough — production reads
 // from DestinationGasAutoFund.ts policy).
@@ -815,27 +841,69 @@ export default function CrossPage() {
     }
   }, [quote.data]);
 
+  // Temporary Cross-only Monad limit: repair existing source selections that
+  // were made before the modal list was narrowed.
+  useEffect(() => {
+    const allowed = applyCrossPageTokenLimits(
+      fromChainId,
+      tokensFor(
+        fromChainId,
+        "from",
+        eligibleRailsFor(fromChainId, toChainId, undefined),
+        fromTokenCatalog,
+        Boolean(fromChain.providerChainKey && layerZeroCatalog.data?.tokens?.some(
+          (token) => token.chainKey === fromChain.providerChainKey,
+        )),
+      ),
+    ).tokens;
+    const exactSelection = fromTokenKey
+      ? allowed.find((token) => tokenKey(token) === fromTokenKey)
+      : findTokenByTicker(allowed, fromTicker);
+    if (exactSelection) return;
+
+    const fallback =
+      findTokenByTicker(allowed, defaultSettlementTicker(fromChainId)) ??
+      findTokenByTicker(allowed, fromTicker) ??
+      allowed.find((token) => token.category === "stable") ??
+      allowed[0];
+    if (!fallback) return;
+    setFromTicker(fallback.ticker);
+    setFromTokenKey(tokenKey(fallback));
+  }, [
+    fromChain.providerChainKey,
+    fromChainId,
+    fromTicker,
+    fromTokenCatalog,
+    fromTokenKey,
+    layerZeroCatalog.data?.tokens,
+    toChainId,
+    tokenKey,
+  ]);
+
   // Keep exact provider assets selected when possible. If discovery or a chain
   // change removes the selected asset, fall back to a supported settlement token.
   useEffect(() => {
-    const allowed = tokensFor(
+    const allowed = applyCrossPageTokenLimits(
       toChainId,
-      "to",
-      eligibleRailsFor(fromChainId, toChainId, undefined),
-      toTokenCatalog,
-      Boolean(toChain.providerChainKey && layerZeroCatalog.data?.tokens?.some(
-        (token) => token.chainKey === toChain.providerChainKey,
-      )),
+      tokensFor(
+        toChainId,
+        "to",
+        eligibleRailsFor(fromChainId, toChainId, undefined),
+        toTokenCatalog,
+        Boolean(toChain.providerChainKey && layerZeroCatalog.data?.tokens?.some(
+          (token) => token.chainKey === toChain.providerChainKey,
+        )),
+      ),
     ).tokens;
     const exactSelection = toTokenKey
       ? allowed.find((token) => tokenKey(token) === toTokenKey)
-      : allowed.find((token) => token.ticker === toTicker);
+      : findTokenByTicker(allowed, toTicker);
     if (exactSelection) return;
 
     const preferredTicker = defaultSettlementTicker(toChainId);
     const fallback =
-      allowed.find((token) => token.ticker === toTicker) ??
-      allowed.find((token) => token.ticker === preferredTicker) ??
+      findTokenByTicker(allowed, preferredTicker) ??
+      findTokenByTicker(allowed, toTicker) ??
       (toTier === 3 ? allowed.find((token) => token.category === "native") : undefined) ??
       allowed.find((token) => token.category === "stable") ??
       allowed[0];
@@ -1021,6 +1089,10 @@ export default function CrossPage() {
   const sourceTxHash =
     trackingData?.srcTxHash ??
     trackingData?.sourceTxHash ??
+    trackingData?.primaryTransfer?.srcTxHash ??
+    trackingData?.primaryTransfer?.sourceTxHash ??
+    trackingData?.primary?.srcTxHash ??
+    trackingData?.primary?.sourceTxHash ??
     session?.lastTxHash ??
     (session?.mode === "composed"
       ? session.primaryTransfer.lastTxHash
@@ -1029,7 +1101,28 @@ export default function CrossPage() {
     trackingData?.dstTxHash ??
     trackingData?.destinationTxHash ??
     trackingData?.primaryTransfer?.dstTxHash ??
-    trackingData?.primaryTransfer?.destinationTxHash;
+    trackingData?.primaryTransfer?.destinationTxHash ??
+    trackingData?.primary?.dstTxHash ??
+    trackingData?.primary?.destinationTxHash;
+  const trackingSourceChainId =
+    session?.mode === "single"
+      ? (session.quote?.srcChainId ?? session.sourceChainId ?? fromChainId)
+      : (session?.primaryTransfer.quote?.srcChainId ?? fromChainId);
+  const trackingDestinationChainId =
+    session?.mode === "single"
+      ? (session.quote?.dstChainId ?? toChainId)
+      : (session?.primaryTransfer.quote?.dstChainId ?? toChainId);
+  const crossTrackingLinks = useMemo(
+    () =>
+      buildCrossTrackingLinks({
+        session,
+        tracking: trackingData,
+        sourceChainId: trackingSourceChainId,
+        destinationChainId: trackingDestinationChainId,
+        getExplorerTxUrl,
+      }),
+    [session, trackingData, trackingSourceChainId, trackingDestinationChainId],
+  );
 
   // Pickers — chain & token lists with tier badging
   const chainPickerList: PickerChain[] = useMemo(() => {
@@ -1068,12 +1161,15 @@ export default function CrossPage() {
       selectedChain.providerChainKey &&
       (layerZeroCatalog.data?.tokens ?? []).some((token) => token.chainKey === selectedChain.providerChainKey),
     );
-    const { tokens, restrictedReason } = tokensFor(
+    const { tokens, restrictedReason } = applyCrossPageTokenLimits(
       chainId,
-      role,
-      eligible,
-      catalog,
-      providerDiscovered,
+      tokensFor(
+        chainId,
+        role,
+        eligible,
+        catalog,
+        providerDiscovered,
+      ),
     );
     const chainName = selectedChain.name;
     const chainColor = selectedChain.color;
@@ -1302,6 +1398,28 @@ export default function CrossPage() {
     [connectedAddress, sendEvmTransaction, signMessageAsync, sourceWalletAddress],
   );
 
+  const executeThorchainBitcoinIntent = useCallback(
+    async (intentId: string, integration: any) => {
+      if (nativeSourceWallet?.kind !== "bitcoin") {
+        throw new Error("Connect a Bitcoin source wallet before executing this THORChain route.");
+      }
+
+      const sourceTxHash = await executeBitcoinThorchainIntent({
+        integration,
+        sourceAddress: nativeSourceWallet.address,
+        providerName: nativeSourceWallet.providerName,
+      });
+
+      await crossApi.markThorchainSubmitted(intentId, {
+        userAddress: nativeSourceWallet.address,
+        sourceTxHash,
+      });
+
+      return sourceTxHash;
+    },
+    [nativeSourceWallet],
+  );
+
   const executeIntent = useCallback(
     async (intentId: string, integration: any, sourceChainId: number) => {
       return executeCrossIntegration(
@@ -1323,12 +1441,14 @@ export default function CrossPage() {
               sourceTxHash: txHash,
             });
           },
+          executeThorchainBitcoinIntent,
         },
       );
     },
     [
       connectedAddress,
       executeLayerZeroIntent,
+      executeThorchainBitcoinIntent,
       hasRequiredApproval,
       sendEvmTransaction,
       sourceWalletAddress,
@@ -1452,31 +1572,6 @@ export default function CrossPage() {
       setSession(null);
       toast.error("Prepared route expired. Prepare execution again.");
       return;
-    }
-
-    if (session.integration.mode === "provider_direct") {
-      const classification = classifyProviderDirectAction(session.integration, {
-        selectedSourceChainId:
-          session.sourceChainId ?? session.quote?.srcChainId ?? fromChainId,
-      });
-      const action = session.integration.action;
-      if (classification === "deposit_instructions") {
-        const instructions = [
-          `Intent: ${session.intentId}`,
-          `Deposit address: ${String(action.depositAddress ?? "")}`,
-          typeof action.memo === "string" && action.memo
-            ? `Memo: ${action.memo}`
-            : null,
-          typeof action.refundAddress === "string" && action.refundAddress
-            ? `Refund address: ${action.refundAddress}`
-            : null,
-          `Amount in: ${session.quote?.amountIn ?? ""}`,
-        ].filter(Boolean).join("\n");
-
-        await navigator.clipboard?.writeText(instructions).catch(() => undefined);
-        toast.info("THORChain deposit instructions copied. Send the exact BTC amount with the memo from your BTC wallet.");
-        return;
-      }
     }
 
     try {
@@ -1712,6 +1807,11 @@ export default function CrossPage() {
         ? `This route requires ${formatUnits(singleRouterValue, 18)} native gas value on the source chain in addition to transaction gas.`
         : `This route requires ${formatUnits(singleRouterValue, 18)} native gas value on the source chain. Your wallet balance appears too low for execution.`
       : null;
+  const singleRouteIsThorchainBitcoinDeposit =
+    session?.mode === "single" &&
+    session.integration.mode === "provider_direct" &&
+    session.integration.action.kind === "thorchain_swap" &&
+    (session.sourceChainId ?? session.quote?.srcChainId) === 0;
   const singleActionLabel =
     session?.mode === "single"
       ? isCheckingApproval
@@ -1722,7 +1822,9 @@ export default function CrossPage() {
             ? "Approve Token"
             : singleExecutionBlockedForNativeValue
               ? "Insufficient Native Value"
-              : "Execute Route"
+              : singleRouteIsThorchainBitcoinDeposit
+                ? "Execute BTC Deposit"
+                : "Execute Route"
       : undefined;
   const singleActionDisabled =
     isCheckingApproval ||
@@ -2012,6 +2114,7 @@ export default function CrossPage() {
                   <LifecycleStatus
                     session={session}
                     tracking={trackingData}
+                    trackingLinks={crossTrackingLinks}
                     isExecuting={isExecuting}
                     isCancelling={recovery.cancel.isPending}
                     isRefunding={recovery.refund.isPending}
@@ -2063,18 +2166,22 @@ export default function CrossPage() {
             if (chainPickerTarget === "from") {
               setFromChainId(c.id);
               const newFromTier = tierForChainId(c.id);
-              const allowed = tokensFor(
+              const allowed = applyCrossPageTokenLimits(
                 c.id,
-                "from",
-                eligibleRailsFor(c.id, toChainId, undefined),
-                catalog,
-                providerDiscovered,
+                tokensFor(
+                  c.id,
+                  "from",
+                  eligibleRailsFor(c.id, toChainId, undefined),
+                  catalog,
+                  providerDiscovered,
+                ),
               ).tokens;
               const fallback =
                 (newFromTier === 3
                   ? allowed.find((token) => token.category === "native")
                   : undefined) ??
-                allowed.find((token) => token.ticker === fromTicker) ??
+                findTokenByTicker(allowed, defaultSettlementTicker(c.id)) ??
+                findTokenByTicker(allowed, fromTicker) ??
                 allowed.find((token) => token.category === "stable") ??
                 allowed.find((token) => token.category === "native") ??
                 allowed[0];
@@ -2082,17 +2189,20 @@ export default function CrossPage() {
               setFromTokenKey(fallback ? tokenKey(fallback) : null);
             } else {
               setToChainId(c.id);
-              const allowed = tokensFor(
+              const allowed = applyCrossPageTokenLimits(
                 c.id,
-                "to",
-                eligibleRailsFor(fromChainId, c.id, undefined),
-                catalog,
-                providerDiscovered,
+                tokensFor(
+                  c.id,
+                  "to",
+                  eligibleRailsFor(fromChainId, c.id, undefined),
+                  catalog,
+                  providerDiscovered,
+                ),
               ).tokens;
               const settlementTicker = defaultSettlementTicker(c.id);
               const fallback =
-                allowed.find((token) => token.ticker === toTicker) ??
-                allowed.find((token) => token.ticker === settlementTicker) ??
+                findTokenByTicker(allowed, settlementTicker) ??
+                findTokenByTicker(allowed, toTicker) ??
                 allowed.find((token) => token.category === "stable") ??
                 allowed.find((token) => token.category === "native") ??
                 allowed[0];
@@ -2185,14 +2295,14 @@ export default function CrossPage() {
             ? [{
                 label: "Source tx",
                 hashShort: shortHash(sourceTxHash),
-                url: getExplorerTxUrl(fromChainId, sourceTxHash) ?? undefined,
+                url: getExplorerTxUrl(trackingSourceChainId, sourceTxHash) ?? undefined,
               }]
             : []),
           ...(destinationTxHash
             ? [{
                 label: "Destination tx",
                 hashShort: shortHash(destinationTxHash),
-                url: getExplorerTxUrl(toChainId, destinationTxHash) ?? undefined,
+                url: getExplorerTxUrl(trackingDestinationChainId, destinationTxHash) ?? undefined,
               }]
             : []),
         ]}
@@ -2612,6 +2722,7 @@ function RailsCatalog() {
 function LifecycleStatus({
   session,
   tracking,
+  trackingLinks,
   isExecuting,
   isCancelling,
   isRefunding,
@@ -2628,6 +2739,7 @@ function LifecycleStatus({
 }: {
   session: CrossExecutionSession | null;
   tracking: any;
+  trackingLinks?: ReturnType<typeof buildCrossTrackingLinks>;
   isExecuting: boolean;
   isCancelling: boolean;
   isRefunding: boolean;
@@ -2660,6 +2772,7 @@ function LifecycleStatus({
       <CrossTrackingPanel
         session={session}
         tracking={tracking}
+        links={trackingLinks}
         isCancelling={isCancelling}
         isRefunding={isRefunding}
         recoveryActionsDisabled

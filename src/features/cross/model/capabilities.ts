@@ -240,6 +240,17 @@ export function getOfferCapability(
     };
   }
 
+  const executableNativeSource = getExecutableNativeSourceWallet(offer);
+  if (executableNativeSource) {
+    return {
+      ...contextualBase,
+      status: "executable",
+      selectable: true,
+      requiredSourceWallet: executableNativeSource,
+      providerApprovalMayBeRequired: false,
+    };
+  }
+
   if (!isEvmChain(offer.srcChainId)) {
     return {
       ...contextualBase,
@@ -289,4 +300,33 @@ export function getOfferCapability(
   }
 
   return contextualBase;
+}
+
+function getExecutableNativeSourceWallet(offer: {
+  rail?: string | null;
+  srcChainId: number;
+  offerType?: string;
+  actionKind?: string;
+}): SourceWalletType | null {
+  const rail = String(offer.rail ?? "").toUpperCase();
+  const offerType = String(offer.offerType ?? "").toLowerCase();
+  const actionKind = String(offer.actionKind ?? "").toLowerCase();
+
+  if (
+    offer.srcChainId === 0 &&
+    rail === "THORCHAIN" &&
+    (!offerType || offerType === "thor_api_direct" || actionKind === "thorchain_swap")
+  ) {
+    return "bitcoin";
+  }
+
+  if (
+    offer.srcChainId === 99 &&
+    rail === "LAYERZERO" &&
+    (offerType === "layerzero_value_transfer_api" || actionKind === "layerzero_value_transfer_api")
+  ) {
+    return "solana";
+  }
+
+  return null;
 }

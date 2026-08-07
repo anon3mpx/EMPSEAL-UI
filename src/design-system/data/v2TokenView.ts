@@ -222,14 +222,15 @@ export function getTokensForChain(chainId: number): V2TokenConfig[] {
         : undefined;
       const isNative = isZeroAddress || NATIVE_TYPES.has(t.type ?? "");
       const isStable = STABLE_TYPES.has(t.type ?? "");
-      const ticker = (t.ticker ?? t.symbol ?? "").toUpperCase();
+      const ticker = t.ticker ?? t.symbol ?? "";
+      const tickerKey = ticker.toUpperCase();
       const decimals = Number(t.decimal ?? t.decimals ?? 18) || 18;
 
       return {
         chainId,
         ticker,
         name: t.name || ticker,
-        address: (addr || getTokenAddress(chainId, ticker)) ?? undefined,
+        address: (addr || getTokenAddress(chainId, tickerKey)) ?? undefined,
         decimals,
         isNative,
         badge: isStable ? "VERIFIED" as const : undefined,

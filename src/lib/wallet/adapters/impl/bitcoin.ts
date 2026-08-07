@@ -129,6 +129,7 @@ const unisatAdapter: WalletAdapter = {
 // ─── Phantom (BTC support) ──────────────────────────────────────────────────
 interface PhantomBitcoinAccount {
   address: string;
+  publicKey?: string;
   /** Account purpose — 'payment' is what we want.  'ordinals' addresses
    *  are for inscriptions and should NOT be used as bridge destinations. */
   purpose?: "payment" | "ordinals" | string;
@@ -174,6 +175,7 @@ const phantomBtcAdapter: WalletAdapter = {
       }
       return {
         address: payment.address,
+        publicKey: payment.publicKey,
         addressType: normalizePhantomBtcAddressType(payment.addressType) ??
           inferBitcoinAddressType(payment.address),
       };

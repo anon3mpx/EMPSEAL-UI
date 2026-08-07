@@ -312,6 +312,34 @@ describe("crossV2Adapters", () => {
     expect(merged.map((token: any) => token.providerAssetId)).toEqual(["0x1", "0x2"]);
   });
 
+  it("preserves configured ticker aliases when provider discovery matches an existing token address", () => {
+    const mergeTokens = (crossV2Adapters as any).mergeLayerZeroTokens;
+    expect(typeof mergeTokens).toBe("function");
+
+    const merged = mergeTokens(
+      [{
+        chainId: 10,
+        ticker: "USDC.e",
+        name: "USD Coin",
+        address: "0x7f5c764cbc14f9669b88837ca1490cca17c31607",
+        decimals: 6,
+      }],
+      [{
+        chainKey: "optimism",
+        symbol: "USDC",
+        name: "USD Coin",
+        address: "0x7f5c764cbc14f9669b88837ca1490cca17c31607",
+        decimals: 6,
+      }],
+      { uiChainId: 10, chainKey: "optimism", chainType: "EVM" },
+    );
+
+    expect(merged[0]).toMatchObject({
+      ticker: "USDC.e",
+      providerAssetId: "0x7f5c764cbc14f9669b88837ca1490cca17c31607",
+    });
+  });
+
   it("requires and forwards native destination addresses for non-EVM destinations", () => {
     expect(
       buildCrossQuoteRequest({
@@ -364,6 +392,108 @@ describe("crossV2Adapters", () => {
       protocolFeeUSD: 0.03,
       estimatedTimeSeconds: 75,
       isBest: true,
+    });
+  });
+
+  it("formats THORChain provider quote output when top-level output is zero", () => {
+    const offer = {
+      offerId: "offer-thor-btc-eth",
+      rail: "THORCHAIN",
+      executionMode: "provider_direct",
+      estimatedOut: "0",
+      minAmountOut: "0",
+      destinationSettlementAsset: {
+        canonicalAssetId: "ETH.ETH",
+      },
+      execution: {
+        quote: {
+          expected_amount_out: "281234567",
+          slippage_bps: 100,
+        },
+      },
+      economics: {
+        providerFeeUSD: "0",
+        protocolFeeUSD: "0",
+        settlementTimeSeconds: 720,
+      },
+    };
+
+    expect(formatCrossOffer(offer, 18)).toMatchObject({
+      outputAmount: "2.812346",
+      minimumReceived: "2.784222",
+    });
+  });
+
+  it("formats THORChain canonical output with native THORChain asset units", () => {
+    const offer = {
+      offerId: "offer-thor-captured",
+      rail: "THORCHAIN",
+      offerType: "thor_api_direct",
+      executionMode: "provider_direct",
+      estimatedOut: "336213722",
+      minAmountOut: "335877508",
+      amounts: {
+        output: {
+          token: "0x0000000000000000000000000000000000000000",
+          amount: "336213722",
+          decimals: 18,
+          symbol: "ETH.ETH",
+        },
+        minimumOutput: {
+          token: "0x0000000000000000000000000000000000000000",
+          amount: "335877508",
+          decimals: 18,
+          symbol: "ETH.ETH",
+        },
+      },
+      routeAsset: {
+        canonicalAssetId: "ETH.ETH",
+        assetStandard: "thor_native",
+        decimals: 18,
+      },
+      execution: {
+        thorQuote: {
+          expected_amount_out: "336213722",
+        },
+      },
+      economics: {
+        providerFeeUSD: "0",
+        protocolFeeUSD: "0",
+        settlementTimeSeconds: 684,
+      },
+    };
+
+    expect(formatCrossOffer(offer, 18)).toMatchObject({
+      outputAmount: "3.362137",
+      minimumReceived: "3.358775",
+    });
+  });
+
+  it("formats THORChain output when provider fields are nested under the execution action", () => {
+    const offer = {
+      offerId: "offer-thor-btc-eth-action",
+      rail: "THORCHAIN",
+      executionMode: "provider_direct",
+      estimatedOut: "0",
+      minAmountOut: "0",
+      execution: {
+        action: {
+          kind: "thorchain_swap",
+          amountIn: "15000000",
+          expectedAmountOut: "298765432",
+          minAmountOut: "295777777",
+        },
+      },
+      economics: {
+        providerFeeUSD: "0",
+        protocolFeeUSD: "0",
+        settlementTimeSeconds: 720,
+      },
+    };
+
+    expect(formatCrossOffer(offer, 18)).toMatchObject({
+      outputAmount: "2.987654",
+      minimumReceived: "2.957778",
     });
   });
 
