@@ -1,8 +1,10 @@
 import type { CrossExecutionSession } from "../api/contracts";
+import type { CrossTrackingLinks, CrossTrackingTxLink } from "../utils/trackingLinks";
 
 interface CrossTrackingPanelProps {
   tracking: any;
   session: CrossExecutionSession | null;
+  links?: CrossTrackingLinks;
   isCancelling: boolean;
   isRefunding: boolean;
   recoveryActionsDisabled?: boolean;
@@ -10,9 +12,39 @@ interface CrossTrackingPanelProps {
   onRefund: () => void;
 }
 
+function shortHash(hash: string) {
+  if (hash.length <= 14) return hash;
+  return `${hash.slice(0, 8)}...${hash.slice(-6)}`;
+}
+
+function TxValue({ tx }: { tx?: CrossTrackingTxLink }) {
+  if (!tx?.hash) return <span>Pending</span>;
+
+  if (tx.url) {
+    return (
+      <a
+        href={tx.url}
+        target="_blank"
+        rel="noreferrer"
+        className="break-all text-right text-[#FF8A00] underline decoration-[#FF8A00]/30 underline-offset-4 transition hover:text-[#FFB35C]"
+        title={tx.hash}
+      >
+        {shortHash(tx.hash)}
+      </a>
+    );
+  }
+
+  return (
+    <span className="break-all text-right" title={tx.hash}>
+      {shortHash(tx.hash)}
+    </span>
+  );
+}
+
 export function CrossTrackingPanel({
   tracking,
   session,
+  links,
   isCancelling,
   isRefunding,
   recoveryActionsDisabled = false,
@@ -67,16 +99,47 @@ export function CrossTrackingPanel({
         </div>
         <div className="flex justify-between gap-4">
           <span className="text-white/35">Source Tx</span>
-          <span className="break-all text-right">
-            {tracking?.srcTxHash ?? tracking?.sourceTxHash ?? session.lastTxHash ?? "Pending"}
-          </span>
+          <TxValue
+            tx={
+              links?.sourceTx ??
+              ((tracking?.srcTxHash ?? tracking?.sourceTxHash ?? session.lastTxHash)
+                ? {
+                    hash:
+                      tracking?.srcTxHash ??
+                      tracking?.sourceTxHash ??
+                      session.lastTxHash,
+                  }
+                : undefined)
+            }
+          />
         </div>
         <div className="flex justify-between gap-4">
           <span className="text-white/35">Destination Tx</span>
-          <span className="break-all text-right">
-            {tracking?.dstTxHash ?? "Pending"}
-          </span>
+          <TxValue
+            tx={
+              links?.destinationTx ??
+              (tracking?.dstTxHash ? { hash: tracking.dstTxHash } : undefined)
+            }
+          />
         </div>
+        {links?.railLinks.length ? (
+          <div className="flex justify-between gap-4">
+            <span className="text-white/35">Rail tracker</span>
+            <span className="flex flex-wrap justify-end gap-2 text-right">
+              {links.railLinks.map((link) => (
+                <a
+                  key={link.url}
+                  href={link.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-[#FF8A00] underline decoration-[#FF8A00]/30 underline-offset-4 transition hover:text-[#FFB35C]"
+                >
+                  {link.label}
+                </a>
+              ))}
+            </span>
+          </div>
+        ) : null}
         <div className="flex justify-between gap-4">
           <span className="text-white/35">ETA</span>
           <span>{tracking?.etaSeconds ? `${tracking.etaSeconds}s` : "—"}</span>

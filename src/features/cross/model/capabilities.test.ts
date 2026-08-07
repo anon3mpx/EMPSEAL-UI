@@ -111,10 +111,25 @@ describe("cross-chain rail capability policy", () => {
     ).toMatchObject({ status: "disabled", selectable: false });
   });
 
-  it("restricts non-EVM source actions even when a provider returns an offer", () => {
+  it("allows THORChain BTC source execution with a Bitcoin wallet", () => {
     expect(
       getOfferCapability({
         rail: "THORCHAIN",
+        srcChainId: 0,
+        dstChainId: 1,
+        offerType: "thor_api_direct",
+      }),
+    ).toMatchObject({
+      status: "executable",
+      selectable: true,
+      requiredSourceWallet: "bitcoin",
+    });
+  });
+
+  it("restricts unknown non-EVM source actions even when a provider returns an offer", () => {
+    expect(
+      getOfferCapability({
+        rail: "MAYA",
         srcChainId: 0,
         dstChainId: 1,
       }),

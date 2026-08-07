@@ -117,11 +117,16 @@ describe("Bitcoin adapters (no extension in test env)", () => {
     await expect(unisat.connect()).rejects.toMatchObject({ code: "WRONG_NETWORK" });
   });
 
-  it("Phantom-BTC picks payment address, skipping ordinals", async () => {
+  it("Phantom-BTC picks payment address, public key, and address type, skipping ordinals", async () => {
     const w = window as unknown as {
       phantom?: {
         bitcoin?: {
-          requestAccounts: () => Promise<Array<{ address: string; purpose: string }>>;
+          requestAccounts: () => Promise<Array<{
+            address: string;
+            publicKey?: string;
+            purpose: string;
+            addressType?: string;
+          }>>;
         };
       };
     };
@@ -129,7 +134,12 @@ describe("Bitcoin adapters (no extension in test env)", () => {
       bitcoin: {
         requestAccounts: async () => [
           { address: "bc1pordinals_addr", purpose: "ordinals" },
-          { address: "bc1qpayment_addr", purpose: "payment" },
+          {
+            address: "bc1qpayment_addr",
+            publicKey: "03".padEnd(66, "2"),
+            purpose: "payment",
+            addressType: "native_segwit",
+          },
         ],
       },
     };
@@ -137,6 +147,8 @@ describe("Bitcoin adapters (no extension in test env)", () => {
     expect(phantomBtc.brand).toBe("Phantom");
     const result = await phantomBtc.connect();
     expect(result.address).toBe("bc1qpayment_addr");
+    expect(result.publicKey).toBe("03".padEnd(66, "2"));
+    expect(result.addressType).toBe("p2wpkh");
   });
 });
 
