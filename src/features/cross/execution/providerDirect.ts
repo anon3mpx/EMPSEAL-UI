@@ -121,6 +121,15 @@ export function classifyProviderDirectAction(
     return "unsupported";
   }
 
+  if (action?.kind === "garden_htlc_order") {
+    const nativeFunding =
+      integration?.nativeFunding ??
+      action?.nativeFunding ??
+      null;
+    if (nativeFunding?.runtime === "solana") return "garden_solana_source";
+    if (nativeFunding?.runtime === "bitcoin") return "garden_bitcoin_source";
+  }
+
   if (action?.kind === "layerzero_value_transfer_api") {
     const hasUnsupportedSolanaStep = userSteps.some(
       (step: any) =>

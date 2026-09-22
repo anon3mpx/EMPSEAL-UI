@@ -29,11 +29,11 @@ import {
   BrandMark,
   Card,
   ChainPicker,
+  DappFooter,
   DappNavbar,
   NetworkSelector,
   Pill,
   PrimaryButton,
-  SocialTray,
   Tabs,
   Toaster,
   WalletButton,
@@ -45,11 +45,10 @@ import {
 } from "../components";
 import { useWalletConnection } from "../hooks/useWalletConnection";
 import { useV2Balances } from "../hooks/useV2Balances";
-import { EMPX_SOCIALS } from "../data/socials";
 import { tierForChainId, tierLabel } from "../data/empxRegistry";
 import { getExplorerAddressUrl } from "../data/explorers";
 import { getV2Chain } from "../data/v2ChainView";
-import { createV2NavLinks } from "../data/v2ProductRoutes";
+
 import {
   WIDGET_FORM_DEFAULTS,
   buildWidgetSnippet,
@@ -146,13 +145,10 @@ export default function WidgetPage() {
     }
   };
 
-  const navLinks = createV2NavLinks("widget");
-
   return (
     <div style={{ minHeight: "100vh", background: "#05050c", color: "#fff", fontFamily: "Inter, sans-serif" }}>
       <DappNavbar
-        links={navLinks}
-        socials={<SocialTray links={EMPX_SOCIALS} withSeparator />}
+        activeHref="/widget-v2"
         controls={
           <>
             <NetworkSelector name={chain.name} color={chain.color} onClick={() => setChainPickerOpen(true)} />
@@ -497,6 +493,7 @@ export default function WidgetPage() {
         />
       )}
 
+      <DappFooter />
       <Toaster />
     </div>
   );

@@ -44,21 +44,49 @@ export function normalizeOfferSet(response: QuoteResponse): NormalizedOfferSet {
     expiresAt: offerSet.expiresAt,
     bestOfferId: offerSet.bestOfferId,
     gasZipComposition,
-    offers: (offerSet.offers ?? []).map((offer) => ({
-      offerSetId: offerSet.offerSetId,
-      offerId: offer.offerId,
-      quoteExpiresAt: offer.expiresAt ?? offerSet.expiresAt,
-      isBest: offer.offerId === offerSet.bestOfferId,
-      isComposedEligible: composedEligible,
-      actionKind:
+    offers: (offerSet.offers ?? []).map((offer) => {
+      const actionKind =
         typeof offer.execution?.action === "object" &&
         offer.execution.action !== null &&
         "kind" in offer.execution.action
           ? String(offer.execution.action.kind)
-          : undefined,
-      ...offer,
-    })),
+          : undefined;
+      return {
+        ...offer,
+        offerSetId: offerSet.offerSetId,
+        offerId: offer.offerId,
+        quoteExpiresAt: offer.expiresAt ?? offerSet.expiresAt,
+        isBest: offer.offerId === offerSet.bestOfferId,
+        actionKind,
+        isComposedEligible:
+          composedEligible &&
+          !isGardenNativeOffer({
+            rail: offer.rail,
+            srcChainId: offer.srcChainId,
+            offerType: offer.offerType,
+            actionKind,
+          }),
+      };
+    }),
   };
+}
+
+export function isGardenNativeOffer(offer: {
+  rail?: string | null;
+  srcChainId?: number;
+  offerType?: string;
+  actionKind?: string;
+}): boolean {
+  const rail = String(offer.rail ?? "").toUpperCase();
+  const actionKind = String(offer.actionKind ?? "").toLowerCase();
+  const offerType = String(offer.offerType ?? "").toLowerCase();
+  const nativeSource = offer.srcChainId === 0 || offer.srcChainId === 99;
+  if (!nativeSource) return false;
+  return (
+    rail === "GARDEN" ||
+    actionKind === "garden_htlc_order" ||
+    offerType === "garden_htlc"
+  );
 }
 
 export function getPrimaryOffers(quote: NormalizedOfferSet | null | undefined) {

@@ -6,11 +6,16 @@ export interface CrossChainCapability {
   sourceExecution: "evm";
 }
 
-const FULL_SWAP_CHAIN_IDS = new Set([8453, 42161, 10]);
+// Mirrors Ruflo config/chains.ts defaults with hasAggregator=true. This is
+// swap-leg capability, not a guarantee of a live route: quoting and selection
+// still validate backend configuration, deployment, liquidity, and execution.
+export const AGG_CHAIN_IDS: ReadonlySet<number> = new Set([
+  369, 56, 42161, 8453, 137, 43114, 10, 143, 146, 1329, 80094, 30, 10001, 999,
+]);
 
 export function getChainCapability(chainId: number): CrossChainCapability {
   return {
-    fullSwapSupported: FULL_SWAP_CHAIN_IDS.has(chainId),
+    fullSwapSupported: AGG_CHAIN_IDS.has(chainId),
     sourceExecution: "evm",
   };
 }
@@ -22,6 +27,16 @@ export type RailCapabilityStatus =
   | "disabled";
 
 export type SourceWalletType = "evm" | "bitcoin" | "solana" | "non_evm";
+
+export interface OfferCapabilityContext {
+  sourceWallet?: {
+    kind: SourceWalletType;
+    addressType?: "p2wpkh" | "p2tr";
+  };
+}
+
+export const GARDEN_BTC_NATIVE_SEGWIT_REASON =
+  "Garden BTC requires a Native SegWit (bc1q) source address. Taproot (bc1p) is not supported.";
 
 export interface RailCapability {
   rail: RailIdentifier | string;
@@ -37,11 +52,6 @@ export interface RailCapability {
   selectable: boolean;
   reason?: string;
 }
-
-const HYPERLANE_CHAINS = [
-  1, 10, 56, 137, 146, 369, 480, 999, 1329, 8453, 42161, 43114,
-  57073, 59144, 98866, 130,
-] as const;
 
 const RAIL_CAPABILITIES: Record<string, RailCapability> = {
   CCTP: {
@@ -88,9 +98,7 @@ const RAIL_CAPABILITIES: Record<string, RailCapability> = {
     rail: "HYPERLANE_NEXUS",
     label: "Hyperlane Nexus",
     status: "executable",
-    allowedSourceChainIds: HYPERLANE_CHAINS,
-    allowedDestinationChainIds: HYPERLANE_CHAINS,
-    allowedAssets: ["USDC", "USDT"],
+    // The backend validates the configured warp route and settlement assets.
     requiredSourceWallet: "evm",
     providerApprovalMayBeRequired: true,
     selectable: true,
@@ -192,6 +200,7 @@ export function getOfferCapability(
     actionKind?: string;
     direction?: "deposit" | "withdraw";
   },
+  context?: OfferCapabilityContext,
 ): RailCapability {
   const base = getRailCapability(offer.rail);
   const contextualBase: RailCapability = {
@@ -239,6 +248,9 @@ export function getOfferCapability(
       reason: "This asset is outside the enabled route catalog.",
     };
   }
+
+  const gardenBitcoinCapability = getGardenBitcoinCapability(offer, contextualBase, context);
+  if (gardenBitcoinCapability) return gardenBitcoinCapability;
 
   const executableNativeSource = getExecutableNativeSourceWallet(offer);
   if (executableNativeSource) {
@@ -302,6 +314,58 @@ export function getOfferCapability(
   return contextualBase;
 }
 
+function isGardenHtlcOffer(offer: {
+  offerType?: string;
+  actionKind?: string;
+}): boolean {
+  const offerType = String(offer.offerType ?? "").toLowerCase();
+  const actionKind = String(offer.actionKind ?? "").toLowerCase();
+  return (
+    offerType === "garden_htlc" ||
+    actionKind === "garden_htlc" ||
+    actionKind === "garden_htlc_order"
+  );
+}
+
+function getGardenBitcoinCapability(
+  offer: {
+    rail?: string | null;
+    srcChainId: number;
+    offerType?: string;
+    actionKind?: string;
+  },
+  contextualBase: RailCapability,
+  context?: OfferCapabilityContext,
+): RailCapability | null {
+  if (
+    String(offer.rail ?? "").toUpperCase() !== "GARDEN" ||
+    offer.srcChainId !== 0 ||
+    !isGardenHtlcOffer(offer)
+  ) {
+    return null;
+  }
+
+  const wallet = context?.sourceWallet;
+  if (wallet?.kind === "bitcoin" && wallet.addressType === "p2wpkh") {
+    return {
+      ...contextualBase,
+      status: "executable",
+      selectable: true,
+      requiredSourceWallet: "bitcoin",
+      providerApprovalMayBeRequired: false,
+    };
+  }
+
+  return {
+    ...contextualBase,
+    status: "restricted",
+    selectable: false,
+    requiredSourceWallet: "bitcoin",
+    providerApprovalMayBeRequired: false,
+    reason: GARDEN_BTC_NATIVE_SEGWIT_REASON,
+  };
+}
+
 function getExecutableNativeSourceWallet(offer: {
   rail?: string | null;
   srcChainId: number;
@@ -325,6 +389,10 @@ function getExecutableNativeSourceWallet(offer: {
     rail === "LAYERZERO" &&
     (offerType === "layerzero_value_transfer_api" || actionKind === "layerzero_value_transfer_api")
   ) {
+    return "solana";
+  }
+
+  if (offer.srcChainId === 99 && rail === "GARDEN" && isGardenHtlcOffer(offer)) {
     return "solana";
   }
 

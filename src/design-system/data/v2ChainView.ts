@@ -9,6 +9,7 @@
 import { SUPPORTED_CHAINS } from "../../config/chains";
 import { NON_EVM_CHAIN_IDS } from "../../lib/wallet/chainKind";
 import { AGG_CHAIN_IDS, PAYMASTER_CHAIN_IDS, tierForChainId } from "./empxRegistry";
+import { chainLogoCandidates } from "./logoRegistry";
 
 export interface V2ChainConfig {
   id: number;
@@ -20,6 +21,11 @@ export interface V2ChainConfig {
   explorerBaseUrl?: string;
   supportsAggregator: boolean;
   supportsPaymaster: boolean;
+  logoUrl?: string;
+}
+
+function logoUrlForChain(chainId: number): string | undefined {
+  return chainLogoCandidates(chainId)[0];
 }
 
 // ─── Adapter defaults (UI-only fields not in config) ─────────────────────
@@ -66,6 +72,7 @@ function buildFromConfig(chainId: number): V2ChainConfig | null {
     explorerBaseUrl: config.blockExplorer?.replace(/\/+$/, "").replace(/\/(?:tx|address)$/i, ""),
     supportsAggregator: AGG_CHAIN_IDS.has(chainId),
     supportsPaymaster: PAYMASTER_CHAIN_IDS.has(chainId),
+    logoUrl: logoUrlForChain(chainId),
   };
 }
 
@@ -79,6 +86,7 @@ function buildNonEvm(chainId: number, name: string): V2ChainConfig {
     tier: tierForChainId(chainId),
     supportsAggregator: false,
     supportsPaymaster: false,
+    logoUrl: logoUrlForChain(chainId),
   };
 }
 
@@ -92,6 +100,7 @@ function buildRailOnlyEvm(chainId: number, name: string): V2ChainConfig {
     tier: 2,
     supportsAggregator: false,
     supportsPaymaster: false,
+    logoUrl: logoUrlForChain(chainId),
   };
 }
 
@@ -104,7 +113,7 @@ export const V2_AGGREGATOR_CHAINS: V2ChainConfig[] = Object.keys(SUPPORTED_CHAIN
 
 /** All chains (EVM + non-EVM) the V2 UI can display */
 export const V2_ALL_CHAINS: V2ChainConfig[] = [
-  buildFromConfig(1) ?? { id: 1, name: "Ethereum", ticker: "ETH", color: "#627EEA", kind: "EVM", tier: 2, supportsAggregator: false, supportsPaymaster: true },
+  buildFromConfig(1) ?? { id: 1, name: "Ethereum", ticker: "ETH", color: "#627EEA", kind: "EVM", tier: 2, supportsAggregator: false, supportsPaymaster: true, logoUrl: logoUrlForChain(1) },
   ...V2_AGGREGATOR_CHAINS,
   buildRailOnlyEvm(130, "Unichain"),
   buildRailOnlyEvm(480, "World Chain"),

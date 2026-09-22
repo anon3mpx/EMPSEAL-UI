@@ -4,8 +4,8 @@
 // chart + sortable token list + market cards), rebuilt with the new design
 // system primitives.
 
-import { ReactNode, useMemo, useState } from "react";
-import { Card, ChainBadge, Collapsible, LogoTile, Pill } from "./components";
+import { useMemo, useState } from "react";
+import { Card, ChainBadge, Collapsible, LogoTile, Pill, TokenLogo } from "./components";
 import { useIsMobile } from "./breakpoints";
 
 // Logic constants — tunable, sourced from chain registry / SDK config
@@ -18,7 +18,10 @@ const DUST_USD_THRESHOLD = 1;                // assets with < $1 hidden when dus
 export interface PortfolioAsset {
   ticker: string;
   name?: string;
-  logo?: ReactNode;
+  chainId?: number;
+  address?: string;
+  logoUrl?: string;
+  isNative?: boolean;
   chainName: string;
   chainColor?: string;
   balance: string;
@@ -36,6 +39,10 @@ export interface PortfolioAsset {
 export interface MarketCard {
   ticker: string;
   name?: string;
+  chainId?: number;
+  address?: string;
+  logoUrl?: string;
+  isNative?: boolean;
   price: number;
   change24h: number;
   /** Series of recent price points for the sparkline */
@@ -686,7 +693,16 @@ function AssetRow({ asset, last, hideChain, isMobile }: { asset: PortfolioAsset;
       {/* Asset col — LogoTile + ticker + name + allocation bar */}
       <div style={{ display: "flex", alignItems: "center", gap: 14, minWidth: 0 }}>
         <LogoTile
-          fallback={asset.logo || asset.ticker.slice(0, 2).toUpperCase()}
+          fallback={(
+            <TokenLogo
+              ticker={asset.ticker}
+              chainId={asset.chainId}
+              address={asset.address}
+              logoUrl={asset.logoUrl}
+              isNative={asset.isNative}
+              size={34}
+            />
+          )}
           size={34}
           radius={4}
           chainDot={asset.chainColor}
@@ -847,25 +863,14 @@ function MarketCardItem({ data }: { data: MarketCard }) {
     <Card style={{ padding: 14 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span
-            style={{
-              width: 22,
-              height: 22,
-              borderRadius: "50%",
-              background: data.chainColor
-                ? `linear-gradient(135deg, ${data.chainColor}40 0%, transparent 100%)`
-                : "rgba(255,255,255,0.06)",
-              border: data.chainColor ? `1px solid ${data.chainColor}50` : "1px solid rgba(255,255,255,0.10)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: 9,
-              fontWeight: 700,
-              color: data.chainColor || "#fff",
-            }}
-          >
-            {data.ticker.slice(0, 2)}
-          </span>
+          <TokenLogo
+            ticker={data.ticker}
+            chainId={data.chainId}
+            address={data.address}
+            logoUrl={data.logoUrl}
+            isNative={data.isNative}
+            size={22}
+          />
           <div>
             <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: "#fff" }}>{data.ticker}</p>
             {data.name && (

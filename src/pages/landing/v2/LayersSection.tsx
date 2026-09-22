@@ -11,7 +11,7 @@
 
 import { motion } from "framer-motion";
 
-interface Layer {
+export interface Layer {
   number: string;
   label: string;
   qualifier: string;
@@ -22,7 +22,7 @@ interface Layer {
   metric: { value: string; label: string };
 }
 
-const LAYERS: Layer[] = [
+export const LAYERS: Layer[] = [
   {
     number: "03",
     label: "USER-FACING SURFACE",

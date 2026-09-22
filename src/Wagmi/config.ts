@@ -9,6 +9,7 @@ import {
 import { http } from "wagmi";
 import { fallback } from "viem";
 import { prependPrimaryRpcUrl } from "../config/rpc";
+import { walletConnectProjectId } from "./walletConnectProjectId";
 import {
   chains,
   pulsechain,
@@ -46,7 +47,7 @@ const swapConnectors = connectorsForWallets(
       ],
     },
   ],
-  { appName: "RainbowKit Swap", projectId: "YOUR_PROJECT_ID" },
+  { appName: "RainbowKit Swap", projectId: walletConnectProjectId },
 );
 
 const transportOptions = {
@@ -80,7 +81,7 @@ const chainTransport = (
 
 export const config = getDefaultConfig({
   appName: "Empseal Swap",
-  projectId: "YOUR_PROJECT_ID",
+  projectId: walletConnectProjectId,
   chains,
   transports: {
     [mainnet.id]: chainTransport(mainnet.id, mainnet),

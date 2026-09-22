@@ -4,7 +4,8 @@ import { useSearchTransaction, useGetChains } from './useGasBridgeAPI';
 import { useEffect, useState } from 'react';
 import { useGasBridgeStore } from '../redux/store/gasBridgeStore';
 
-export const useGasBridgeTx = () => {
+/** @param {{ info: (message: string) => unknown, success: (message: string) => unknown, error: (message: string) => unknown }} [notifications] */
+export const useGasBridgeTx = (notifications = toast) => {
   const [txHash, setTxHash] = useState(null);
   
   const { sendTransactionAsync, isPending: isSending } = useSendTransaction();
@@ -30,7 +31,7 @@ export const useGasBridgeTx = () => {
         const targetChain = chains?.find((c) => c.chain === fromChainId);
         
         if (!targetChain) {
-          toast.error(`Chain data not found for ID ${fromChainId}`);
+          notifications.error(`Chain data not found for ID ${fromChainId}`);
           return;
         }
 
@@ -63,34 +64,36 @@ export const useGasBridgeTx = () => {
                // Most wallets switch automatically upon addition.
              } catch (addError) {
                console.error("Failed to add chain:", addError);
-               toast.error("Failed to switch/add network. Please switch manually.");
+               notifications.error("Failed to switch/add network. Please switch manually.");
                return;
              }
           } else {
              console.error("No wallet client available to add chain");
-             toast.error("Please switch network manually in your wallet.");
+             notifications.error("Please switch network manually in your wallet.");
              return;
           }
         }
       }
 
       // 2. Send Transaction
-      toast.info('Waiting for signature...');
+      notifications.info('Waiting for signature...');
       const hash = await sendTransactionAsync({
         to: txData.to,
         value: txData.value,
         data: txData.data,
+        chainId: fromChainId,
       });
 
       setTxHash(hash);
-      toast.success('Transaction submitted! Waiting for confirmation...');
+      notifications.success('Transaction submitted! Waiting for confirmation...');
+      return hash;
 
     } catch (error) {
       console.error("Bridge Execution Failed:", error);
       if (error.message?.includes('User rejected')) {
-         toast.error("Transaction rejected by user.");
+         notifications.error("Transaction rejected by user.");
       } else {
-         toast.error(error.message || 'Transaction failed');
+         notifications.error(error.shortMessage || error.message || 'Transaction failed');
       }
     }
   };
@@ -100,7 +103,7 @@ export const useGasBridgeTx = () => {
       // Toast for confirming state
     }
     if (isConfirmed && receipt) {
-      toast.success('Transaction confirmed on source chain! Verifying bridge...');
+      notifications.success('Transaction confirmed on source chain! Verifying bridge...');
     }
   }, [isConfirming, isConfirmed, receipt]);
 
@@ -109,9 +112,9 @@ export const useGasBridgeTx = () => {
       // Toast for polling state
     }
     if (backendStatus?.deposit?.status === 'CONFIRMED') {
-      toast.success('Bridge complete! Funds received on destination chain.');
+      notifications.success('Bridge complete! Funds received on destination chain.');
     } else if (['CANCELLED', 'ERROR'].includes(backendStatus?.deposit?.status)) {
-      toast.error('An error occurred with the bridge transfer.');
+      notifications.error('An error occurred with the bridge transfer.');
     }
   }, [isPolling, backendStatus]);
 

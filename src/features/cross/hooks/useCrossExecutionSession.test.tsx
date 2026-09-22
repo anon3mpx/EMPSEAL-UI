@@ -34,6 +34,50 @@ describe("useCrossExecutionSession", () => {
     });
   });
 
+  it("forwards Garden native source funding on single-intent selection", async () => {
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={new QueryClient()}>
+        {children}
+      </QueryClientProvider>
+    );
+
+    const selectOffer = vi.fn().mockResolvedValue({ ok: true });
+    const gardenNativeSourceFunding = {
+      runtime: "bitcoin" as const,
+      utxos: [{
+        txid: "a".repeat(64),
+        vout: 0,
+        valueSats: "150000",
+        scriptPubKey: "001411".repeat(10),
+        confirmations: 2,
+      }],
+      feeRateSatVbyte: 8,
+      replaceByFee: true as const,
+      changeAddress: "bc1qowner",
+    };
+
+    const { result } = renderHook(
+      () => useCrossExecutionSession({ api: { selectOffer } as any }),
+      { wrapper },
+    );
+
+    await act(async () => {
+      await result.current.selectSingleIntent({
+        offerSetId: "set-1",
+        offerId: "garden-offer",
+        userAddress: "bc1qowner",
+        gardenNativeSourceFunding,
+      });
+    });
+
+    expect(selectOffer).toHaveBeenCalledWith({
+      offerSetId: "set-1",
+      offerId: "garden-offer",
+      userAddress: "bc1qowner",
+      gardenNativeSourceFunding,
+    });
+  });
+
   it("forwards composed-intent selection payloads unchanged", async () => {
     const wrapper = ({ children }: { children: ReactNode }) => (
       <QueryClientProvider client={new QueryClient()}>

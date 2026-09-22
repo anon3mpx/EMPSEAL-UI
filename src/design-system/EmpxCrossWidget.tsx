@@ -1,23 +1,25 @@
-// ─── EmpxCrossWidget — cross-chain swap ─────────────────────────────────────
-//
-// Distinct from EmpxSwapWidget — handles cross-chain routes with TWO chain
-// contexts (source + destination), rail badge, bridge fees, and lifecycle
-// status hints.  Each chain has its own clickable ChainSwitcher.
-
 import { ReactNode } from "react";
+import TouchTooltip from "../components/TouchTooltip";
+import { RouteVisualization, type RouteHop } from "./components";
 import {
-  AmountInput,
-  Card,
-  ChainSwitcher,
-  Collapsible,
-  FeeBreakdown,
-  Pill,
-  PrimaryButton,
-  RouteVisualization,
-  SwapDivider,
-  type FeeRow,
-  type RouteHop,
-} from "./components";
+  ChainPill,
+  Disclosure,
+  ImpactMeter,
+  MicroLabel,
+  RailCardStrip,
+  TokenIdentityRow,
+  WidgetCTA,
+  WidgetShell,
+  amountUsd,
+  eyebrow,
+  grid2,
+  numeral,
+  rule,
+  unit,
+  wk,
+  type CtaState,
+  type RailCardData,
+} from "./widgetKit";
 
 export interface SwapToken {
   ticker: string;
@@ -30,10 +32,10 @@ export interface SwapChain {
   id: number;
   name: string;
   color?: string;
+  logo?: ReactNode;
 }
 
 export interface EmpxCrossWidgetProps {
-  // Source
   fromChain: SwapChain;
   fromToken: SwapToken | null;
   fromAmount: string;
@@ -44,7 +46,6 @@ export interface EmpxCrossWidgetProps {
   onSelectFromChain: () => void;
   onPercentClick?: (pct: number) => void;
 
-  // Destination
   toChain: SwapChain;
   toToken: SwapToken | null;
   toAmount: string;
@@ -52,7 +53,6 @@ export interface EmpxCrossWidgetProps {
   onSelectToToken: () => void;
   onSelectToChain: () => void;
 
-  // Rail / route
   railName?: string;
   railBadge?: "JIT" | "FREE" | "BTC" | "MAYA" | "BTC AMM" | string;
   protocolFeeBps?: number;
@@ -67,7 +67,9 @@ export interface EmpxCrossWidgetProps {
   priceImpactBps?: number;
   routeHops?: RouteHop[];
 
-  // CTA
+  rails?: RailCardData[];
+  onSelectRail?: (name: string) => void;
+
   swapDisabled?: boolean;
   swapLoading?: boolean;
   swapLabel?: string;
@@ -78,13 +80,9 @@ export interface EmpxCrossWidgetProps {
   onConnect?: () => void;
 }
 
-const BADGE_VARIANT: Record<string, "accent" | "info" | "success" | "danger" | "default"> = {
-  JIT: "info",
-  FREE: "success",
-  BTC: "accent",
-  MAYA: "info",
-  "BTC AMM": "accent",
-};
+function usdLine(value?: number | null) {
+  return value != null ? `≈ $${value.toLocaleString(undefined, { maximumFractionDigits: 2 })}` : " ";
+}
 
 export default function EmpxCrossWidget({
   fromChain,
@@ -96,14 +94,12 @@ export default function EmpxCrossWidget({
   onSelectFromToken,
   onSelectFromChain,
   onPercentClick,
-
   toChain,
   toToken,
   toAmount,
   toUsdValue,
   onSelectToToken,
   onSelectToChain,
-
   railName,
   railBadge,
   protocolFeeBps,
@@ -117,214 +113,221 @@ export default function EmpxCrossWidget({
   slippageBps,
   priceImpactBps,
   routeHops,
-
+  rails,
+  onSelectRail,
   swapDisabled,
   swapLoading,
   swapLabel = "Cross-chain swap",
   onSwap,
   onFlip,
-
   walletConnected = true,
   onConnect,
 }: EmpxCrossWidgetProps) {
-  // Always-visible rows
-  const feeRows: FeeRow[] = [];
-  if (railName) feeRows.push({ label: "Via rail", value: railName });
-  if (protocolFeeBps !== undefined && protocolFeeUSD !== undefined) {
-    feeRows.push({
-      label: "Protocol fee",
-      value: `${protocolFeeBps} bps`,
-      sub: `· $${protocolFeeUSD.toFixed(2)}`,
-      accent: true,
-    });
-  }
-  if (bridgeFeeUSD !== undefined) {
-    feeRows.push({
-      label: "Bridge fee",
-      value: bridgeFeeUSD <= 0.005 ? "FREE" : `$${bridgeFeeUSD.toFixed(2)}`,
-      accent: bridgeFeeUSD <= 0.005,
-    });
-  }
-  if (estimatedTime) feeRows.push({ label: "Est. time", value: estimatedTime });
+  const amountEntered = Number((fromAmount || "0").replace(/,/g, "")) > 0;
+  const ctaState: CtaState = !walletConnected
+    ? "connect"
+    : swapLoading
+      ? "working"
+      : swapDisabled || !amountEntered
+        ? "idle"
+        : "ready";
+  const ctaLabel =
+    ctaState === "connect"
+      ? "Connect wallet"
+      : ctaState === "working" || ctaState === "ready" || (ctaState === "idle" && amountEntered)
+        ? swapLabel
+        : "Enter an amount";
 
-  // Collapsed details
-  const advancedRows: FeeRow[] = [];
-  if (outboundFeeUSD !== undefined && outboundFeeUSD > 0)
-    advancedRows.push({ label: "Outbound fee", value: `$${outboundFeeUSD.toFixed(2)}`, muted: true });
-  if (sourceGasUSD !== undefined && sourceGasUSD > 0)
-    advancedRows.push({ label: "Source gas (est.)", value: `$${sourceGasUSD.toFixed(2)}`, muted: true });
-  if (destinationGasUSD !== undefined && destinationGasUSD > 0)
-    advancedRows.push({ label: "Destination gas (est.)", value: `$${destinationGasUSD.toFixed(2)}`, muted: true });
-  if (minimumReceived) advancedRows.push({ label: "Min. received", value: minimumReceived, muted: true });
-  if (slippageBps !== undefined) advancedRows.push({ label: "Slippage", value: `${(slippageBps / 100).toFixed(2)}%`, muted: true });
-  if (priceImpactBps !== undefined) {
-    advancedRows.push({
-      label: "Price impact",
-      value: `${(priceImpactBps / 100).toFixed(2)}%`,
-      muted: true,
-      accent: priceImpactBps > 100,
-    });
-  }
+  const totalFeeUSD =
+    (protocolFeeUSD ?? 0) + (bridgeFeeUSD ?? 0) + (outboundFeeUSD ?? 0) + (sourceGasUSD ?? 0) + (destinationGasUSD ?? 0);
+  const hasFee = protocolFeeUSD != null || bridgeFeeUSD != null;
 
   return (
-    <Card style={{ width: "100%", maxWidth: 480, padding: 22 }}>
-      {/* Top: CROSS-CHAIN label + Rail badge */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          marginBottom: 18,
-        }}
-      >
+    <WidgetShell edge>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 22 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span
-            style={{
-              fontFamily: "Inter, sans-serif",
-              fontSize: 11,
-              fontWeight: 700,
-              letterSpacing: "0.40em",
-              color: "rgba(255,255,255,0.92)",
-              textTransform: "uppercase",
-            }}
-          >
-            Cross-chain
-          </span>
+          <span style={eyebrow}>Cross</span>
           {railBadge && (
-            <Pill variant={BADGE_VARIANT[railBadge] || "accent"}>
+            <span style={{ fontSize: 9.5, color: wk.orange, letterSpacing: "0.12em", textTransform: "uppercase" }}>
               {railBadge}
-            </Pill>
+            </span>
           )}
         </div>
-        {/* Chain pair indicator (read-only, distinct from clickable switchers below) */}
-        <div style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-          <span
-            style={{
-              width: 6,
-              height: 6,
-              borderRadius: "50%",
-              background: fromChain.color || "rgba(255,255,255,0.5)",
-              boxShadow: `0 0 8px ${fromChain.color || "rgba(255,255,255,0.4)"}`,
-            }}
-          />
-          <span style={{ color: "rgba(255,255,255,0.35)", fontSize: 11 }}>→</span>
-          <span
-            style={{
-              width: 6,
-              height: 6,
-              borderRadius: "50%",
-              background: toChain.color || "rgba(255,255,255,0.5)",
-              boxShadow: `0 0 8px ${toChain.color || "rgba(255,255,255,0.4)"}`,
-            }}
-          />
-        </div>
+        <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <ChainPill logo={fromChain.logo} name={fromChain.name} fallbackLabel={fromChain.name.slice(0, 3).toUpperCase()} onClick={onSelectFromChain} />
+          <span style={{ fontSize: 11, color: wk.t4 }}>→</span>
+          <ChainPill logo={toChain.logo} name={toChain.name} fallbackLabel={toChain.name.slice(0, 3).toUpperCase()} onClick={onSelectToChain} />
+        </span>
       </div>
 
-      {/* FROM amount — chain TOP, balance + MAX BOTTOM */}
-      <AmountInput
-        label="From"
-        value={fromAmount}
-        onChange={onFromAmountChange}
-        ticker={fromToken?.ticker || "Select"}
-        tokenLogo={fromToken?.logo}
-        onSelectToken={onSelectFromToken}
-        tokenSelectLabel={`Select from token${fromToken?.ticker ? `, current ${fromToken.ticker}` : ""}`}
-        usdValue={fromUsdValue}
-        topMeta={
-          <ChainSwitcher
-            name={fromChain.name}
-            color={fromChain.color}
-            onClick={onSelectFromChain}
-            size="md"
-          />
-        }
-        bottomMeta={
-          (fromBalance || onPercentClick) && (
-            <>
-              {fromBalance && (
-                <span style={{ color: "rgba(255,255,255,0.40)" }}>
-                  Bal {fromBalance}
-                </span>
-              )}
-              {onPercentClick && (
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+        <MicroLabel>You send</MicroLabel>
+        {fromBalance && (
+          <span style={{ fontSize: 10, color: wk.t3 }}>
+            Balance {fromBalance}
+            {onPercentClick && (
+              <>
+                {" · "}
                 <button
                   type="button"
                   onClick={() => onPercentClick(100)}
                   style={{
-                    background: "transparent",
+                    background: "none",
                     border: "none",
-                    color: "#FF8A00",
-                    fontFamily: "Inter, sans-serif",
-                    fontSize: 10,
-                    fontWeight: 700,
-                    letterSpacing: "0.30em",
+                    color: wk.orange,
+                    fontWeight: 600,
                     cursor: "pointer",
                     padding: 0,
+                    fontSize: 10,
+                    fontFamily: "inherit",
                   }}
                 >
                   MAX
                 </button>
-              )}
-            </>
-          )
-        }
-      />
-
-      <SwapDivider onSwap={onFlip} />
-
-      {/* TO amount — chain on TOP only (no balance/MAX) */}
-      <AmountInput
-        label="To"
-        value={toAmount}
-        ticker={toToken?.ticker || "Select"}
-        tokenLogo={toToken?.logo}
-        onSelectToken={onSelectToToken}
-        tokenSelectLabel={`Select to token${toToken?.ticker ? `, current ${toToken.ticker}` : ""}`}
-        usdValue={toUsdValue}
-        accent
-        topMeta={
-          <ChainSwitcher
-            name={toChain.name}
-            color={toChain.color}
-            onClick={onSelectToChain}
-            size="md"
-          />
-        }
-      />
-
-      {/* Always-visible fees */}
-      {feeRows.length > 0 && (
-        <div style={{ marginTop: 18 }}>
-          <FeeBreakdown rows={feeRows} bordered />
-        </div>
-      )}
-
-      {/* Routing flow */}
-      {routeHops && routeHops.length > 1 && (
-        <div style={{ marginTop: 8 }}>
-          <Collapsible title="Routing" subtitle={`${routeHops.length - 1} hops`} defaultOpen>
-            <RouteVisualization hops={routeHops} animated compact />
-          </Collapsible>
-        </div>
-      )}
-
-      {/* Advanced details */}
-      {advancedRows.length > 0 && (
-        <Collapsible title="Trade details" subtitle="Gas · Slippage · Min received">
-          <FeeBreakdown rows={advancedRows} bordered={false} compact />
-        </Collapsible>
-      )}
-
-      {/* CTA */}
-      <div style={{ marginTop: 18 }}>
-        {!walletConnected && onConnect ? (
-          <PrimaryButton onClick={onConnect}>Connect wallet</PrimaryButton>
-        ) : (
-          <PrimaryButton onClick={onSwap} disabled={swapDisabled} loading={swapLoading}>
-            {swapLabel}
-          </PrimaryButton>
+              </>
+            )}
+          </span>
         )}
       </div>
-    </Card>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
+        <input
+          value={fromAmount}
+          onChange={(e) => onFromAmountChange(e.target.value)}
+          inputMode="decimal"
+          autoComplete="off"
+          placeholder="0.0"
+          aria-label="Amount to send"
+          style={{ ...numeral(40), background: "transparent", border: "none", outline: "none", width: "100%", padding: 0 }}
+        />
+        <span style={unit}>{fromToken?.ticker ?? ""}</span>
+      </div>
+      <div style={amountUsd}>{usdLine(fromUsdValue)}</div>
+      <TokenIdentityRow
+        logo={fromToken?.logo}
+        name={fromToken?.ticker ?? "Select a token"}
+        sub={fromBalance ? `${fromBalance} available` : undefined}
+        onClick={onSelectFromToken}
+        ariaLabel={`Select from token${fromToken?.ticker ? `, current ${fromToken.ticker}` : ""}`}
+      />
+
+      <div style={{ display: "flex", justifyContent: "center", margin: "12px 0" }}>
+        <TouchTooltip content="Flip source and destination">
+          <button
+            type="button"
+            onClick={onFlip}
+            aria-label="Flip source and destination"
+            style={{
+              width: 44,
+              height: 44,
+              border: "none",
+              background: "transparent",
+              borderRadius: 4,
+              display: "grid",
+              placeItems: "center",
+              cursor: "pointer",
+              color: wk.t2,
+              fontSize: 15,
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.color = wk.orange;
+              e.currentTarget.style.background = "rgba(255,255,255,.035)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.color = wk.t2;
+              e.currentTarget.style.background = "transparent";
+            }}
+          >
+            ↓
+          </button>
+        </TouchTooltip>
+      </div>
+
+      <div style={{ marginBottom: 10 }}>
+        <MicroLabel>You receive on {toChain.name}</MicroLabel>
+      </div>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
+        <span style={numeral(40, true)}>{toAmount || "0"}</span>
+        <span style={unit}>{toToken?.ticker ?? ""}</span>
+      </div>
+      <div style={amountUsd}>{usdLine(toUsdValue)}</div>
+      <TokenIdentityRow
+        logo={toToken?.logo}
+        name={toToken?.ticker ?? "Select a token"}
+        onClick={onSelectToToken}
+        ariaLabel={`Select to token${toToken?.ticker ? `, current ${toToken.ticker}` : ""}`}
+      />
+
+      {rails && rails.length > 0 && onSelectRail && <RailCardStrip rails={rails} onSelect={onSelectRail} />}
+
+      <div style={rule} />
+
+      <div style={{ ...grid2, marginBottom: 24 }}>
+        <div>
+          <MicroLabel>Total cost</MicroLabel>
+          <div style={{ fontSize: 12.5, fontWeight: 500, color: wk.orange, marginTop: 6, fontVariantNumeric: "tabular-nums" }}>
+            {hasFee ? (totalFeeUSD <= 0.005 ? "FREE" : `$${totalFeeUSD.toFixed(2)}`) : "—"}
+          </div>
+          {(protocolFeeBps != null || railName) && (
+            <div style={{ fontSize: 9.5, color: wk.t3, marginTop: 4 }}>
+              {[protocolFeeBps != null ? `${protocolFeeBps} bps` : null, railName ? `via ${railName}` : null]
+                .filter(Boolean)
+                .join(" · ")}
+            </div>
+          )}
+        </div>
+        {priceImpactBps != null ? (
+          <ImpactMeter bps={priceImpactBps} />
+        ) : (
+          <div>
+            <MicroLabel>Arrives in</MicroLabel>
+            <div style={{ fontSize: 12.5, fontWeight: 500, color: wk.t1, marginTop: 6, fontVariantNumeric: "tabular-nums" }}>
+              {estimatedTime ?? "—"}
+            </div>
+            <div style={{ fontSize: 9.5, color: wk.t3, marginTop: 4 }}>Live from rail quote</div>
+          </div>
+        )}
+      </div>
+
+      {routeHops && routeHops.length > 1 && (
+        <Disclosure label="Routing" defaultOpen>
+          <RouteVisualization hops={routeHops} animated compact />
+        </Disclosure>
+      )}
+
+      {(minimumReceived || slippageBps != null || outboundFeeUSD || sourceGasUSD || destinationGasUSD) && (
+        <Disclosure label="Trade details">
+          {outboundFeeUSD != null && outboundFeeUSD > 0 && (
+            <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", fontSize: 10.5 }}>
+              <span style={{ color: wk.t3 }}>Outbound fee</span>
+              <span style={{ color: wk.t2, fontVariantNumeric: "tabular-nums" }}>${outboundFeeUSD.toFixed(2)}</span>
+            </div>
+          )}
+          {sourceGasUSD != null && sourceGasUSD > 0 && (
+            <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", fontSize: 10.5 }}>
+              <span style={{ color: wk.t3 }}>Source gas (est.)</span>
+              <span style={{ color: wk.t2, fontVariantNumeric: "tabular-nums" }}>${sourceGasUSD.toFixed(2)}</span>
+            </div>
+          )}
+          {destinationGasUSD != null && destinationGasUSD > 0 && (
+            <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", fontSize: 10.5 }}>
+              <span style={{ color: wk.t3 }}>Destination gas (est.)</span>
+              <span style={{ color: wk.t2, fontVariantNumeric: "tabular-nums" }}>${destinationGasUSD.toFixed(2)}</span>
+            </div>
+          )}
+          <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
+            {minimumReceived && <span style={{ fontSize: 9.5, color: wk.t3 }}>Min. received {minimumReceived}</span>}
+            {slippageBps != null && <span style={{ fontSize: 9.5, color: wk.t3 }}>Slippage {(slippageBps / 100).toFixed(2)}%</span>}
+          </div>
+        </Disclosure>
+      )}
+
+      <div style={{ marginTop: 20 }}>
+        <WidgetCTA
+          state={ctaState}
+          label={ctaLabel}
+          onClick={ctaState === "connect" ? onConnect : ctaState === "ready" ? onSwap : undefined}
+        />
+      </div>
+    </WidgetShell>
   );
 }

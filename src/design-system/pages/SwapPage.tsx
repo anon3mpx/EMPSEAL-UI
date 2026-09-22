@@ -15,8 +15,10 @@ import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import {
   AccountModal,
   Card,
+  ChainLogo,
   ChainPicker,
   ConfirmTradeModal,
+  DappFooter,
   DappNavbar,
   NetworkSelector,
   Pill,
@@ -24,9 +26,9 @@ import {
   QuoteCountdown,
   RouteVisualization,
   SplitRouteVisualization,
-  SocialTray,
   Tabs,
   Toaster,
+  TokenLogo,
   TokenPicker,
   TradeSuccessModal,
   WalletButton,
@@ -44,7 +46,7 @@ import { getTokensForChain } from "../data/v2TokenView";
 import { getExplorerAddressUrl, getExplorerTxUrl } from "../data/explorers";
 import { formatUSD, useUnifiedPrice } from "../hooks/useUnifiedPrice";
 import { classifyPair, modeAFeeBps } from "../data/empxRegistry";
-import { createV2NavLinks } from "../data/v2ProductRoutes";
+
 import { resolveSwapPageChain } from "../data/swapPageChainState";
 import { calculatePriceImpactBps } from "../data/tradeMetrics";
 import { SUPPORTED_CHAINS } from "../../config/chains";
@@ -72,13 +74,6 @@ import {
   type SwapHookToken,
 } from "../data/swapV2Adapters";
 
-// Shared social link set — referenced from every page navbar
-export const EMPX_SOCIALS = [
-  { kind: "x" as const,        href: "https://x.com/EmpXio" },
-  { kind: "telegram" as const, href: "https://t.me/EmpXEmpseal" },
-  { kind: "docs" as const,     href: "https://docs.empx.io" },
-  { kind: "github" as const,   href: "https://github.com/3mperorsSeal" },
-];
 import EmpxSwapWidget from "../EmpxSwapWidget";
 
 const SWAP_CHAINS: PickerChain[] = V2_AGGREGATOR_CHAINS.map((c) => ({
@@ -392,18 +387,23 @@ export default function SwapPage() {
     if (quoteTradeInfo?.quoteId) setExecutionError(null);
   }, [quoteTradeInfo?.quoteId]);
 
-  const navLinks = createV2NavLinks("swap");
-
   return (
     <div style={{ minHeight: "100vh", background: "#05050c", color: "#fff", fontFamily: "Inter, sans-serif" }}>
       <DappNavbar
-        links={navLinks}
-        socials={<SocialTray links={EMPX_SOCIALS} withSeparator />}
+        activeHref="/swap-v2"
         controls={
           <>
             <NetworkSelector
               name={activeChain.name}
               color={activeChain.color}
+              logo={(
+                <ChainLogo
+                  chainId={activeChain.id}
+                  symbol={activeChain.name.slice(0, 3).toUpperCase()}
+                  bg={activeChain.color}
+                  size={14}
+                />
+              )}
               onClick={() => setShowChainPicker(true)}
             />
             <WalletButton
@@ -475,8 +475,32 @@ export default function SwapPage() {
           {/* LEFT — swap widget */}
           <div style={{ display: "flex", justifyContent: "center" }}>
             <EmpxSwapWidget
-              chain={activeChain}
-              fromToken={fromToken ? { ticker: fromToken.ticker, address: fromToken.address, decimals: fromToken.decimal } : null}
+              chain={{
+                ...activeChain,
+                logo: (
+                  <ChainLogo
+                    chainId={activeChain.id}
+                    symbol={activeChain.name.slice(0, 3).toUpperCase()}
+                    bg={activeChain.color}
+                    size={17}
+                  />
+                ),
+              }}
+              fromToken={fromToken ? {
+                ticker: fromToken.ticker,
+                address: fromToken.address,
+                decimals: fromToken.decimal,
+                logo: (
+                  <TokenLogo
+                    ticker={fromToken.ticker}
+                    chainId={fromToken.chainId}
+                    address={fromToken.address}
+                    logoUrl={fromToken.logoUrl}
+                    isNative={fromToken.isNative}
+                    size={30}
+                  />
+                ),
+              } : null}
               fromAmount={fromAmount}
               fromBalance={isTokenBalanceLoading ? "Loading..." : selectedFromToken?.balance}
               fromUsdValue={fromUSDValue}
@@ -486,7 +510,21 @@ export default function SwapPage() {
                 const bal = Number((selectedFromToken?.balance || "0").replace(/,/g, ""));
                 if (Number.isFinite(bal)) setFromAmount(String((bal * pct) / 100));
               }}
-              toToken={toToken ? { ticker: toToken.ticker, address: toToken.address, decimals: toToken.decimal } : null}
+              toToken={toToken ? {
+                ticker: toToken.ticker,
+                address: toToken.address,
+                decimals: toToken.decimal,
+                logo: (
+                  <TokenLogo
+                    ticker={toToken.ticker}
+                    chainId={toToken.chainId}
+                    address={toToken.address}
+                    logoUrl={toToken.logoUrl}
+                    isNative={toToken.isNative}
+                    size={30}
+                  />
+                ),
+              } : null}
               toAmount={toAmount}
               toUsdValue={toUSDValue}
               onSelectToToken={() => setShowTokenPicker("to")}
@@ -866,6 +904,7 @@ export default function SwapPage() {
         />
       )}
 
+      <DappFooter />
       <Toaster />
     </div>
   );

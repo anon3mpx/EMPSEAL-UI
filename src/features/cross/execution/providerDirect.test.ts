@@ -205,6 +205,38 @@ describe("classifyProviderDirectAction", () => {
     ).toBe("quote_only");
   });
 
+  it("classifies Garden Solana native funding as a Solana source action", () => {
+    expect(
+      classifyProviderDirectAction({
+        action: { kind: "garden_htlc_order" },
+        nativeFunding: {
+          runtime: "solana",
+          unsignedTransaction: "AQIDBA==",
+          signingRequest: {
+            format: "solana-versioned-transaction",
+            encoding: "base64",
+            account: "SoL11111111111111111111111111111111111111112",
+            feePayer: "SoL11111111111111111111111111111111111111112",
+          },
+        },
+      }),
+    ).toBe("garden_solana_source");
+  });
+
+  it("classifies Garden Bitcoin native funding as a Bitcoin source action", () => {
+    expect(
+      classifyProviderDirectAction({
+        action: { kind: "garden_htlc_order" },
+        nativeFunding: {
+          runtime: "bitcoin",
+          unsignedTransaction: "cHNidP8BA...",
+          depositAddress: "bc1qdeposit",
+          depositAmount: "100000",
+        },
+      }),
+    ).toBe("garden_bitcoin_source");
+  });
+
   it("rejects Optimism withdrawals by product policy", () => {
     expect(
       classifyProviderDirectAction({

@@ -29,23 +29,26 @@ import {
   waitForTransactionReceipt,
   writeContract,
 } from "@wagmi/core";
-import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
-import { erc20Abi, formatUnits, type Address } from "viem";
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { erc20Abi, formatUnits, getAddress, type Address } from "viem";
 import { useBalance, useChainId, useSignMessage, useSwitchChain } from "wagmi";
 import { useQuery } from "@tanstack/react-query";
 import { config } from "../../Wagmi/config";
+import { resolveCrossNavbarChainId } from "../data/crossPageIdentity";
 import {
   AccountModal,
   Card,
+  ChainLogo,
   ChainPicker,
   ConfirmTradeModal,
+  DappFooter,
   DappNavbar,
   NetworkSelector,
   Pill,
   QuoteCountdown,
-  SocialTray,
   Tabs,
   Toaster,
+  TokenLogo,
   TokenPicker,
   TradeSuccessModal,
   WalletButton,
@@ -71,12 +74,19 @@ import {
 } from "../../features/cross/execution/providerDirect";
 import { sendLayerZeroSolanaTransaction } from "../../features/cross/execution/solanaLayerZero";
 import { executeBitcoinThorchainIntent } from "../../features/cross/execution/bitcoinThorchain";
+import { executeGardenBitcoinIntent } from "../../features/cross/execution/bitcoinGarden";
+import { collectGardenBitcoinSourceFunding } from "../../features/cross/execution/bitcoinGardenFunding";
+import {
+  executeGardenSolanaIntent,
+  GARDEN_SOLANA_TRANSACTION_EXPIRED,
+} from "../../features/cross/execution/solanaGarden";
 import {
   executeProviderApprovals,
   findMissingProviderApprovals,
   readProviderApprovalRequests,
 } from "../../features/cross/execution/approvals";
-import { executeCrossIntegration } from "../../features/cross/execution/crossExecution";
+import { executeCrossIntegration, syncSequentialExecutionPlan } from "../../features/cross/execution/crossExecution";
+import { buildExecutionPlanStepSubmittedMessage } from "../../features/cross/execution/executionPlanSignatures";
 import {
   getRequiredRouterIntentApproval,
   isRouterIntentExpired,
@@ -89,11 +99,14 @@ import { useCrossRecovery } from "../../features/cross/hooks/useCrossRecovery";
 import {
   findMatchingRefreshedOffer,
   getPrimaryOffers,
+  isGardenNativeOffer,
   normalizeOfferSet,
 } from "../../features/cross/model/quotes";
 import {
+  GARDEN_BTC_NATIVE_SEGWIT_REASON,
   getOfferCapability,
   getRailCapability,
+  type OfferCapabilityContext,
 } from "../../features/cross/model/capabilities";
 import { mapCrossApiError } from "../../features/cross/utils/errors";
 import type {
@@ -119,7 +132,7 @@ import EmpxCrossWidget from "../EmpxCrossWidget";
 import { getExplorerAddressUrl, getExplorerTxUrl } from "../data/explorers";
 import { V2_ALL_CHAINS, getV2Chain } from "../data/v2ChainView";
 import { getTokensForChain, type V2TokenConfig } from "../data/v2TokenView";
-import { createV2NavLinks } from "../data/v2ProductRoutes";
+import type { RailCardData } from "../widgetKit";
 import { calculatePriceImpactBps } from "../data/tradeMetrics";
 import {
   CROSS_V2_DEFAULT_SELECTION,
@@ -135,6 +148,7 @@ import {
   type CrossV2OfferDisplay,
 } from "../data/crossV2Adapters";
 import {
+  AGG_CHAIN_IDS,
   RAILS,
   backendRailId,
   defaultSettlementTicker,
@@ -338,38 +352,6 @@ type ChainPickerTarget = "from" | "to";
 type TokenPickerTarget = "from" | "to";
 type SidePanelTab = "offers" | "settings" | "rails" | "lifecycle";
 
-const MONAD_CHAIN_ID = 143;
-
-const CROSS_SWAP_LEG_EVM_CHAIN_IDS = new Set([
-  8453,   // Base
-  42161,  // Arbitrum
-  10,     // Optimism
-  43114,  // Avalanche
-  143,    // Monad
-  137,    // Polygon
-  56,     // BSC
-  999,    // HyperEVM
-  1329,   // Sei
-  146,    // Sonic
-]);
-
-function applyCrossPageTokenLimits(
-  chainId: number,
-  result: { tokens: Token[]; restrictedReason?: string },
-): { tokens: Token[]; restrictedReason?: string } {
-  if (chainId !== MONAD_CHAIN_ID) return result;
-
-  const tokens = result.tokens.filter(
-    (token) => token.ticker.toUpperCase() === "USDC",
-  );
-  return {
-    tokens,
-    restrictedReason: result.restrictedReason
-      ? `${result.restrictedReason} Monad is temporarily limited to USDC on Cross.`
-      : "Monad is temporarily limited to USDC on Cross.",
-  };
-}
-
 function findTokenByTicker(tokens: Token[], ticker: string) {
   const normalized = ticker.toUpperCase();
   return tokens.find((token) => token.ticker.toUpperCase() === normalized);
@@ -378,13 +360,6 @@ function findTokenByTicker(tokens: Token[], ticker: string) {
 // Gas-drop typical USD value per destination chain (rough — production reads
 // from DestinationGasAutoFund.ts policy).
 const GAS_DROP_USD = 2.5;
-
-const EMPX_SOCIALS = [
-  { kind: "x" as const,        href: "https://x.com/EmpXio" },
-  { kind: "telegram" as const, href: "https://t.me/EmpXEmpseal" },
-  { kind: "docs" as const,     href: "https://docs.empx.io" },
-  { kind: "github" as const,   href: "https://github.com/3mperorsSeal" },
-];
 
 export default function CrossPage() {
   const isMobile = useIsMobile();
@@ -573,6 +548,20 @@ export default function CrossPage() {
     () => nativeSourceWalletForQuote(activeNativeSourceWallet),
     [activeNativeSourceWallet],
   );
+  const offerCapabilityContext = useMemo<OfferCapabilityContext | undefined>(() => {
+    if (activeNativeSourceWallet) {
+      return {
+        sourceWallet: {
+          kind: activeNativeSourceWallet.kind,
+          addressType: activeNativeSourceWallet.addressType,
+        },
+      };
+    }
+    if (sourceUsesEvmWallet && connectedAddress) {
+      return { sourceWallet: { kind: "evm" } };
+    }
+    return undefined;
+  }, [activeNativeSourceWallet, connectedAddress, sourceUsesEvmWallet]);
   const sourceWalletSupported =
     sourceUsesEvmWallet || sourceUsesNativeWallet;
   const layerZeroValueTransferApi = useMemo<LayerZeroValueTransferApiQuoteContext | undefined>(() => {
@@ -760,13 +749,10 @@ export default function CrossPage() {
   );
   const offerEntries = useMemo<CrossOfferEntry[]>(() => {
     return displayOffers.map((offer: any) => ({
-      ...formatCrossOffer(offer, toTokenDecimals),
+      ...formatCrossOffer(offer, toTokenDecimals, offerCapabilityContext),
       rawOffer: offer,
-      railBadge: offer.railVariant ?? offer.executionMode ?? offer.deliveryShape,
-      executionMode: offer.executionMode,
-      deliveryShape: offer.deliveryShape,
     }));
-  }, [displayOffers, toTokenDecimals]);
+  }, [displayOffers, offerCapabilityContext, toTokenDecimals]);
   const quoteUiState = getCrossQuoteUiState({
     walletConnected: sourceWalletConnected,
     quoteReady: quoteEnabled,
@@ -782,8 +768,8 @@ export default function CrossPage() {
     [displayOffers, effectiveQuote?.bestOfferId, selectedOfferId],
   );
   const selectedOfferDisplay = useMemo(
-    () => (selectedOffer ? formatCrossOffer(selectedOffer, toTokenDecimals) : null),
-    [selectedOffer, toTokenDecimals],
+    () => (selectedOffer ? formatCrossOffer(selectedOffer, toTokenDecimals, offerCapabilityContext) : null),
+    [offerCapabilityContext, selectedOffer, toTokenDecimals],
   );
 
   useEffect(() => {
@@ -830,6 +816,42 @@ export default function CrossPage() {
   }, [session]);
 
   useEffect(() => {
+    if (session?.mode !== "single") return;
+    const sequentialIntegration = session.integration.mode === "sequential_wallet"
+      ? session.integration
+      : null;
+    if (
+      !sequentialIntegration
+      || session.executionPlan?.steps[session.executionPlan.currentStep]?.status !== "SUBMITTED"
+    ) {
+      return;
+    }
+
+    let cancelled = false;
+    const refresh = async () => {
+      try {
+        const response = await crossApi.getExecutionPlan(sequentialIntegration.planId);
+        if (cancelled) return;
+        setSession((current) =>
+          current?.mode === "single" && current.executionPlan?.version !== response.executionPlan.version
+            ? syncSequentialExecutionPlan(current, response.executionPlan)
+            : current,
+        );
+      } catch {
+        // Settlement can take longer than one polling interval. The execution
+        // panel retains the last known plan and retries without discarding it.
+      }
+    };
+
+    void refresh();
+    const interval = window.setInterval(refresh, 5_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [session]);
+
+  useEffect(() => {
     if (execution.fallbackOfferSet) {
       toast.info("Selected route expired. Please choose an updated route.");
     }
@@ -841,20 +863,16 @@ export default function CrossPage() {
     }
   }, [quote.data]);
 
-  // Temporary Cross-only Monad limit: repair existing source selections that
-  // were made before the modal list was narrowed.
+  // Keep the source selection in sync with the current token catalog.
   useEffect(() => {
-    const allowed = applyCrossPageTokenLimits(
+    const allowed = tokensFor(
       fromChainId,
-      tokensFor(
-        fromChainId,
-        "from",
-        eligibleRailsFor(fromChainId, toChainId, undefined),
-        fromTokenCatalog,
-        Boolean(fromChain.providerChainKey && layerZeroCatalog.data?.tokens?.some(
-          (token) => token.chainKey === fromChain.providerChainKey,
-        )),
-      ),
+      "from",
+      eligibleRailsFor(fromChainId, toChainId, undefined),
+      fromTokenCatalog,
+      Boolean(fromChain.providerChainKey && layerZeroCatalog.data?.tokens?.some(
+        (token) => token.chainKey === fromChain.providerChainKey,
+      )),
     ).tokens;
     const exactSelection = fromTokenKey
       ? allowed.find((token) => tokenKey(token) === fromTokenKey)
@@ -883,17 +901,14 @@ export default function CrossPage() {
   // Keep exact provider assets selected when possible. If discovery or a chain
   // change removes the selected asset, fall back to a supported settlement token.
   useEffect(() => {
-    const allowed = applyCrossPageTokenLimits(
+    const allowed = tokensFor(
       toChainId,
-      tokensFor(
-        toChainId,
-        "to",
-        eligibleRailsFor(fromChainId, toChainId, undefined),
-        toTokenCatalog,
-        Boolean(toChain.providerChainKey && layerZeroCatalog.data?.tokens?.some(
-          (token) => token.chainKey === toChain.providerChainKey,
-        )),
-      ),
+      "to",
+      eligibleRailsFor(fromChainId, toChainId, undefined),
+      toTokenCatalog,
+      Boolean(toChain.providerChainKey && layerZeroCatalog.data?.tokens?.some(
+        (token) => token.chainKey === toChain.providerChainKey,
+      )),
     ).tokens;
     const exactSelection = toTokenKey
       ? allowed.find((token) => tokenKey(token) === toTokenKey)
@@ -924,7 +939,13 @@ export default function CrossPage() {
 
   // Gas-drop eligibility — Gas.zip must support the destination
   const gasZipRail = RAILS.find((r) => r.name === "Gas.zip");
-  const gasDropAvailable = !!gasZipRail && gasZipRail.destinations.includes(toChainId);
+  const selectedOfferIsGardenNative = Boolean(
+    selectedOffer && isGardenNativeOffer(selectedOffer),
+  );
+  const gasDropAvailable =
+    !!gasZipRail &&
+    gasZipRail.destinations.includes(toChainId) &&
+    !selectedOfferIsGardenNative;
   useEffect(() => {
     if (!gasDropAvailable && gasDropOnDestination) setGasDropOnDestination(false);
   }, [gasDropAvailable, gasDropOnDestination]);
@@ -958,6 +979,20 @@ export default function CrossPage() {
           requests: [],
           error: error instanceof Error ? error : new Error(String(error)),
         };
+      }
+    }
+
+    if (session.integration?.mode === "sequential_wallet") {
+      try {
+        return {
+          requests: readProviderApprovalRequests(
+            session.integration as any,
+            session.integration.tx.chainId,
+          ),
+          error: null as Error | null,
+        };
+      } catch (error) {
+        return { requests: [], error: error instanceof Error ? error : new Error(String(error)) };
       }
     }
 
@@ -1026,7 +1061,16 @@ export default function CrossPage() {
     session?.mode === "single"
       ? session.intentId ?? ""
       : session?.primaryTransfer?.intentId ?? "";
-  const recovery = useCrossRecovery(recoveryIntentId);
+  const gardenBitcoinRefund =
+    session?.mode === "single" &&
+    session.nativeCallbackAuth?.recoveryToken &&
+    activeNativeSourceWallet?.kind === "bitcoin"
+      ? {
+          userAddress: activeNativeSourceWallet.address,
+          recoveryToken: session.nativeCallbackAuth.recoveryToken,
+        }
+      : null;
+  const recovery = useCrossRecovery(recoveryIntentId, { gardenBitcoinRefund });
 
   const { data: fromTokenBalance } = useBalance({
     address: connectedAddress,
@@ -1129,7 +1173,7 @@ export default function CrossPage() {
     return chainOptions.map((c) => {
       const tier = tierForChainId(c.id);
       const kind = c.kind ?? "EVM";
-      const isSwapLegEvmChain = kind === "EVM" && CROSS_SWAP_LEG_EVM_CHAIN_IDS.has(c.id);
+      const isSwapLegEvmChain = kind === "EVM" && AGG_CHAIN_IDS.has(c.id);
       return {
         id: c.id,
         name: c.name,
@@ -1161,15 +1205,12 @@ export default function CrossPage() {
       selectedChain.providerChainKey &&
       (layerZeroCatalog.data?.tokens ?? []).some((token) => token.chainKey === selectedChain.providerChainKey),
     );
-    const { tokens, restrictedReason } = applyCrossPageTokenLimits(
+    const { tokens, restrictedReason } = tokensFor(
       chainId,
-      tokensFor(
-        chainId,
-        role,
-        eligible,
-        catalog,
-        providerDiscovered,
-      ),
+      role,
+      eligible,
+      catalog,
+      providerDiscovered,
     );
     const chainName = selectedChain.name;
     const chainColor = selectedChain.color;
@@ -1179,6 +1220,9 @@ export default function CrossPage() {
         address: t.address ?? t.providerAssetId,
         ticker: t.ticker,
         name: t.name,
+        chainId,
+        logoUrl: t.logoUrl,
+        isNative: t.isNative,
         chainName,
         chainColor,
         badge: t.badge,
@@ -1265,7 +1309,7 @@ export default function CrossPage() {
       toast.error(quoteErrorMessage ?? "No executable route is available for this pair.");
       return;
     }
-    const capability = getOfferCapability(selectedOffer);
+    const capability = getOfferCapability(selectedOffer, offerCapabilityContext);
     if (!capability.selectable) {
       toast.error(capability.reason ?? "This route cannot be selected.");
       return;
@@ -1420,6 +1464,61 @@ export default function CrossPage() {
     [nativeSourceWallet],
   );
 
+  const sessionRef = useRef(session);
+  sessionRef.current = session;
+
+  const markGardenNativeSubmitted = useCallback(
+    async (intentId: string, sourceTxHash: string, userAddress: string) => {
+      const current = sessionRef.current;
+      const submissionToken =
+        current?.mode === "single" ? current.nativeCallbackAuth?.submissionToken : undefined;
+      if (!submissionToken) {
+        throw new Error("Garden submission token is missing. Prepare the route again.");
+      }
+      await crossApi.markGardenSubmitted(intentId, {
+        userAddress,
+        sourceTxHash,
+        submissionToken,
+      });
+    },
+    [],
+  );
+
+  const executeGardenSolanaSourceIntent = useCallback(
+    async (intentId: string, integration: any) => {
+      if (nativeSourceWallet?.kind !== "solana") {
+        throw new Error("Connect a Solana source wallet before executing this Garden route.");
+      }
+      const sourceTxHash = await executeGardenSolanaIntent({
+        integration,
+        expectedSignerAddress: nativeSourceWallet.address,
+      });
+      await markGardenNativeSubmitted(intentId, sourceTxHash, nativeSourceWallet.address);
+      return sourceTxHash;
+    },
+    [markGardenNativeSubmitted, nativeSourceWallet],
+  );
+
+  const executeGardenBitcoinSourceIntent = useCallback(
+    async (intentId: string, integration: any) => {
+      if (nativeSourceWallet?.kind !== "bitcoin") {
+        throw new Error("Connect a Bitcoin source wallet before executing this Garden route.");
+      }
+      if (nativeSourceWallet.addressType !== "p2wpkh") {
+        throw new Error(GARDEN_BTC_NATIVE_SEGWIT_REASON);
+      }
+      const sourceTxHash = await executeGardenBitcoinIntent({
+        integration,
+        sourceAddress: nativeSourceWallet.address,
+        addressType: nativeSourceWallet.addressType,
+        providerName: nativeSourceWallet.providerName,
+      });
+      await markGardenNativeSubmitted(intentId, sourceTxHash, nativeSourceWallet.address);
+      return sourceTxHash;
+    },
+    [markGardenNativeSubmitted, nativeSourceWallet],
+  );
+
   const executeIntent = useCallback(
     async (intentId: string, integration: any, sourceChainId: number) => {
       return executeCrossIntegration(
@@ -1441,16 +1540,41 @@ export default function CrossPage() {
               sourceTxHash: txHash,
             });
           },
+          markExecutionPlanStepSubmitted: async (planId, stepId, txHash, expectedVersion) => {
+            if (!connectedAddress) throw new Error("Source wallet not connected.");
+            const userAddress = getAddress(connectedAddress);
+            const timestamp = Date.now();
+            const idempotencyKey = `ui-${stepId.slice(0, 40)}-${txHash.slice(2, 18)}`;
+            const signature = await signMessageAsync({
+              account: connectedAddress,
+              message: buildExecutionPlanStepSubmittedMessage({
+                planId, stepId, wallet: userAddress, txHash, expectedVersion, idempotencyKey, timestamp,
+              }),
+            });
+            const response = await crossApi.markExecutionPlanStepSubmitted(planId, stepId, {
+              userAddress, txHash, expectedVersion, idempotencyKey, timestamp, signature,
+            });
+            setSession((current) =>
+              current?.mode === "single" && current.executionPlan?.planId === planId
+                ? { ...current, executionPlan: response.executionPlan }
+                : current,
+            );
+          },
           executeThorchainBitcoinIntent,
+          executeGardenSolanaIntent: executeGardenSolanaSourceIntent,
+          executeGardenBitcoinIntent: executeGardenBitcoinSourceIntent,
         },
       );
     },
     [
       connectedAddress,
+      executeGardenBitcoinSourceIntent,
+      executeGardenSolanaSourceIntent,
       executeLayerZeroIntent,
       executeThorchainBitcoinIntent,
       hasRequiredApproval,
       sendEvmTransaction,
+      signMessageAsync,
       sourceWalletAddress,
       submitStandardIntent,
     ],
@@ -1467,12 +1591,27 @@ export default function CrossPage() {
       return null;
     }
 
+    let gardenNativeSourceFunding;
+    if (isGardenNativeOffer(offerForSelection) && offerForSelection.srcChainId === 0) {
+      if (activeNativeSourceWallet?.kind !== "bitcoin") {
+        throw new Error("Connect a Bitcoin source wallet before selecting this Garden route.");
+      }
+      if (activeNativeSourceWallet.addressType !== "p2wpkh") {
+        throw new Error(GARDEN_BTC_NATIVE_SEGWIT_REASON);
+      }
+      gardenNativeSourceFunding = await collectGardenBitcoinSourceFunding({
+        ownerAddress: activeNativeSourceWallet.address,
+        providerName: activeNativeSourceWallet.providerName,
+      });
+    }
+
     // Selection creates a backend intent but does not submit user funds. The
     // lifecycle tab owns the subsequent wallet execution step.
     const response = await execution.selectSingleIntent({
       offerSetId: quoteForSelection.offerSetId,
       offerId: offerForSelection.offerId,
       userAddress: sourceWalletAddress,
+      gardenNativeSourceFunding,
     });
 
     let nextIntegration = response.integration;
@@ -1497,14 +1636,22 @@ export default function CrossPage() {
       offerSetId: quoteForSelection.offerSetId,
       quote: response.quote,
       integration: nextIntegration,
+      executionPlan: response.executionPlan,
       status: "SELECTED",
       sourceChainId: response.quote?.srcChainId ?? offerForSelection.srcChainId,
       lastError: null,
+      nativeCallbackAuth: response.nativeCallbackAuth,
     };
 
     setSession(nextSession);
     return nextSession;
-  }, [effectiveQuote, execution, selectedOffer, sourceWalletAddress]);
+  }, [
+    activeNativeSourceWallet,
+    effectiveQuote,
+    execution,
+    selectedOffer,
+    sourceWalletAddress,
+  ]);
 
   const handlePrepareExecution = useCallback(async () => {
     if (!sourceWalletAddress || !selectedOffer || !effectiveQuote) {
@@ -1512,14 +1659,18 @@ export default function CrossPage() {
     }
 
     try {
-      const capability = getOfferCapability(selectedOffer);
+      const capability = getOfferCapability(selectedOffer, offerCapabilityContext);
       if (!capability.selectable) {
         throw new Error(
           `RAIL_DISABLED: ${capability.reason ?? "This route cannot be selected."}`,
         );
       }
 
-      if (gasDropOnDestination && selectedGasOfferId) {
+      if (
+        gasDropOnDestination &&
+        selectedGasOfferId &&
+        !isGardenNativeOffer(selectedOffer)
+      ) {
         // Gas.zip destination gas is a composed route: primary bridge leg plus
         // an independent gas-drop leg, each with its own intent lifecycle.
         const response = await execution.selectComposedIntent({
@@ -1559,6 +1710,7 @@ export default function CrossPage() {
     effectiveQuote,
     execution,
     gasDropOnDestination,
+    offerCapabilityContext,
     prepareSingleExecution,
     selectedGasOfferId,
     selectedOffer,
@@ -1593,6 +1745,12 @@ export default function CrossPage() {
       );
       toast.success("Source transaction submitted.");
     } catch (error: any) {
+      const raw = String(error?.message ?? error?.body?.message ?? error?.body?.error ?? "");
+      if (raw.includes(GARDEN_SOLANA_TRANSACTION_EXPIRED)) {
+        setSession(null);
+        toast.error("Garden Solana transaction expired. Request a new quote and try again.");
+        return;
+      }
       const message = mapCrossApiError(error);
       setSession((current) =>
         current ? { ...current, lastError: message } : current,
@@ -1762,12 +1920,19 @@ export default function CrossPage() {
   }, [connectedAddress, recovery.cancel, session, signMessageAsync]);
 
   const handleRefund = useCallback(async () => {
-    if (!session || session.mode !== "single" || !connectedAddress) return;
+    if (!session || session.mode !== "single") return;
 
     const reason = window.prompt("Refund reason", "Bridge appears stuck");
     if (!reason) return;
 
     try {
+      if (gardenBitcoinRefund) {
+        await recovery.refund.mutateAsync({ reason });
+        toast.success("Garden BTC refund request submitted.");
+        return;
+      }
+
+      if (!connectedAddress) return;
       const timestamp = Date.now();
       const message = buildRefundMessage({
         intentId: session.intentId,
@@ -1787,7 +1952,7 @@ export default function CrossPage() {
     } catch (error: any) {
       toast.error(mapCrossApiError(error));
     }
-  }, [connectedAddress, recovery.refund, session, signMessageAsync]);
+  }, [connectedAddress, gardenBitcoinRefund, recovery.refund, session, signMessageAsync]);
 
   const singleRouterValue =
     session?.mode === "single" && session.integration?.mode === "router_intent"
@@ -1812,6 +1977,12 @@ export default function CrossPage() {
     session.integration.mode === "provider_direct" &&
     session.integration.action.kind === "thorchain_swap" &&
     (session.sourceChainId ?? session.quote?.srcChainId) === 0;
+  const singleGardenClassification =
+    session?.mode === "single" && session.integration.mode === "provider_direct"
+      ? classifyProviderDirectAction(session.integration, {
+          selectedSourceChainId: session.sourceChainId ?? session.quote?.srcChainId,
+        })
+      : null;
   const singleActionLabel =
     session?.mode === "single"
       ? isCheckingApproval
@@ -1822,6 +1993,10 @@ export default function CrossPage() {
             ? "Approve Token"
             : singleExecutionBlockedForNativeValue
               ? "Insufficient Native Value"
+              : singleGardenClassification === "garden_solana_source"
+                ? "Sign Garden Solana Transaction"
+                : singleGardenClassification === "garden_bitcoin_source"
+                  ? "Sign Garden BTC PSBT"
               : singleRouteIsThorchainBitcoinDeposit
                 ? "Execute BTC Deposit"
                 : "Execute Route"
@@ -1859,9 +2034,9 @@ export default function CrossPage() {
     }
   }, [shownSuccessIntentId, session, trackingData]);
 
-  const navLinks = createV2NavLinks("cross");
   const activeWalletDisplay = sourceUsesNativeWallet && activeNativeSourceWallet
     ? {
+        chainId: fromChain.id,
         address: activeNativeSourceWallet.address,
         providerName: activeNativeSourceWallet.providerName,
         chainName: fromChain.name,
@@ -1872,6 +2047,7 @@ export default function CrossPage() {
       }
     : walletState.status === "connected"
       ? {
+          chainId: walletState.chain.id,
           address: walletState.address,
           providerName: walletState.providerName,
           chainName: walletState.chain.name,
@@ -1887,13 +2063,20 @@ export default function CrossPage() {
   return (
     <div style={{ minHeight: "100vh", background: "#05050c", color: "#fff", fontFamily: "Inter, sans-serif" }}>
       <DappNavbar
-        links={navLinks}
-        socials={<SocialTray links={EMPX_SOCIALS} withSeparator />}
+        activeHref="/cross-v2"
         controls={
           <>
             <NetworkSelector
               name={activeWalletDisplay?.chainName ?? fromChain.name}
               color={activeWalletDisplay?.chainColor ?? fromChain.color}
+              logo={(
+                <ChainLogo
+                  chainId={resolveCrossNavbarChainId(fromChainId, activeWalletDisplay?.chainId)}
+                  symbol={(activeWalletDisplay?.chainName ?? fromChain.name).slice(0, 3).toUpperCase()}
+                  bg={activeWalletDisplay?.chainColor ?? fromChain.color}
+                  size={14}
+                />
+              )}
               onClick={() => setChainPickerTarget("from")}
             />
             <WalletButton
@@ -1948,8 +2131,30 @@ export default function CrossPage() {
           {/* LEFT — cross widget */}
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 14 }}>
             <EmpxCrossWidget
-              fromChain={fromChain}
-              fromToken={{ ticker: fromTicker }}
+              fromChain={{
+                ...fromChain,
+                logo: (
+                  <ChainLogo
+                    chainId={fromChainId}
+                    symbol={fromChain.name.slice(0, 3).toUpperCase()}
+                    bg={fromChain.color}
+                    size={17}
+                  />
+                ),
+              }}
+              fromToken={{
+                ticker: fromTicker,
+                logo: (
+                  <TokenLogo
+                    ticker={fromTicker}
+                    chainId={fromChainId}
+                    address={fromTokenConfig?.address}
+                    logoUrl={fromTokenConfig?.logoUrl}
+                    isNative={fromTokenConfig?.isNative}
+                    size={30}
+                  />
+                ),
+              }}
               fromAmount={fromAmount}
               fromBalance={fromBalanceLabel}
               fromUsdValue={fromUsdValue}
@@ -1958,15 +2163,37 @@ export default function CrossPage() {
               onSelectFromChain={() => setChainPickerTarget("from")}
               onPercentClick={(pct) => setFromAmount(String((fromBalanceNumeric * pct) / 100))}
 
-              toChain={toChain}
-              toToken={{ ticker: toTicker }}
+              toChain={{
+                ...toChain,
+                logo: (
+                  <ChainLogo
+                    chainId={toChainId}
+                    symbol={toChain.name.slice(0, 3).toUpperCase()}
+                    bg={toChain.color}
+                    size={17}
+                  />
+                ),
+              }}
+              toToken={{
+                ticker: toTicker,
+                logo: (
+                  <TokenLogo
+                    ticker={toTicker}
+                    chainId={toChainId}
+                    address={toTokenConfig?.address}
+                    logoUrl={toTokenConfig?.logoUrl}
+                    isNative={toTokenConfig?.isNative}
+                    size={30}
+                  />
+                ),
+              }}
               toAmount={toAmountDisplay}
               toUsdValue={toUsdValue}
               onSelectToToken={() => setTokenPickerTarget("to")}
               onSelectToChain={() => setChainPickerTarget("to")}
 
               railName={selectedOfferDisplay?.railName}
-              railBadge={selectedOffer?.railVariant ?? selectedOffer?.executionMode ?? selectedOffer?.deliveryShape}
+              railBadge={selectedOfferDisplay?.executionLabel}
               protocolFeeBps={selectedOffer?.economics?.protocolFeeBps ?? selectedOffer?.fees?.protocolFeeBps}
               protocolFeeUSD={selectedOfferDisplay?.protocolFeeUSD}
               bridgeFeeUSD={selectedOfferDisplay?.bridgeFeeUSD}
@@ -1988,6 +2215,19 @@ export default function CrossPage() {
                 (nativeDestinationRequired && !nativeDstAddressValid) ||
                 (destinationAddressRequired && !destinationAddressValid)
               }
+              rails={offerEntries.map((o): RailCardData => ({
+                name: o.railName,
+                mode: "B",
+                outAmount: o.outputAmount,
+                eta: o.estimatedTimeSeconds != null ? formatEtaSeconds(o.estimatedTimeSeconds) : "—",
+                tag: o.isBest ? "BEST" : undefined,
+                isActive: o.offerId === (selectedOffer?.offerId ?? selectedOfferId),
+              }))}
+              onSelectRail={(name) => {
+                const hit = offerEntries.find((entry) => entry.railName === name);
+                if (!hit) return;
+                setSelectedOfferId((cur) => (cur === hit.offerId ? effectiveQuote?.bestOfferId ?? null : hit.offerId));
+              }}
               swapLoading={quote.isFetching || execution.isSelecting}
               swapLabel={
                 !sourceWalletConnected
@@ -2104,6 +2344,7 @@ export default function CrossPage() {
                     gasDropOnDestination={gasDropOnDestination}
                     setGasDropOnDestination={setGasDropOnDestination}
                     gasDropAvailable={gasDropAvailable}
+                    gardenNativeSelected={selectedOfferIsGardenNative}
                     destinationName={toChain.name}
                     destinationNative={toChain.ticker}
                     gasDropUSD={GAS_DROP_USD}
@@ -2128,6 +2369,7 @@ export default function CrossPage() {
                     singleActionDisabled={singleActionDisabled}
                     singleExecutionHint={singleExecutionHint}
                     singleExecutionError={session?.lastError ?? null}
+                    sourceWallet={offerCapabilityContext?.sourceWallet}
                   />
                 )}
               </div>
@@ -2166,15 +2408,12 @@ export default function CrossPage() {
             if (chainPickerTarget === "from") {
               setFromChainId(c.id);
               const newFromTier = tierForChainId(c.id);
-              const allowed = applyCrossPageTokenLimits(
+              const allowed = tokensFor(
                 c.id,
-                tokensFor(
-                  c.id,
-                  "from",
-                  eligibleRailsFor(c.id, toChainId, undefined),
-                  catalog,
-                  providerDiscovered,
-                ),
+                "from",
+                eligibleRailsFor(c.id, toChainId, undefined),
+                catalog,
+                providerDiscovered,
               ).tokens;
               const fallback =
                 (newFromTier === 3
@@ -2189,15 +2428,12 @@ export default function CrossPage() {
               setFromTokenKey(fallback ? tokenKey(fallback) : null);
             } else {
               setToChainId(c.id);
-              const allowed = applyCrossPageTokenLimits(
+              const allowed = tokensFor(
                 c.id,
-                tokensFor(
-                  c.id,
-                  "to",
-                  eligibleRailsFor(fromChainId, c.id, undefined),
-                  catalog,
-                  providerDiscovered,
-                ),
+                "to",
+                eligibleRailsFor(fromChainId, c.id, undefined),
+                catalog,
+                providerDiscovered,
               ).tokens;
               const settlementTicker = defaultSettlementTicker(c.id);
               const fallback =
@@ -2256,7 +2492,10 @@ export default function CrossPage() {
           selectedOfferDisplay
             ? [
                 { label: "Via rail",      value: selectedOfferDisplay.railName },
-                { label: "Execution",     value: selectedOffer?.executionMode ?? selectedOffer?.deliveryShape ?? "Route" },
+                { label: "Execution",     value: selectedOfferDisplay.executionLabel },
+                ...(selectedOfferDisplay.stepSummary
+                  ? [{ label: "Route steps", value: selectedOfferDisplay.stepSummary }]
+                  : []),
                 { label: "Protocol fee",  value: `$${selectedOfferDisplay.protocolFeeUSD.toFixed(2)}`, accent: true },
                 { label: "Bridge fee",    value: selectedOfferDisplay.bridgeFeeUSD <= 0.005 ? "FREE" : `$${selectedOfferDisplay.bridgeFeeUSD.toFixed(2)}` },
                 ...(gasDropOnDestination ? [{ label: "Gas drop", value: `+$${GAS_DROP_USD.toFixed(2)} ${toChain.ticker}` }] : []),
@@ -2337,6 +2576,7 @@ export default function CrossPage() {
         />
       )}
 
+      <DappFooter />
       <Toaster />
     </div>
   );
@@ -2346,9 +2586,6 @@ export default function CrossPage() {
 
 type CrossOfferEntry = CrossV2OfferDisplay & {
   rawOffer: any;
-  railBadge?: string;
-  executionMode?: string;
-  deliveryShape?: string;
 };
 
 function OffersList({
@@ -2417,9 +2654,9 @@ function OffersList({
               ? "SELECTED"
               : isBest
                 ? "BEST"
-                : o.railBadge);
+                : null);
           const tagAccent = isSelected || isBest;
-          const modeColor = o.executionMode === "provider_direct" ? "#93C5FD" : "#FFB347";
+          const modeColor = o.executionLabel === "Provider Direct" ? "#93C5FD" : "#FFB347";
           return (
             <button
               key={o.offerId}
@@ -2456,7 +2693,7 @@ function OffersList({
               {/* Tiny mode dot — replaces the chunky "Mode A/B" pill */}
               <span
                 aria-hidden
-                title={o.executionMode ?? "route"}
+                title={o.executionLabel}
                 style={{
                   width: 6,
                   height: 6,
@@ -2488,6 +2725,20 @@ function OffersList({
                       {tag}
                     </span>
                   )}
+                  <span
+                    style={{
+                      fontSize: 8.5,
+                      fontWeight: 700,
+                      letterSpacing: "0.12em",
+                      padding: "1px 5px",
+                      borderRadius: 2,
+                      color: o.executionLabel === "Provider Direct" ? "#93C5FD" : "rgba(255,179,71,0.85)",
+                      background: o.executionLabel === "Provider Direct" ? "rgba(147,197,253,0.08)" : "rgba(255,179,71,0.08)",
+                      border: `1px solid ${o.executionLabel === "Provider Direct" ? "rgba(147,197,253,0.20)" : "rgba(255,179,71,0.20)"}`,
+                    }}
+                  >
+                    {o.executionLabel}
+                  </span>
                 </div>
                 <p
                   style={{
@@ -2499,7 +2750,7 @@ function OffersList({
                   }}
                   title={o.offerId}
                 >
-                  {o.executionMode ?? "route"} · {o.estimatedTimeSeconds ? formatEtaSeconds(o.estimatedTimeSeconds) : "ETA pending"} · ${o.totalFeeUSD.toFixed(2)}
+                  {o.stepSummary ?? "Direct bridge"} · {o.estimatedTimeSeconds ? formatEtaSeconds(o.estimatedTimeSeconds) : "ETA pending"} · ${o.totalFeeUSD.toFixed(2)}
                 </p>
                 {o.restrictionReason ? (
                   <p style={{ margin: "3px 0 0", fontSize: 10, color: "rgba(255,138,0,0.72)", lineHeight: 1.35 }}>
@@ -2538,11 +2789,12 @@ function OffersList({
 
 function GasSettings({
   gasDropOnDestination, setGasDropOnDestination, gasDropAvailable,
-  destinationName, destinationNative, gasDropUSD,
+  gardenNativeSelected, destinationName, destinationNative, gasDropUSD,
 }: {
   gasDropOnDestination: boolean;
   setGasDropOnDestination: (v: boolean) => void;
   gasDropAvailable: boolean;
+  gardenNativeSelected?: boolean;
   destinationName: string;
   destinationNative: string;
   gasDropUSD: number;
@@ -2559,7 +2811,9 @@ function GasSettings({
       <GasToggle
         title="Drop destination gas"
         hint={
-          gasDropAvailable
+          gardenNativeSelected
+            ? "Garden native routes cannot be composed with Gas.zip. Select a different rail to drop destination gas."
+            : gasDropAvailable
             ? `Arrive on ${destinationName} with ~$${gasDropUSD.toFixed(2)} of ${destinationNative} so you can transact immediately. Routed via Gas.zip side-leg.`
             : `Gas.zip doesn't support ${destinationName} as a destination.`
         }
@@ -2736,6 +2990,7 @@ function LifecycleStatus({
   singleActionDisabled,
   singleExecutionHint,
   singleExecutionError,
+  sourceWallet,
 }: {
   session: CrossExecutionSession | null;
   tracking: any;
@@ -2753,6 +3008,7 @@ function LifecycleStatus({
   singleActionDisabled?: boolean;
   singleExecutionHint?: string | null;
   singleExecutionError?: string | null;
+  sourceWallet?: OfferCapabilityContext["sourceWallet"];
 }) {
   if (!session) return <LifecycleExplainer />;
 
@@ -2768,6 +3024,7 @@ function LifecycleStatus({
         singleActionDisabled={singleActionDisabled}
         singleExecutionHint={singleExecutionHint}
         singleExecutionError={singleExecutionError}
+        sourceWallet={sourceWallet}
       />
       <CrossTrackingPanel
         session={session}
@@ -2775,7 +3032,6 @@ function LifecycleStatus({
         links={trackingLinks}
         isCancelling={isCancelling}
         isRefunding={isRefunding}
-        recoveryActionsDisabled
         onCancel={onCancel}
         onRefund={onRefund}
       />

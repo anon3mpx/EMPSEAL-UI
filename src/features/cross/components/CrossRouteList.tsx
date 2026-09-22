@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { formatUnits } from "viem";
 import {
   getOfferLeg,
@@ -9,7 +9,9 @@ import {
 import {
   getOfferCapability,
   getRailCapability,
+  type OfferCapabilityContext,
 } from "../model/capabilities";
+import { isGardenNativeOffer } from "../model/quotes";
 
 const formatDisplayAmount = (value?: string, decimals = 18) => {
   if (!value) return "0";
@@ -139,6 +141,7 @@ interface CrossRouteListProps {
   onSelectGasOffer?: (offerId: string) => void;
   onIncludeDestinationGasChange?: (value: boolean) => void;
   onDestinationGasAmountChange?: (value: string) => void;
+  sourceWallet?: OfferCapabilityContext["sourceWallet"];
 }
 
 export function CrossRouteList({
@@ -156,6 +159,7 @@ export function CrossRouteList({
   onSelectGasOffer,
   onIncludeDestinationGasChange,
   onDestinationGasAmountChange,
+  sourceWallet,
 }: CrossRouteListProps) {
   const [showDetails, setShowDetails] = useState(false);
   
@@ -181,6 +185,20 @@ export function CrossRouteList({
       )
     : null;
   const hasGasOffers = gasOffers.length > 0;
+  const capabilityContext = sourceWallet ? { sourceWallet } : undefined;
+  const selectedIsGardenNative = Boolean(
+    selectedOffer && isGardenNativeOffer(selectedOffer),
+  );
+
+  useEffect(() => {
+    if (selectedIsGardenNative && includeDestinationGas) {
+      onIncludeDestinationGasChange?.(false);
+    }
+  }, [
+    includeDestinationGas,
+    onIncludeDestinationGasChange,
+    selectedIsGardenNative,
+  ]);
 
   if (errorMessage) {
     return (
@@ -225,7 +243,7 @@ export function CrossRouteList({
 
       <div className="grid gap-3 md:grid-cols-2">
         {offers.map((offer) => {
-          const capability = getOfferCapability(offer);
+          const capability = getOfferCapability(offer, capabilityContext);
           const output = getQuotedOutputDisplay(
             getOfferOutputAmount(offer),
             tokenOutDecimals,
@@ -310,7 +328,7 @@ export function CrossRouteList({
       {showDetails && selectedOffer ? (
         <div className="border border-white/[0.05] bg-white/[0.015] px-4 py-3">
           {(() => {
-            const capability = getOfferCapability(selectedOffer);
+            const capability = getOfferCapability(selectedOffer, capabilityContext);
             return (
               <div className="mb-3 grid gap-2 text-[10px] text-white/55 sm:grid-cols-2">
                 <div>
@@ -466,8 +484,16 @@ export function CrossRouteList({
               onClick={() =>
                 onIncludeDestinationGasChange?.(!includeDestinationGas)
               }
+              disabled={selectedIsGardenNative}
+              title={
+                selectedIsGardenNative
+                  ? "Garden native routes cannot be composed with Gas.zip."
+                  : undefined
+              }
               className={`border px-3 py-2 text-[10px] font-bold uppercase tracking-[0.12em] transition-colors ${
-                includeDestinationGas
+                selectedIsGardenNative
+                  ? "cursor-not-allowed border-white/[0.06] bg-white/[0.03] text-white/20"
+                  : includeDestinationGas
                   ? "border-[#FF8A00]/35 bg-[#FF8A00]/12 text-[#FF8A00]"
                   : "border-white/[0.08] bg-white/[0.03] text-white/35"
               }`}
@@ -487,7 +513,9 @@ export function CrossRouteList({
                 <button
                   key={offer.offerId}
                   type="button"
+                  disabled={selectedIsGardenNative}
                   onClick={() => {
+                    if (selectedIsGardenNative) return;
                     onSelectGasOffer?.(offer.offerId);
                     onIncludeDestinationGasChange?.(true);
                   }}

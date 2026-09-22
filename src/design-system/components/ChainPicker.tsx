@@ -9,7 +9,6 @@
 
 import { ReactNode, useMemo, useState } from "react";
 import Modal from "./Modal";
-import LogoTile from "./LogoTile";
 import ChainLogo from "./ChainLogo";
 
 export interface PickerChain {
@@ -18,6 +17,7 @@ export interface PickerChain {
   ticker?: string;
   color?: string;
   logo?: ReactNode;
+  logoUrl?: string;
   /** Network kind — used for grouping headers in cross mode */
   kind?: "EVM" | "BTC" | "SOL" | "OTHER";
   /** Optional: chain has user balance (for sorting / display) */
@@ -236,10 +236,13 @@ export default function ChainPicker({
                         if (!selected) e.currentTarget.style.background = "transparent";
                       }}
                     >
-                      {/* ChainLogo tries DefiLlama CDN; falls back to coloured tile/pill.
-                           Pass the chain ticker as the lookup key (matches CHAIN_SLUGS). */}
                       <ChainLogo
-                        symbol={c.ticker || c.name.slice(0, 3).toUpperCase()}
+                        chainId={c.id}
+                        symbol={
+                          c.ticker && c.ticker !== "ETH"
+                            ? c.ticker
+                            : c.name.slice(0, 3).toUpperCase()
+                        }
                         bg={c.color || "#888"}
                         size={32}
                       />

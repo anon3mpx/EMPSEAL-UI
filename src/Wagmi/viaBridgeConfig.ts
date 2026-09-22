@@ -9,6 +9,7 @@ import {
 } from "@rainbow-me/rainbowkit/wallets";
 import { pulsechain, base, arbitrum, avalanche, optimism } from "wagmi/chains";
 import { defineChain } from "viem";
+import { walletConnectProjectId } from "./walletConnectProjectId";
 
 export const bnb = defineChain({
   id: 56,
@@ -66,12 +67,12 @@ const viaBridgeConnectors = connectorsForWallets(
       ],
     },
   ],
-  { appName: "RainbowKit Via Bridge", projectId: "YOUR_PROJECT_ID" }
+  { appName: "RainbowKit Via Bridge", projectId: walletConnectProjectId }
 );
 
 export const viaBridgeConfig = getDefaultConfig({
   appName: "Emplseal Via Bridge",
-  projectId: "YOUR_PROJECT_ID",
+  projectId: walletConnectProjectId,
   chains: [pulsechain, base, arbitrum, polygon, avalanche, optimism, bnb],
   ssr: true,
   connectors: viaBridgeConnectors,

@@ -28,12 +28,12 @@ import {
   BrandMark,
   Card,
   ChainPicker,
+  DappFooter,
   DappNavbar,
   NetworkSelector,
   Pill,
   PrimaryButton,
   RouteVisualization,
-  SocialTray,
   Toaster,
   TokenPicker,
   WalletButton,
@@ -48,14 +48,12 @@ import {
 import { useWalletConnection } from "../hooks/useWalletConnection";
 import { useV2Balances } from "../hooks/useV2Balances";
 import EmpxBridgeWidget from "../EmpxBridgeWidget";
-import { EMPX_SOCIALS } from "./SwapPage";
 import { getExplorerAddressUrl } from "../data/explorers";
 import { V2_AGGREGATOR_CHAINS } from "../data/v2ChainView";
 import { getTokensForChain } from "../data/v2TokenView";
 import {
   V2_BRIDGE_ROUTE_STATUS,
   buildUnavailableRouteRows,
-  createV2NavLinks,
 } from "../data/v2ProductRoutes";
 import {
   tierForChainId,
@@ -146,13 +144,10 @@ export default function BridgePage() {
     setToChainId(fc);
   };
 
-  const navLinks = createV2NavLinks("bridge");
-
   return (
     <div style={{ minHeight: "100vh", background: "#05050c", color: "#fff", fontFamily: "Inter, sans-serif" }}>
       <DappNavbar
-        links={navLinks}
-        socials={<SocialTray links={EMPX_SOCIALS} withSeparator />}
+        activeHref="/bridge-v2"
         controls={
           <>
             <NetworkSelector
@@ -366,6 +361,7 @@ export default function BridgePage() {
         />
       )}
 
+      <DappFooter />
       <Toaster />
     </div>
   );

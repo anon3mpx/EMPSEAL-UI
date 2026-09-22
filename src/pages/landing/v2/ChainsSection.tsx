@@ -8,7 +8,7 @@ import { motion, useScroll, useTransform } from "framer-motion";
 import { useRef } from "react";
 import { ChainLogo } from "../../../design-system/components";
 
-interface Chain {
+export interface Chain {
   symbol: string;
   name: string;
   type: "EVM" | "BTC" | "SOL" | "OTHER";
@@ -16,7 +16,7 @@ interface Chain {
   fg: string;
 }
 
-const EVM_CHAINS: Chain[] = [
+export const EVM_CHAINS: Chain[] = [
   { symbol: "ETH",   name: "Ethereum",  type: "EVM",   bg: "#627EEA", fg: "#FFFFFF" },
   { symbol: "ARB",   name: "Arbitrum",  type: "EVM",   bg: "#28A0F0", fg: "#FFFFFF" },
   { symbol: "BASE",  name: "Base",      type: "EVM",   bg: "#0052FF", fg: "#FFFFFF" },
@@ -34,7 +34,7 @@ const EVM_CHAINS: Chain[] = [
   { symbol: "ETHW",  name: "EthereumPoW", type: "EVM", bg: "#3C3C3D", fg: "#FFFFFF" },
 ];
 
-const NATIVE_CHAINS: Chain[] = [
+export const NATIVE_CHAINS: Chain[] = [
   { symbol: "BTC",  name: "Bitcoin",  type: "BTC",   bg: "#F7931A", fg: "#FFFFFF" },
   { symbol: "SOL",  name: "Solana",   type: "SOL",   bg: "#9945FF", fg: "#FFFFFF" },
   { symbol: "DOGE", name: "Dogecoin", type: "OTHER", bg: "#C2A633", fg: "#FFFFFF" },

@@ -10,7 +10,7 @@ export type V2RouteKey =
   | "portfolio";
 
 interface RouteAvailability {
-  executionEnabled: false;
+  executionEnabled: boolean;
   primaryActionLabel: string;
   unavailableReason: string;
 }
@@ -22,16 +22,16 @@ export const V2_BRIDGE_ROUTE_STATUS: RouteAvailability = {
 };
 
 export const V2_MULTI_ROUTE_STATUS: RouteAvailability = {
-  executionEnabled: false,
-  primaryActionLabel: "Basket preview only",
-  unavailableReason: "Basket API required",
+  executionEnabled: true,
+  primaryActionLabel: "Quote basket",
+  unavailableReason: "",
 };
 
 const V2_NAV_LINKS: Array<NavLink & { route: V2RouteKey }> = [
   { route: "swap", label: "Swap", href: "/swap-v2" },
   { route: "cross", label: "Cross", href: "/cross-v2" },
   { route: "bridge", label: "Bridge", href: "/bridge-v2", badge: "Preview" },
-  { route: "multi", label: "Multi", href: "/multi-v2", badge: "Preview" },
+  { route: "multi", label: "Multi", href: "/multi-v2" },
   { route: "gas", label: "Gas", href: "/gas-v2" },
   { route: "widget", label: "Widget", href: "/widget-v2" },
   { route: "portfolio", label: "Portfolio", href: "/portfolio-v2" },
@@ -45,19 +45,25 @@ export function createV2NavLinks(activeRoute: V2RouteKey): NavLink[] {
 }
 
 export function buildUnavailableRouteRows(kind: "bridge" | "multi"): FeeRow[] {
-  const isBridge = kind === "bridge";
+  if (kind === "multi") {
+    return [
+      { label: "Status", value: "Live", accent: true },
+      { label: "Quote", value: "/api/v1/basket/quote" },
+      { label: "Execution", value: "Wallet-signed plan", sub: "POST /plan then /submitted" },
+    ];
+  }
   return [
     { label: "Status", value: "Preview only", accent: true },
     {
       label: "Quote",
       value: "Unavailable",
-      sub: isBridge ? V2_BRIDGE_ROUTE_STATUS.unavailableReason : V2_MULTI_ROUTE_STATUS.unavailableReason,
+      sub: V2_BRIDGE_ROUTE_STATUS.unavailableReason,
       muted: true,
     },
     {
       label: "Execution",
       value: "Disabled",
-      sub: isBridge ? "No production bridge call wired" : "No production basket call wired",
+      sub: "No production bridge call wired",
       muted: true,
     },
   ];

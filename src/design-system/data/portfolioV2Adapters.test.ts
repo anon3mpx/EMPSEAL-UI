@@ -34,7 +34,7 @@ const portfolio: PortfolioV2Data = {
       chainId: 8453,
       symbol: "USDC",
       name: "USD Coin",
-      logo: "USDC",
+      logo: "/icons/usdc.svg",
       chain: "base",
       chainName: "Base",
       chainColor: "#0052FF",
@@ -52,7 +52,7 @@ const portfolio: PortfolioV2Data = {
       chainId: 137,
       symbol: "UNP",
       name: "Unpriced",
-      logo: "UNP",
+      logo: "",
       chain: "polygon",
       chainName: "Polygon",
       chainColor: "#7B3FE4",
@@ -90,7 +90,10 @@ describe("portfolioV2Adapters", () => {
       {
         ticker: "ETH",
         name: "Ether",
-        logo: "ETH",
+        chainId: 42161,
+        address: "0x0000000000000000000000000000000000000000",
+        logoUrl: "ETH",
+        isNative: true,
         chainName: "Arbitrum",
         chainColor: "#28A0F0",
         balance: "0.1",
@@ -102,7 +105,10 @@ describe("portfolioV2Adapters", () => {
       {
         ticker: "USDC",
         name: "USD Coin",
-        logo: "USDC",
+        chainId: 8453,
+        address: "0x1111111111111111111111111111111111111111",
+        logoUrl: "/icons/usdc.svg",
+        isNative: false,
         chainName: "Base",
         chainColor: "#0052FF",
         balance: "0.5",
@@ -114,7 +120,10 @@ describe("portfolioV2Adapters", () => {
       {
         ticker: "UNP",
         name: "Unpriced",
-        logo: "UNP",
+        chainId: 137,
+        address: "0x2222222222222222222222222222222222222222",
+        logoUrl: undefined,
+        isNative: false,
         chainName: "Polygon",
         chainColor: "#7B3FE4",
         balance: "12",
@@ -124,6 +133,12 @@ describe("portfolioV2Adapters", () => {
         allocation: 0,
       },
     ]);
+    expect(view.assets[1]).toMatchObject({
+      ticker: "USDC",
+      chainId: 8453,
+      address: "0x1111111111111111111111111111111111111111",
+      logoUrl: "/icons/usdc.svg",
+    });
     expect(view.assets.some((asset) => asset.spark && asset.spark.length > 0)).toBe(false);
   });
 
@@ -134,6 +149,10 @@ describe("portfolioV2Adapters", () => {
       {
         ticker: "ETH",
         name: "Ether",
+        chainId: 42161,
+        address: "0x0000000000000000000000000000000000000000",
+        logoUrl: "ETH",
+        isNative: true,
         price: 1000,
         change24h: 3,
         chainColor: "#28A0F0",
@@ -142,12 +161,22 @@ describe("portfolioV2Adapters", () => {
       {
         ticker: "USDC",
         name: "USD Coin",
+        chainId: 8453,
+        address: "0x1111111111111111111111111111111111111111",
+        logoUrl: "/icons/usdc.svg",
+        isNative: false,
         price: 1,
         change24h: 0.01,
         chainColor: "#0052FF",
         spark: [],
       },
     ]);
+    expect(view.markets[1]).toMatchObject({
+      ticker: "USDC",
+      chainId: 8453,
+      address: "0x1111111111111111111111111111111111111111",
+      logoUrl: "/icons/usdc.svg",
+    });
   });
 
   it("returns explicit unavailable states instead of fake NFTs or activities", () => {

@@ -20,6 +20,7 @@ export interface V2TokenConfig {
   decimals: number;
   isNative?: boolean;
   badge?: "VERIFIED" | "TRENDING" | "WARNING";
+  logoUrl?: string;
 }
 
 interface TokenJsonEntry {
@@ -32,6 +33,8 @@ interface TokenJsonEntry {
   type?: string;
   featured?: boolean;
   usdPrice?: number;
+  image?: string;
+  logoURI?: string;
 }
 
 const STABLE_TYPES = new Set(["STABLE", "STABLECOIN"]);
@@ -234,6 +237,7 @@ export function getTokensForChain(chainId: number): V2TokenConfig[] {
         decimals,
         isNative,
         badge: isStable ? "VERIFIED" as const : undefined,
+        logoUrl: t.image?.trim() || t.logoURI?.trim() || undefined,
       };
     });
 }

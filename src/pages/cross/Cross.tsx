@@ -17,6 +17,7 @@ import {
   type Address,
   erc20Abi,
   formatUnits,
+  getAddress,
   parseUnits,
 } from "viem";
 import {
@@ -39,6 +40,7 @@ import {
   CrossTradeForm,
   crossApi,
   executeCrossIntegration,
+  buildExecutionPlanStepSubmittedMessage,
   executeProviderApprovals,
   findMatchingRefreshedOffer,
   findMissingProviderApprovals,
@@ -371,6 +373,20 @@ export default function CrossChainPage() {
       }
     }
 
+    if (session.integration?.mode === "sequential_wallet") {
+      try {
+        return {
+          requests: readProviderApprovalRequests(
+            session.integration as any,
+            session.integration.tx.chainId,
+          ),
+          error: null as Error | null,
+        };
+      } catch (error) {
+        return { requests: [], error: error instanceof Error ? error : new Error(String(error)) };
+      }
+    }
+
     return { requests: [], error: null as Error | null };
   }, [fromChainId, session]);
   const singleApprovalRequests = approvalConfiguration.requests;
@@ -615,6 +631,26 @@ export default function CrossChainPage() {
               sourceTxHash: txHash,
             });
           },
+          markExecutionPlanStepSubmitted: async (planId, stepId, txHash, expectedVersion) => {
+            if (!address) throw new Error("Wallet not connected.");
+            const userAddress = getAddress(address);
+            const timestamp = Date.now();
+            const idempotencyKey = `ui-${stepId.slice(0, 40)}-${txHash.slice(2, 18)}`;
+            const signature = await signMessageAsync({
+              account: address,
+              message: buildExecutionPlanStepSubmittedMessage({
+                planId, stepId, wallet: userAddress, txHash, expectedVersion, idempotencyKey, timestamp,
+              }),
+            });
+            const response = await crossApi.markExecutionPlanStepSubmitted(planId, stepId, {
+              userAddress, txHash, expectedVersion, idempotencyKey, timestamp, signature,
+            });
+            setSession((current) =>
+              current?.mode === "single" && current.executionPlan?.planId === planId
+                ? { ...current, executionPlan: response.executionPlan }
+                : current,
+            );
+          },
         },
       );
     },
@@ -623,6 +659,7 @@ export default function CrossChainPage() {
       executeLayerZeroIntent,
       hasRequiredApproval,
       sendEvmTransaction,
+      signMessageAsync,
       submitStandardIntent,
     ],
   );
@@ -663,6 +700,7 @@ export default function CrossChainPage() {
       offerSetId: quoteForSelection.offerSetId,
       quote: response.quote,
       integration: nextIntegration,
+      executionPlan: response.executionPlan,
       status: "SELECTED",
       sourceChainId: response.quote?.srcChainId ?? offerForSelection.srcChainId,
       lastError: null,

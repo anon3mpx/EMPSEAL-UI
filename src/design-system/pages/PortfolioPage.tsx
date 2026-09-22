@@ -12,7 +12,9 @@ import { useEffect, useMemo, useState } from "react";
 import {
   AccountModal,
   Card,
+  ChainLogo,
   ChainPicker,
+  DappFooter,
   DappNavbar,
   EmptyState,
   NetworkSelector,
@@ -20,7 +22,6 @@ import {
   NFTPanel,
   Pill,
   Skeleton,
-  SocialTray,
   Tabs,
   Toaster,
   toast,
@@ -37,9 +38,7 @@ import {
   buildPortfolioV2ViewModel,
   type PortfolioV2Data,
 } from "../data/portfolioV2Adapters";
-import { EMPX_SOCIALS } from "../data/socials";
 import { V2_ALL_CHAINS } from "../data/v2ChainView";
-import { createV2NavLinks } from "../data/v2ProductRoutes";
 import EmpxPortfolioPanel from "../EmpxPortfolioPanel";
 
 const ALL_CHAINS: PickerChain[] = V2_ALL_CHAINS.map((chain) => ({
@@ -139,19 +138,23 @@ export default function PortfolioPage() {
       .finally(() => setPortfolioLoading(false));
   };
 
-  const navLinks = createV2NavLinks("portfolio");
-
   return (
     <div style={{ minHeight: "100vh", background: "#05050c", color: "#fff", fontFamily: "Inter, sans-serif" }}>
-      {/* Navbar */}
       <DappNavbar
-        links={navLinks}
-        socials={<SocialTray links={EMPX_SOCIALS} withSeparator />}
+        activeHref="/portfolio-v2"
         controls={
           <>
             <NetworkSelector
               name={walletState.status === "connected" ? walletState.chain.name : DEFAULT_CHAIN.name}
               color={walletState.status === "connected" ? walletState.chain.color : DEFAULT_CHAIN.color}
+              logo={(
+                <ChainLogo
+                  chainId={walletState.status === "connected" ? walletState.chain.id : DEFAULT_CHAIN.id}
+                  symbol={(walletState.status === "connected" ? walletState.chain.name : DEFAULT_CHAIN.name).slice(0, 3).toUpperCase()}
+                  bg={walletState.status === "connected" ? walletState.chain.color : DEFAULT_CHAIN.color}
+                  size={14}
+                />
+              )}
               onClick={() => setShowChainPicker(true)}
             />
             <WalletButton
@@ -339,6 +342,10 @@ export default function PortfolioPage() {
             chainColor: asset.chainColor,
             balance: asset.balance,
             balanceUSD: asset.balanceUSD,
+            chainId: asset.chainId,
+            address: asset.address,
+            logoUrl: asset.logoUrl,
+            isNative: asset.isNative,
           }))}
           networks={portfolio?.chains.map((chain) => ({
             chainName: chain.chainName,
@@ -365,6 +372,7 @@ export default function PortfolioPage() {
         />
       )}
 
+      <DappFooter />
       <Toaster />
     </div>
   );

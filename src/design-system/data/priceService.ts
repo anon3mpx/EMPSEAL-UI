@@ -22,8 +22,8 @@ const STORAGE_KEY = "empx:priceCache:v1";
 const TTL_MS = 5 * 60 * 1000;         // 5 min — matches NativeUsdOracle default
 
 // DefiLlama uses different chain slugs than TrustWallet — but for the chains
-// where they overlap (the 7 in TRUSTWALLET_CHAIN_SLUGS) the slugs match.
-// Slugs needed: ethereum, arbitrum, base, optimism, polygon, bsc, avax.
+// where they overlap the slugs match. PulseChain is covered directly here
+// even though TrustWallet does not expose a matching asset path.
 const LLAMA_CHAIN_SLUGS: Record<number, string> = {
   1:     "ethereum",
   42161: "arbitrum",
@@ -32,6 +32,7 @@ const LLAMA_CHAIN_SLUGS: Record<number, string> = {
   137:   "polygon",
   56:    "bsc",
   43114: "avax",
+  369:   "pulsechain",
 };
 
 interface CacheEntry { price: number; fetchedAt: number }
@@ -62,9 +63,21 @@ function flushCache(): void {
   try { window.localStorage.setItem(STORAGE_KEY, JSON.stringify(_cache)); } catch { /* noop */ }
 }
 
+const NATIVE_PRICE_ADDRESSES = new Set([
+  "0x0000000000000000000000000000000000000000",
+  "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+]);
+
+function priceAddress(chainId: number, ticker: string, tokenAddress?: string): string | null {
+  const normalized = tokenAddress?.trim().toLowerCase();
+  if (normalized && !NATIVE_PRICE_ADDRESSES.has(normalized)) return normalized;
+  return getTokenAddress(chainId, ticker) ?? getTokenAddress(chainId, `W${ticker}`);
+}
+
 function cacheKey(chainId: number, ticker: string, tokenAddress?: string): string {
-  return tokenAddress
-    ? `${chainId}:${tokenAddress.toLowerCase()}`
+  const address = priceAddress(chainId, ticker, tokenAddress);
+  return address
+    ? `${chainId}:${address.toLowerCase()}`
     : `${chainId}:${ticker.toUpperCase()}`;
 }
 
@@ -111,7 +124,7 @@ export async function getTokenPrice(
   if (_inflight.has(key)) return _inflight.get(key)!;
 
   const slug = LLAMA_CHAIN_SLUGS[chainId];
-  const addr = tokenAddress || getTokenAddress(chainId, ticker);
+  const addr = priceAddress(chainId, ticker, tokenAddress);
   if (!slug || !addr) return null;
 
   const p = (async () => {
@@ -141,20 +154,20 @@ export async function getTokenPrice(
  * One HTTP call for all uncached keys.
  */
 export async function getTokenPrices(
-  pairs: { chainId: number; ticker: string }[],
+  pairs: { chainId: number; ticker: string; tokenAddress?: string }[],
 ): Promise<Record<string, number>> {
   const out: Record<string, number> = {};
   const need: { slug: string; addr: string; key: string }[] = [];
 
-  for (const { chainId, ticker } of pairs) {
-    const key = cacheKey(chainId, ticker);
-    const cached = getCachedPrice(chainId, ticker);
+  for (const { chainId, ticker, tokenAddress } of pairs) {
+    const key = cacheKey(chainId, ticker, tokenAddress);
+    const cached = getCachedPrice(chainId, ticker, tokenAddress);
     if (cached != null) {
       out[key] = cached;
       continue;
     }
     const slug = LLAMA_CHAIN_SLUGS[chainId];
-    const addr = getTokenAddress(chainId, ticker);
+    const addr = priceAddress(chainId, ticker, tokenAddress);
     if (slug && addr) need.push({ slug, addr: addr.toLowerCase(), key });
   }
 
