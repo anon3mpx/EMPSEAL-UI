@@ -1,29 +1,27 @@
-// ─── EmpxGasWidget — single-destination native gas top-up ─────────────────
-//
-// Built on the EXACT same widget anatomy as EmpxSwapWidget / EmpxCrossWidget:
-//   • Card width: 100%, maxWidth: 480, padding: 22
-//   • Header row: GAS label + Pill (right)
-//   • AmountInput "From" with ChainSwitcher topMeta + Bal/MAX bottomMeta
-//   • SwapDivider between source and destination
-//   • Destination AmountInput with ChainSwitcher topMeta
-//   • FeeBreakdown (visible) + PrimaryButton
-
+import { cloneElement, isValidElement, type ReactNode } from "react";
 import {
-  AmountInput,
-  ChainSwitcher,
-  Card,
-  FeeBreakdown,
-  Pill,
-  PrimaryButton,
-  SwapDivider,
-  type FeeRow,
-} from "./components";
+  ChainPill,
+  LogoFrame,
+  MicroLabel,
+  ToggleRow,
+  WidgetCTA,
+  WidgetShell,
+  amountUsd,
+  eyebrow,
+  grid2,
+  numeral,
+  rule,
+  unit,
+  wk,
+  type CtaState,
+} from "./widgetKit";
 
 export interface GasChain {
   id: number;
   name: string;
   color?: string;
   ticker: string;
+  logo?: ReactNode;
 }
 
 export interface GasDestination {
@@ -66,278 +64,255 @@ export interface EmpxGasWidgetProps {
 
 export default function EmpxGasWidget(props: EmpxGasWidgetProps) {
   const {
-    sourceChain, sourceAmount, sourceUsdValue, sourceBalance, onSelectSourceChain,
-    onSwitchChains, canSwitchChains = true, onMaxClick,
-    destination, onSelectDestinationChain, onSetDestinationUsd, presets,
-    bridgeFeeUSD, estimatedTime,
-    useDifferentRecipient, onToggleRecipient, recipient, onSetRecipient, recipientValid,
-    canSubmit, swapLabel, onSubmit, walletConnected, onConnect,
+    sourceChain,
+    sourceAmount,
+    sourceUsdValue,
+    sourceBalance,
+    onSelectSourceChain,
+    onSwitchChains,
+    canSwitchChains = true,
+    onMaxClick,
+    destination,
+    onSelectDestinationChain,
+    onSetDestinationUsd,
+    presets,
+    bridgeFeeUSD,
+    estimatedTime,
+    useDifferentRecipient,
+    onToggleRecipient,
+    recipient,
+    onSetRecipient,
+    recipientValid,
+    canSubmit,
+    swapLabel,
+    onSubmit,
+    walletConnected,
+    onConnect,
   } = props;
 
-  const feeRows: FeeRow[] = [
-    { label: "Destination", value: destination.chain.name },
-    { label: "Delivering",  value: `$${destination.usd.toFixed(2)}` },
-    {
-      label: "Bridge fee",
-      value: bridgeFeeUSD <= 0.005 ? "FREE" : `$${bridgeFeeUSD.toFixed(2)}`,
-      accent: bridgeFeeUSD <= 0.005,
-    },
-  ];
-  if (estimatedTime) feeRows.push({ label: "Est. time", value: estimatedTime });
+  const amountEntered = destination.usd > 0;
+  const ctaState: CtaState = !walletConnected
+    ? "connect"
+    : !amountEntered
+      ? "idle"
+      : !recipientValid
+        ? "blocked"
+        : canSubmit
+          ? "ready"
+          : "idle";
+  const ctaLabel = {
+    connect: "Connect wallet",
+    idle: amountEntered ? swapLabel : "Enter an amount",
+    blocked: "Recipient must be a 0x… address",
+    ready: swapLabel,
+    working: "Working",
+    done: "Done",
+  }[ctaState];
 
   return (
-    <Card style={{ width: "100%", maxWidth: 480, padding: 22 }}>
-      {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
+    <WidgetShell edge>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 22 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span
+          <span style={eyebrow}>Gas</span>
+          <span style={{ fontSize: 9.5, color: wk.t3, letterSpacing: "0.08em", textTransform: "uppercase" }}>
+            Single destination
+          </span>
+        </div>
+        <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <ChainPill
+            logo={sourceChain.logo}
+            name={sourceChain.name}
+            fallbackLabel={sourceChain.ticker}
+            onClick={onSelectSourceChain}
+          />
+          <button
+            type="button"
+            onClick={canSwitchChains ? onSwitchChains : undefined}
+            disabled={!canSwitchChains}
+            aria-label="Switch source and destination chains"
             style={{
-              fontFamily: "Inter, sans-serif",
-              fontSize: 11,
-              fontWeight: 700,
-              letterSpacing: "0.40em",
-              color: "rgba(255,255,255,0.92)",
-              textTransform: "uppercase",
+              width: 28,
+              height: 28,
+              border: "none",
+              background: "transparent",
+              borderRadius: 4,
+              color: wk.t3,
+              cursor: canSwitchChains ? "pointer" : "not-allowed",
+              fontSize: 13,
             }}
           >
-            Gas
-          </span>
-          <Pill variant="ghost">Single destination</Pill>
-        </div>
-        <Pill variant="info">Gas.zip</Pill>
-      </div>
-
-      {/* FROM — read-only derived amount */}
-      <AmountInput
-        label="From"
-        value={sourceAmount}
-        ticker={sourceChain.ticker}
-        onSelectToken={onSelectSourceChain}
-        usdValue={sourceUsdValue || null}
-        topMeta={
-          <ChainSwitcher
-            name={sourceChain.name}
-            color={sourceChain.color}
-            onClick={onSelectSourceChain}
-            size="md"
+            ⇄
+          </button>
+          <ChainPill
+            logo={destination.chain.logo}
+            name={destination.chain.name}
+            fallbackLabel={destination.chain.ticker}
+            onClick={onSelectDestinationChain}
           />
-        }
-        bottomMeta={
-          (sourceBalance || onMaxClick) && (
-            <>
-              {sourceBalance && (
-                <span style={{ color: "rgba(255,255,255,0.40)" }}>Bal {sourceBalance}</span>
-              )}
-              {onMaxClick && (
-                <button type="button" onClick={onMaxClick} style={maxBtnStyle}>MAX</button>
-              )}
-            </>
-          )
-        }
-      />
-
-      <SwapDivider
-        onSwap={onSwitchChains}
-        disabled={!canSwitchChains}
-        ariaLabel="Switch source and destination chains"
-      />
-
-      {/* DESTINATION */}
-      <DestinationLeg
-        dest={destination}
-        onSelectChain={onSelectDestinationChain}
-        onSetUsd={onSetDestinationUsd}
-        presets={presets}
-      />
-
-      {/* Action buttons row */}
-      <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
-        <button
-          type="button"
-          onClick={onToggleRecipient}
-          style={recipientBtnStyle(useDifferentRecipient)}
-        >
-          {useDifferentRecipient ? "Recipient: custom" : "Send to another wallet"}
-        </button>
+        </span>
       </div>
 
-      {useDifferentRecipient && (
-        <input
-          type="text"
-          value={recipient}
-          onChange={(e) => onSetRecipient(e.target.value)}
-          placeholder="0x… recipient address"
-          spellCheck={false}
-          style={{
-            width: "100%",
-            marginTop: 8,
-            padding: "10px 12px",
-            background: "rgba(255,255,255,0.03)",
-            border: `1px solid ${recipient.length === 0 || recipientValid ? "rgba(96,165,250,0.20)" : "rgba(248,113,113,0.40)"}`,
-            borderRadius: 4,
-            color: "#fff",
-            fontFamily: "'Space Grotesk', sans-serif",
-            fontSize: 12.5,
-            outline: "none",
-            letterSpacing: "-0.005em",
-          }}
-        />
-      )}
-
-      {/* Visible fees */}
-      <div style={{ marginTop: 18 }}>
-        <FeeBreakdown rows={feeRows} bordered />
-      </div>
-
-      {/* CTA */}
-      <div style={{ marginTop: 18 }}>
-        {!walletConnected ? (
-          <PrimaryButton onClick={onConnect}>Connect wallet</PrimaryButton>
-        ) : (
-          <PrimaryButton onClick={onSubmit} disabled={!canSubmit}>{swapLabel}</PrimaryButton>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+        <MicroLabel>You send</MicroLabel>
+        {(sourceBalance || onMaxClick) && (
+          <span style={{ fontSize: 10, color: wk.t3 }}>
+            {sourceBalance ? `Balance ${sourceBalance}` : null}
+            {onMaxClick && (
+              <>
+                {sourceBalance ? " · " : null}
+                <button
+                  type="button"
+                  onClick={onMaxClick}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: wk.orange,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    padding: 0,
+                    fontSize: 10,
+                    fontFamily: "inherit",
+                  }}
+                >
+                  MAX
+                </button>
+              </>
+            )}
+          </span>
         )}
       </div>
-    </Card>
-  );
-}
-
-// ─── Destination leg — mirrors AmountInput "To" layout ────────────────────
-
-function DestinationLeg({
-  dest, onSelectChain, onSetUsd, presets,
-}: {
-  dest: GasDestination;
-  onSelectChain: () => void;
-  onSetUsd: (usd: number) => void;
-  presets: number[];
-}) {
-  return (
-    <div
-      style={{
-        padding: "12px 0",
-        borderTop: "none",
-        display: "flex",
-        flexDirection: "column",
-        gap: 8,
-      }}
-    >
-      {/* Top row — "To" label + ChainSwitcher (matches AmountInput's topMeta) */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <span
-          style={{
-            fontSize: 10,
-            fontWeight: 700,
-            letterSpacing: "0.30em",
-            color: "rgba(255,255,255,0.55)",
-            textTransform: "uppercase",
-          }}
-        >
-          To
-        </span>
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <ChainSwitcher
-            name={dest.chain.name}
-            color={dest.chain.color}
-            onClick={onSelectChain}
-            size="md"
-          />
-        </div>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
+        <span style={numeral(40)}>{sourceAmount || "0"}</span>
+        <span style={unit}>{sourceChain.ticker}</span>
+      </div>
+      <div style={amountUsd}>
+        {sourceUsdValue != null ? `≈ $${sourceUsdValue.toLocaleString(undefined, { maximumFractionDigits: 2 })}` : " "}
       </div>
 
-      {/* Amount row — analogous to AmountInput's big number + USD value */}
-      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 10 }}>
-        <div style={{ display: "flex", alignItems: "baseline", gap: 4, flex: 1, minWidth: 0 }}>
-          <span style={{ fontSize: 32, color: "rgba(255,255,255,0.40)", fontFamily: "'Space Grotesk', sans-serif", fontWeight: 500, lineHeight: 1 }}>$</span>
+      <div style={rule} />
+
+      <div style={{ marginBottom: 10 }}>
+        <MicroLabel>Destination</MicroLabel>
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 11 }}>
+        <LogoFrame size={30} fallback={destination.chain.ticker}>
+          {isValidElement(destination.chain.logo) ? cloneElement(destination.chain.logo) : destination.chain.logo}
+        </LogoFrame>
+        <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 2 }}>
+          <span style={{ fontSize: 12.5, fontWeight: 600, color: wk.t1, lineHeight: 1.15 }}>{destination.chain.name}</span>
+          <span style={{ fontSize: 10, color: wk.t3, lineHeight: 1.15, fontVariantNumeric: "tabular-nums" }}>
+            {destination.nativeOut > 0
+              ? `${destination.nativeOut < 0.01 ? destination.nativeOut.toFixed(6) : destination.nativeOut.toFixed(4)} ${destination.chain.ticker}`
+              : `0 ${destination.chain.ticker}`}
+          </span>
+        </div>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 2, flexShrink: 0 }}>
+          <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 14, color: wk.t3 }}>$</span>
           <input
             type="number"
             min={0}
             step={0.5}
-            value={dest.usd || ""}
-            onChange={(e) => onSetUsd(Math.max(0, Number(e.target.value)))}
+            value={destination.usd || ""}
+            onChange={(e) => onSetDestinationUsd(Math.max(0, Number(e.target.value)))}
             placeholder="0"
+            aria-label="Destination amount in USD"
             style={{
-              width: "100%",
-              maxWidth: 180,
+              width: 52,
               padding: 0,
               background: "transparent",
               border: "none",
-              color: "#FF8A00",
-              fontFamily: "'Space Grotesk', sans-serif",
-              fontSize: 40,
-              fontWeight: 500,
-              letterSpacing: "-0.02em",
               outline: "none",
-              lineHeight: 1,
+              color: "#fff",
+              fontFamily: "'Space Grotesk', sans-serif",
+              fontSize: 14,
+              fontWeight: 400,
+              textAlign: "right",
+              fontVariantNumeric: "tabular-nums",
             }}
           />
         </div>
-        <div style={{ textAlign: "right", flexShrink: 0, paddingBottom: 2 }}>
-          <p style={{ margin: 0, fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, color: "rgba(255,255,255,0.85)", fontWeight: 500, letterSpacing: "-0.01em" }}>
-            {dest.nativeOut > 0
-              ? `${dest.nativeOut < 0.01 ? dest.nativeOut.toFixed(6) : dest.nativeOut.toFixed(4)} ${dest.chain.ticker}`
-              : `0 ${dest.chain.ticker}`}
-          </p>
-        </div>
       </div>
-
-      {/* Preset chips */}
-      <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", gap: 5, marginTop: 10 }}>
         {presets.map((v) => (
           <button
             key={v}
             type="button"
-            onClick={() => onSetUsd(v)}
-            style={presetChipStyle(dest.usd === v)}
+            onClick={() => onSetDestinationUsd(v)}
+            style={{
+              padding: "5px 11px",
+              background: destination.usd === v ? "rgba(255,138,0,.12)" : "rgba(255,255,255,.035)",
+              border: `1px solid ${destination.usd === v ? "rgba(255,138,0,.45)" : "transparent"}`,
+              borderRadius: 4,
+              color: destination.usd === v ? wk.orange : wk.t2,
+              fontFamily: "Inter, sans-serif",
+              fontSize: 10.5,
+              fontWeight: 600,
+              cursor: "pointer",
+              fontVariantNumeric: "tabular-nums",
+            }}
           >
             ${v}
           </button>
         ))}
       </div>
-    </div>
+
+      <div style={rule} />
+
+      <div style={{ ...grid2, marginBottom: 24 }}>
+        <div>
+          <MicroLabel>Bridge fee</MicroLabel>
+          <div style={{ fontSize: 12.5, fontWeight: 500, color: wk.orange, marginTop: 6, fontVariantNumeric: "tabular-nums" }}>
+            {bridgeFeeUSD <= 0.005 ? "FREE" : `$${bridgeFeeUSD.toFixed(2)}`}
+          </div>
+          <div style={{ fontSize: 9.5, color: wk.t3, marginTop: 4 }}>Gas.zip</div>
+        </div>
+        <div>
+          <MicroLabel>Est. delivery</MicroLabel>
+          <div style={{ fontSize: 12.5, fontWeight: 500, color: wk.t1, marginTop: 6, fontVariantNumeric: "tabular-nums" }}>
+            {estimatedTime ?? "—"}
+          </div>
+          <div style={{ fontSize: 9.5, color: wk.t3, marginTop: 4 }}>on {destination.chain.name}</div>
+        </div>
+      </div>
+
+      <div style={{ borderTop: `1px solid ${wk.border}`, paddingTop: 14 }}>
+        <ToggleRow
+          title="Send to another wallet"
+          hint="Defaults to your connected address"
+          enabled={useDifferentRecipient}
+          onToggle={onToggleRecipient}
+        />
+        {useDifferentRecipient && (
+          <input
+            type="text"
+            value={recipient}
+            onChange={(e) => onSetRecipient(e.target.value)}
+            placeholder="0x… recipient address"
+            spellCheck={false}
+            style={{
+              width: "100%",
+              marginTop: 8,
+              padding: "10px 12px",
+              background: "rgba(255,255,255,0.03)",
+              border: `1px solid ${recipient.length === 0 || recipientValid ? "rgba(96,165,250,0.20)" : "rgba(248,113,113,0.40)"}`,
+              borderRadius: 4,
+              color: "#fff",
+              fontFamily: "'Space Grotesk', sans-serif",
+              fontSize: 12.5,
+              outline: "none",
+              letterSpacing: "-0.005em",
+            }}
+          />
+        )}
+      </div>
+
+      <div style={{ marginTop: 18 }}>
+        <WidgetCTA
+          state={ctaState}
+          label={ctaLabel}
+          onClick={ctaState === "connect" ? onConnect : ctaState === "ready" ? onSubmit : undefined}
+        />
+      </div>
+    </WidgetShell>
   );
-}
-
-// ─── Styles ───────────────────────────────────────────────────────────────
-
-const maxBtnStyle: React.CSSProperties = {
-  background: "transparent",
-  border: "none",
-  color: "#FF8A00",
-  fontFamily: "Inter, sans-serif",
-  fontSize: 10,
-  fontWeight: 700,
-  letterSpacing: "0.30em",
-  cursor: "pointer",
-  padding: 0,
-};
-
-function recipientBtnStyle(active: boolean): React.CSSProperties {
-  return {
-    padding: "7px 14px",
-    background: active ? "rgba(96,165,250,0.10)" : "transparent",
-    border: `1px solid ${active ? "rgba(96,165,250,0.30)" : "rgba(255,255,255,0.10)"}`,
-    borderRadius: 4,
-    color: active ? "#93C5FD" : "rgba(255,255,255,0.65)",
-    fontFamily: "Inter, sans-serif",
-    fontSize: 10.5,
-    fontWeight: 600,
-    letterSpacing: "0.10em",
-    textTransform: "uppercase",
-    cursor: "pointer",
-  };
-}
-
-function presetChipStyle(active: boolean): React.CSSProperties {
-  return {
-    padding: "4px 10px",
-    background: active ? "rgba(255,138,0,0.12)" : "transparent",
-    border: `1px solid ${active ? "rgba(255,138,0,0.45)" : "rgba(255,255,255,0.10)"}`,
-    borderRadius: 4,
-    color: active ? "#FF8A00" : "rgba(255,255,255,0.65)",
-    fontFamily: "Inter, sans-serif",
-    fontSize: 10.5,
-    fontWeight: 600,
-    cursor: "pointer",
-    letterSpacing: "0.04em",
-  };
 }

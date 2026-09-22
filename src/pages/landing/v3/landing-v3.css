@@ -1,0 +1,79 @@
+/* ─── Landing v3 — section-scoped styles ──────────────────────────────────── */
+
+@keyframes marquee {
+  0%   { transform: translate3d(0,    0, 0); }
+  100% { transform: translate3d(-33%, 0, 0); }
+}
+.animate-marquee {
+  animation: marquee 80s linear infinite;
+}
+
+#landing-v3-root *:focus-visible {
+  outline: 1px solid rgba(255, 138, 0, 0.7);
+  outline-offset: 4px;
+}
+
+.cursor-none,
+.cursor-none * {
+  cursor: none !important;
+}
+.cursor-none a,
+.cursor-none button,
+.cursor-none input,
+.cursor-none textarea {
+  cursor: pointer !important;
+}
+@media (hover: none) and (pointer: coarse) {
+  .cursor-none,
+  .cursor-none * {
+    cursor: auto !important;
+  }
+}
+
+@media (max-width: 480px) {
+  #landing-v3-root h1,
+  #landing-v3-root h2 {
+    line-height: 0.9 !important;
+  }
+}
+
+#landing-v3-root section[id="integrations"] > div[style*="overflow-x-auto"] {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+#landing-v3-root section[id="integrations"] > div[style*="overflow-x-auto"]::-webkit-scrollbar {
+  display: none;
+}
+
+/* Every section (mine and the reused v2 ones) paints its own solid
+   background — that's correct in isolation but it completely occludes the
+   fixed Aurora layer behind it. Force every section transparent so the
+   mesh is actually visible through the whole page, as intended. */
+#landing-v3-root section {
+  background: transparent !important;
+}
+
+/* small accent marker used before section eyebrows — the one restrained
+   nod to the mark's angle left on the page; nothing else is clipped */
+.shear-chip {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  background: #ff8a00;
+  clip-path: polygon(32% 0, 100% 0, 68% 100%, 0 100%);
+}
+
+/* ─── Brand system: slab stagger-in loop ──────────────────────────────────── */
+@keyframes slab-cycle-in {
+  0%   { opacity: 0; transform: translateX(-26px) scaleX(0.85); }
+  100% { opacity: 1; transform: translateX(0) scaleX(1); }
+}
+.slab-anim {
+  opacity: 0;
+  animation: slab-cycle-in 0.85s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .slab-anim { animation: none; opacity: 1; }
+  .animate-marquee { animation: none; }
+}

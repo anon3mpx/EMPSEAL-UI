@@ -5,12 +5,16 @@
 // export default defineConfig({
 //   plugins: [react()],
 // });
-import { defineConfig } from 'vite';
+import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 
 // https://vitejs.dev/config/
-export default defineConfig({
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), 'VITE_');
+  const crossApiTarget = env.VITE_CROSS_API_BASE_URL?.trim().replace(/\/+$/, '')
+    || 'https://crosschain.empx.io';
+  return {
   plugins: [react()],
   resolve: {
     alias: {
@@ -20,7 +24,7 @@ export default defineConfig({
   server: {
     proxy: {
       '/api/v1': {
-        target: 'https://crosschain.empx.io',
+        target: crossApiTarget,
         changeOrigin: true,
         secure: true,
       },
@@ -32,4 +36,5 @@ export default defineConfig({
     globals: true,
     css: true,
   },
+  };
 });

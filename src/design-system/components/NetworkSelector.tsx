@@ -1,14 +1,18 @@
 // ─── NetworkSelector — Navbar control: current chain button ───────────────
 
+import { ReactNode } from "react";
+
 interface NetworkSelectorProps {
   /** Name of the currently-connected chain */
   name: string;
   /** Chain accent color */
   color?: string;
   onClick: () => void;
+  /** Optional rendered chain logo. Colored dot remains the fallback. */
+  logo?: ReactNode;
 }
 
-export default function NetworkSelector({ name, color, onClick }: NetworkSelectorProps) {
+export default function NetworkSelector({ name, color, onClick, logo }: NetworkSelectorProps) {
   return (
     <button
       type="button"
@@ -39,7 +43,7 @@ export default function NetworkSelector({ name, color, onClick }: NetworkSelecto
         e.currentTarget.style.background = "rgba(255,255,255,0.04)";
       }}
     >
-      {color && (
+      {logo ?? (color && (
         <span
           style={{
             display: "inline-block",
@@ -50,7 +54,7 @@ export default function NetworkSelector({ name, color, onClick }: NetworkSelecto
             boxShadow: `0 0 6px ${color}`,
           }}
         />
-      )}
+      ))}
       {name}
       <svg width="8" height="5" viewBox="0 0 8 5" fill="none" style={{ opacity: 0.6 }}>
         <path d="M1 1L4 4L7 1" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />

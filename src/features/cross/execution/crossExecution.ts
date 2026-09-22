@@ -1,4 +1,8 @@
-import type { SelectedOfferIntegration } from "../api/contracts";
+import type {
+  ExecutionPlan,
+  SelectedOfferIntegration,
+  SingleCrossExecutionSession,
+} from "../api/contracts";
 import {
   classifyProviderDirectAction,
   getProviderDirectTx,
@@ -27,7 +31,23 @@ export interface CrossExecutionDependencies {
     intentId: string,
     txHash: string,
   ) => Promise<unknown>;
-  executeThorchainBitcoinIntent: (
+  markExecutionPlanStepSubmitted: (
+    planId: string,
+    stepId: string,
+    txHash: string,
+    expectedVersion: number,
+  ) => Promise<unknown>;
+  executeThorchainBitcoinIntent?: (
+    intentId: string,
+    integration: SelectedOfferIntegration,
+    sourceChainId: number,
+  ) => Promise<string>;
+  executeGardenSolanaIntent?: (
+    intentId: string,
+    integration: SelectedOfferIntegration,
+    sourceChainId: number,
+  ) => Promise<string>;
+  executeGardenBitcoinIntent?: (
     intentId: string,
     integration: SelectedOfferIntegration,
     sourceChainId: number,
@@ -49,6 +69,25 @@ export async function executeCrossIntegration(
     return txHash;
   }
 
+  if (integration.mode === "sequential_wallet") {
+    if ((integration.approvals?.length ?? 0) > 0 && !input.approvalsComplete) {
+      throw new Error(
+        "PROVIDER_APPROVAL_FAILED: Sequential action approval is required before execution.",
+      );
+    }
+    const txHash = await dependencies.sendEvmTransaction(
+      { ...integration.tx },
+      integration.tx.chainId,
+    );
+    await dependencies.markExecutionPlanStepSubmitted(
+      integration.planId,
+      integration.stepId,
+      txHash,
+      integration.expectedVersion,
+    );
+    return txHash;
+  }
+
   if ((integration.approvals?.length ?? 0) > 0 && !input.approvalsComplete) {
     throw new Error(
       "PROVIDER_APPROVAL_FAILED: Provider approval is required before execution.",
@@ -61,6 +100,28 @@ export async function executeCrossIntegration(
 
   if (classification === "layerzero_steps") {
     return dependencies.executeLayerZeroIntent(
+      intentId,
+      integration,
+      sourceChainId,
+    );
+  }
+
+  if (classification === "garden_solana_source") {
+    if (!dependencies.executeGardenSolanaIntent) {
+      throw new Error("UNSUPPORTED_SOURCE_WALLET: Solana Garden execution is unavailable.");
+    }
+    return dependencies.executeGardenSolanaIntent(
+      intentId,
+      integration,
+      sourceChainId,
+    );
+  }
+
+  if (classification === "garden_bitcoin_source") {
+    if (!dependencies.executeGardenBitcoinIntent) {
+      throw new Error("UNSUPPORTED_SOURCE_WALLET: Bitcoin Garden execution is unavailable.");
+    }
+    return dependencies.executeGardenBitcoinIntent(
       intentId,
       integration,
       sourceChainId,
@@ -90,6 +151,9 @@ export async function executeCrossIntegration(
     sourceChainId === 0 &&
     integration.action.kind === "thorchain_swap"
   ) {
+    if (!dependencies.executeThorchainBitcoinIntent) {
+      throw new Error("UNSUPPORTED_SOURCE_WALLET: Bitcoin execution is unavailable.");
+    }
     return dependencies.executeThorchainBitcoinIntent(
       intentId,
       integration,
@@ -106,4 +170,28 @@ export async function executeCrossIntegration(
   throw new Error(
     "INVALID_NON_EVM_TRANSACTION: The provider transaction is not executable by the connected wallet.",
   );
+}
+
+export function syncSequentialExecutionPlan(
+  session: SingleCrossExecutionSession,
+  plan: ExecutionPlan,
+): SingleCrossExecutionSession {
+  if (session.integration.mode !== "sequential_wallet" || session.integration.planId !== plan.planId) {
+    return session;
+  }
+  const currentStep = plan.steps[plan.currentStep];
+  const prepared = currentStep?.status === "READY" ? currentStep.preparedAction : undefined;
+  return {
+    ...session,
+    executionPlan: plan,
+    status: plan.status,
+    integration: prepared ? {
+      mode: "sequential_wallet",
+      planId: plan.planId,
+      stepId: currentStep.stepId,
+      expectedVersion: plan.version,
+      tx: prepared.tx,
+      approvals: prepared.approvals ?? [],
+    } : session.integration,
+  };
 }

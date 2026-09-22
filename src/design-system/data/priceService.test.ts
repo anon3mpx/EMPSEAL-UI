@@ -42,4 +42,28 @@ describe("priceService cache expiry", () => {
 
     expect(price).toBe(1895.32);
   });
+
+  it("fetches PulseChain batch prices by exact token address", async () => {
+    const tokenAddress = "0x95B303987A60C71504D99Aa1b13B4DA07b0790ab";
+    const lowerAddress = tokenAddress.toLowerCase();
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      coins: {
+        [`pulsechain:${lowerAddress}`]: {
+          decimals: 18,
+          symbol: "PLSX",
+          price: 0.0000097,
+          timestamp: 1,
+          confidence: 0.99,
+        },
+      },
+    }), { status: 200 })));
+
+    const priceService = await import("./priceService");
+    const prices = await priceService.getTokenPrices([
+      { chainId: 369, ticker: "PLSX", tokenAddress },
+    ]);
+
+    expect(prices[`369:${lowerAddress}`]).toBe(0.0000097);
+    expect(priceService.getCachedPrice(369, "PLSX", tokenAddress)).toBe(0.0000097);
+  });
 });

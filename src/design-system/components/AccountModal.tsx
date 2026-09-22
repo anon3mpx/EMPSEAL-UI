@@ -11,6 +11,7 @@ import { ReactNode, useState } from "react";
 import Modal from "./Modal";
 import LogoTile from "./LogoTile";
 import Pill from "./Pill";
+import TokenLogo from "./TokenLogo";
 
 export interface RecentActivityItem {
   id: string | number;
@@ -25,6 +26,10 @@ export interface RecentActivityItem {
 export interface AccountTokenBalance {
   ticker: string;
   logo?: ReactNode;
+  chainId?: number;
+  address?: string;
+  logoUrl?: string;
+  isNative?: boolean;
   chainName: string;
   chainColor?: string;
   balance: string;
@@ -473,7 +478,16 @@ export default function AccountModal({
                   }}
                 >
                   <LogoTile
-                    fallback={t.logo || t.ticker.slice(0, 2).toUpperCase()}
+                    fallback={(
+                      <TokenLogo
+                        ticker={t.ticker}
+                        chainId={t.chainId}
+                        address={t.address}
+                        logoUrl={t.logoUrl}
+                        isNative={t.isNative}
+                        size={28}
+                      />
+                    )}
                     size={28}
                     radius={4}
                     chainDot={t.chainColor}

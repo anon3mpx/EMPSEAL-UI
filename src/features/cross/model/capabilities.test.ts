@@ -6,16 +6,22 @@ import {
 } from "./capabilities";
 
 describe("getChainCapability", () => {
-  it("marks Base as full-swap supported", () => {
-    expect(getChainCapability(8453).fullSwapSupported).toBe(true);
-  });
+  it.each([369, 56, 42161, 8453, 137, 43114, 10, 143, 146, 1329, 80094, 30, 10001, 999])(
+    "supports full swap legs on backend aggregator chain %s",
+    (chainId) => {
+      expect(getChainCapability(chainId)).toEqual({
+        fullSwapSupported: true,
+        sourceExecution: "evm",
+      });
+    },
+  );
 
-  it("leaves BSC quoteable but not full-swap enabled", () => {
-    expect(getChainCapability(56)).toEqual({
-      fullSwapSupported: false,
-      sourceExecution: "evm",
-    });
-  });
+  it.each([1, 130, 480, 57073, 59144, 98866, 0, 99, -1, 123456])(
+    "does not claim aggregator support for rail-only, non-EVM, or unknown chain %s",
+    (chainId) => {
+      expect(getChainCapability(chainId).fullSwapSupported).toBe(false);
+    },
+  );
 });
 
 describe("cross-chain rail capability policy", () => {
@@ -140,7 +146,7 @@ describe("cross-chain rail capability policy", () => {
     });
   });
 
-  it("rejects Hyperlane assets outside the enabled USDC and USDT catalog", () => {
+  it("defers returned Hyperlane route assets to the backend catalog", () => {
     expect(
       getOfferCapability({
         rail: "HYPERLANE_NEXUS",
@@ -154,8 +160,128 @@ describe("cross-chain rail capability policy", () => {
         },
       }),
     ).toMatchObject({
-      status: "disabled",
+      status: "executable",
+      selectable: true,
+    });
+  });
+
+  it("does not reject backend Hyperlane routes outside the old UI chain list", () => {
+    expect(getOfferCapability({
+      rail: "HYPERLANE_NEXUS",
+      srcChainId: 80094,
+      dstChainId: 143,
+    })).toMatchObject({ status: "executable", selectable: true });
+  });
+
+  it("enables Garden Solana HTLC as an executable Solana source", () => {
+    expect(
+      getOfferCapability({
+        rail: "GARDEN",
+        srcChainId: 99,
+        dstChainId: 1,
+        offerType: "garden_htlc",
+      }),
+    ).toMatchObject({
+      status: "executable",
+      selectable: true,
+      requiredSourceWallet: "solana",
+    });
+    expect(
+      getOfferCapability({
+        rail: "GARDEN",
+        srcChainId: 99,
+        dstChainId: 8453,
+        actionKind: "garden_htlc_order",
+      }),
+    ).toMatchObject({
+      status: "executable",
+      selectable: true,
+      requiredSourceWallet: "solana",
+    });
+  });
+
+  it("enables Garden BTC only for a connected Native SegWit wallet", () => {
+    const offer = {
+      rail: "GARDEN" as const,
+      srcChainId: 0,
+      dstChainId: 1,
+      offerType: "garden_htlc" as const,
+    };
+
+    expect(
+      getOfferCapability(offer, {
+        sourceWallet: { kind: "bitcoin", addressType: "p2wpkh" },
+      }),
+    ).toMatchObject({
+      status: "executable",
+      selectable: true,
+      requiredSourceWallet: "bitcoin",
+    });
+  });
+
+  it("restricts Garden BTC for Taproot or missing address type", () => {
+    const offer = {
+      rail: "GARDEN" as const,
+      srcChainId: 0,
+      dstChainId: 1,
+      offerType: "garden_htlc" as const,
+    };
+
+    expect(
+      getOfferCapability(offer, {
+        sourceWallet: { kind: "bitcoin", addressType: "p2tr" },
+      }),
+    ).toMatchObject({
+      status: "restricted",
       selectable: false,
+      requiredSourceWallet: "bitcoin",
+    });
+    expect(
+      getOfferCapability(offer, {
+        sourceWallet: { kind: "bitcoin", addressType: "p2tr" },
+      }).reason,
+    ).toMatch(/Native SegWit \(bc1q\)/);
+
+    expect(
+      getOfferCapability(offer, {
+        sourceWallet: { kind: "bitcoin" },
+      }),
+    ).toMatchObject({
+      status: "restricted",
+      selectable: false,
+    });
+  });
+
+  it("restricts Garden BTC when no wallet context is provided", () => {
+    expect(
+      getOfferCapability({
+        rail: "GARDEN",
+        srcChainId: 0,
+        dstChainId: 1,
+        offerType: "garden_htlc",
+      }),
+    ).toMatchObject({
+      status: "restricted",
+      selectable: false,
+      requiredSourceWallet: "bitcoin",
+    });
+  });
+
+  it("keeps EVM Garden executable with an EVM wallet", () => {
+    expect(
+      getOfferCapability(
+        {
+          rail: "GARDEN",
+          srcChainId: 8453,
+          dstChainId: 0,
+          offerType: "garden_htlc",
+        },
+        { sourceWallet: { kind: "evm" } },
+      ),
+    ).toMatchObject({
+      status: "executable",
+      selectable: true,
+      requiredSourceWallet: "evm",
     });
   });
 });

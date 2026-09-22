@@ -15,6 +15,7 @@ import {
 } from "../../features/cross/utils/amounts";
 import {
   getOfferCapability,
+  type OfferCapabilityContext,
   type RailCapabilityStatus,
 } from "../../features/cross/model/capabilities";
 
@@ -233,6 +234,8 @@ type TokenLike = {
 export type CrossV2OfferDisplay = {
   offerId: string;
   railName: string;
+  executionLabel: string;
+  stepSummary?: string;
   outputAmount: string;
   minimumReceived: string;
   bridgeFeeUSD: number;
@@ -244,6 +247,40 @@ export type CrossV2OfferDisplay = {
   selectable: boolean;
   restrictionReason?: string;
 };
+
+function railOfferLabel(offer: any, fallback: string): string {
+  const labels: Record<string, string> = {
+    cctp_standard: "CCTP Standard",
+    cctp_fast: "CCTP Fast",
+    lz_oft: "LayerZero OFT",
+    lz_oft_adapter: "LayerZero OFT Adapter",
+    lz_stargate_pool: "LayerZero Stargate",
+    lz_stargate_oft: "LayerZero Stargate OFT",
+    lz_stargate_native: "LayerZero Stargate Native",
+    lz_api_direct: "LayerZero Transfer API",
+  };
+  return labels[String(offer?.offerType ?? "").toLowerCase()] ?? fallback;
+}
+
+function executionLabel(offer: any): string {
+  const mode = offer?.composition?.carrierExecutionMode ?? offer?.executionMode;
+  if (mode === "provider_direct") return "Provider Direct";
+  if (mode === "router_intent") return "Router Intent";
+  return "Wallet Steps";
+}
+
+function composedStepSummary(offer: any): string | undefined {
+  const kinds = Array.isArray(offer?.planPreview?.stepKinds)
+    ? offer.planPreview.stepKinds
+    : [];
+  if (kinds.length <= 1) return undefined;
+  const labels: Record<string, string> = {
+    source_swap: "Source swap",
+    rail_transfer: "Bridge",
+    destination_swap: "Destination swap",
+  };
+  return `${kinds.length} steps · ${kinds.map((kind: string) => labels[kind] ?? kind).join(" + ")}`;
+}
 
 function readDecimals(token?: TokenLike | null, fallback = 18): number {
   const raw = token?.decimal ?? token?.decimals;
@@ -508,7 +545,11 @@ export function buildCrossQuoteRequest({
   };
 }
 
-export function formatCrossOffer(offer: any, tokenOutDecimals = 18): CrossV2OfferDisplay {
+export function formatCrossOffer(
+  offer: any,
+  tokenOutDecimals = 18,
+  capabilityContext?: OfferCapabilityContext,
+): CrossV2OfferDisplay {
   // Backend offers can represent output/minimum amounts in a few legacy shapes.
   // Reuse the cross feature amount helpers so V2 displays match the old page.
   const quotedOutputAmount = getOfferOutputAmount(offer);
@@ -529,11 +570,13 @@ export function formatCrossOffer(offer: any, tokenOutDecimals = 18): CrossV2Offe
     : tokenOutDecimals;
   const bridgeFeeUSD = readUsd(offer?.economics?.providerFeeUSD ?? offer?.fees?.providerFeeUSD);
   const protocolFeeUSD = readUsd(offer?.economics?.protocolFeeUSD ?? offer?.fees?.protocolFeeUSD);
-  const capability = getOfferCapability(offer);
+  const capability = getOfferCapability(offer, capabilityContext);
 
   return {
     offerId: offer.offerId,
-    railName: capability.label,
+    railName: railOfferLabel(offer, capability.label),
+    executionLabel: executionLabel(offer),
+    stepSummary: composedStepSummary(offer),
     outputAmount: normalizeDisplayAmount(formatBaseUnits(outputAmount, outputDecimals)),
     minimumReceived: normalizeDisplayAmount(formatBaseUnits(minimumAmount, outputDecimals)),
     bridgeFeeUSD,
@@ -562,19 +605,30 @@ export function buildCrossRouteHops(
   // payloads omit leg-level symbols.
   const sourceSwapSymbol = readSymbol(offer?.legs?.sourceSwap?.tokenOutSymbol) ??
     readSymbol(offer?.legs?.sourceSwap?.tokenOut) ??
+    readSymbol(offer?.legs?.bridge?.tokenInSymbol) ??
+    readSymbol(offer?.composition?.carrier) ??
     readSymbol(offer?.routeAsset) ??
     fromTicker;
   const bridgeSymbol = readSymbol(offer?.routeAsset) ?? sourceSwapSymbol;
-  const destinationInputSymbol = readSymbol(offer?.destinationSettlementAsset) ?? bridgeSymbol;
-  const hasSourceSwap = Boolean(offer?.legs?.sourceSwap);
-  const hasDestinationSwap = Boolean(offer?.legs?.destinationSwap);
+  const destinationInputSymbol = readSymbol(offer?.legs?.bridge?.tokenOutSymbol) ??
+    readSymbol(offer?.destinationSettlementAsset) ??
+    readSymbol(offer?.composition?.carrier) ??
+    bridgeSymbol;
+  const stepKinds = Array.isArray(offer?.planPreview?.stepKinds)
+    ? offer.planPreview.stepKinds
+    : [];
+  const hasSourceSwap = Boolean(offer?.legs?.sourceSwap ?? offer?.composition?.sourceSwap) ||
+    stepKinds.includes("source_swap");
+  const hasDestinationSwap = Boolean(offer?.legs?.destinationSwap ?? offer?.composition?.destinationSwapQuote) ||
+    stepKinds.includes("destination_swap");
+  const railName = railOfferLabel(offer, String(offer?.rail ?? "Bridge"));
 
   const hops: RouteHop[] = [
     {
       ticker: fromTicker,
       chainName: fromChain.name,
       chainColor: fromChain.color,
-      via: hasSourceSwap ? "Source swap" : String(offer?.rail ?? "Bridge"),
+      via: hasSourceSwap ? "Source swap" : railName,
       venueType: hasSourceSwap ? "DEX" : "RAIL",
     },
   ];
@@ -584,7 +638,7 @@ export function buildCrossRouteHops(
       ticker: sourceSwapSymbol,
       chainName: fromChain.name,
       chainColor: fromChain.color,
-      via: String(offer?.rail ?? "Bridge"),
+      via: railName,
       venueType: "RAIL",
     });
   }
@@ -593,8 +647,7 @@ export function buildCrossRouteHops(
     ticker: destinationInputSymbol,
     chainName: toChain.name,
     chainColor: toChain.color,
-    via: hasDestinationSwap ? "Destination swap" : undefined,
-    venueType: hasDestinationSwap ? "DEX" : undefined,
+    ...(hasDestinationSwap ? { via: "Destination swap", venueType: "DEX" as const } : {}),
   });
 
   if (hasDestinationSwap) {

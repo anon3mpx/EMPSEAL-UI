@@ -34,6 +34,7 @@ export { default as ChainSwitcher } from "./ChainSwitcher";
 export { default as ChainBadge } from "./ChainBadge";
 export { default as ChainLogo } from "./ChainLogo";
 export { default as TokenLogo } from "./TokenLogo";
+export { default as ResolvedLogo } from "./ResolvedLogo";
 
 // Inline labels
 export { default as Pill } from "./Pill";
@@ -89,6 +90,7 @@ export { default as Toaster, toast } from "./Toaster";
 // Navigation
 export { default as DappNavbar } from "./DappNavbar";
 export type { NavLink } from "./DappNavbar";
+export { default as DappFooter } from "./DappFooter";
 export { default as WalletButton } from "./WalletButton";
 export { default as NetworkSelector } from "./NetworkSelector";
 

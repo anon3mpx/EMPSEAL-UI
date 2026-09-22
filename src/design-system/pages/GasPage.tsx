@@ -38,15 +38,16 @@ import {
   AccountModal,
   BrandMark,
   Card,
+  ChainLogo,
   ChainPicker,
   ConfirmTradeModal,
+  DappFooter,
   DappNavbar,
   FeeBreakdown,
   NetworkSelector,
   Pill,
   PrimaryButton,
   QuoteCountdown,
-  SocialTray,
   Tabs,
   Toaster,
   TradeSuccessModal,
@@ -83,7 +84,7 @@ import {
   tierForChainId,
   tierLabel,
 } from "../data/empxRegistry";
-import { createV2NavLinks } from "../data/v2ProductRoutes";
+
 import {
   useGetCalldataQuote,
   useGetChains,
@@ -114,13 +115,6 @@ const GAS_CHAIN_ESTIMATES: Record<number, { nativeUsd: number; gasUsdPerSwap: nu
 const GAS_CHAINS = V2_AGGREGATOR_CHAINS
   .filter((c) => GAS_CHAIN_ESTIMATES[c.id])
   .map((c) => ({ ...c, ...GAS_CHAIN_ESTIMATES[c.id] }));
-
-const EMPX_SOCIALS = [
-  { kind: "x" as const,        href: "https://x.com/EmpXio" },
-  { kind: "telegram" as const, href: "https://t.me/EmpXEmpseal" },
-  { kind: "docs" as const,     href: "https://docs.empx.io" },
-  { kind: "github" as const,   href: "https://github.com/3mperorsSeal" },
-];
 
 // ─── Page state ───────────────────────────────────────────────────────────
 
@@ -153,6 +147,7 @@ export default function GasPage() {
   const [showAccountModal, setShowAccountModal] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [tab, setTab] = useState<ActiveTab>("send");
 
@@ -174,7 +169,7 @@ export default function GasPage() {
   const [quoteIssuedAt, setQuoteIssuedAt] = useState(Date.now());
   const [submittedTxHash, setSubmittedTxHash] = useState<string | null>(null);
   const gasChainsQuery = useGetChains();
-  const tx = useGasBridgeTx();
+  const tx = useGasBridgeTx(toast);
 
   // ── Derived ─────────────────────────────────────────────────────────────
   const liveDestinationChains = useMemo<GasV2Chain[]>(
@@ -245,6 +240,7 @@ export default function GasPage() {
       connectedAddress &&
       txRequest &&
       quoteSummary.ready &&
+      !isSubmitting &&
       !tx.isSending &&
       !tx.isConfirming,
   );
@@ -389,6 +385,10 @@ export default function GasPage() {
 
   const onSubmit = () => {
     if (walletState.status !== "connected") { setShowWalletModal(true); return; }
+    if (sourceBalance && txRequest && txRequest.value >= sourceBalance.value) {
+      toast.error(`Insufficient ${sourceChain.ticker} balance. Reduce the amount or add funds to cover the transfer and network fee.`);
+      return;
+    }
     if (!canSubmit) {
       toast.error(quote.isLoading ? "Waiting for Gas.zip quote." : "Gas.zip route is not ready yet.");
       return;
@@ -397,7 +397,8 @@ export default function GasPage() {
     setShowConfirm(true);
   };
 
-  const onConfirmSend = () => {
+  const onConfirmSend = async () => {
+    if (isSubmitting) return;
     if (!txRequest) {
       toast.error("Gas.zip calldata is not ready yet.");
       return;
@@ -405,24 +406,37 @@ export default function GasPage() {
 
     // `useGasBridgeTx` owns wallet chain switching, sending, receipt waiting,
     // and backend status polling. Success UI opens only when polling confirms.
-    void tx.executeBridge(txRequest);
-    setShowConfirm(false);
-    setTab("lookup");
+    setIsSubmitting(true);
+    try {
+      const hash = await tx.executeBridge(txRequest);
+      if (hash) {
+        setSubmittedTxHash(hash);
+        setShowConfirm(false);
+        setTab("lookup");
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
   };
-
-  const navLinks = createV2NavLinks("gas");
-
   // ─── Render ──────────────────────────────────────────────────────────────
+
   return (
     <div style={{ minHeight: "100vh", background: "#05050c", color: "#fff", fontFamily: "Inter, sans-serif" }}>
       <DappNavbar
-        links={navLinks}
-        socials={<SocialTray links={EMPX_SOCIALS} withSeparator />}
+        activeHref="/gas-v2"
         controls={
           <>
             <NetworkSelector
               name={sourceChain.name}
               color={sourceChain.color}
+              logo={(
+                <ChainLogo
+                  chainId={sourceChain.id}
+                  symbol={sourceChain.name.slice(0, 3).toUpperCase()}
+                  bg={sourceChain.color}
+                  size={14}
+                />
+              )}
               onClick={() => setChainPickerTarget({ kind: "source" })}
             />
             <WalletButton
@@ -495,14 +509,40 @@ export default function GasPage() {
             {/* LEFT — gas widget (same anatomy as swap/cross widgets) */}
             <div style={{ display: "flex", justifyContent: "center" }}>
               <EmpxGasWidget
-                sourceChain={{ id: sourceChain.id, name: sourceChain.name, color: sourceChain.color, ticker: sourceChain.ticker }}
+                sourceChain={{
+                  id: sourceChain.id,
+                  name: sourceChain.name,
+                  color: sourceChain.color,
+                  ticker: sourceChain.ticker,
+                  logo: (
+                    <ChainLogo
+                      chainId={sourceChain.id}
+                      symbol={sourceChain.name.slice(0, 3).toUpperCase()}
+                      bg={sourceChain.color}
+                      size={17}
+                    />
+                  ),
+                }}
                 sourceAmount={sourceAmountDisplay}
                 sourceUsdValue={totalCostUSD}
                 sourceBalance={sourceBalance ? `${Number(sourceBalance.formatted).toLocaleString(undefined, { maximumFractionDigits: 6 })} ${sourceChain.ticker}` : undefined}
                 onSelectSourceChain={() => setChainPickerTarget({ kind: "source" })}
                 onSwitchChains={switchChains}
                 canSwitchChains={Boolean(chainSwap)}
-                destination={gasDestination}
+                destination={{
+                  ...gasDestination,
+                  chain: {
+                    ...gasDestination.chain,
+                    logo: (
+                      <ChainLogo
+                        chainId={gasDestination.chain.id}
+                        symbol={gasDestination.chain.name.slice(0, 3).toUpperCase()}
+                        bg={gasDestination.chain.color}
+                        size={17}
+                      />
+                    ),
+                  },
+                }}
                 onSelectDestinationChain={() => setChainPickerTarget({ kind: "destination" })}
                 onSetDestinationUsd={setDestUsd}
                 presets={PER_DEST_USD_PRESETS}
@@ -685,7 +725,7 @@ export default function GasPage() {
         open={showConfirm}
         onClose={() => setShowConfirm(false)}
         onConfirm={onConfirmSend}
-        confirming={tx.isSending || tx.isConfirming}
+        confirming={isSubmitting || tx.isSending || tx.isConfirming}
         eyebrow="REVIEW · GAS BUNDLE"
         title="Confirm gas top-up"
         fromTicker={sourceChain.ticker}
@@ -785,6 +825,7 @@ export default function GasPage() {
         />
       )}
 
+      <DappFooter />
       <Toaster />
     </div>
   );

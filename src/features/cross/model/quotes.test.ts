@@ -223,4 +223,67 @@ describe("normalizeOfferSet", () => {
       offers: normalized.offers.filter((offer) => offer.offerId !== "cctp"),
     })).toEqual([]);
   });
+
+  it("marks Garden native offers ineligible for Gas.zip composition", () => {
+    const normalized = normalizeOfferSet({
+      offerSet: {
+        offerSetId: "set-garden-native",
+        expiresAt: 1740000000000,
+        bestOfferId: "garden-btc",
+        offers: [
+          {
+            offerId: "garden-btc",
+            rail: "GARDEN",
+            offerType: "garden_htlc",
+            railType: "liquidity",
+            executionMode: "provider_direct",
+            srcChainId: 0,
+            dstChainId: 8453,
+            tokenIn: "BTC",
+            tokenOut: "0x1",
+            amountIn: "100000",
+            estimatedOut: "99000",
+            minAmountOut: "98000",
+            economics: { settlementTimeSeconds: 120 },
+          },
+          {
+            offerId: "garden-sol",
+            rail: "GARDEN",
+            railType: "liquidity",
+            executionMode: "provider_direct",
+            srcChainId: 99,
+            dstChainId: 8453,
+            tokenIn: "SOL",
+            tokenOut: "0x1",
+            amountIn: "100000",
+            estimatedOut: "99000",
+            minAmountOut: "98000",
+            execution: { action: { kind: "garden_htlc_order" } },
+            economics: { settlementTimeSeconds: 90 },
+          },
+          {
+            offerId: "cctp",
+            rail: "CCTP",
+            railType: "messaging",
+            executionMode: "router_intent",
+            srcChainId: 8453,
+            dstChainId: 42161,
+            tokenIn: "0x1",
+            tokenOut: "0x2",
+            amountIn: "1000000",
+            estimatedOut: "999000",
+            minAmountOut: "998000",
+            economics: { settlementTimeSeconds: 60 },
+          },
+        ] as any,
+      },
+      gasZipComposition: {
+        gasZipDestinationGasOffer: { offerId: "gas-1", rail: "GASZIP" },
+      },
+    } as any);
+
+    expect(normalized.offers.find((offer) => offer.offerId === "garden-btc")?.isComposedEligible).toBe(false);
+    expect(normalized.offers.find((offer) => offer.offerId === "garden-sol")?.isComposedEligible).toBe(false);
+    expect(normalized.offers.find((offer) => offer.offerId === "cctp")?.isComposedEligible).toBe(true);
+  });
 });

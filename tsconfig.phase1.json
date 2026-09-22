@@ -38,7 +38,9 @@
     "src/widget/useWidgetConfig.ts",
     "src/widget/widgetRuntime.ts",
     "src/widget/widgetRuntime.test.ts",
-    "src/config/**/*"
+    "src/config/**/*",
+    "src/features/basket/**/*.ts",
+    "src/features/ramp/**/*.ts"
   ],
   "exclude": [
     "node_modules",

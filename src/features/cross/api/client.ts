@@ -4,8 +4,11 @@ export function resolveCrossApiBaseUrl(
   configuredBaseUrl: string | undefined,
   isDevelopment: boolean,
 ): string {
-  const configured = configuredBaseUrl?.trim();
-  if (configured) return configured.replace(/\/+$/, "");
+  const configured = configuredBaseUrl?.trim().replace(/\/+$/, "");
+  // Vite reads the same environment variable as its upstream proxy target.
+  // Browser requests stay same-origin for local, staging, and public backends.
+  if (isDevelopment) return "";
+  if (configured) return configured;
   return isDevelopment ? "" : PUBLIC_CROSS_API_ORIGIN;
 }
 

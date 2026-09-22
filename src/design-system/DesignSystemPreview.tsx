@@ -7,6 +7,7 @@ import {
   ChainBadge,
   ChainSwitcher,
   Collapsible,
+  DappFooter,
   DappNavbar,
   LogoTile,
   NFTGalleryModal,
@@ -163,14 +164,7 @@ export default function DesignSystemPreview() {
   return (
     <div style={{ minHeight: "100vh", background: "#05050c", color: "#fff", fontFamily: "Inter, sans-serif" }}>
       <DappNavbar
-        links={[
-          { label: "Swap", href: "/swap" },
-          { label: "Cross", href: "/cross", active: true },
-          { label: "Bridge", href: "/bridge" },
-          { label: "Gas", href: "/gas" },
-          { label: "Portfolio", href: "/portfolio" },
-          { label: "Widget", href: "/widget", badge: "NEW" },
-        ]}
+        activeHref="/swap-v2"
         controls={
           <>
             <NetworkSelector name={ARB.name} color={ARB.color} onClick={() => setSwapChainPickerOpen(true)} />
@@ -390,25 +384,25 @@ export default function DesignSystemPreview() {
               <p style={{ fontSize: 11, letterSpacing: "0.30em", color: "rgba(255,255,255,0.45)", textTransform: "uppercase", marginBottom: 12, fontWeight: 700 }}>BRIDGE</p>
               <EmpxBridgeWidget
                 fromChain={ARB}
-                toChain={BASE}
-                token={{ ticker: "USDC" }}
-                amount={bridgeAmount}
-                balance="8,420.10"
-                usdValue={Number(bridgeAmount)}
-                receiveAmount={bridgeReceive}
-                receiveUsdValue={Number(bridgeReceive)}
-                onAmountChange={setBridgeAmount}
-                onSelectToken={() => setShowTokenPicker(true)}
+                fromToken={{ ticker: "USDC" }}
+                fromAmount={bridgeAmount}
+                fromBalance="8,420.10"
+                fromUsdValue={Number(bridgeAmount)}
+                onFromAmountChange={setBridgeAmount}
+                onSelectFromToken={() => setShowTokenPicker(true)}
                 onSelectFromChain={() => setCrossChainPickerOpen(true)}
-                onSelectToChain={() => setCrossChainPickerOpen(true)}
                 onPercentClick={(pct) => setBridgeAmount(String((8420.10 * pct) / 100))}
-                onFlip={() => {}}
-                railName="CCTP"
-                railBadge="USDC NATIVE"
+                toChain={BASE}
+                toToken={{ ticker: "USDC" }}
+                toAmount={bridgeReceive}
+                toUsdValue={Number(bridgeReceive)}
+                onSelectToToken={() => setShowTokenPicker(true)}
+                onSelectToChain={() => setCrossChainPickerOpen(true)}
                 protocolFeeUSD={0.45}
                 bridgeFeeUSD={0.70}
                 estimatedTime="~ 3 minutes"
-                onSubmit={() => toast.pending("Bridge submitted", { description: "Tracking on Arbitrum → Base" })}
+                onSwap={() => toast.pending("Bridge submitted", { description: "Tracking on Arbitrum → Base" })}
+                onFlip={() => {}}
               />
             </div>
             <div>
@@ -596,6 +590,7 @@ export default function DesignSystemPreview() {
         confirmLabel="Confirm cross-chain"
       />
 
+      <DappFooter />
       <Toaster />
     </div>
   );

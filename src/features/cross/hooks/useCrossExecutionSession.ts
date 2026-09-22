@@ -1,7 +1,7 @@
 import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { crossApi } from "../api/crossApi";
-import type { OfferSet } from "../api/contracts";
+import type { GardenBitcoinNativeSourceFunding, OfferSet } from "../api/contracts";
 
 interface CrossApiFailure {
   status?: number;
@@ -35,6 +35,7 @@ export function useCrossExecutionSession({
       offerSetId: string;
       offerId: string;
       userAddress: string;
+      gardenNativeSourceFunding?: GardenBitcoinNativeSourceFunding;
     }) => {
       try {
         setFallbackOfferSet(null);

@@ -5,7 +5,7 @@
 // Used everywhere a logo appears: TokenPicker, TokenSwitcher, AssetRow,
 // MarketCard, ChainPicker, AccountModal, WalletModal.
 
-import { CSSProperties, ReactNode } from "react";
+import { CSSProperties, ReactNode, useEffect, useState } from "react";
 
 interface LogoTileProps {
   /** Image src OR a node (emoji, letters, etc) */
@@ -39,6 +39,9 @@ export default function LogoTile({
   className = "",
   style = {},
 }: LogoTileProps) {
+  const [failed, setFailed] = useState(false);
+  useEffect(() => setFailed(false), [src]);
+
   const baseStyle: CSSProperties = {
     position: "relative",
     width: size,
@@ -66,14 +69,12 @@ export default function LogoTile({
 
   return (
     <span className={`empx-logo-tile ${className}`} style={baseStyle}>
-      {src ? (
+      {src && !failed ? (
         <img
           src={src}
-          alt={alt || ""}
+          alt={alt ?? "logo"}
           style={{ width: "100%", height: "100%", objectFit: "cover" }}
-          onError={(e) => {
-            (e.currentTarget as HTMLImageElement).style.display = "none";
-          }}
+          onError={() => setFailed(true)}
         />
       ) : (
         fallback

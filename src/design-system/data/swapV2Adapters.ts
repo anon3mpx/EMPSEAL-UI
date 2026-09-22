@@ -18,6 +18,9 @@ export interface SwapHookToken {
   badge?: "VERIFIED" | "TRENDING";
   balance?: string;
   balanceUSD?: number;
+  chainId: number;
+  logoUrl?: string;
+  isNative?: boolean;
 }
 
 export interface SwapQuoteLike {
@@ -281,6 +284,9 @@ export function toSwapHookToken(token: V2TokenConfig, chain: V2ChainConfig): Swa
     chainName: chain.name,
     chainColor: chain.color,
     badge: token.badge === "WARNING" ? undefined : token.badge,
+    chainId: token.chainId,
+    logoUrl: token.logoUrl,
+    isNative: token.isNative,
   };
 }
 

@@ -17,11 +17,24 @@ describe("resolveCrossApiBaseUrl", () => {
     );
   });
 
+  it.each([
+    "https://crosschain.empx.io",
+    " https://crosschain.empx.io/ ",
+  ])("keeps an explicit default public origin behind the dev proxy: %s", (origin) => {
+    expect(resolveCrossApiBaseUrl(origin, true)).toBe("");
+    expect(resolveCrossApiBaseUrl(origin, false)).toBe("https://crosschain.empx.io");
+  });
+
   it("preserves an explicit API origin override without a trailing slash", () => {
     expect(
-      resolveCrossApiBaseUrl("https://crosschain-staging.empx.io/", true),
+      resolveCrossApiBaseUrl("https://crosschain-staging.empx.io/", false),
     ).toBe("https://crosschain-staging.empx.io");
   });
+  it.each(["http://localhost:8787", "https://crosschain-staging.empx.io/"])(
+    "uses the development proxy for configured backend %s", (origin) => {
+      expect(resolveCrossApiBaseUrl(origin, true)).toBe("");
+    },
+  );
 });
 
 describe("LayerZero discovery client", () => {

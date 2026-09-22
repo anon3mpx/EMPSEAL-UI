@@ -36,6 +36,8 @@ import ViaBridge from "../pages/via-bridge/BridgePage";
 import NotFound from "../pages/NotFound";
 import Landing from "../pages/landing/Home";
 import LandingV2 from "../pages/landing/v2/LandingV2";
+import LandingV3 from "../pages/landing/v3/LandingV3";
+import LandingV4 from "../pages/landing/v4/LandingV4";
 import DesignSystemPreview from "../design-system/DesignSystemPreview";
 import PortfolioPageV2 from "../design-system/pages/PortfolioPage";
 import SwapPageV2 from "../design-system/pages/SwapPage";
@@ -44,6 +46,7 @@ import BridgePageV2 from "../design-system/pages/BridgePage";
 import MultiPageV2 from "../design-system/pages/MultiPage";
 import GasPageV2 from "../design-system/pages/GasPage";
 import WidgetPageV2 from "../design-system/pages/WidgetPage";
+import RampPageV2 from "../design-system/pages/RampPage";
 import Portfolio from "../pages/portfolio/Portfolio";
 import ErrorBoundary from "../components/ErrorBoundary";
 
@@ -229,6 +232,9 @@ function MyRoutes() {
           <Routes>
             {/* <Route path="/" element={<Navigate to="/landing" replace />} /> */}
             <Route path="/" element={<LandingV2 />} />
+            <Route path="/landing-v2" element={<LandingV2 />} />
+            <Route path="/landing-v3" element={<LandingV3 />} />
+            <Route path="/landing-v4" element={<LandingV4 />} />
             {/* Old landing preserved at /landing-v1 for comparison + rollback */}
             <Route path="/landing-v1" element={<Landing />} />
             {/* Design system preview — all primitives + reference swap widget */}
@@ -241,6 +247,7 @@ function MyRoutes() {
             <Route path="/multi-v2"  element={<V2Wrapper><MultiPageV2 /></V2Wrapper>} />
             <Route path="/gas-v2"    element={<V2Wrapper><GasPageV2 /></V2Wrapper>} />
             <Route path="/widget-v2" element={<V2Wrapper><WidgetPageV2 /></V2Wrapper>} />
+            <Route path="/ramp-v2" element={<V2Wrapper><RampPageV2 /></V2Wrapper>} />
             {/* /landing kept for backwards-compat links; redirects to /. */}
             <Route path="/landing" element={<Navigate to="/" replace />} />
             <Route

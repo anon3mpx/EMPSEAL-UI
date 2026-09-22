@@ -11,6 +11,13 @@ describe("mapCrossApiError", () => {
     ["RAIL_DISABLED", /disabled/i],
     ["PROVIDER_QUOTE_EXPIRED", /expired/i],
     ["PROVIDER_CALLDATA_UNAVAILABLE", /calldata/i],
+    ["SELECTED_CARRIER_ACTION_UNAVAILABLE", /could not be prepared/i],
+    ["SELECTED_CARRIER_ACTION_UNSUPPORTED", /not supported in the wallet/i],
+    ["SELECTED_CARRIER_TRANSACTION_INVALID", /invalid transaction/i],
+    ["EXECUTION_SELECTION_CONFLICT", /changed while it was being prepared/i],
+    ["EXECUTION_STEP_NOT_READY", /already in progress/i],
+    ["INVALID_SELECTION_RESPONSE", /incomplete/i],
+    ["GARDEN_SOLANA_TRANSACTION_EXPIRED", /new quote/i],
   ])("maps %s to actionable copy", (code, message) => {
     expect(mapCrossApiError({ body: { error: code } })).toMatch(message);
   });

@@ -8,6 +8,7 @@ import {
   phantomWallet,
 } from "@rainbow-me/rainbowkit/wallets";
 import { http, createConfig } from "wagmi";
+import { walletConnectProjectId } from "./walletConnectProjectId";
 import {
   pulsechain,
   bsc,
@@ -66,12 +67,12 @@ const bridgeConnectors = connectorsForWallets(
       ],
     },
   ],
-  { appName: "RainbowKit Bridge", projectId: "YOUR_PROJECT_ID" }
+  { appName: "RainbowKit Bridge", projectId: walletConnectProjectId }
 );
 
 export const bridgeConfig = getDefaultConfig({
   appName: "Emplseal Bridge",
-  projectId: "YOUR_PROJECT_ID",
+  projectId: walletConnectProjectId,
   chains: [
     pulsechain,
     mainnet,

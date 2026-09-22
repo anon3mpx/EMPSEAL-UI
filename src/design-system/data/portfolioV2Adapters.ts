@@ -1,7 +1,7 @@
-import type { ReactNode } from "react";
-
 import type { NFTItem } from "../components";
 import type { MarketCard, PortfolioAsset } from "../EmpxPortfolioPanel";
+
+const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 
 export interface PortfolioV2Token {
   id?: string;
@@ -9,7 +9,7 @@ export interface PortfolioV2Token {
   chainId?: number;
   symbol: string;
   name: string;
-  logo: ReactNode;
+  logo?: string;
   chain: string;
   chainName?: string;
   chainColor: string;
@@ -116,13 +116,23 @@ export function buildPortfolioV2ViewModel(
   };
 }
 
+function toPortfolioIdentity(token: PortfolioV2Token) {
+  const address = token.address?.trim() || undefined;
+  return {
+    chainId: token.chainId,
+    address,
+    logoUrl: typeof token.logo === "string" ? token.logo.trim() || undefined : undefined,
+    isNative: address?.toLowerCase() === ZERO_ADDRESS,
+  };
+}
+
 function toPortfolioAsset(token: PortfolioV2Token): PortfolioAsset {
   const hasPrice = token.price > 0;
 
   return {
     ticker: token.symbol,
     name: token.name,
-    logo: token.logo,
+    ...toPortfolioIdentity(token),
     chainName: token.chainName || token.chain,
     chainColor: token.chainColor,
     balance: formatTokenAmount(token.amount),
@@ -139,6 +149,7 @@ function buildPortfolioMarketCards(tokens: PortfolioV2Token[]): MarketCard[] {
     .map((token) => ({
       ticker: token.symbol,
       name: token.name,
+      ...toPortfolioIdentity(token),
       price: token.price,
       change24h: token.change24h,
       chainColor: token.chainColor,

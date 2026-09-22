@@ -80,6 +80,27 @@ export function mapCrossApiError(error: any): string {
   ) {
     return "Provider calldata is temporarily unavailable. Refresh the quote and try again.";
   }
+  if (code.includes("SELECTED_CARRIER_ACTION_UNAVAILABLE")) {
+    return "This route could not be prepared. Refresh offers and choose another route.";
+  }
+  if (code.includes("SELECTED_CARRIER_ACTION_UNSUPPORTED")) {
+    return "This provider requires an execution flow that is not supported in the wallet yet.";
+  }
+  if (code.includes("SELECTED_CARRIER_TRANSACTION_INVALID")) {
+    return "The provider returned an invalid transaction. No transaction was sent.";
+  }
+  if (code.includes("EXECUTION_SELECTION_CONFLICT")) {
+    return "This offer selection changed while it was being prepared. Refresh the quote and try again.";
+  }
+  if (code.includes("EXECUTION_STEP_NOT_READY")) {
+    return "This route is already in progress. Do not send another transaction.";
+  }
+  if (code.includes("INVALID_SELECTION_RESPONSE")) {
+    return "The route response was incomplete. No transaction was sent.";
+  }
+  if (code.includes("GARDEN_SOLANA_TRANSACTION_EXPIRED")) {
+    return "Garden Solana transaction expired. Request a new quote and try again.";
+  }
 
   return readErrorMessage(error) ?? "Cross-chain request failed.";
 }

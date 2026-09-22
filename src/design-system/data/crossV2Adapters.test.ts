@@ -395,6 +395,39 @@ describe("crossV2Adapters", () => {
     });
   });
 
+  it("separates rail identity, carrier execution, and composed wallet steps", () => {
+    expect(formatCrossOffer({
+      offerId: "offer-cctp-fast",
+      rail: "CCTP",
+      offerType: "cctp_fast",
+      executionMode: "sequential_wallet",
+      composition: { carrierExecutionMode: "router_intent" },
+      planPreview: { stepKinds: ["source_swap", "rail_transfer"] },
+      estimatedOut: "1853187019",
+      minAmountOut: "1851333831",
+      economics: { providerFeeUSD: "2.78", protocolFeeUSD: "0", settlementTimeSeconds: 45 },
+    }, 6)).toMatchObject({
+      railName: "CCTP Fast",
+      executionLabel: "Router Intent",
+      stepSummary: "2 steps · Source swap + Bridge",
+    });
+
+    expect(formatCrossOffer({
+      offerId: "offer-lz-api",
+      rail: "LAYERZERO",
+      offerType: "lz_api_direct",
+      executionMode: "sequential_wallet",
+      composition: { carrierExecutionMode: "provider_direct" },
+      planPreview: { stepKinds: ["source_swap", "rail_transfer"] },
+      estimatedOut: "1",
+      minAmountOut: "1",
+      economics: { providerFeeUSD: "0", protocolFeeUSD: "0", settlementTimeSeconds: 45 },
+    }, 6)).toMatchObject({
+      railName: "LayerZero Transfer API",
+      executionLabel: "Provider Direct",
+    });
+  });
+
   it("formats THORChain provider quote output when top-level output is zero", () => {
     const offer = {
       offerId: "offer-thor-btc-eth",
@@ -518,6 +551,31 @@ describe("crossV2Adapters", () => {
       { ticker: "USDC", chainName: "Arbitrum", chainColor: "#28A0F0", via: "LAYERZERO", venueType: "RAIL" },
       { ticker: "USDC", chainName: "Base", chainColor: "#0052FF", via: "Destination swap", venueType: "DEX" },
       { ticker: "USDT", chainName: "Base", chainColor: "#0052FF" },
+    ]);
+  });
+
+  it("builds a source-swap hop from composed route metadata", () => {
+    expect(buildCrossRouteHops(
+      {
+        rail: "CCTP",
+        offerType: "cctp_fast",
+        planPreview: { stepKinds: ["source_swap", "rail_transfer"] },
+        composition: {
+          sourceSwap: { tokenOut: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831" },
+          carrier: { canonicalAssetId: "USDC" },
+        },
+        legs: {
+          bridge: { tokenInSymbol: "USDC", tokenOutSymbol: "USDC" },
+        },
+      },
+      arbitrum,
+      base,
+      "WETH",
+      "USDC",
+    )).toEqual([
+      { ticker: "WETH", chainName: "Arbitrum", chainColor: "#28A0F0", via: "Source swap", venueType: "DEX" },
+      { ticker: "USDC", chainName: "Arbitrum", chainColor: "#28A0F0", via: "CCTP Fast", venueType: "RAIL" },
+      { ticker: "USDC", chainName: "Base", chainColor: "#0052FF" },
     ]);
   });
 

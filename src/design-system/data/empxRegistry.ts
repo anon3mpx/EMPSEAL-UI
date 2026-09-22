@@ -1,4 +1,5 @@
 import {
+  AGG_CHAIN_IDS,
   getOfferCapability,
   getRailCapability,
 } from "../../features/cross/model/capabilities";
@@ -17,22 +18,7 @@ import { NON_EVM_CHAIN_IDS as BACKEND_NON_EVM_CHAIN_IDS } from "../../lib/wallet
 // ─── T1: Aggregator-deployed chains ────────────────────────────────────────
 // SOURCE: empx-cross-bridge/src/vps/config/chains.ts → AGG_CHAIN_IDS
 // (derived from CHAIN_CONFIGS entries with hasAggregator: true)
-export const AGG_CHAIN_IDS = new Set<number>([
-  369,    // PulseChain
-  56,     // BSC (USDT-dominant)
-  42161,  // Arbitrum
-  8453,   // Base
-  137,    // Polygon
-  43114,  // Avalanche
-  10,     // Optimism
-  143,    // Monad
-  146,    // Sonic
-  1329,   // Sei
-  80094,  // Berachain
-  30,     // Rootstock
-  10001,  // EthereumPOW
-  999,    // HyperEVM
-]);
+export { AGG_CHAIN_IDS };
 
 // ─── Paymaster (gasless source) chains ─────────────────────────────────────
 // SOURCE: empx-cross-bridge/src/vps/services/PaymasterService.ts → PIMLICO_URLS keys

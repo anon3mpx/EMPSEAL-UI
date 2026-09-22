@@ -1,4 +1,5 @@
 import type { CrossExecutionSession } from "../api/contracts";
+import { classifyProviderDirectAction } from "../execution/providerDirect";
 import type { CrossTrackingLinks, CrossTrackingTxLink } from "../utils/trackingLinks";
 
 interface CrossTrackingPanelProps {
@@ -59,6 +60,19 @@ export function CrossTrackingPanel({
     tracking?.primary?.status ??
     session.status ??
     "SELECTED";
+  const gardenBitcoinRefundable =
+    session.mode === "single" &&
+    session.integration?.mode === "provider_direct" &&
+    classifyProviderDirectAction(session.integration, {
+      selectedSourceChainId: session.sourceChainId ?? session.quote?.srcChainId,
+    }) === "garden_bitcoin_source" &&
+    Boolean(session.nativeCallbackAuth?.recoveryToken) &&
+    Boolean(
+      tracking?.canRequestRefund ||
+        ["EXPIRED", "FAILED", "REFUNDABLE", "REFUND_AVAILABLE"].includes(
+          String(status).toUpperCase(),
+        ),
+    );
 
   return (
     <div className="border border-white/[0.05] bg-white/[0.02] p-4">
@@ -145,6 +159,23 @@ export function CrossTrackingPanel({
           <span>{tracking?.etaSeconds ? `${tracking.etaSeconds}s` : "—"}</span>
         </div>
       </div>
+
+      {gardenBitcoinRefundable ? (
+        <div className="mt-4">
+          <button
+            type="button"
+            onClick={onRefund}
+            disabled={recoveryActionsDisabled || isRefunding}
+            className={`w-full px-4 py-3 text-[11px] font-bold uppercase tracking-[0.08em] ${
+              recoveryActionsDisabled || isRefunding
+                ? "cursor-not-allowed bg-white/[0.06] text-white/25"
+                : "bg-[#FF8A00] text-[#03030a]"
+            }`}
+          >
+            {isRefunding ? "Requesting..." : "Refund Garden BTC"}
+          </button>
+        </div>
+      ) : null}
 
       {/* Recovery controls are intentionally hidden until cancel/refund UX is re-enabled.
       {session.mode === "single" ? (

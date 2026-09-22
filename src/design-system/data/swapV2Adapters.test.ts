@@ -13,6 +13,8 @@ import {
   normalizeSdkPreparedRoute,
   toSwapHookToken,
 } from "./swapV2Adapters";
+import { getV2Chain } from "./v2ChainView";
+import { getTokensForChain } from "./v2TokenView";
 
 const chain = {
   id: 42161,
@@ -43,6 +45,20 @@ const usdcToken = {
 };
 
 describe("swapV2Adapters", () => {
+  it("preserves token identity metadata through the swap adapter", () => {
+    const chain = getV2Chain(42161)!;
+    const token = getTokensForChain(42161).find((item) => item.ticker === "USDC")!;
+    const result = toSwapHookToken(token, chain);
+
+    expect(result).toMatchObject({
+      chainId: 42161,
+      ticker: "USDC",
+      address: token.address,
+      logoUrl: token.logoUrl,
+      isNative: false,
+    });
+  });
+
   it("converts V2 tokens into the legacy swap hook token shape", () => {
     const native = toSwapHookToken(ethToken, chain);
     const stable = toSwapHookToken(usdcToken, chain);

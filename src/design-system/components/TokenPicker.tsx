@@ -6,7 +6,6 @@
 import { ReactNode, useMemo, useState } from "react";
 import Modal from "./Modal";
 import Pill from "./Pill";
-import LogoTile from "./LogoTile";
 import TokenLogo from "./TokenLogo";
 
 export interface PickerToken {
@@ -19,8 +18,9 @@ export interface PickerToken {
   balanceUSD?: number;
   chainName?: string;
   chainColor?: string;
-  /** Chain ID — when present, TokenLogo resolves the TrustWallet image. */
   chainId?: number;
+  logoUrl?: string;
+  isNative?: boolean;
   badge?: "TRENDING" | "VERIFIED" | "NEW" | "LP" | "WARNING";
 }
 
@@ -223,7 +223,14 @@ export default function TokenPicker({
                 }}
               >
                 {/* Compact tile for the recents row — TokenLogo tries TrustWallet image first. */}
-                <TokenLogo ticker={t.ticker} chainId={t.chainId} size={18} />
+                <TokenLogo
+                  ticker={t.ticker}
+                  chainId={t.chainId}
+                  address={t.address}
+                  logoUrl={t.logoUrl}
+                  isNative={t.isNative}
+                  size={18}
+                />
                 {t.ticker}
               </button>
             ))}
@@ -278,7 +285,14 @@ export default function TokenPicker({
               >
                 {/* Main row — TokenLogo (image + ticker fallback) plus optional chain dot overlay. */}
                 <div style={{ position: "relative", flexShrink: 0 }}>
-                  <TokenLogo ticker={token.ticker} chainId={token.chainId} size={34} />
+                  <TokenLogo
+                    ticker={token.ticker}
+                    chainId={token.chainId}
+                    address={token.address}
+                    logoUrl={token.logoUrl}
+                    isNative={token.isNative}
+                    size={34}
+                  />
                   {token.chainColor && (
                     <span
                       aria-hidden
