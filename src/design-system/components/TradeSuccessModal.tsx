@@ -133,7 +133,7 @@ export default function TradeSuccessModal({
         style={{
           padding: "14px 16px",
           background:
-            "linear-gradient(135deg, rgba(255,138,0,0.04) 0%, transparent 60%)",
+            "linear-gradient(135deg, rgba(var(--widget-primary-rgb, 255, 138, 0), 0.04) 0%, transparent 60%)",
           border: "1px solid rgba(255,255,255,0.08)",
           borderRadius: 5,
           marginBottom: 14,
@@ -281,7 +281,7 @@ export default function TradeSuccessModal({
                   </p>
                 </div>
                 {tx.url && (
-                  <svg width="11" height="11" viewBox="0 0 11 11" fill="none" style={{ color: "#FF8A00", opacity: 0.7 }}>
+                  <svg width="11" height="11" viewBox="0 0 11 11" fill="none" style={{ color: "var(--widget-primary, #FF8A00)", opacity: 0.7 }}>
                     <path d="M1.5 6V9.5H9.5V6" stroke="currentColor" strokeWidth="1.2" />
                     <path d="M6 1.5H9.5V5" stroke="currentColor" strokeWidth="1.2" />
                     <path d="M9.5 1.5L5 6" stroke="currentColor" strokeWidth="1.2" />
@@ -385,7 +385,7 @@ function SwapEnd({
           margin: 0,
           fontSize: 9,
           letterSpacing: "0.35em",
-          color: accent ? "#FF8A00" : "rgba(255,255,255,0.40)",
+          color: accent ? "var(--widget-primary, #FF8A00)" : "rgba(255,255,255,0.40)",
           textTransform: "uppercase",
           fontWeight: 700,
         }}
@@ -403,8 +403,8 @@ function SwapEnd({
           fontSize: 22,
           lineHeight: 1,
           letterSpacing: "-0.025em",
-          color: accent ? "#FF8A00" : "#fff",
-          textShadow: accent ? "0 0 18px rgba(255,138,0,0.28)" : "none",
+          color: accent ? "var(--widget-primary, #FF8A00)" : "#fff",
+          textShadow: accent ? "0 0 18px rgba(var(--widget-primary-rgb, 255, 138, 0), 0.28)" : "none",
           whiteSpace: "nowrap",
           overflow: "hidden",
           textOverflow: "ellipsis",
@@ -417,7 +417,7 @@ function SwapEnd({
           margin: "3px 0 0",
           fontSize: 11,
           fontWeight: 600,
-          color: accent ? "#FF8A00" : "rgba(255,255,255,0.55)",
+          color: accent ? "var(--widget-primary, #FF8A00)" : "rgba(255,255,255,0.55)",
         }}
       >
         {ticker}
@@ -434,12 +434,12 @@ function ArrowIcon() {
         height: 28,
         borderRadius: "50%",
         background: "#0A0A14",
-        border: "1px solid rgba(255,138,0,0.40)",
+        border: "1px solid rgba(var(--widget-primary-rgb, 255, 138, 0), 0.40)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        color: "#FF8A00",
-        boxShadow: "0 0 16px rgba(255,138,0,0.25)",
+        color: "var(--widget-primary, #FF8A00)",
+        boxShadow: "0 0 16px rgba(var(--widget-primary-rgb, 255, 138, 0), 0.25)",
       }}
     >
       <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
@@ -460,7 +460,7 @@ function TimelineStep({ step, isLast }: { step: TradeTimelineStep; isLast: boole
     step.state === "complete"
       ? { dot: "#34D399", track: "#34D399" }
       : step.state === "active"
-      ? { dot: "#FF8A00", track: "rgba(255,138,0,0.45)" }
+      ? { dot: "var(--widget-primary, #FF8A00)", track: "rgba(var(--widget-primary-rgb, 255, 138, 0), 0.45)" }
       : { dot: "rgba(255,255,255,0.20)", track: "rgba(255,255,255,0.08)" };
   return (
     <div style={{ display: "flex", gap: 12, paddingBottom: isLast ? 0 : 14 }}>

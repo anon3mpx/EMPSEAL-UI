@@ -17,7 +17,7 @@ interface BrandMarkProps {
 
 export default function BrandMark({
   size = 28,
-  color = "#FF8A00",
+  color = "var(--widget-primary, #FF8A00)",
   opacity = 1,
   className = "",
   style = {},
@@ -35,9 +35,8 @@ export default function BrandMark({
       style={{ display: "inline-block", opacity, ...style }}
     >
       <g
-        fill={color}
+        style={{ fill: color, transformOrigin: "50% 50%" }}
         transform={upright ? undefined : "skewX(-12)"}
-        style={{ transformOrigin: "50% 50%" }}
       >
         <rect x="10" y="8"  width="62" height="18" rx="8" />
         <rect x="24" y="38" width="62" height="18" rx="8" />

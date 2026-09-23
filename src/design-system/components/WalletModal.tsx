@@ -130,7 +130,7 @@ export default function WalletModal({ open, onClose, wallets, onSelect, kindFilt
               width: "100%",
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.borderColor = "rgba(255,138,0,0.40)";
+              e.currentTarget.style.borderColor = "rgba(var(--widget-primary-rgb, 255, 138, 0), 0.40)";
               e.currentTarget.style.background = "rgba(255,255,255,0.045)";
             }}
             onMouseLeave={(e) => {
@@ -175,7 +175,7 @@ export default function WalletModal({ open, onClose, wallets, onSelect, kindFilt
                     style={{
                       fontSize: 9,
                       letterSpacing: "0.25em",
-                      color: "#FF8A00",
+                      color: "var(--widget-primary, #FF8A00)",
                       textTransform: "uppercase",
                       fontWeight: 700,
                     }}
@@ -221,7 +221,7 @@ export default function WalletModal({ open, onClose, wallets, onSelect, kindFilt
           lineHeight: 1.5,
         }}
       >
-        Don't have a wallet? <span style={{ color: "#FF8A00", textDecoration: "underline", cursor: "pointer" }}>Learn how to set one up</span>
+        Don't have a wallet? <span style={{ color: "var(--widget-primary, #FF8A00)", textDecoration: "underline", cursor: "pointer" }}>Learn how to set one up</span>
       </p>
     </Modal>
   );

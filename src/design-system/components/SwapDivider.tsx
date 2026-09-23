@@ -28,7 +28,7 @@ export default function SwapDivider({ onSwap, disabled, ariaLabel = "Swap tokens
           borderRadius: "50%",
           background: "#0A0A14",
           border: "1px solid rgba(255,255,255,0.12)",
-          color: "#FF8A00",
+          color: "var(--widget-primary, #FF8A00)",
           cursor: disabled ? "not-allowed" : "pointer",
           display: "flex",
           alignItems: "center",
@@ -39,8 +39,8 @@ export default function SwapDivider({ onSwap, disabled, ariaLabel = "Swap tokens
         onMouseEnter={(e) => {
           if (disabled) return;
           e.currentTarget.style.background = "#0F0F18";
-          e.currentTarget.style.borderColor = "rgba(255,138,0,0.50)";
-          e.currentTarget.style.boxShadow = "0 0 20px rgba(255,138,0,0.25)";
+          e.currentTarget.style.borderColor = "rgba(var(--widget-primary-rgb, 255, 138, 0), 0.50)";
+          e.currentTarget.style.boxShadow = "0 0 20px rgba(var(--widget-primary-rgb, 255, 138, 0), 0.25)";
         }}
         onMouseLeave={(e) => {
           if (disabled) return;

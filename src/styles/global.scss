@@ -2001,6 +2001,27 @@ body.widget-runtime-no-background {
     rgba(4, 6, 18, 0.98) 100%
   ) !important;
 }
+
+// v2 embed themes. SwapEmbed puts the theme class on <html> as well as its
+// wrapper so portaled modals pick these up. "dark" keeps the frameless
+// defaults baked into widgetKit / Modal.
+.widget-theme-darker {
+  --widget-shell-bg: rgba(0, 0, 0, 0.55);
+  --widget-shell-border: rgba(255, 255, 255, 0.06);
+  --widget-shell-radius: 8px;
+  --widget-panel: #040406;
+  --widget-backdrop: rgba(0, 0, 0, 0.9);
+  --widget-modal-bg: linear-gradient(135deg, rgba(12, 12, 16, 0.97) 0%, rgba(0, 0, 0, 0.99) 100%);
+}
+
+.widget-theme-midnight {
+  --widget-shell-bg: linear-gradient(180deg, rgba(34, 52, 120, 0.2) 0%, rgba(10, 16, 48, 0.12) 100%);
+  --widget-shell-border: rgba(120, 150, 255, 0.14);
+  --widget-shell-radius: 8px;
+  --widget-panel: #0b1026;
+  --widget-backdrop: rgba(3, 6, 22, 0.86);
+  --widget-modal-bg: linear-gradient(135deg, rgba(22, 32, 72, 0.92) 0%, rgba(6, 10, 30, 0.97) 100%);
+}
 .bg-new-gray {
   background: rgba(255, 255, 255, 0.04);
 }

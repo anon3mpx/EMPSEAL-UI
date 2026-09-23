@@ -60,7 +60,7 @@ export default function FinalCTA() {
           <MagneticButton href="/portfolio-v2" variant="primary" size="large">
             Launch app →
           </MagneticButton>
-          <MagneticButton href="https://docs.empx.network" variant="secondary" size="large">
+          <MagneticButton href="https://docs.empx.io" variant="secondary" size="large">
             Read the docs
           </MagneticButton>
           <MagneticButton href="mailto:bd@empx.network" variant="ghost" size="large">

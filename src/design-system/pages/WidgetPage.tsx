@@ -28,6 +28,7 @@ import {
   AccountModal,
   BrandMark,
   Card,
+  ChainLogo,
   ChainPicker,
   DappFooter,
   DappNavbar,
@@ -45,12 +46,14 @@ import {
 } from "../components";
 import { useWalletConnection } from "../hooks/useWalletConnection";
 import { useV2Balances } from "../hooks/useV2Balances";
+import { useAccountSnapshot } from "../hooks/useAccountSnapshot";
 import { tierForChainId, tierLabel } from "../data/empxRegistry";
 import { getExplorerAddressUrl } from "../data/explorers";
 import { getV2Chain } from "../data/v2ChainView";
 
 import {
   WIDGET_FORM_DEFAULTS,
+  applyWidgetTheme,
   buildWidgetSnippet,
   buildWidgetUrl,
   clampWidgetDimension,
@@ -58,6 +61,7 @@ import {
   resolveWidgetSnippetOrigin,
   type WidgetForm,
   type WidgetSnippetFormat,
+  type WidgetTheme,
 } from "../data/widgetV2Adapters";
 import { WIDGET_CHAIN_BY_KEY } from "../../widget/chains";
 
@@ -78,6 +82,17 @@ const ACCENT_PRESETS = ["#FF8A00", "#4ade80", "#60a5fa", "#e879f9", "#f87171", "
 
 type ConfigTab = "branding" | "defaults" | "behavior" | "embed";
 
+// A frame blocked by X-Frame-Options / frame-ancestors still fires onLoad
+// (never onError) — it just lands on the browser's opaque error page.  The
+// preview is same-origin, so an unreadable document means it was blocked.
+function isEmbedFrameRendered(frame: HTMLIFrameElement): boolean {
+  try {
+    return frame.contentWindow?.location.pathname === "/widget/swap";
+  } catch {
+    return false;
+  }
+}
+
 // ─── Page ──────────────────────────────────────────────────────────────────
 
 
@@ -86,6 +101,7 @@ export default function WidgetPage() {
   const { walletState, walletOptions, onSelectWallet, disconnect, switchChain, currentChain } =
     useWalletConnection();
   const connectedBalance = useV2Balances();
+  const accountSnapshot = useAccountSnapshot(walletState.status === "connected" ? walletState.address : null);
   const [showWalletModal, setShowWalletModal] = useState(false);
   const [showAccountModal, setShowAccountModal] = useState(false);
 
@@ -151,10 +167,15 @@ export default function WidgetPage() {
         activeHref="/widget-v2"
         controls={
           <>
-            <NetworkSelector name={chain.name} color={chain.color} onClick={() => setChainPickerOpen(true)} />
+            <NetworkSelector
+              name={chain.name}
+              color={chain.color}
+              logo={<ChainLogo chainId={chain.chainId} symbol={chain.name.slice(0, 3).toUpperCase()} bg={chain.color} size={14} />}
+              onClick={() => setChainPickerOpen(true)} />
             <WalletButton
               connected={walletState.status === "connected"}
               address={walletState.status === "connected" ? walletState.address : undefined}
+              balanceUSD={accountSnapshot.balanceUSD}
               onConnect={() => setShowWalletModal(true)}
               onClick={() => setShowAccountModal(true)}
             />
@@ -218,7 +239,7 @@ export default function WidgetPage() {
 
               <div style={{ marginTop: 16 }}>
                 {tab === "branding" && (
-                  <BrandingTab form={form} set={set} chain={chain} onPickChain={() => setChainPickerOpen(true)} />
+                  <BrandingTab form={form} set={set} onPickTheme={(t) => setForm((cur) => applyWidgetTheme(cur, t))} chain={chain} onPickChain={() => setChainPickerOpen(true)} />
                 )}
                 {tab === "defaults" && <DefaultsTab form={form} set={set} chain={chain} />}
                 {tab === "behavior" && <BehaviorTab form={form} set={set} />}
@@ -248,7 +269,7 @@ export default function WidgetPage() {
               <p style={{ margin: "10px 0 0", fontSize: 11.5, color: "rgba(255,255,255,0.55)", lineHeight: 1.55 }}>
                 Don't have one yet?{" "}
                 <a
-                  href="https://docs.empx.network/integrators"
+                  href="https://docs.empx.io/docs/developers/widget-integration"
                   target="_blank"
                   rel="noreferrer"
                   style={{ color: "#FF8A00", textDecoration: "none", borderBottom: "1px solid rgba(255,138,0,0.40)" }}
@@ -316,7 +337,7 @@ export default function WidgetPage() {
                   height={Math.min(previewFrame.height, 720)}
                   frameBorder={0}
                   title="EmpX Widget preview"
-                  onLoad={() => setPreviewStatus("ok")}
+                  onLoad={(event) => setPreviewStatus(isEmbedFrameRendered(event.currentTarget) ? "ok" : "error")}
                   onError={() => setPreviewStatus("error")}
                   style={{
                     border: `1px solid ${form.borderColor}`,
@@ -480,12 +501,16 @@ export default function WidgetPage() {
           onClose={() => setShowAccountModal(false)}
           address={walletState.address}
           providerName={walletState.providerName}
-          chainName={chain.name}
-          chainColor={chain.color}
-          balanceUSD={connectedBalance.nativeBalanceUSD ?? undefined}
+          chainName={walletState.chain.name}
+          chainColor={walletState.chain.color}
+          balanceUSD={accountSnapshot.balanceUSD}
+          portfolioStatus={accountSnapshot.status}
+          activityAvailable={false}
+          tokens={accountSnapshot.tokens}
+          networks={accountSnapshot.networks}
           nativeBalance={connectedBalance.nativeBalance}
           nativeTicker={connectedBalance.nativeTicker}
-          explorerUrl={getExplorerAddressUrl(chain.chainId, walletState.address) ?? undefined}
+          explorerUrl={getExplorerAddressUrl(walletState.chain.id, walletState.address) ?? undefined}
           onCopy={() => toast.success("Address copied")}
           onSwitchNetwork={() => { setShowAccountModal(false); setChainPickerOpen(true); }}
           onSwitchWallet={() => { setShowAccountModal(false); setShowWalletModal(true); }}
@@ -502,10 +527,11 @@ export default function WidgetPage() {
 // ─── Tabs ──────────────────────────────────────────────────────────────────
 
 function BrandingTab({
-  form, set, chain, onPickChain,
+  form, set, onPickTheme, chain, onPickChain,
 }: {
   form: WidgetForm;
   set: <K extends keyof WidgetForm>(k: K, v: WidgetForm[K]) => void;
+  onPickTheme: (theme: WidgetTheme) => void;
   chain: typeof WIDGET_CHAINS[number];
   onPickChain: () => void;
 }) {
@@ -529,9 +555,7 @@ function BrandingTab({
             textAlign: "left",
           }}
         >
-          <span style={{ width: 22, height: 22, background: chain.color, borderRadius: 4, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 700, color: "#fff" }}>
-            {chain.ticker}
-          </span>
+          <ChainLogo chainId={chain.chainId} symbol={chain.ticker} bg={chain.color} size={22} />
           <span style={{ flex: 1, fontSize: 12.5, fontWeight: 600 }}>{chain.name}</span>
           <Pill variant="ghost">T{tierForChainId(chain.chainId)}</Pill>
           <span style={{ fontSize: 9, color: "rgba(255,255,255,0.40)", letterSpacing: "0.20em" }}>CHANGE</span>
@@ -544,7 +568,7 @@ function BrandingTab({
             <button
               key={t}
               type="button"
-              onClick={() => set("theme", t)}
+              onClick={() => onPickTheme(t)}
               style={chipStyle(form.theme === t)}
             >
               {t}

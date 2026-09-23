@@ -56,6 +56,8 @@ interface AccountModalProps {
   chainName?: string;
   chainColor?: string;
   balanceUSD?: number;
+  portfolioStatus?: "idle" | "loading" | "ready" | "error" | "unsupported";
+  activityAvailable?: boolean;
   nativeBalance?: string;
   nativeTicker?: string;
   activity?: RecentActivityItem[];
@@ -101,6 +103,8 @@ export default function AccountModal({
   chainName,
   chainColor,
   balanceUSD,
+  portfolioStatus = "ready",
+  activityAvailable = true,
   nativeBalance,
   nativeTicker,
   activity,
@@ -119,10 +123,11 @@ export default function AccountModal({
   const [tab, setTab] = useState<Tab>("activity");
 
   const counts = {
-    activity: activity?.length ?? 0,
-    tokens: tokens?.length ?? 0,
-    networks: networks?.length ?? 0,
+    activity: activityAvailable ? activity?.length ?? 0 : undefined,
+    tokens: portfolioStatus === "ready" ? tokens?.length ?? 0 : undefined,
+    networks: portfolioStatus === "ready" ? networks?.length ?? 0 : undefined,
   };
+  const quickActionCount = Number(Boolean(onReceive)) + Number(Boolean(onBuy)) + Number(Boolean(onBridge)) + Number(activityAvailable);
 
   return (
     <Modal open={open} onClose={onClose} eyebrow="ACCOUNT" title="Wallet" maxWidth={520}>
@@ -134,7 +139,7 @@ export default function AccountModal({
           gap: 14,
           padding: "12px 14px",
           background:
-            "linear-gradient(135deg, rgba(255,138,0,0.04) 0%, transparent 75%)",
+            "linear-gradient(135deg, rgba(var(--widget-primary-rgb, 255, 138, 0), 0.04) 0%, transparent 75%)",
           border: "1px solid rgba(255,255,255,0.08)",
           borderRadius: 5,
           marginBottom: 14,
@@ -226,12 +231,17 @@ export default function AccountModal({
               ? `$${balanceUSD.toLocaleString("en-US", { maximumFractionDigits: 2 })}`
               : "—"}
           </p>
-          {nativeBalance && (
+          {nativeBalance && nativeBalance !== "—" && (
             <p style={{ margin: "6px 0 0", fontSize: 11, color: "rgba(255,255,255,0.50)" }}>
               {nativeBalance} {nativeTicker || ""}
               {chainName && (
                 <span style={{ color: "rgba(255,255,255,0.30)" }}> on {chainName}</span>
               )}
+            </p>
+          )}
+          {portfolioStatus !== "ready" && (
+            <p style={{ margin: "6px 0 0", fontSize: 11, color: "rgba(255,255,255,0.55)" }}>
+              {portfolioStatus === "loading" ? "Loading balances…" : portfolioStatus === "unsupported" ? "Native wallet balances unavailable" : "Balances unavailable"}
             </p>
           )}
         </div>
@@ -250,7 +260,7 @@ export default function AccountModal({
           }}
           onMouseEnter={(e) => {
             if (!onSwitchNetwork) return;
-            e.currentTarget.style.borderColor = "rgba(255,138,0,0.35)";
+            e.currentTarget.style.borderColor = "rgba(var(--widget-primary-rgb, 255, 138, 0), 0.35)";
             e.currentTarget.style.background = "rgba(255,255,255,0.04)";
           }}
           onMouseLeave={(e) => {
@@ -309,14 +319,14 @@ export default function AccountModal({
                 boxShadow: "0 0 5px #34D399",
               }}
             />
-            Active {onSwitchNetwork && <span style={{ color: "#FF8A00", marginLeft: 4 }}>· Switch ↕</span>}
+            Active {onSwitchNetwork && <span style={{ color: "var(--widget-primary, #FF8A00)", marginLeft: 4 }}>· Switch ↕</span>}
           </p>
         </button>
       </div>
 
       {/* Quick actions */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6, marginBottom: 14 }}>
-        <QuickAction
+      {quickActionCount > 0 && <div style={{ display: "grid", gridTemplateColumns: `repeat(${quickActionCount}, 1fr)`, gap: 6, marginBottom: 14 }}>
+        {onReceive && <QuickAction
           label="Receive"
           onClick={onReceive}
           icon={
@@ -325,8 +335,8 @@ export default function AccountModal({
               <path d="M1.5 13H12.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
             </svg>
           }
-        />
-        <QuickAction
+        />}
+        {onBuy && <QuickAction
           label="Buy"
           onClick={onBuy}
           icon={
@@ -335,8 +345,8 @@ export default function AccountModal({
               <path d="M7 4.5V9.5M4.5 7H9.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
             </svg>
           }
-        />
-        <QuickAction
+        />}
+        {onBridge && <QuickAction
           label="Bridge"
           onClick={onBridge}
           icon={
@@ -346,8 +356,8 @@ export default function AccountModal({
               <path d="M4 7H12" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeDasharray="2 1.5" />
             </svg>
           }
-        />
-        <QuickAction
+        />}
+        {activityAvailable && <QuickAction
           label="Activity"
           onClick={() => setTab("activity")}
           icon={
@@ -355,8 +365,8 @@ export default function AccountModal({
               <path d="M1.5 7L4 7L6 3L8 11L10 7L12.5 7" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" strokeLinecap="round" />
             </svg>
           }
-        />
-      </div>
+        />}
+      </div>}
 
       {/* Tabs */}
       <div
@@ -376,7 +386,9 @@ export default function AccountModal({
       {/* Tab content */}
       <div style={{ minHeight: 180 }}>
         {tab === "activity" && (
-          activity && activity.length > 0 ? (
+          !activityAvailable ? (
+            <EmptyTab message="Activity unavailable" />
+          ) : activity && activity.length > 0 ? (
             <div
               style={{
                 background: "rgba(255,255,255,0.02)",
@@ -456,7 +468,9 @@ export default function AccountModal({
         )}
 
         {tab === "tokens" && (
-          tokens && tokens.length > 0 ? (
+          portfolioStatus !== "ready" ? (
+            <EmptyTab message={portfolioStatus === "loading" ? "Loading balances…" : "Balances unavailable"} />
+          ) : tokens && tokens.length > 0 ? (
             <div
               style={{
                 background: "rgba(255,255,255,0.02)",
@@ -525,7 +539,9 @@ export default function AccountModal({
         )}
 
         {tab === "networks" && (
-          networks && networks.length > 0 ? (
+          portfolioStatus !== "ready" ? (
+            <EmptyTab message={portfolioStatus === "loading" ? "Loading balances…" : "Balances unavailable"} />
+          ) : networks && networks.length > 0 ? (
             <div
               style={{
                 background: "rgba(255,255,255,0.02)",
@@ -636,9 +652,9 @@ function IconBtn({ onClick, icon, ...rest }: { onClick?: () => void; icon: React
         transition: "color 160ms ease, border-color 160ms ease, background 160ms ease",
       }}
       onMouseEnter={(e) => {
-        e.currentTarget.style.color = "#FF8A00";
-        e.currentTarget.style.borderColor = "rgba(255,138,0,0.40)";
-        e.currentTarget.style.background = "rgba(255,138,0,0.06)";
+        e.currentTarget.style.color = "var(--widget-primary, #FF8A00)";
+        e.currentTarget.style.borderColor = "rgba(var(--widget-primary-rgb, 255, 138, 0), 0.40)";
+        e.currentTarget.style.background = "rgba(var(--widget-primary-rgb, 255, 138, 0), 0.06)";
       }}
       onMouseLeave={(e) => {
         e.currentTarget.style.color = "rgba(255,255,255,0.65)";
@@ -679,9 +695,9 @@ function QuickAction({ label, icon, onClick }: { label: string; icon: ReactNode;
       }}
       onMouseEnter={(e) => {
         if (!onClick) return;
-        e.currentTarget.style.borderColor = "rgba(255,138,0,0.40)";
-        e.currentTarget.style.color = "#FF8A00";
-        e.currentTarget.style.background = "rgba(255,138,0,0.05)";
+        e.currentTarget.style.borderColor = "rgba(var(--widget-primary-rgb, 255, 138, 0), 0.40)";
+        e.currentTarget.style.color = "var(--widget-primary, #FF8A00)";
+        e.currentTarget.style.background = "rgba(var(--widget-primary-rgb, 255, 138, 0), 0.05)";
       }}
       onMouseLeave={(e) => {
         if (!onClick) return;
@@ -696,7 +712,7 @@ function QuickAction({ label, icon, onClick }: { label: string; icon: ReactNode;
   );
 }
 
-function TabButton({ label, count, active, onClick }: { label: string; count: number; active: boolean; onClick: () => void }) {
+function TabButton({ label, count, active, onClick }: { label: string; count?: number; active: boolean; onClick: () => void }) {
   return (
     <button
       type="button"
@@ -705,8 +721,8 @@ function TabButton({ label, count, active, onClick }: { label: string; count: nu
         padding: "8px 14px",
         background: "transparent",
         border: "none",
-        borderBottom: `2px solid ${active ? "#FF8A00" : "transparent"}`,
-        color: active ? "#FF8A00" : "rgba(255,255,255,0.55)",
+        borderBottom: `2px solid ${active ? "var(--widget-primary, #FF8A00)" : "transparent"}`,
+        color: active ? "var(--widget-primary, #FF8A00)" : "rgba(255,255,255,0.55)",
         fontFamily: "Inter, sans-serif",
         fontSize: 11,
         fontWeight: 700,
@@ -725,9 +741,9 @@ function TabButton({ label, count, active, onClick }: { label: string; count: nu
       }}
     >
       {label}
-      <span style={{ marginLeft: 6, color: "rgba(255,255,255,0.30)", fontWeight: 500, letterSpacing: "0.08em" }}>
+      {count !== undefined && <span style={{ marginLeft: 6, color: "rgba(255,255,255,0.30)", fontWeight: 500, letterSpacing: "0.08em" }}>
         {count}
-      </span>
+      </span>}
     </button>
   );
 }
@@ -754,7 +770,7 @@ function ActionButton({ children, onClick, danger }: { children: ReactNode; onCl
       }}
       onMouseEnter={(e) => {
         e.currentTarget.style.background = danger ? "rgba(239,68,68,0.12)" : "rgba(255,255,255,0.07)";
-        e.currentTarget.style.borderColor = danger ? "rgba(239,68,68,0.50)" : "rgba(255,138,0,0.40)";
+        e.currentTarget.style.borderColor = danger ? "rgba(239,68,68,0.50)" : "rgba(var(--widget-primary-rgb, 255, 138, 0), 0.40)";
       }}
       onMouseLeave={(e) => {
         e.currentTarget.style.background = danger ? "rgba(239,68,68,0.06)" : "rgba(255,255,255,0.04)";

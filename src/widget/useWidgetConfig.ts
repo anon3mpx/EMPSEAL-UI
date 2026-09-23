@@ -28,7 +28,7 @@ export const DEFAULT_WIDGET_CONFIG = {
   chain: DEFAULT_WIDGET_CHAIN_KEY,
   theme: "dark",
   background: "#000000",
-  primaryColor: "#e49c01ff",
+  primaryColor: "#FF8A00",
   borderColor: "#000000",
   integratorId: null as string | null,
   showBackground: true,

@@ -12,9 +12,10 @@ vi.mock("wagmi", () => ({
   useWaitForTransactionReceipt: () => ({}),
 }));
 vi.mock("../hooks/useWalletConnection", () => ({ useWalletConnection: () => ({
-  walletState: { status: "connected", address: "0x1111111111111111111111111111111111111111" }, walletOptions: [],
+  walletState: { status: "connected", address: "0x1111111111111111111111111111111111111111", chain: { id: 42161, name: "Arbitrum", color: "#28A0F0" } }, walletOptions: [],
 }) }));
 vi.mock("../hooks/useV2Balances", () => ({ useV2Balances: () => ({ tokenBalances: {} }) }));
+vi.mock("../hooks/useAccountSnapshot", () => ({ useAccountSnapshot: () => ({ status: "ready", balanceUSD: 0, tokens: [], networks: [] }) }));
 vi.mock("../../hooks/useGasBridgeAPI", () => {
   const data = { transaction: { to: "0x2222222222222222222222222222222222222222", data: "0x1234", value: "1578200000000000" } };
   const chains = [{ chain: 42161, name: "Arbitrum", symbol: "ETH", inbound: true }, { chain: 8453, name: "Base", symbol: "ETH", inbound: true }];

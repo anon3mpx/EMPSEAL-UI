@@ -96,10 +96,10 @@ export default function FeeBreakdown({
             </span>
             <span
               style={{
-                color: row.accent ? "#FF8A00" : "rgba(255,255,255,0.92)",
+                color: row.accent ? "var(--widget-primary, #FF8A00)" : "rgba(255,255,255,0.92)",
                 textAlign: "right",
                 fontFeatureSettings: '"tnum"',
-                textShadow: row.accent ? "0 0 16px rgba(255,138,0,0.25)" : "none",
+                textShadow: row.accent ? "0 0 16px rgba(var(--widget-primary-rgb, 255, 138, 0), 0.25)" : "none",
                 fontWeight: row.accent ? 500 : 400,
               }}
             >

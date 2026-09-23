@@ -60,6 +60,7 @@ import {
 } from "../components";
 import { useWalletConnection } from "../hooks/useWalletConnection";
 import { useV2Balances } from "../hooks/useV2Balances";
+import { useAccountSnapshot } from "../hooks/useAccountSnapshot";
 import EmpxGasWidget from "../EmpxGasWidget";
 import { getExplorerAddressUrl, getExplorerTxUrl } from "../data/explorers";
 import { V2_AGGREGATOR_CHAINS } from "../data/v2ChainView";
@@ -137,6 +138,7 @@ export default function GasPage() {
   const connectedAddress =
     walletState.status === "connected" ? (walletState.address as Address) : undefined;
   const connectedBalance = useV2Balances();
+  const accountSnapshot = useAccountSnapshot(walletState.status === "connected" ? walletState.address : null);
   const {
     setFromChain,
     setToChain,
@@ -442,6 +444,7 @@ export default function GasPage() {
             <WalletButton
               connected={walletState.status === "connected"}
               address={walletState.status === "connected" ? walletState.address : undefined}
+              balanceUSD={accountSnapshot.balanceUSD}
               onConnect={() => setShowWalletModal(true)}
               onClick={() => setShowAccountModal(true)}
             />
@@ -812,12 +815,16 @@ export default function GasPage() {
           onClose={() => setShowAccountModal(false)}
           address={walletState.address}
           providerName={walletState.providerName}
-          chainName={sourceChain.name}
-          chainColor={sourceChain.color}
-          balanceUSD={connectedBalance.nativeBalanceUSD ?? undefined}
+          chainName={walletState.chain.name}
+          chainColor={walletState.chain.color}
+          balanceUSD={accountSnapshot.balanceUSD}
+          portfolioStatus={accountSnapshot.status}
+          activityAvailable={false}
+          tokens={accountSnapshot.tokens}
+          networks={accountSnapshot.networks}
           nativeBalance={connectedBalance.nativeBalance}
           nativeTicker={connectedBalance.nativeTicker}
-          explorerUrl={getExplorerAddressUrl(sourceChainId, walletState.address) ?? undefined}
+          explorerUrl={getExplorerAddressUrl(walletState.chain.id, walletState.address) ?? undefined}
           onCopy={() => toast.success("Address copied")}
           onSwitchNetwork={() => { setShowAccountModal(false); setChainPickerTarget({ kind: "source" }); }}
           onSwitchWallet={() => { setShowAccountModal(false); setShowWalletModal(true); }}

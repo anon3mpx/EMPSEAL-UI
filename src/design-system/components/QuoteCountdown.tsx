@@ -50,7 +50,7 @@ export default function QuoteCountdown({
     ? "#FCA5A5"
     : critical
     ? "#FBBF24"
-    : "#FF8A00";
+    : "var(--widget-primary, #FF8A00)";
 
   return (
     <div
@@ -65,7 +65,7 @@ export default function QuoteCountdown({
           ? "rgba(239,68,68,0.06)"
           : critical
           ? "rgba(251,191,36,0.06)"
-          : "rgba(255,138,0,0.05)",
+          : "rgba(var(--widget-primary-rgb, 255, 138, 0), 0.05)",
         borderRadius: 999,
       }}
     >
@@ -84,12 +84,12 @@ export default function QuoteCountdown({
             cy={size / 2}
             r={radius}
             fill="none"
-            stroke={color}
             strokeWidth={stroke}
             strokeDasharray={circumference}
             strokeDashoffset={offset}
             strokeLinecap="round"
             style={{
+              stroke: color,
               transition: "stroke-dashoffset 320ms cubic-bezier(0.22,1,0.36,1), stroke 320ms ease",
               filter: critical || expired
                 ? "drop-shadow(0 0 4px currentColor)"
@@ -145,7 +145,7 @@ export default function QuoteCountdown({
                 background: "transparent",
                 border: "none",
                 padding: 0,
-                color: "#FF8A00",
+                color: "var(--widget-primary, #FF8A00)",
                 fontFamily: "Inter, sans-serif",
                 fontSize: compact ? 10 : 11,
                 fontWeight: 600,

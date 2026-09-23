@@ -66,6 +66,7 @@ import {
 } from "../components";
 import { useWalletConnection } from "../hooks/useWalletConnection";
 import { useV2Balances } from "../hooks/useV2Balances";
+import { useAccountSnapshot } from "../hooks/useAccountSnapshot";
 import { getExplorerAddressUrl } from "../data/explorers";
 import {
   tierForChainId,
@@ -210,6 +211,7 @@ export default function MultiPage() {
   const { walletState, walletOptions, onSelectWallet, disconnect, currentChain } =
     useWalletConnection();
   const connectedBalance = useV2Balances();
+  const accountSnapshot = useAccountSnapshot(walletState.status === "connected" ? walletState.address : null);
   const connectedChainId = useChainId();
   const connectedChainIdRef = useRef(connectedChainId);
   connectedChainIdRef.current = connectedChainId;
@@ -405,6 +407,7 @@ export default function MultiPage() {
             <WalletButton
               connected={walletState.status === "connected"}
               address={walletState.status === "connected" ? walletState.address : undefined}
+              balanceUSD={accountSnapshot.balanceUSD}
               onConnect={() => setShowWalletModal(true)}
               onClick={() => setShowAccountModal(true)}
             />
@@ -878,7 +881,11 @@ export default function MultiPage() {
           providerName={walletState.providerName}
           chainName={walletState.chain.name}
           chainColor={walletState.chain.color}
-          balanceUSD={connectedBalance.nativeBalanceUSD ?? undefined}
+          balanceUSD={accountSnapshot.balanceUSD}
+          portfolioStatus={accountSnapshot.status}
+          activityAvailable={false}
+          tokens={accountSnapshot.tokens}
+          networks={accountSnapshot.networks}
           nativeBalance={connectedBalance.nativeBalance}
           nativeTicker={connectedBalance.nativeTicker}
           explorerUrl={getExplorerAddressUrl(walletState.chain.id, walletState.address) ?? undefined}
