@@ -71,7 +71,7 @@ export default function AmountInput({
   const isReadOnly = !onChange;
   const displayValue = isReadOnly ? formatAmount(value) : value;
   const fontSize = autoScaleFontSize(displayValue, compact ? maxFontSize - 6 : maxFontSize);
-  const valueColor = accent ? "#FF8A00" : "#FFFFFF";
+  const valueColor = accent ? "var(--widget-primary, #FF8A00)" : "#FFFFFF";
   const effectiveTopMeta = topMeta ?? meta;
 
   return (
@@ -102,7 +102,7 @@ export default function AmountInput({
                 fontFamily: "Inter, sans-serif",
                 fontSize: 10,
                 letterSpacing: "0.35em",
-                color: accent ? "#FF8A00" : "rgba(255,255,255,0.40)",
+                color: accent ? "var(--widget-primary, #FF8A00)" : "rgba(255,255,255,0.40)",
                 textTransform: "uppercase",
                 fontWeight: 500,
               }}
@@ -148,7 +148,7 @@ export default function AmountInput({
               lineHeight: 1,
               letterSpacing: "-0.03em",
               color: valueColor,
-              textShadow: accent ? "0 0 32px rgba(255,138,0,0.32)" : "none",
+              textShadow: accent ? "0 0 32px rgba(var(--widget-primary-rgb, 255, 138, 0), 0.32)" : "none",
               whiteSpace: "nowrap",
               overflow: "hidden",
               textOverflow: "ellipsis",
@@ -178,7 +178,7 @@ export default function AmountInput({
               lineHeight: 1,
               letterSpacing: "-0.03em",
               color: valueColor,
-              textShadow: accent ? "0 0 32px rgba(255,138,0,0.32)" : "none",
+              textShadow: accent ? "0 0 32px rgba(var(--widget-primary-rgb, 255, 138, 0), 0.32)" : "none",
               cursor: "text",
             }}
           />

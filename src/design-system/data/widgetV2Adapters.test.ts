@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   WIDGET_FORM_DEFAULTS,
+  WIDGET_THEME_BACKGROUNDS,
+  applyWidgetTheme,
   buildWidgetSnippet,
   buildWidgetUrl,
   clampWidgetDimension,
@@ -101,5 +103,15 @@ describe("widgetV2Adapters", () => {
     expect(resolveWidgetSnippetOrigin("http://localhost:3000")).toBe("http://localhost:3000");
     expect(resolveWidgetSnippetOrigin("https://preview.example.com")).toBe("https://preview.example.com");
     expect(resolveWidgetSnippetOrigin()).toBe("https://empx.network");
+  });
+
+  it("carries the theme background preset but keeps a custom background", () => {
+    const midnight = applyWidgetTheme(WIDGET_FORM_DEFAULTS, "midnight");
+    expect(midnight.theme).toBe("midnight");
+    expect(midnight.background).toBe(WIDGET_THEME_BACKGROUNDS.midnight);
+
+    const custom = applyWidgetTheme({ ...WIDGET_FORM_DEFAULTS, background: "#123456" }, "darker");
+    expect(custom.theme).toBe("darker");
+    expect(custom.background).toBe("#123456");
   });
 });

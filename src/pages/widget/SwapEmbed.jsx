@@ -1,8 +1,10 @@
 import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import {
   AccountModal,
+  ChainLogo,
   ConfirmTradeModal,
   QuoteCountdown,
+  TokenLogo,
   TokenPicker,
   TradeSuccessModal,
   WalletModal,
@@ -87,6 +89,27 @@ const resolveInitialToken = (tokens, rawDefault, fallbackIndex) =>
   tokens[fallbackIndex] ??
   null;
 
+// Mirrors SwapPage: EmpxSwapWidget renders a text fallback unless it is
+// handed a logo node, so resolve the token's logo by identity here.
+const toWidgetToken = (token) =>
+  token
+    ? {
+        ticker: token.ticker,
+        address: token.address,
+        decimals: token.decimal,
+        logo: (
+          <TokenLogo
+            ticker={token.ticker}
+            chainId={token.chainId}
+            address={token.address}
+            logoUrl={token.logoUrl}
+            isNative={token.isNative}
+            size={30}
+          />
+        ),
+      }
+    : null;
+
 const calculateUSDValue = (amount, price) => {
   const numericAmount = Number(String(amount || "").replace(/,/g, ""));
   if (price == null || !Number.isFinite(numericAmount)) return null;
@@ -96,9 +119,9 @@ const calculateUSDValue = (amount, price) => {
 function WidgetStatusBadge({ children, tone = "neutral" }) {
   const palette = {
     accent: {
-      color: "#FF8A00",
-      background: "rgba(255,138,0,0.11)",
-      border: "rgba(255,138,0,0.28)",
+      color: "var(--widget-primary, #FF8A00)",
+      background: "rgba(var(--widget-primary-rgb, 255, 138, 0), 0.11)",
+      border: "rgba(var(--widget-primary-rgb, 255, 138, 0), 0.28)",
     },
     info: {
       color: "#93C5FD",
@@ -147,7 +170,7 @@ function WidgetWalletButton({ connected, address, onConnect, onClick }) {
         gap: 7,
         minHeight: 34,
         padding: connected ? "7px 10px" : "8px 12px",
-        background: connected ? "rgba(255,255,255,0.045)" : "#FF8A00",
+        background: connected ? "rgba(255,255,255,0.045)" : "var(--widget-primary, #FF8A00)",
         border: connected ? "1px solid rgba(255,255,255,0.10)" : "none",
         borderRadius: 4,
         color: connected ? "#fff" : "#05050c",
@@ -200,7 +223,12 @@ export default function WidgetSwapPage() {
     color: activeV2Chain.color,
   };
   const activeChainConfig = SUPPORTED_CHAINS[chainId];
-  const primaryRgb = parseHexToRgb(config.primaryColor) || "255, 138, 0";
+  // Only hex accents are honoured — the rgb triplet drives every translucent
+  // accent, so a colour we can't parse would leave the two out of sync.
+  const parsedPrimaryRgb = parseHexToRgb(config.primaryColor);
+  const primaryColor = parsedPrimaryRgb ? config.primaryColor : "#FF8A00";
+  const primaryRgb = parsedPrimaryRgb || "255, 138, 0";
+  const background = config.showBackground ? config.background : "transparent";
 
   const {
     walletState,
@@ -257,6 +285,26 @@ export default function WidgetSwapPage() {
       document.body.classList.remove("widget-runtime-no-background");
     };
   }, [config.showBackground]);
+
+  // Modals portal to <body>, outside the themed wrapper — mirror the theme
+  // class and palette variables onto <html> so they inherit them too.
+  useEffect(() => {
+    const root = document.documentElement;
+    const themeClass = `widget-theme-${config.theme}`;
+    const vars = {
+      "--widget-primary": primaryColor,
+      "--widget-primary-rgb": primaryRgb,
+      "--widget-bg": background,
+      "--border-color": config.borderColor,
+    };
+    root.classList.add(themeClass);
+    Object.entries(vars).forEach(([name, value]) => root.style.setProperty(name, value));
+
+    return () => {
+      root.classList.remove(themeClass);
+      Object.keys(vars).forEach((name) => root.style.removeProperty(name));
+    };
+  }, [background, config.borderColor, config.theme, primaryColor, primaryRgb]);
 
   const connectedAddress =
     walletState.status === "connected" ? walletState.address : undefined;
@@ -503,13 +551,14 @@ export default function WidgetSwapPage() {
         config.showBackground ? "" : "widget-no-background"
       }`}
       style={{
-        "--primary": config.primaryColor,
-        "--widget-primary": config.primaryColor,
+        "--primary": primaryColor,
+        "--widget-primary": primaryColor,
         "--widget-primary-rgb": primaryRgb,
-        "--bg-color": config.showBackground ? config.background : "transparent",
+        "--widget-bg": background,
+        "--bg-color": background,
         "--border-color": config.borderColor,
         minHeight: "100vh",
-        background: config.showBackground ? config.background : "transparent",
+        background,
         color: "#fff",
         fontFamily: "Inter, sans-serif",
       }}
@@ -545,7 +594,7 @@ export default function WidgetSwapPage() {
                 margin: 0,
                 fontSize: 9,
                 letterSpacing: "0.34em",
-                color: config.primaryColor,
+                color: primaryColor,
                 textTransform: "uppercase",
                 fontWeight: 800,
               }}
@@ -577,8 +626,18 @@ export default function WidgetSwapPage() {
         </header>
 
         <EmpxSwapWidget
-          chain={activeChain}
-          fromToken={fromToken ? { ticker: fromToken.ticker, address: fromToken.address, decimals: fromToken.decimal } : null}
+          chain={{
+            ...activeChain,
+            logo: (
+              <ChainLogo
+                chainId={activeChain.id}
+                symbol={activeChain.name.slice(0, 3).toUpperCase()}
+                bg={activeChain.color}
+                size={17}
+              />
+            ),
+          }}
+          fromToken={toWidgetToken(fromToken)}
           fromAmount={fromAmount}
           fromBalance={isTokenBalanceLoading ? "Loading..." : selectedFromToken?.balance}
           fromUsdValue={fromUSDValue}
@@ -588,7 +647,7 @@ export default function WidgetSwapPage() {
             const bal = Number((selectedFromToken?.balance || "0").replace(/,/g, ""));
             if (Number.isFinite(bal)) setFromAmount(String((bal * pct) / 100));
           }}
-          toToken={toToken ? { ticker: toToken.ticker, address: toToken.address, decimals: toToken.decimal } : null}
+          toToken={toWidgetToken(toToken)}
           toAmount={toAmount}
           toUsdValue={toUSDValue}
           onSelectToToken={() => setShowTokenPicker("to")}

@@ -64,7 +64,7 @@ export default function Modal({
         position: "fixed",
         inset: 0,
         background:
-          "radial-gradient(ellipse 80% 70% at 50% 35%, rgba(255,138,0,0.08) 0%, transparent 60%), rgba(2,2,8,0.82)",
+          "radial-gradient(ellipse 80% 70% at 50% 35%, rgba(var(--widget-primary-rgb, 255, 138, 0), 0.08) 0%, transparent 60%), var(--widget-backdrop, rgba(2,2,8,0.82))",
         backdropFilter: "blur(16px)",
         WebkitBackdropFilter: "blur(16px)",
         zIndex: 100,
@@ -84,11 +84,11 @@ export default function Modal({
           maxWidth,
           maxHeight: "90vh",
           background:
-            "linear-gradient(135deg, rgba(20,20,32,0.85) 0%, rgba(8,8,16,0.95) 100%)",
+            "var(--widget-modal-bg, linear-gradient(135deg, rgba(20,20,32,0.85) 0%, rgba(8,8,16,0.95) 100%))",
           border: "1px solid rgba(255,255,255,0.10)",
           borderRadius: 8,
           boxShadow:
-            "0 36px 100px rgba(0,0,0,0.55), 0 0 80px rgba(255,138,0,0.08), inset 0 1px 0 rgba(255,255,255,0.04)",
+            "0 36px 100px rgba(0,0,0,0.55), 0 0 80px rgba(var(--widget-primary-rgb, 255, 138, 0), 0.08), inset 0 1px 0 rgba(255,255,255,0.04)",
           color: "#fff",
           fontFamily: "Inter, sans-serif",
           display: "flex",
@@ -104,7 +104,7 @@ export default function Modal({
             position: "absolute",
             inset: 0,
             background:
-              "radial-gradient(ellipse 80% 60% at 100% 0%, rgba(255,138,0,0.10) 0%, transparent 60%)",
+              "radial-gradient(ellipse 80% 60% at 100% 0%, rgba(var(--widget-primary-rgb, 255, 138, 0), 0.10) 0%, transparent 60%)",
             pointerEvents: "none",
           }}
         />
@@ -120,7 +120,7 @@ export default function Modal({
             transform: "rotate(-8deg)",
           }}
         >
-          <BrandMark size={180} color="#FF8A00" opacity={0.055} />
+          <BrandMark size={180} color="var(--widget-primary, #FF8A00)" opacity={0.055} />
         </span>
 
         {/* Corner brackets — top-left + bottom-right */}
@@ -134,8 +134,8 @@ export default function Modal({
                 left: 10,
                 width: 16,
                 height: 16,
-                borderTop: "1px solid #FF8A00",
-                borderLeft: "1px solid #FF8A00",
+                borderTop: "1px solid var(--widget-primary, #FF8A00)",
+                borderLeft: "1px solid var(--widget-primary, #FF8A00)",
                 pointerEvents: "none",
                 opacity: 0.9,
               }}
@@ -148,8 +148,8 @@ export default function Modal({
                 right: 10,
                 width: 16,
                 height: 16,
-                borderBottom: "1px solid #FF8A00",
-                borderRight: "1px solid #FF8A00",
+                borderBottom: "1px solid var(--widget-primary, #FF8A00)",
+                borderRight: "1px solid var(--widget-primary, #FF8A00)",
                 pointerEvents: "none",
                 opacity: 0.9,
               }}
@@ -177,7 +177,7 @@ export default function Modal({
                     fontSize: 10,
                     fontWeight: 700,
                     letterSpacing: "0.40em",
-                    color: "#FF8A00",
+                    color: "var(--widget-primary, #FF8A00)",
                     textTransform: "uppercase",
                     margin: "0 0 8px",
                   }}
@@ -224,7 +224,7 @@ export default function Modal({
                   onMouseEnter={(e) => {
                     e.currentTarget.style.color = "#fff";
                     e.currentTarget.style.background = "rgba(255,255,255,0.10)";
-                    e.currentTarget.style.borderColor = "rgba(255,138,0,0.40)";
+                    e.currentTarget.style.borderColor = "rgba(var(--widget-primary-rgb, 255, 138, 0), 0.40)";
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.color = "rgba(255,255,255,0.65)";

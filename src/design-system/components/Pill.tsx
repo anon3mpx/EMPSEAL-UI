@@ -26,8 +26,8 @@ export default function Pill({
       color: "rgba(255,255,255,0.78)",
     },
     accent: {
-      bg: "rgba(255,138,0,0.10)",
-      color: "#FF8A00",
+      bg: "rgba(var(--widget-primary-rgb, 255, 138, 0), 0.10)",
+      color: "var(--widget-primary, #FF8A00)",
     },
     ghost: {
       bg: "transparent",

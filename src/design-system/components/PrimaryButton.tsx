@@ -25,10 +25,10 @@ export default function PrimaryButton({
 }: PrimaryButtonProps) {
   const palette = {
     primary: {
-      bg: disabled ? "rgba(255,138,0,0.30)" : "#FF8A00",
+      bg: disabled ? "rgba(var(--widget-primary-rgb, 255, 138, 0), 0.30)" : "var(--widget-primary, #FF8A00)",
       color: "#05050c",
-      hover: "#FFB347",
-      shadow: "0 0 30px rgba(255,138,0,0.35)",
+      hover: "color-mix(in srgb, var(--widget-primary, #FF8A00) 70%, white)",
+      shadow: "0 0 30px rgba(var(--widget-primary-rgb, 255, 138, 0), 0.35)",
     },
     secondary: {
       bg: "rgba(255,255,255,0.06)",

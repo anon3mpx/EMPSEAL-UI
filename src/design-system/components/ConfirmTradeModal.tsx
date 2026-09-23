@@ -104,7 +104,7 @@ export default function ConfirmTradeModal({
         style={{
           padding: "18px 20px",
           background:
-            "linear-gradient(135deg, rgba(255,138,0,0.04) 0%, transparent 60%)",
+            "linear-gradient(135deg, rgba(var(--widget-primary-rgb, 255, 138, 0), 0.04) 0%, transparent 60%)",
           border: "1px solid rgba(255,255,255,0.08)",
           borderRadius: 6,
           marginBottom: 16,
@@ -134,7 +134,7 @@ export default function ConfirmTradeModal({
               flex: 1,
               height: 1,
               background:
-                "linear-gradient(90deg, transparent 0%, rgba(255,138,0,0.40) 50%, transparent 100%)",
+                "linear-gradient(90deg, transparent 0%, rgba(var(--widget-primary-rgb, 255, 138, 0), 0.40) 50%, transparent 100%)",
             }}
           />
           <span
@@ -143,12 +143,12 @@ export default function ConfirmTradeModal({
               height: 28,
               borderRadius: "50%",
               background: "#0A0A14",
-              border: "1px solid rgba(255,138,0,0.40)",
+              border: "1px solid rgba(var(--widget-primary-rgb, 255, 138, 0), 0.40)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              color: "#FF8A00",
-              boxShadow: "0 0 16px rgba(255,138,0,0.25)",
+              color: "var(--widget-primary, #FF8A00)",
+              boxShadow: "0 0 16px rgba(var(--widget-primary-rgb, 255, 138, 0), 0.25)",
               margin: "0 10px",
             }}
           >
@@ -166,7 +166,7 @@ export default function ConfirmTradeModal({
               flex: 1,
               height: 1,
               background:
-                "linear-gradient(90deg, transparent 0%, rgba(255,138,0,0.40) 50%, transparent 100%)",
+                "linear-gradient(90deg, transparent 0%, rgba(var(--widget-primary-rgb, 255, 138, 0), 0.40) 50%, transparent 100%)",
             }}
           />
         </div>
@@ -199,7 +199,7 @@ export default function ConfirmTradeModal({
                 margin: "0 0 8px",
                 fontSize: 10,
                 letterSpacing: "0.24em",
-                color: "#FF8A00",
+                color: "var(--widget-primary, #FF8A00)",
                 textTransform: "uppercase",
                 fontWeight: 600,
               }}
@@ -247,7 +247,7 @@ export default function ConfirmTradeModal({
             margin: "0 0 16px",
             fontSize: 10,
             letterSpacing: "0.24em",
-            color: "#FF8A00",
+            color: "var(--widget-primary, #FF8A00)",
             textTransform: "uppercase",
             fontWeight: 600,
           }}
@@ -336,7 +336,7 @@ function SwapSummaryRow({
           style={{
             fontSize: 10,
             letterSpacing: "0.40em",
-            color: accent ? "#FF8A00" : "rgba(255,255,255,0.45)",
+            color: accent ? "var(--widget-primary, #FF8A00)" : "rgba(255,255,255,0.45)",
             textTransform: "uppercase",
             fontWeight: 700,
           }}
@@ -362,8 +362,8 @@ function SwapSummaryRow({
             fontSize: 34,
             lineHeight: 1,
             letterSpacing: "-0.03em",
-            color: accent ? "#FF8A00" : "#fff",
-            textShadow: accent ? "0 0 28px rgba(255,138,0,0.32)" : "none",
+            color: accent ? "var(--widget-primary, #FF8A00)" : "#fff",
+            textShadow: accent ? "0 0 28px rgba(var(--widget-primary-rgb, 255, 138, 0), 0.32)" : "none",
           }}
         >
           {amount}
@@ -373,7 +373,7 @@ function SwapSummaryRow({
             fontFamily: "Inter, sans-serif",
             fontWeight: 600,
             fontSize: 14,
-            color: accent ? "#FF8A00" : "rgba(255,255,255,0.65)",
+            color: accent ? "var(--widget-primary, #FF8A00)" : "rgba(255,255,255,0.65)",
           }}
         >
           {ticker}

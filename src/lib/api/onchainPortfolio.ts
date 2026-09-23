@@ -11,6 +11,7 @@ import {
 import { getDexScreenerTokenPrices } from "./dexScreener";
 import { getGeckoTerminalTokenPrices } from "./geckoTerminal";
 import { CHAIN_CONFIG, type ChainId } from "./chains";
+import { shouldUseCachedPortfolio } from "./portfolioCachePolicy";
 import type {
   ChainBalance,
   FetchPortfolioOptions,
@@ -22,7 +23,6 @@ const NATIVE_TOKEN_ADDRESS = "0x0000000000000000000000000000000000000000";
 const BALANCE_BATCH_SIZE = 75;
 const CHAIN_BATCH_SIZE = 4;
 const CACHE_TTL_MS = 15 * 60 * 1000;
-const REFRESH_COOLDOWN_MS = 60 * 1000;
 const STORAGE_CACHE_PREFIX = "empx_portfolio_cache_v3";
 const DISABLED_PORTFOLIO_CHAIN_IDS = new Set([10001]);
 
@@ -195,12 +195,7 @@ function getCachedPortfolio(
 
   portfolioCache.set(cacheKey, cached);
 
-  const isRefreshCoolingDown = now - cached.fetchedAt < REFRESH_COOLDOWN_MS;
-
-  if (!forceRefresh) return cached.data;
-  if (forceRefresh && isRefreshCoolingDown) return cached.data;
-
-  return null;
+  return shouldUseCachedPortfolio(cached, now, forceRefresh) ? cached.data : null;
 }
 
 function getConfiguredChainIds(): number[] {

@@ -40,6 +40,27 @@ export const WIDGET_FORM_DEFAULTS: WidgetForm = {
   height: 720,
 };
 
+/** Page background each theme ships with; see .widget-theme-* in global.scss. */
+export const WIDGET_THEME_BACKGROUNDS: Record<WidgetTheme, string> = {
+  dark: "#05050c",
+  darker: "#000000",
+  midnight: "#070b1c",
+};
+
+/**
+ * Switch theme, carrying the background along only while it is still the
+ * previous theme's preset — a custom background the user picked is kept.
+ */
+export function applyWidgetTheme(form: WidgetForm, theme: WidgetTheme): WidgetForm {
+  const onPreset =
+    form.background.toLowerCase() === WIDGET_THEME_BACKGROUNDS[form.theme].toLowerCase();
+  return {
+    ...form,
+    theme,
+    background: onPreset ? WIDGET_THEME_BACKGROUNDS[theme] : form.background,
+  };
+}
+
 export const WIDGET_PRODUCTION_ORIGIN = "https://empx.network";
 
 const WIDGET_IFRAME_BOUNDS = {

@@ -41,6 +41,7 @@ import {
 
 import { useWalletConnection } from "../hooks/useWalletConnection";
 import { useV2Balances } from "../hooks/useV2Balances";
+import { useAccountSnapshot } from "../hooks/useAccountSnapshot";
 import { V2_AGGREGATOR_CHAINS, getV2Chain } from "../data/v2ChainView";
 import { getTokensForChain } from "../data/v2TokenView";
 import { getExplorerAddressUrl, getExplorerTxUrl } from "../data/explorers";
@@ -121,7 +122,8 @@ export default function SwapPage() {
   // Wallet — uses wagmi v2 via the design-system bridge hook
   const { walletState, walletOptions, onSelectWallet, disconnect, switchChain } =
     useWalletConnection();
-  const { nativeBalance, nativeTicker, nativeBalanceUSD } = useV2Balances();
+  const { nativeBalance, nativeTicker } = useV2Balances();
+  const accountSnapshot = useAccountSnapshot(walletState.status === "connected" ? walletState.address : null);
   const [showWalletModal, setShowWalletModal] = useState(false);
   const [showChainPicker, setShowChainPicker] = useState(false);
   const [showAccountModal, setShowAccountModal] = useState(false);
@@ -409,7 +411,7 @@ export default function SwapPage() {
             <WalletButton
               connected={walletState.status === "connected"}
               address={walletState.status === "connected" ? walletState.address : undefined}
-              balanceUSD={nativeBalanceUSD ?? undefined}
+              balanceUSD={accountSnapshot.balanceUSD}
               onConnect={() => setShowWalletModal(true)}
               onClick={() => setShowAccountModal(true)}
             />
@@ -887,12 +889,16 @@ export default function SwapPage() {
           onClose={() => setShowAccountModal(false)}
           address={walletState.address}
           providerName={walletState.providerName}
-          chainName={activeChain.name}
-          chainColor={activeChain.color}
-          balanceUSD={nativeBalanceUSD ?? undefined}
+          chainName={walletState.chain.name}
+          chainColor={walletState.chain.color}
+          balanceUSD={accountSnapshot.balanceUSD}
+          portfolioStatus={accountSnapshot.status}
+          activityAvailable={false}
+          tokens={accountSnapshot.tokens}
+          networks={accountSnapshot.networks}
           nativeBalance={nativeBalance}
           nativeTicker={nativeTicker}
-          explorerUrl={getExplorerAddressUrl(activeChain.id, walletState.address) ?? undefined}
+          explorerUrl={getExplorerAddressUrl(walletState.chain.id, walletState.address) ?? undefined}
           onCopy={() => toast.success("Address copied")}
           onSwitchNetwork={() => { setShowAccountModal(false); setShowChainPicker(true); }}
           onSwitchWallet={() => { setShowAccountModal(false); setShowWalletModal(true); }}

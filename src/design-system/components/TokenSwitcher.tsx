@@ -54,7 +54,7 @@ export default function TokenSwitcher({
         justifyContent: "flex-end",
         cursor: disabled ? "not-allowed" : "pointer",
         opacity: disabled ? 0.5 : 1,
-        color: accent ? "#FF8A00" : "#FFFFFF",
+        color: accent ? "var(--widget-primary, #FF8A00)" : "#FFFFFF",
         fontFamily: "Inter, sans-serif",
         fontSize,
         fontWeight: 600,

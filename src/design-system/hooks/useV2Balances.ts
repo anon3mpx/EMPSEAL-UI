@@ -8,6 +8,7 @@ import { useAccount, useBalance, useChainId } from "wagmi";
 import { formatUnits } from "viem";
 import { getV2Chain } from "../data/v2ChainView";
 import { useTokenPrice } from "../data/priceService";
+import { formatNativeAmount } from "./nativeBalanceDisplay";
 
 export interface V2WalletBalances {
   nativeBalance: string;
@@ -29,15 +30,15 @@ export function useV2Balances(): V2WalletBalances {
   const { data: nativeBalanceData } = useBalance({ address });
   const nativeTicker = chain?.ticker ?? "ETH";
 
-  const nativeBalance = isConnected && nativeBalanceData
-    ? Number(formatUnits(nativeBalanceData.value, nativeBalanceData.decimals)).toFixed(4)
-    : "—";
+  const nativeBalanceNum = isConnected && nativeBalanceData
+    ? Number(formatUnits(nativeBalanceData.value, nativeBalanceData.decimals))
+    : null;
+  const nativeBalance = nativeBalanceNum == null ? "—" : formatNativeAmount(nativeBalanceNum);
 
   // Native USD price via design-system price service
   const nativePriceUSD = useTokenPrice(chainId, nativeTicker);
 
-  const nativeBalanceNum = nativeBalance !== "—" ? Number(nativeBalance) : 0;
-  const nativeBalanceUSD = isConnected && nativePriceUSD != null
+  const nativeBalanceUSD = nativeBalanceNum != null && nativePriceUSD != null
     ? nativeBalanceNum * nativePriceUSD
     : null;
 

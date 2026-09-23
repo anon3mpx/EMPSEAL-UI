@@ -11,7 +11,7 @@ import { BrandMarkReal } from "./BrandMarkReal";
 const LANDING_SOCIALS: SocialLink[] = [
   { kind: "x",        href: "https://x.com/empx_network",      label: "Follow on X" },
   { kind: "telegram", href: "https://t.me/empx_network",        label: "Join Telegram" },
-  { kind: "docs",     href: "https://docs.empx.network",        label: "Read the docs" },
+  { kind: "docs",     href: "https://docs.empx.io",        label: "Read the docs" },
   { kind: "github",   href: "https://github.com/empx-network",  label: "Source on GitHub" },
 ];
 
@@ -48,7 +48,7 @@ export default function FinalCTAV3() {
 
         <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 items-center justify-center mb-20">
           <MagneticButton href="/portfolio-v2" variant="primary" size="large">Launch app →</MagneticButton>
-          <MagneticButton href="https://docs.empx.network" variant="secondary" size="large">Read the docs</MagneticButton>
+          <MagneticButton href="https://docs.empx.io" variant="secondary" size="large">Read the docs</MagneticButton>
           <MagneticButton href="mailto:bd@empx.network" variant="ghost" size="large">Talk to BD</MagneticButton>
         </div>
 

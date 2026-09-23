@@ -118,7 +118,7 @@ export default function TokenPicker({
             transition: "border-color 160ms ease, background 160ms ease",
           }}
           onFocus={(e) => {
-            e.currentTarget.style.borderColor = "rgba(255,138,0,0.40)";
+            e.currentTarget.style.borderColor = "rgba(var(--widget-primary-rgb, 255, 138, 0), 0.40)";
             e.currentTarget.style.background = "rgba(255,255,255,0.05)";
           }}
           onBlur={(e) => {
@@ -212,9 +212,9 @@ export default function TokenPicker({
                   transition: "all 160ms ease",
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.background = "rgba(255,138,0,0.10)";
-                  e.currentTarget.style.borderColor = "rgba(255,138,0,0.35)";
-                  e.currentTarget.style.color = "#FF8A00";
+                  e.currentTarget.style.background = "rgba(var(--widget-primary-rgb, 255, 138, 0), 0.10)";
+                  e.currentTarget.style.borderColor = "rgba(var(--widget-primary-rgb, 255, 138, 0), 0.35)";
+                  e.currentTarget.style.color = "var(--widget-primary, #FF8A00)";
                 }}
                 onMouseLeave={(e) => {
                   e.currentTarget.style.background = "rgba(255,255,255,0.045)";
@@ -267,9 +267,9 @@ export default function TokenPicker({
                   alignItems: "center",
                   gap: 12,
                   padding: "11px 10px",
-                  background: isSelected ? "rgba(255,138,0,0.06)" : "transparent",
+                  background: isSelected ? "rgba(var(--widget-primary-rgb, 255, 138, 0), 0.06)" : "transparent",
                   border: "none",
-                  borderLeft: isSelected ? "2px solid #FF8A00" : "2px solid transparent",
+                  borderLeft: isSelected ? "2px solid var(--widget-primary, #FF8A00)" : "2px solid transparent",
                   width: "100%",
                   cursor: "pointer",
                   color: "#fff",
@@ -402,10 +402,10 @@ function ChainTab({
         alignItems: "center",
         gap: 6,
         padding: "6px 11px",
-        background: active ? "rgba(255,138,0,0.10)" : "transparent",
-        border: `1px solid ${active ? "rgba(255,138,0,0.45)" : "rgba(255,255,255,0.08)"}`,
+        background: active ? "rgba(var(--widget-primary-rgb, 255, 138, 0), 0.10)" : "transparent",
+        border: `1px solid ${active ? "rgba(var(--widget-primary-rgb, 255, 138, 0), 0.45)" : "rgba(255,255,255,0.08)"}`,
         borderRadius: 3,
-        color: active ? "#FF8A00" : "rgba(255,255,255,0.65)",
+        color: active ? "var(--widget-primary, #FF8A00)" : "rgba(255,255,255,0.65)",
         fontFamily: "Inter, sans-serif",
         fontSize: 10,
         fontWeight: 700,

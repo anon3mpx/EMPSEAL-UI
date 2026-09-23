@@ -8,7 +8,7 @@
 // Composed entirely from design-system primitives.  Drop-in replacement for
 // the existing src/pages/portfolio/Portfolio.tsx (2,036 lines → ~400 lines).
 
-import { useEffect, useMemo, useState } from "react";
+import { useState } from "react";
 import {
   AccountModal,
   Card,
@@ -32,12 +32,8 @@ import {
 } from "../components";
 import { useWalletConnection } from "../hooks/useWalletConnection";
 import { useV2Balances } from "../hooks/useV2Balances";
+import { useAccountSnapshot } from "../hooks/useAccountSnapshot";
 import { getExplorerAddressUrl } from "../data/explorers";
-import { fetchPortfolio } from "../data/portfolioApiRuntime";
-import {
-  buildPortfolioV2ViewModel,
-  type PortfolioV2Data,
-} from "../data/portfolioV2Adapters";
 import { V2_ALL_CHAINS } from "../data/v2ChainView";
 import EmpxPortfolioPanel from "../EmpxPortfolioPanel";
 
@@ -73,69 +69,25 @@ export default function PortfolioPage() {
   const [showChainPicker, setShowChainPicker] = useState(false);
   const [showAccountModal, setShowAccountModal] = useState(false);
   const [showNftGallery, setShowNftGallery] = useState(false);
-  const [portfolio, setPortfolio] = useState<PortfolioV2Data | null>(null);
-  const [portfolioLoading, setPortfolioLoading] = useState(false);
-  const [portfolioError, setPortfolioError] = useState<string | null>(null);
   const connectedWalletAddress = walletState.status === "connected" ? walletState.address : null;
-
-  const portfolioView = useMemo(() => buildPortfolioV2ViewModel(portfolio), [portfolio]);
+  const accountSnapshot = useAccountSnapshot(connectedWalletAddress);
+  const portfolioView = accountSnapshot.view;
+  const portfolioLoading = accountSnapshot.status === "loading";
+  const portfolioError = accountSnapshot.status === "error" ? "Failed to fetch on-chain portfolio" : null;
   const canRenderPortfolio =
     walletState.status === "connected" &&
     !portfolioLoading &&
     !portfolioError &&
     portfolioView.assets.length > 0;
 
-  useEffect(() => {
-    if (!connectedWalletAddress) {
-      setPortfolio(null);
-      setPortfolioLoading(false);
-      setPortfolioError(null);
-      return;
-    }
-
-    let cancelled = false;
-
-    // Real portfolio fetches can fan out across many RPCs; cancel stale responses
-    // when the wallet changes so an old address cannot overwrite the new view.
-    setPortfolioLoading(true);
-    setPortfolioError(null);
-
-    fetchPortfolio(connectedWalletAddress)
-      .then((data) => {
-        if (cancelled) return;
-        setPortfolio(data);
-      })
-      .catch((error) => {
-        if (cancelled) return;
-        console.error("Failed to fetch V2 portfolio:", error);
-        setPortfolio(null);
-        setPortfolioError("Failed to fetch on-chain portfolio");
-      })
-      .finally(() => {
-        if (!cancelled) setPortfolioLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [connectedWalletAddress]);
-
   const refreshPortfolio = () => {
-    if (walletState.status !== "connected" || portfolioLoading) return;
-
-    setPortfolioLoading(true);
-    setPortfolioError(null);
-
-    fetchPortfolio(walletState.address, { forceRefresh: true })
-      .then((data) => {
-        setPortfolio(data);
-        toast.success("Portfolio refreshed");
-      })
+    if (!connectedWalletAddress || portfolioLoading || accountSnapshot.isRefreshing) return;
+    accountSnapshot.refresh()
+      .then(() => toast.success("Portfolio refreshed"))
       .catch((error) => {
         console.error("Failed to refresh V2 portfolio:", error);
-        setPortfolioError("Failed to refresh on-chain portfolio");
-      })
-      .finally(() => setPortfolioLoading(false));
+        toast.error("Failed to refresh on-chain portfolio");
+      });
   };
 
   return (
@@ -160,7 +112,7 @@ export default function PortfolioPage() {
             <WalletButton
               connected={walletState.status === "connected"}
               address={walletState.status === "connected" ? walletState.address : undefined}
-              balanceUSD={walletState.status === "connected" ? portfolioView.totalUSD : undefined}
+              balanceUSD={accountSnapshot.balanceUSD}
               onConnect={() => setShowWalletModal(true)}
               onClick={() => setShowAccountModal(true)}
             />
@@ -310,8 +262,9 @@ export default function PortfolioPage() {
         onClose={() => setShowChainPicker(false)}
         chains={ALL_CHAINS.map((c) => ({
           ...c,
-          balanceUSD:
-            walletState.status === "connected" && c.id === walletState.chain.id ? portfolioView.totalUSD : undefined,
+          balanceUSD: accountSnapshot.status === "ready"
+            ? portfolioView.assets.filter((asset) => asset.chainId === c.id).reduce((total, asset) => total + (asset.balanceUSD ?? 0), 0)
+            : undefined,
         }))}
         selectedId={walletState.status === "connected" ? walletState.chain.id : DEFAULT_CHAIN.id}
         mode="swap"
@@ -332,27 +285,14 @@ export default function PortfolioPage() {
           providerName={walletState.providerName}
           chainName={walletState.chain.name}
           chainColor={walletState.chain.color}
-          balanceUSD={portfolioView.totalUSD || connectedBalance.nativeBalanceUSD || undefined}
+          balanceUSD={accountSnapshot.balanceUSD}
+          portfolioStatus={accountSnapshot.status}
+          activityAvailable={false}
           nativeBalance={connectedBalance.nativeBalance}
           nativeTicker={connectedBalance.nativeTicker}
           explorerUrl={getExplorerAddressUrl(walletState.chain.id, walletState.address) ?? undefined}
-          tokens={portfolioView.assets.map((asset) => ({
-            ticker: asset.ticker,
-            chainName: asset.chainName,
-            chainColor: asset.chainColor,
-            balance: asset.balance,
-            balanceUSD: asset.balanceUSD,
-            chainId: asset.chainId,
-            address: asset.address,
-            logoUrl: asset.logoUrl,
-            isNative: asset.isNative,
-          }))}
-          networks={portfolio?.chains.map((chain) => ({
-            chainName: chain.chainName,
-            chainColor: chain.color,
-            balanceUSD: chain.value,
-            nativeBalance: `${chain.tokens} token${chain.tokens === 1 ? "" : "s"}`,
-          })) ?? []}
+          tokens={accountSnapshot.tokens}
+          networks={accountSnapshot.networks}
           activity={portfolioView.activity}
           onCopy={() => toast.success("Address copied")}
           onSwitchNetwork={() => { setShowAccountModal(false); setShowChainPicker(true); }}

@@ -128,6 +128,7 @@ import { buildCrossTrackingLinks } from "../../features/cross/utils/trackingLink
 import { useWalletConnection } from "../hooks/useWalletConnection";
 import { useUnifiedPrice } from "../hooks/useUnifiedPrice";
 import { useV2Balances } from "../hooks/useV2Balances";
+import { useAccountSnapshot } from "../hooks/useAccountSnapshot";
 import EmpxCrossWidget from "../EmpxCrossWidget";
 import { getExplorerAddressUrl, getExplorerTxUrl } from "../data/explorers";
 import { V2_ALL_CHAINS, getV2Chain } from "../data/v2ChainView";
@@ -531,6 +532,7 @@ export default function CrossPage() {
   const sourceWalletKind = walletKindForSourceChain(fromChain);
   const sourceUsesEvmWallet = sourceWalletKind === "evm";
   const sourceUsesNativeWallet = isNativeSourceWalletKind(sourceWalletKind);
+  const accountSnapshot = useAccountSnapshot(sourceUsesEvmWallet ? connectedAddress : null);
   const activeNativeSourceWallet =
     sourceUsesNativeWallet && nativeSourceWallet?.kind === sourceWalletKind
       ? nativeSourceWallet
@@ -2052,7 +2054,7 @@ export default function CrossPage() {
           providerName: walletState.providerName,
           chainName: walletState.chain.name,
           chainColor: walletState.chain.color,
-          balanceUSD: connectedBalance.nativeBalanceUSD ?? undefined,
+          balanceUSD: accountSnapshot.balanceUSD,
           nativeBalance: connectedBalance.nativeBalance,
           nativeTicker: connectedBalance.nativeTicker,
         }
@@ -2558,6 +2560,10 @@ export default function CrossPage() {
           chainName={activeWalletDisplay.chainName}
           chainColor={activeWalletDisplay.chainColor}
           balanceUSD={activeWalletDisplay.balanceUSD}
+          portfolioStatus={sourceUsesNativeWallet ? "unsupported" : accountSnapshot.status}
+          activityAvailable={false}
+          tokens={sourceUsesNativeWallet ? [] : accountSnapshot.tokens}
+          networks={sourceUsesNativeWallet ? [] : accountSnapshot.networks}
           nativeBalance={activeWalletDisplay.nativeBalance}
           nativeTicker={activeWalletDisplay.nativeTicker}
           explorerUrl={getExplorerAddressUrl(fromChainId, activeWalletDisplay.address) ?? undefined}

@@ -37,10 +37,10 @@ import { normalizeLogoUrl } from "./data/logoRegistry";
 // Mirrors the prototype's :root. Kept local so a widget is readable without
 // chasing tokens.ts, and so the frameless language can't drift by accident.
 export const wk = {
-  bg: "#05050c",
-  orange: "#FF8A00",
-  orangeHover: "#E07C00",
-  orangeDim: "#7A4200",
+  bg: "var(--widget-bg, #05050c)",
+  orange: "var(--widget-primary, #FF8A00)",
+  orangeHover: "color-mix(in srgb, var(--widget-primary, #FF8A00) 88%, black)",
+  orangeDim: "color-mix(in srgb, var(--widget-primary, #FF8A00) 48%, black)",
   border: "rgba(255,255,255,.07)",
   borderStrong: "rgba(255,255,255,.11)",
   t1: "rgba(255,255,255,.94)",
@@ -180,9 +180,11 @@ export function WidgetShell({ children, filled, edge, style }: WidgetShellProps)
         padding: "26px 22px",
         fontFamily: INTER,
         // Frameless by default — rule 1.
-        background: filled ? "rgba(255,255,255,.025)" : "transparent",
+        // Unfilled shells stay frameless unless the embed theme opts into a surface.
+        background: filled ? "rgba(255,255,255,.025)" : "var(--widget-shell-bg, transparent)",
         border: filled ? `1px solid ${wk.border}` : "none",
-        borderRadius: filled ? 6 : 0,
+        boxShadow: filled ? undefined : "inset 0 0 0 1px var(--widget-shell-border, transparent)",
+        borderRadius: filled ? 6 : "var(--widget-shell-radius, 0)",
         ...style,
       }}
     >
@@ -378,7 +380,7 @@ export function ToggleRow({
         aria-hidden
         style={{
           width: 30, height: 17, borderRadius: 9, flexShrink: 0, marginTop: 1, position: "relative",
-          background: enabled ? "rgba(255,138,0,.30)" : "rgba(255,255,255,.10)", transition: "background .2s",
+          background: enabled ? "rgba(var(--widget-primary-rgb, 255, 138, 0), .30)" : "rgba(255,255,255,.10)", transition: "background .2s",
         }}
       >
         <i
@@ -468,7 +470,7 @@ const CTA_SKIN: Record<CtaState, CSSProperties> = {
   idle:    { background: "rgba(255,255,255,.05)", color: wk.t3, cursor: "not-allowed" },
   blocked: { background: "rgba(239,68,68,.10)", color: "#FCA5A5", cursor: "not-allowed" },
   connect: { background: "transparent", color: wk.t1, border: `1px solid ${wk.borderStrong}` },
-  working: { background: "rgba(255,138,0,.14)", color: wk.orange, cursor: "wait" },
+  working: { background: "rgba(var(--widget-primary-rgb, 255, 138, 0), .14)", color: wk.orange, cursor: "wait" },
   done:    { background: "rgba(52,211,153,.12)", color: wk.ok },
 };
 
@@ -503,7 +505,7 @@ export function WidgetCTA({
           aria-hidden
           style={{
             width: 13, height: 13, borderRadius: "50%",
-            border: `1.5px solid rgba(255,138,0,.25)`, borderTopColor: wk.orange,
+            border: `1.5px solid rgba(var(--widget-primary-rgb, 255, 138, 0), .25)`, borderTopColor: wk.orange,
             animation: "empxSpin .7s linear infinite",
           }}
         />
@@ -557,7 +559,7 @@ export function QuoteStatusRow({
         style={{
           display: "inline-flex", alignItems: "center", gap: 6,
           padding: "6px 10px", borderRadius: 3, background: "transparent",
-          border: `1px solid ${canRefresh ? "rgba(255,138,0,.4)" : wk.borderStrong}`,
+          border: `1px solid ${canRefresh ? "rgba(var(--widget-primary-rgb, 255, 138, 0), .4)" : wk.borderStrong}`,
           color: canRefresh ? wk.t1 : wk.t3,
           fontFamily: INTER, fontSize: 9.5, fontWeight: 600,
           letterSpacing: "0.1em", textTransform: "uppercase",
@@ -650,8 +652,8 @@ function RailCard({ rail, onClick }: { rail: RailCardData; onClick: () => void }
       onClick={onClick}
       style={{
         flex: "0 0 auto", minWidth: 118, padding: "11px 12px 12px", borderRadius: 5,
-        background: rail.isActive ? "rgba(255,138,0,.055)" : "transparent",
-        border: `1px solid ${rail.isActive ? "rgba(255,138,0,.5)" : wk.border}`,
+        background: rail.isActive ? "rgba(var(--widget-primary-rgb, 255, 138, 0), .055)" : "transparent",
+        border: `1px solid ${rail.isActive ? "rgba(var(--widget-primary-rgb, 255, 138, 0), .5)" : wk.border}`,
         cursor: "pointer", textAlign: "left", position: "relative",
         transition: "border-color .16s, background .16s", fontFamily: "Inter, sans-serif",
       }}
@@ -661,7 +663,7 @@ function RailCard({ rail, onClick }: { rail: RailCardData; onClick: () => void }
           style={{
             position: "absolute", top: -7, right: 8, fontSize: 7.5, fontWeight: 700,
             letterSpacing: "0.16em", padding: "2px 5px", borderRadius: 2, color: wk.orange,
-            background: "#0a0a10", border: "1px solid rgba(255,138,0,.4)",
+            background: "var(--widget-panel, #0a0a10)", border: "1px solid rgba(var(--widget-primary-rgb, 255, 138, 0), .4)",
           }}
         >
           {rail.tag}

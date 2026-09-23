@@ -102,7 +102,7 @@ export default function RouteVisualization({
                   top: "50%",
                   height: 1,
                   background:
-                    "linear-gradient(90deg, rgba(255,255,255,0.06) 0%, rgba(255,138,0,0.45) 100%)",
+                    "linear-gradient(90deg, rgba(255,255,255,0.06) 0%, rgba(var(--widget-primary-rgb, 255, 138, 0), 0.45) 100%)",
                   zIndex: 1,
                   transform: "translateY(-50%)",
                 }}
@@ -119,7 +119,7 @@ export default function RouteVisualization({
                   top: "50%",
                   height: 1,
                   background:
-                    "linear-gradient(90deg, rgba(255,138,0,0.45) 0%, rgba(255,255,255,0.06) 100%)",
+                    "linear-gradient(90deg, rgba(var(--widget-primary-rgb, 255, 138, 0), 0.45) 0%, rgba(255,255,255,0.06) 100%)",
                   zIndex: 1,
                   transform: "translateY(-50%)",
                 }}
@@ -150,7 +150,7 @@ export default function RouteVisualization({
                 }}
                 title={hop.via}
               >
-                <span style={{ color: "#FF8A00", marginRight: 6 }}>via</span>
+                <span style={{ color: "var(--widget-primary, #FF8A00)", marginRight: 6 }}>via</span>
                 {hop.via}
               </span>
             )}
@@ -168,8 +168,8 @@ export default function RouteVisualization({
               width: 6,
               height: 6,
               borderRadius: "50%",
-              background: "#FF8A00",
-              boxShadow: "0 0 16px #FF8A00, 0 0 32px rgba(255,138,0,0.5)",
+              background: "var(--widget-primary, #FF8A00)",
+              boxShadow: "0 0 16px var(--widget-primary, #FF8A00), 0 0 32px rgba(var(--widget-primary-rgb, 255, 138, 0), 0.5)",
               transform: "translate(-50%, -50%)",
               animation: "empxRoutePulse 3.6s cubic-bezier(0.65, 0, 0.35, 1) infinite",
               zIndex: 3,

@@ -82,9 +82,9 @@ export default function SplitRouteVisualization({
       >
         <defs>
           <linearGradient id="splitFlow" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%" stopColor="#FF8A00" stopOpacity="0" />
-            <stop offset="50%" stopColor="#FF8A00" stopOpacity="0.9" />
-            <stop offset="100%" stopColor="#FF8A00" stopOpacity="0" />
+            <stop offset="0%" style={{ stopColor: "var(--widget-primary, #FF8A00)" }} stopOpacity="0" />
+            <stop offset="50%" style={{ stopColor: "var(--widget-primary, #FF8A00)" }} stopOpacity="0.9" />
+            <stop offset="100%" style={{ stopColor: "var(--widget-primary, #FF8A00)" }} stopOpacity="0" />
             <animateTransform
               attributeName="gradientTransform"
               type="translate"
@@ -134,7 +134,7 @@ export default function SplitRouteVisualization({
           y1={CENTER_Y}
           x2={FORK_LEFT}
           y2={CENTER_Y}
-          stroke="rgba(255,138,0,0.45)"
+          stroke="rgba(var(--widget-primary-rgb, 255, 138, 0), 0.45)"
           strokeWidth="0.7"
           vectorEffect="non-scaling-stroke"
         />
@@ -144,7 +144,7 @@ export default function SplitRouteVisualization({
           y1={CENTER_Y}
           x2={TRUNK_RIGHT}
           y2={CENTER_Y}
-          stroke="rgba(255,138,0,0.45)"
+          stroke="rgba(var(--widget-primary-rgb, 255, 138, 0), 0.45)"
           strokeWidth="0.7"
           vectorEffect="non-scaling-stroke"
         />
@@ -239,7 +239,7 @@ export default function SplitRouteVisualization({
               justifyContent: "space-between",
               padding: "5px 10px",
               background: "rgba(255,255,255,0.025)",
-              borderLeft: `3px solid rgba(255,138,0,${0.3 + (b.pct / 100) * 0.6})`,
+              borderLeft: `3px solid rgba(var(--widget-primary-rgb, 255, 138, 0), ${0.3 + (b.pct / 100) * 0.6})`,
               borderRadius: 2,
               fontFamily: "Inter, sans-serif",
               fontSize: 11,
@@ -250,7 +250,7 @@ export default function SplitRouteVisualization({
                 style={{
                   fontSize: 9,
                   letterSpacing: "0.30em",
-                  color: "#FF8A00",
+                  color: "var(--widget-primary, #FF8A00)",
                   fontWeight: 700,
                   textTransform: "uppercase",
                 }}
@@ -270,7 +270,7 @@ export default function SplitRouteVisualization({
                 fontWeight: 500,
                 fontSize: 13,
                 letterSpacing: "-0.01em",
-                color: "#FF8A00",
+                color: "var(--widget-primary, #FF8A00)",
               }}
             >
               {b.pct.toFixed(b.pct < 10 ? 1 : 0)}%

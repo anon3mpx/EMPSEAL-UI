@@ -28,6 +28,7 @@ import { WidgetKitKeyframes, type RailCardData } from "../widgetKit";
 import { tokenLogoUrl } from "../data/logoRegistry";
 import { useWalletConnection } from "../hooks/useWalletConnection";
 import { useV2Balances } from "../hooks/useV2Balances";
+import { useAccountSnapshot } from "../hooks/useAccountSnapshot";
 import { getExplorerAddressUrl } from "../data/explorers";
 import { getTokensForChain } from "../data/v2TokenView";
 import {
@@ -65,6 +66,7 @@ export default function RampPage() {
   const isMobile = useIsMobile();
   const { walletState, walletOptions, onSelectWallet, disconnect } = useWalletConnection();
   const connectedBalance = useV2Balances();
+  const accountSnapshot = useAccountSnapshot(walletState.status === "connected" ? walletState.address : null);
   const connectedChainId = useChainId();
   const { switchChainAsync } = useSwitchChain();
   const { signMessageAsync } = useSignMessage();
@@ -254,6 +256,7 @@ export default function RampPage() {
             <WalletButton
               connected={walletState.status === "connected"}
               address={walletState.status === "connected" ? walletState.address : undefined}
+              balanceUSD={accountSnapshot.balanceUSD}
               onConnect={() => setShowWalletModal(true)}
               onClick={() => setShowAccountModal(true)}
             />
@@ -507,12 +510,16 @@ export default function RampPage() {
           onClose={() => setShowAccountModal(false)}
           address={walletState.address}
           providerName={walletState.providerName}
-          chainName={chain.name}
-          chainColor={chain.color}
-          balanceUSD={connectedBalance.nativeBalanceUSD ?? undefined}
+          chainName={walletState.chain.name}
+          chainColor={walletState.chain.color}
+          balanceUSD={accountSnapshot.balanceUSD}
+          portfolioStatus={accountSnapshot.status}
+          activityAvailable={false}
+          tokens={accountSnapshot.tokens}
+          networks={accountSnapshot.networks}
           nativeBalance={connectedBalance.nativeBalance}
           nativeTicker={connectedBalance.nativeTicker}
-          explorerUrl={getExplorerAddressUrl(chainId, walletState.address) ?? undefined}
+          explorerUrl={getExplorerAddressUrl(walletState.chain.id, walletState.address) ?? undefined}
           onCopy={() => toast.success("Address copied")}
           onSwitchNetwork={() => { setShowAccountModal(false); setChainPickerOpen(true); }}
           onSwitchWallet={() => { setShowAccountModal(false); setShowWalletModal(true); }}
