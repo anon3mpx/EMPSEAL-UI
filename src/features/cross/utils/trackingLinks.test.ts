@@ -70,6 +70,32 @@ describe("buildCrossTrackingLinks", () => {
     });
   });
 
+  it("links the Hyperlane message from railTxId, falling back to a source tx search", () => {
+    const session: CrossExecutionSession = {
+      ...baseSession,
+      quote: { ...baseSession.quote, rail: "HYPERLANE_NEXUS" },
+      integration: {
+        mode: "provider_direct",
+        action: { kind: "hyperlane_transfer_remote" },
+      },
+    };
+    const build = (tracking: any) =>
+      buildCrossTrackingLinks({
+        session,
+        tracking,
+        sourceChainId: 42161,
+        destinationChainId: 137,
+        getExplorerTxUrl: () => null,
+      }).railLinks;
+
+    expect(build({ srcTxHash: "0xsrc", railTxId: "0xmsg" })).toEqual([
+      { label: "Hyperlane", url: "https://explorer.hyperlane.xyz/message/0xmsg" },
+    ]);
+    expect(build({ srcTxHash: "0xsrc", railTxId: "0xSRC" })).toEqual([
+      { label: "Hyperlane", url: "https://explorer.hyperlane.xyz/?search=0xsrc" },
+    ]);
+  });
+
   it("adds provider-specific tracker links when identifiers are present", () => {
     const links = buildCrossTrackingLinks({
       session: {
