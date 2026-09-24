@@ -138,7 +138,13 @@ function debridgeOrderIdFor(action: ProviderDirectAction | undefined, tracking: 
   );
 }
 
-function hyperlaneMessageIdFor(action: ProviderDirectAction | undefined, tracking: any) {
+function hyperlaneMessageIdFor(
+  action: ProviderDirectAction | undefined,
+  tracking: any,
+  sourceTxHash?: string,
+) {
+  // The API reports the delivered message id as railTxId; older intents stored the source tx there.
+  const railTxId = readString(tracking?.railTxId, tracking?.primaryTransfer?.railTxId);
   return readString(
     tracking?.messageId,
     tracking?.messageHash,
@@ -152,6 +158,7 @@ function hyperlaneMessageIdFor(action: ProviderDirectAction | undefined, trackin
     action?.messageHash,
     action?.hyperlaneMessageId,
     action?.hyperlaneMessageHash,
+    railTxId && railTxId.toLowerCase() !== sourceTxHash?.toLowerCase() ? railTxId : undefined,
   );
 }
 
@@ -211,7 +218,7 @@ export function buildCrossTrackingLinks({
   }
 
   if (railKey.includes("HYPERLANE") || actionKind.includes("hyperlane")) {
-    const messageId = hyperlaneMessageIdFor(action, tracking);
+    const messageId = hyperlaneMessageIdFor(action, tracking, sourceTxHash);
     appendUniqueLink(
       railLinks,
       messageId
@@ -219,7 +226,12 @@ export function buildCrossTrackingLinks({
             label: "Hyperlane",
             url: `https://explorer.hyperlane.xyz/message/${messageId}`,
           }
-        : undefined,
+        : sourceTxHash
+          ? {
+              label: "Hyperlane",
+              url: `https://explorer.hyperlane.xyz/?search=${sourceTxHash}`,
+            }
+          : undefined,
     );
   }
 
