@@ -34,12 +34,15 @@ import {
   buildSubmittedMessage,
   clearCrossSession,
   type CrossExecutionSession,
+  type ExecutionPlan,
   CrossExecutionPanel,
   CrossRouteList,
   CrossTrackingPanel,
   CrossTradeForm,
   crossApi,
   executeCrossIntegration,
+  isExecutionPlanTerminal,
+  syncSequentialExecutionPlan,
   buildExecutionPlanStepSubmittedMessage,
   executeProviderApprovals,
   findMatchingRefreshedOffer,
@@ -378,7 +381,7 @@ export default function CrossChainPage() {
         return {
           requests: readProviderApprovalRequests(
             session.integration as any,
-            session.integration.tx.chainId,
+            session.integration.tx?.chainId ?? session.sourceChainId,
           ),
           error: null as Error | null,
         };
@@ -612,13 +615,19 @@ export default function CrossChainPage() {
   );
 
   const executeIntent = useCallback(
-    async (intentId: string, integration: any, sourceChainId: number) => {
+    async (
+      intentId: string,
+      integration: any,
+      sourceChainId: number,
+      executionPlan?: ExecutionPlan,
+    ) => {
       return executeCrossIntegration(
         {
           intentId,
           integration,
           sourceChainId,
           approvalsComplete: hasRequiredApproval,
+          executionPlan,
         },
         {
           sendEvmTransaction,
@@ -647,7 +656,7 @@ export default function CrossChainPage() {
             });
             setSession((current) =>
               current?.mode === "single" && current.executionPlan?.planId === planId
-                ? { ...current, executionPlan: response.executionPlan }
+                ? syncSequentialExecutionPlan(current, response.executionPlan)
                 : current,
             );
           },
@@ -772,6 +781,7 @@ export default function CrossChainPage() {
 
   const handleExecuteSingle = useCallback(async () => {
     if (!session || session.mode !== "single") return;
+    if (isExecutionPlanTerminal(session.executionPlan)) return;
 
     if (isRouterIntentExpired(session.integration)) {
       setSession(null);
@@ -785,6 +795,7 @@ export default function CrossChainPage() {
         session.intentId,
         session.integration,
         session.sourceChainId ?? session.quote?.srcChainId ?? fromChainId,
+        session.executionPlan,
       );
       setSession((current) =>
         current

@@ -82,7 +82,11 @@ import {
   findMissingProviderApprovals,
   readProviderApprovalRequests,
 } from "../../features/cross/execution/approvals";
-import { executeCrossIntegration, syncSequentialExecutionPlan } from "../../features/cross/execution/crossExecution";
+import {
+  executeCrossIntegration,
+  isExecutionPlanTerminal,
+  syncSequentialExecutionPlan,
+} from "../../features/cross/execution/crossExecution";
 import { buildExecutionPlanStepSubmittedMessage } from "../../features/cross/execution/executionPlanSignatures";
 import {
   getRequiredRouterIntentApproval,
@@ -113,6 +117,7 @@ import {
 import { mapCrossApiError, layerZeroQuoteNotice } from "../../features/cross/utils/errors";
 import type {
   CrossExecutionSession,
+  ExecutionPlan,
   LayerZeroValueTransferApiQuoteContext,
   NativeSourceWallet,
 } from "../../features/cross/api/contracts";
@@ -882,6 +887,7 @@ export default function CrossPage() {
       : null;
     if (
       !sequentialIntegration
+      || isExecutionPlanTerminal(session.executionPlan)
       || session.executionPlan?.steps[session.executionPlan.currentStep]?.status !== "SUBMITTED"
     ) {
       return;
@@ -1065,7 +1071,7 @@ export default function CrossPage() {
         return {
           requests: readProviderApprovalRequests(
             session.integration as any,
-            session.integration.tx.chainId,
+            session.integration.tx?.chainId ?? session.sourceChainId,
           ),
           error: null as Error | null,
         };
@@ -1620,13 +1626,19 @@ export default function CrossPage() {
   );
 
   const executeIntent = useCallback(
-    async (intentId: string, integration: any, sourceChainId: number) => {
+    async (
+      intentId: string,
+      integration: any,
+      sourceChainId: number,
+      executionPlan?: ExecutionPlan,
+    ) => {
       return executeCrossIntegration(
         {
           intentId,
           integration,
           sourceChainId,
           approvalsComplete: hasRequiredApproval,
+          executionPlan,
         },
         {
           sendEvmTransaction,
@@ -1656,7 +1668,7 @@ export default function CrossPage() {
             });
             setSession((current) =>
               current?.mode === "single" && current.executionPlan?.planId === planId
-                ? { ...current, executionPlan: response.executionPlan }
+                ? syncSequentialExecutionPlan(current, response.executionPlan)
                 : current,
             );
           },
@@ -1821,6 +1833,7 @@ export default function CrossPage() {
 
   const handleExecuteSingle = useCallback(async () => {
     if (!session || session.mode !== "single") return;
+    if (isExecutionPlanTerminal(session.executionPlan)) return;
 
     if (isRouterIntentExpired(session.integration)) {
       setSession(null);
@@ -1834,6 +1847,7 @@ export default function CrossPage() {
         session.intentId,
         session.integration,
         session.sourceChainId ?? session.quote?.srcChainId ?? fromChainId,
+        session.executionPlan,
       );
       setSession((current) =>
         current

@@ -42,6 +42,104 @@ describe("executeCrossIntegration", () => {
     });
   });
 
+  function requoteRequiredPlan(): any {
+    return {
+      planId: "plan", intentId: "intent", mode: "sequential_wallet", status: "REQUOTE_REQUIRED",
+      version: 5, atomic: false, carrierAsset: "bridge:8453:USDC", currentStep: 0, expiresAt: 9999999999,
+      steps: [
+        { stepId: "source", index: 0, kind: "source_swap", chainId: 8453, status: "CONFIRMED", txHash: "0xswap", errorCode: "CARRIER_REQUOTE_UNAVAILABLE" },
+        { stepId: "rail", index: 1, kind: "rail_transfer", chainId: 8453, status: "PLANNED" },
+      ],
+    };
+  }
+
+  it("drops the already-sent source swap tx when the plan requires a re-quote", () => {
+    const session: any = {
+      mode: "single", intentId: "intent", selectedOfferId: "offer", offerSetId: "set",
+      quote: {}, sourceChainId: 8453, status: "SUBMITTED",
+      integration: { mode: "sequential_wallet", planId: "plan", stepId: "source", expectedVersion: 3, tx: TX, approvals: [] },
+    };
+
+    const synced = syncSequentialExecutionPlan(session, requoteRequiredPlan());
+
+    expect(synced.status).toBe("REQUOTE_REQUIRED");
+    expect(synced.executionPlan?.status).toBe("REQUOTE_REQUIRED");
+    expect(synced.integration).toEqual({
+      mode: "sequential_wallet", planId: "plan", stepId: "source", expectedVersion: 5, approvals: [],
+    });
+    expect((synced.integration as any).tx).toBeUndefined();
+  });
+
+  it.each(["FAILED", "EXPIRED", "COMPLETED"])("never promotes a prepared action on a %s plan", (status) => {
+    const session: any = {
+      mode: "single", integration: { mode: "sequential_wallet", planId: "plan", stepId: "source", expectedVersion: 3, tx: TX },
+    };
+    const plan: any = {
+      planId: "plan", status, version: 4, currentStep: 0,
+      steps: [{ stepId: "source", status: "READY", preparedAction: { tx: TX } }],
+    };
+
+    expect((syncSequentialExecutionPlan(session, plan).integration as any).tx).toBeUndefined();
+  });
+
+  it("refuses to send a sequential step when the session plan is terminal", async () => {
+    const deps = dependencies();
+
+    await expect(
+      executeCrossIntegration(
+        {
+          intentId: "intent",
+          sourceChainId: 8453,
+          approvalsComplete: true,
+          integration: { mode: "sequential_wallet", planId: "plan", stepId: "source", expectedVersion: 3, tx: TX, approvals: [] },
+          executionPlan: requoteRequiredPlan(),
+        },
+        deps,
+      ),
+    ).rejects.toThrow(/EXECUTION_PLAN_STOPPED/);
+    expect(deps.sendEvmTransaction).not.toHaveBeenCalled();
+    expect(deps.markExecutionPlanStepSubmitted).not.toHaveBeenCalled();
+  });
+
+  it("refuses to send a sequential step that is not READY", async () => {
+    const deps = dependencies();
+    const plan: any = {
+      planId: "plan", status: "ACTIVE", version: 3, currentStep: 0,
+      steps: [{ stepId: "source", status: "SUBMITTED", txHash: "0xswap" }],
+    };
+
+    await expect(
+      executeCrossIntegration(
+        {
+          intentId: "intent",
+          sourceChainId: 8453,
+          approvalsComplete: true,
+          integration: { mode: "sequential_wallet", planId: "plan", stepId: "source", expectedVersion: 3, tx: TX, approvals: [] },
+          executionPlan: plan,
+        },
+        deps,
+      ),
+    ).rejects.toThrow(/EXECUTION_STEP_NOT_READY/);
+    expect(deps.sendEvmTransaction).not.toHaveBeenCalled();
+  });
+
+  it("refuses to send a sequential integration without a prepared tx", async () => {
+    const deps = dependencies();
+
+    await expect(
+      executeCrossIntegration(
+        {
+          intentId: "intent",
+          sourceChainId: 8453,
+          approvalsComplete: true,
+          integration: { mode: "sequential_wallet", planId: "plan", stepId: "source", expectedVersion: 5, approvals: [] },
+        },
+        deps,
+      ),
+    ).rejects.toThrow(/EXECUTION_STEP_NOT_READY/);
+    expect(deps.sendEvmTransaction).not.toHaveBeenCalled();
+  });
+
   it("cannot send a provider transaction before returned approvals pass", async () => {
     const deps = dependencies();
 
@@ -109,6 +207,10 @@ describe("executeCrossIntegration", () => {
             tx: TX,
             approvals: [],
           },
+          executionPlan: {
+            planId: "plan-sequential", status: "ACTIVE", version: 3, currentStep: 0,
+            steps: [{ stepId: "step-source-swap", status: "READY" }],
+          } as any,
         },
         deps,
       ),

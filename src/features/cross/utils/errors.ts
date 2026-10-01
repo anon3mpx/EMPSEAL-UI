@@ -130,6 +130,9 @@ export function mapCrossApiError(error: any): string {
   if (code.includes("EXECUTION_SELECTION_CONFLICT")) {
     return "This offer selection changed while it was being prepared. Refresh the quote and try again.";
   }
+  if (code.includes("EXECUTION_PLAN_STOPPED")) {
+    return "This route has stopped. No transaction was sent. Get a new quote to continue.";
+  }
   if (code.includes("EXECUTION_STEP_NOT_READY")) {
     return "This route is already in progress. Do not send another transaction.";
   }

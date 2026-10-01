@@ -380,7 +380,11 @@ export interface SequentialWalletIntegration {
   planId: string;
   stepId: string;
   expectedVersion: number;
-  tx: TransactionEnvelope;
+  /**
+   * Absent once the plan has stopped (re-quote required, failed, expired or
+   * completed) so an already-broadcast step can never be sent again.
+   */
+  tx?: TransactionEnvelope;
   approvals?: ProviderApprovalRequest[];
 }
 
@@ -407,14 +411,24 @@ export interface ExecutionPlanStep {
     approvals?: ProviderApprovalRequest[];
   };
   txHash?: string;
+  errorCode?: string;
+  errorMessage?: string;
   expiresAt: number;
 }
+
+export type ExecutionPlanStatus =
+  | "PLANNED"
+  | "ACTIVE"
+  | "REQUOTE_REQUIRED"
+  | "COMPLETED"
+  | "FAILED"
+  | "EXPIRED";
 
 export interface ExecutionPlan {
   planId: string;
   intentId: string;
   mode: "sequential_wallet";
-  status: "PLANNED" | "ACTIVE" | "REQUOTE_REQUIRED" | "COMPLETED" | "FAILED" | "EXPIRED";
+  status: ExecutionPlanStatus;
   version: number;
   atomic: boolean;
   carrierAsset?: string;
