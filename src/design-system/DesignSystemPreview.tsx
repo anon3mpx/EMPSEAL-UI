@@ -41,6 +41,7 @@ import {
 } from "./components";
 import EmpxSwapWidget from "./EmpxSwapWidget";
 import EmpxCrossWidget from "./EmpxCrossWidget";
+import { Disclosure } from "./widgetKit";
 import EmpxGasWidget from "./EmpxGasWidget";
 import EmpxBridgeWidget from "./EmpxBridgeWidget";
 import EmpxPortfolioPanel, { type PortfolioAsset, type MarketCard } from "./EmpxPortfolioPanel";
@@ -131,8 +132,11 @@ const SPLIT_ROUTE: SplitBranch[] = [
 export default function DesignSystemPreview() {
   const [swapFrom, setSwapFrom] = useState("1000");
   const [swapTo, setSwapTo] = useState("3184200.00");
+  const [swapSlippageBps, setSwapSlippageBps] = useState(50);
   const [crossFrom, setCrossFrom] = useState("0.5");
   const [crossTo, setCrossTo] = useState("1591.20");
+  const [crossRail, setCrossRail] = useState("CCTP Fast");
+  const [crossGasDrop, setCrossGasDrop] = useState(false);
   const [gasFrom, setGasFrom] = useState("0.05");
   const [gasTo, setGasTo] = useState("0.0492");
   const [bridgeAmount, setBridgeAmount] = useState("5000");
@@ -340,9 +344,13 @@ export default function DesignSystemPreview() {
                 protocolFeeBps={15}
                 protocolFeeUSD={4.78}
                 minimumReceived="3,180,000.00 USDC"
-                slippageBps={50}
+                slippageBps={swapSlippageBps}
+                onSlippageChange={setSwapSlippageBps}
+                rate="1 ETH = 3,184.2 USDC"
                 priceImpactBps={12}
                 routeHops={sameChainRoute}
+                quote={{ issuedAt: quoteIssuedAt, validMs: 60_000, onRefresh: () => setQuoteIssuedAt(Date.now()) }}
+                notice={{ tone: "info", text: "Optimizing for a split route…" }}
                 onSwap={() => { setQuoteIssuedAt(Date.now()); setShowConfirm(true); }}
                 onFlip={() => { const a = swapFrom; setSwapFrom(swapTo); setSwapTo(a); }}
               />
@@ -376,6 +384,26 @@ export default function DesignSystemPreview() {
                 minimumReceived="1,588.00 USDT"
                 slippageBps={30}
                 routeHops={crossChainRoute}
+                rails={[
+                  { name: "CCTP Fast", mode: "B", outAmount: "1,591.20", eta: "~1m", tag: "BEST", isActive: crossRail === "CCTP Fast" },
+                  { name: "Across", mode: "B", outAmount: "1,590.85", eta: "~2m", isActive: crossRail === "Across" },
+                  { name: "LayerZero", mode: "B", outAmount: "1,589.40", eta: "~3m", isActive: crossRail === "LayerZero" },
+                ]}
+                onSelectRail={setCrossRail}
+                railsState="ready"
+                railsFooter={
+                  <Disclosure label="All offers · 3">
+                    <p style={{ margin: 0, fontSize: 11, color: "rgba(255,255,255,0.55)" }}>Full offer list with capability status renders here.</p>
+                  </Disclosure>
+                }
+                gasDrop={{
+                  enabled: crossGasDrop,
+                  available: true,
+                  hint: "Arrive on Base with ~$2.50 of ETH so you can transact immediately. Routed via Gas.zip side-leg.",
+                  onToggle: () => setCrossGasDrop((v) => !v),
+                }}
+                quote={{ issuedAt: quoteIssuedAt, validMs: 30_000, onRefresh: () => setQuoteIssuedAt(Date.now()) }}
+                notice={crossRail !== "CCTP Fast" ? { tone: "info", text: "User-selected route — select it again to return to the best route." } : undefined}
                 onSwap={() => { setQuoteIssuedAt(Date.now()); setShowConfirm(true); }}
                 onFlip={() => { const a = crossFrom; setCrossFrom(crossTo); setCrossTo(a); }}
               />

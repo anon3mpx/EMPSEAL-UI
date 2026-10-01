@@ -35,6 +35,21 @@ const LLAMA_CHAIN_SLUGS: Record<number, string> = {
   369:   "pulsechain",
 };
 
+// Non-EVM native coins (BTC, SOL, ...) have no contract address; DefiLlama
+// prices them by CoinGecko id instead.
+const NATIVE_COINGECKO_IDS: Record<string, string> = {
+  BTC:  "bitcoin",
+  SOL:  "solana",
+  DOGE: "dogecoin",
+  LTC:  "litecoin",
+  BCH:  "bitcoin-cash",
+  ATOM: "cosmos",
+  DOT:  "polkadot",
+  KUJI: "kujira",
+  DASH: "dash",
+  ZEC:  "zcash",
+};
+
 interface CacheEntry { price: number; fetchedAt: number }
 
 let _cache: Record<string, CacheEntry> | null = null;
@@ -72,6 +87,19 @@ function priceAddress(chainId: number, ticker: string, tokenAddress?: string): s
   const normalized = tokenAddress?.trim().toLowerCase();
   if (normalized && !NATIVE_PRICE_ADDRESSES.has(normalized)) return normalized;
   return getTokenAddress(chainId, ticker) ?? getTokenAddress(chainId, `W${ticker}`);
+}
+
+/**
+ * DefiLlama coin key: "{chainSlug}:{address}" for tokens on covered chains,
+ * or "coingecko:{id}" for a native coin on a chain DefiLlama has no slug for.
+ */
+export function llamaCoinKey(chainId: number, ticker: string, tokenAddress?: string): string | null {
+  const slug = LLAMA_CHAIN_SLUGS[chainId];
+  const addr = priceAddress(chainId, ticker, tokenAddress);
+  if (slug) return addr ? `${slug}:${addr.toLowerCase()}` : null;
+  if (tokenAddress?.trim()) return null;
+  const coingeckoId = NATIVE_COINGECKO_IDS[ticker.trim().toUpperCase()];
+  return coingeckoId ? `coingecko:${coingeckoId}` : null;
 }
 
 function cacheKey(chainId: number, ticker: string, tokenAddress?: string): string {
@@ -123,16 +151,15 @@ export async function getTokenPrice(
   // In-flight dedupe
   if (_inflight.has(key)) return _inflight.get(key)!;
 
-  const slug = LLAMA_CHAIN_SLUGS[chainId];
-  const addr = priceAddress(chainId, ticker, tokenAddress);
-  if (!slug || !addr) return null;
+  const coinKey = llamaCoinKey(chainId, ticker, tokenAddress);
+  if (!coinKey) return null;
 
   const p = (async () => {
     try {
-      const r = await fetch(`${ENDPOINT}/${slug}:${addr.toLowerCase()}`);
+      const r = await fetch(`${ENDPOINT}/${coinKey}`);
       if (!r.ok) return null;
       const data = await r.json() as { coins?: Record<string, { price?: number }> };
-      const coin = data.coins?.[`${slug}:${addr.toLowerCase()}`];
+      const coin = data.coins?.[coinKey];
       const price = coin?.price;
       if (typeof price !== "number") return null;
       const c = loadCache();
@@ -157,7 +184,7 @@ export async function getTokenPrices(
   pairs: { chainId: number; ticker: string; tokenAddress?: string }[],
 ): Promise<Record<string, number>> {
   const out: Record<string, number> = {};
-  const need: { slug: string; addr: string; key: string }[] = [];
+  const need: { coinKey: string; key: string }[] = [];
 
   for (const { chainId, ticker, tokenAddress } of pairs) {
     const key = cacheKey(chainId, ticker, tokenAddress);
@@ -166,21 +193,20 @@ export async function getTokenPrices(
       out[key] = cached;
       continue;
     }
-    const slug = LLAMA_CHAIN_SLUGS[chainId];
-    const addr = priceAddress(chainId, ticker, tokenAddress);
-    if (slug && addr) need.push({ slug, addr: addr.toLowerCase(), key });
+    const coinKey = llamaCoinKey(chainId, ticker, tokenAddress);
+    if (coinKey) need.push({ coinKey, key });
   }
 
   if (need.length === 0) return out;
 
   try {
-    const coinParam = need.map((n) => `${n.slug}:${n.addr}`).join(",");
+    const coinParam = need.map((n) => n.coinKey).join(",");
     const r = await fetch(`${ENDPOINT}/${coinParam}`);
     if (!r.ok) return out;
     const data = await r.json() as { coins?: Record<string, { price?: number }> };
     const c = loadCache();
     for (const n of need) {
-      const coin = data.coins?.[`${n.slug}:${n.addr}`];
+      const coin = data.coins?.[n.coinKey];
       const price = coin?.price;
       if (typeof price === "number") {
         c[n.key] = { price, fetchedAt: Date.now() };

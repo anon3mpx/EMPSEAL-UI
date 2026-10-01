@@ -5,6 +5,8 @@ import {
   buildCrossRouteHops,
   buildCrossTimeline,
   formatCrossOffer,
+  isImplausibleOfferOutput,
+  sizeDestinationGasAmount,
   getCrossQuoteUiState,
 } from "./crossV2Adapters";
 import * as crossV2Adapters from "./crossV2Adapters";
@@ -457,49 +459,124 @@ describe("crossV2Adapters", () => {
     });
   });
 
-  it("formats THORChain canonical output with native THORChain asset units", () => {
+  it("formats THORChain BTC→ETH output in the destination token's decimals", () => {
+    // Live backend shape: estimatedOut is already wei (3.0998 ETH), even though
+    // THOR asset metadata ("ETH.ETH", thor_native) is present on the offer.
     const offer = {
-      offerId: "offer-thor-captured",
+      offerId: "offer-thor-btc-eth",
       rail: "THORCHAIN",
       offerType: "thor_api_direct",
       executionMode: "provider_direct",
-      estimatedOut: "336213722",
-      minAmountOut: "335877508",
+      srcChainId: 0,
+      dstChainId: 1,
+      estimatedOut: "3099800220000000000",
+      minAmountOut: "3068802217800000000",
       amounts: {
-        output: {
-          token: "0x0000000000000000000000000000000000000000",
-          amount: "336213722",
-          decimals: 18,
-          symbol: "ETH.ETH",
-        },
-        minimumOutput: {
-          token: "0x0000000000000000000000000000000000000000",
-          amount: "335877508",
-          decimals: 18,
-          symbol: "ETH.ETH",
-        },
+        output: { token: "0x0000000000000000000000000000000000000000", amount: "3099800220000000000", decimals: 18, symbol: "ETH.ETH" },
+        minimumOutput: { token: "0x0000000000000000000000000000000000000000", amount: "3068802217800000000", decimals: 18, symbol: "ETH.ETH" },
       },
-      routeAsset: {
-        canonicalAssetId: "ETH.ETH",
-        assetStandard: "thor_native",
-        decimals: 18,
-      },
-      execution: {
-        thorQuote: {
-          expected_amount_out: "336213722",
-        },
-      },
-      economics: {
-        providerFeeUSD: "0",
-        protocolFeeUSD: "0",
-        settlementTimeSeconds: 684,
-      },
+      routeAsset: { canonicalAssetId: "ETH.ETH", assetStandard: "thor_native", decimals: 18 },
+      execution: { thorQuote: { expected_amount_out: "309980022", fees: { asset: "ETH.ETH" } } },
+      economics: { providerFeeUSD: "0", protocolFeeUSD: "0", settlementTimeSeconds: 684 },
     };
 
     expect(formatCrossOffer(offer, 18)).toMatchObject({
-      outputAmount: "3.362137",
-      minimumReceived: "3.358775",
+      outputAmount: "3.0998",
+      minimumReceived: "3.068802",
     });
+  });
+
+  it("formats THORChain ETH→BTC output in satoshis", () => {
+    const offer = {
+      offerId: "offer-thor-eth-btc",
+      rail: "THORCHAIN",
+      offerType: "thor_api_direct",
+      executionMode: "provider_direct",
+      srcChainId: 1,
+      dstChainId: 0,
+      estimatedOut: "3201450",
+      minAmountOut: "3169435",
+      routeAsset: { canonicalAssetId: "BTC.BTC", assetStandard: "thor_native", decimals: 8 },
+      execution: { thorQuote: { expected_amount_out: "3201450", fees: { asset: "BTC.BTC" } } },
+      economics: { providerFeeUSD: "0", protocolFeeUSD: "0", settlementTimeSeconds: 900 },
+    };
+
+    expect(formatCrossOffer(offer, 8)).toMatchObject({
+      outputAmount: "0.032015",
+      minimumReceived: "0.031694",
+    });
+  });
+
+  it("formats THORChain ETH→USDC output with 6 decimals", () => {
+    const offer = {
+      offerId: "offer-thor-eth-usdc",
+      rail: "THORCHAIN",
+      executionMode: "provider_direct",
+      estimatedOut: "3045120000",
+      minAmountOut: "3014668800",
+      routeAsset: { canonicalAssetId: "ETH.USDC-0XA0B86991C6218B36C1D19D4A2E9EB0CE3606EB48", assetStandard: "thor_native" },
+      economics: { providerFeeUSD: "0", protocolFeeUSD: "0", settlementTimeSeconds: 900 },
+    };
+
+    expect(formatCrossOffer(offer, 6).outputAmount).toBe("3045.12");
+  });
+
+  it("labels zero provider fees on provider-direct rails as included in the quote", () => {
+    const base = {
+      offerId: "offer-fee",
+      rail: "DEBRIDGE",
+      estimatedOut: "1000000",
+      minAmountOut: "990000",
+      economics: { providerFeeUSD: "0", protocolFeeUSD: "0.15", settlementTimeSeconds: 30 },
+    };
+
+    expect(formatCrossOffer({ ...base, executionMode: "provider_direct" }, 6).feeIncludedInQuote).toBe(true);
+    expect(formatCrossOffer({ ...base, executionMode: "router_intent" }, 6).feeIncludedInQuote).toBe(false);
+    expect(formatCrossOffer({
+      ...base,
+      executionMode: "provider_direct",
+      economics: { ...base.economics, providerFeeUSD: "1.20" },
+    }, 6).feeIncludedInQuote).toBe(false);
+  });
+
+  it("exposes Hyperlane interchain gas as a native network fee", () => {
+    const offer = {
+      offerId: "offer-hyperlane",
+      rail: "HYPERLANE",
+      executionMode: "provider_direct",
+      estimatedOut: "1000000",
+      minAmountOut: "1000000",
+      execution: { interchainGasFee: "420000000000000" },
+      economics: { providerFeeUSD: "0", protocolFeeUSD: "0", settlementTimeSeconds: 60 },
+    };
+
+    expect(formatCrossOffer(offer, 6).networkFeeNative).toBe("0.00042");
+    expect(formatCrossOffer({ ...offer, execution: { interchainGasFee: "0" } }, 6).networkFeeNative).toBeUndefined();
+  });
+
+  it("sizes the Gas Drop amount to about $2 of destination native gas", () => {
+    expect(sizeDestinationGasAmount(2683)).toBe("0.00075"); // ETH
+    expect(sizeDestinationGasAmount(600)).toBe("0.0033"); // BNB
+    expect(sizeDestinationGasAmount(0.00005)).toBe("40000"); // PLS, no exponent
+    // Most small price moves keep the same request, so they do not trigger a
+    // requote (a move across a rounding boundary still does).
+    expect(sizeDestinationGasAmount(2670)).toBe(sizeDestinationGasAmount(2683));
+    // Unknown price falls back to the fixed amount.
+    expect(sizeDestinationGasAmount(null)).toBe("0.001");
+    expect(sizeDestinationGasAmount(0)).toBe("0.001");
+  });
+
+  it("flags offers priced well above their input as implausible", () => {
+    // 0.1 BTC (~$6,000) → the 10^10× THOR display bug.
+    expect(isImplausibleOfferOutput("31003285400", 2683, 6000)).toBe(true);
+    // 100 USDT → 248 USDC looping-swap quote.
+    expect(isImplausibleOfferOutput("248", 1, 100)).toBe(true);
+    // Normal quotes, including a small positive edge, pass.
+    expect(isImplausibleOfferOutput("3.0998", 2683, 8400)).toBe(false);
+    expect(isImplausibleOfferOutput("101", 1, 100)).toBe(false);
+    // Unpriced sides never hide offers.
+    expect(isImplausibleOfferOutput("248", null, 100)).toBe(false);
+    expect(isImplausibleOfferOutput("248", 1, undefined)).toBe(false);
   });
 
   it("formats THORChain output when provider fields are nested under the execution action", () => {
@@ -552,6 +629,37 @@ describe("crossV2Adapters", () => {
       { ticker: "USDC", chainName: "Base", chainColor: "#0052FF", via: "Destination swap", venueType: "DEX" },
       { ticker: "USDT", chainName: "Base", chainColor: "#0052FF" },
     ]);
+  });
+
+  it("shows short tickers for THORChain asset ids and skips raw addresses in route hops", () => {
+    const hops = buildCrossRouteHops(
+      {
+        rail: "THORCHAIN",
+        routeAsset: { canonicalAssetId: "ETH.USDC-0XA0B86991C6218B36C1D19D4A2E9EB0CE3606EB48" },
+        destinationSettlementAsset: { canonicalAssetId: "ETH.USDC-0XA0B86991C6218B36C1D19D4A2E9EB0CE3606EB48" },
+      },
+      { id: 0, name: "Bitcoin", color: "#F7931A" },
+      { id: 1, name: "Ethereum", color: "#627EEA" },
+      "BTC",
+      "USDC",
+    );
+    expect(hops.map((hop) => hop.ticker)).toEqual(["BTC", "USDC"]);
+
+    const swapHops = buildCrossRouteHops(
+      {
+        rail: "CCTP",
+        legs: { sourceSwap: { tokenOut: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831" } },
+        routeAsset: { canonicalAssetId: "BTC.BTC" },
+      },
+      arbitrum,
+      base,
+      "WETH",
+      "USDC",
+    );
+    // The raw address is skipped in favour of the next symbol source.
+    expect(swapHops[1].ticker).toBe("BTC");
+    // Ordinary symbols, including dotted ones like USDC.e, are left alone.
+    expect(buildCrossRouteHops({ rail: "CCTP", routeAsset: { symbol: "USDC.e" } }, arbitrum, base, "USDC.e", "USDC")[1].ticker).toBe("USDC.e");
   });
 
   it("builds a source-swap hop from composed route metadata", () => {

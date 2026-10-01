@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from "react";
+import { useConfig } from "wagmi";
 import { useGetChains } from "../../hooks/useGasBridgeAPI";
 import { useGasBridgeStore } from "../../redux/store/gasBridgeStore";
+import { toast } from "../../utils/toastHelper";
 import EL from "../../assets/images/emp-logo.png";
 import { Search } from "lucide-react";
 
@@ -185,19 +187,30 @@ const ChainModal = ({
 ---------------------------------- */
 const ChainSelector = ({ onSwitch, setIsChainModalOpen }) => {
   const { data: chains, isLoading, error } = useGetChains();
+  const { chains: wagmiChains } = useConfig();
   const { fromChainId, toChainId, setFromChain, setToChain } =
     useGasBridgeStore();
 
   const [activeModal, setActiveModal] = useState(null);
 
+  // A source chain must accept gas.zip deposits and be configured in wagmi,
+  // otherwise we can't switch to it, read balances or track the tx receipt.
+  const isValidSourceChain = (chainId) =>
+    wagmiChains.some((c) => c.id === chainId) &&
+    !!chains?.some((c) => c.chain === chainId && c.inbound);
+
   useEffect(() => {
     if (onSwitch) {
       onSwitch(() => {
+        if (toChainId && !isValidSourceChain(toChainId)) {
+          toast.error("This chain is not supported as a source chain.");
+          return;
+        }
         setFromChain(toChainId);
         setToChain(fromChainId);
       });
     }
-  }, [fromChainId, toChainId]);
+  }, [fromChainId, toChainId, chains, wagmiChains]);
 
   if (isLoading)
     return (
@@ -230,6 +243,10 @@ const ChainSelector = ({ onSwitch, setIsChainModalOpen }) => {
       shortName,
     };
   });
+
+  const sourceChains = formattedChains.filter((c) =>
+    isValidSourceChain(c.chain),
+  );
 
   const fromChain = formattedChains.find((c) => c.chain === fromChainId);
   const toChain = formattedChains.find((c) => c.chain === toChainId);
@@ -309,7 +326,7 @@ const ChainSelector = ({ onSwitch, setIsChainModalOpen }) => {
           setActiveModal(null);
           setIsChainModalOpen(false);
         }}
-        chains={formattedChains}
+        chains={sourceChains}
         selectedChainId={fromChainId}
         onSelectChain={setFromChain}
         title="Select Source Chain"

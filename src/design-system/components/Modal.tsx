@@ -6,6 +6,12 @@
 //   - Eyebrow (orange uppercase) + serif italic accent option in title
 //   - Smoother entrance: backdrop fade + card translate-up + scale-in
 //   - Persistent variant for confirm-style modals (no backdrop dismiss)
+//
+// `theme="slab"` opt-in: the flat/hairline chrome ported from the locked
+// prototype's `.pk` picker card (public/swap-experience.html) — flat card,
+// 1px hairline border, no ambient glow, a 2px brandedge top strip + compact
+// mark-and-label header instead of brackets. Slab colours still read the
+// `--widget-*` embed-theme vars so darker/midnight embeds keep their look.
 
 import { ReactNode, useEffect } from "react";
 import { createPortal } from "react-dom";
@@ -25,6 +31,8 @@ interface ModalProps {
   persistent?: boolean;
   /** Disable corner brackets (for picker/list modals where they're noisy) */
   bracketless?: boolean;
+  /** "slab" = flat/hairline chrome from the locked prototype's picker card. Default = current bracket/gradient chrome. */
+  theme?: "default" | "slab";
 }
 
 export default function Modal({
@@ -39,7 +47,9 @@ export default function Modal({
   hideClose = false,
   persistent = false,
   bracketless = false,
+  theme = "default",
 }: ModalProps) {
+  const slab = theme === "slab";
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -63,10 +73,11 @@ export default function Modal({
       style={{
         position: "fixed",
         inset: 0,
-        background:
-          "radial-gradient(ellipse 80% 70% at 50% 35%, rgba(var(--widget-primary-rgb, 255, 138, 0), 0.08) 0%, transparent 60%), var(--widget-backdrop, rgba(2,2,8,0.82))",
-        backdropFilter: "blur(16px)",
-        WebkitBackdropFilter: "blur(16px)",
+        background: slab
+          ? "var(--widget-backdrop, rgba(3,3,7,0.76))"
+          : "radial-gradient(ellipse 80% 70% at 50% 35%, rgba(var(--widget-primary-rgb, 255, 138, 0), 0.08) 0%, transparent 60%), var(--widget-backdrop, rgba(2,2,8,0.82))",
+        backdropFilter: slab ? "blur(8px)" : "blur(16px)",
+        WebkitBackdropFilter: slab ? "blur(8px)" : "blur(16px)",
         zIndex: 100,
         display: "flex",
         alignItems: "center",
@@ -83,12 +94,14 @@ export default function Modal({
           width: "100%",
           maxWidth,
           maxHeight: "90vh",
-          background:
-            "var(--widget-modal-bg, linear-gradient(135deg, rgba(20,20,32,0.85) 0%, rgba(8,8,16,0.95) 100%))",
-          border: "1px solid rgba(255,255,255,0.10)",
-          borderRadius: 8,
-          boxShadow:
-            "0 36px 100px rgba(0,0,0,0.55), 0 0 80px rgba(var(--widget-primary-rgb, 255, 138, 0), 0.08), inset 0 1px 0 rgba(255,255,255,0.04)",
+          background: slab
+            ? "var(--widget-modal-bg, #0a0a12)"
+            : "var(--widget-modal-bg, linear-gradient(135deg, rgba(20,20,32,0.85) 0%, rgba(8,8,16,0.95) 100%))",
+          border: slab ? "1px solid rgba(255,255,255,0.11)" : "1px solid rgba(255,255,255,0.10)",
+          borderRadius: slab ? 6 : 8,
+          boxShadow: slab
+            ? "0 20px 50px rgba(0,0,0,0.6)"
+            : "0 36px 100px rgba(0,0,0,0.55), 0 0 80px rgba(var(--widget-primary-rgb, 255, 138, 0), 0.08), inset 0 1px 0 rgba(255,255,255,0.04)",
           color: "#fff",
           fontFamily: "Inter, sans-serif",
           display: "flex",
@@ -97,34 +110,54 @@ export default function Modal({
           overflow: "hidden",
         }}
       >
-        {/* Ambient gradient wash from top-right corner */}
-        <span
-          aria-hidden
-          style={{
-            position: "absolute",
-            inset: 0,
-            background:
-              "radial-gradient(ellipse 80% 60% at 100% 0%, rgba(var(--widget-primary-rgb, 255, 138, 0), 0.10) 0%, transparent 60%)",
-            pointerEvents: "none",
-          }}
-        />
+        {/* Ambient gradient wash + brand-mark watermark — default theme only.
+            Slab carries the mark once, in its header (one branding device per surface). */}
+        {!slab && (
+          <>
+            <span
+              aria-hidden
+              style={{
+                position: "absolute",
+                inset: 0,
+                background:
+                  "radial-gradient(ellipse 80% 60% at 100% 0%, rgba(var(--widget-primary-rgb, 255, 138, 0), 0.10) 0%, transparent 60%)",
+                pointerEvents: "none",
+              }}
+            />
+            <span
+              aria-hidden
+              style={{
+                position: "absolute",
+                bottom: -22,
+                right: -22,
+                pointerEvents: "none",
+                transform: "rotate(-8deg)",
+              }}
+            >
+              <BrandMark size={180} color="var(--widget-primary, #FF8A00)" opacity={0.055} />
+            </span>
+          </>
+        )}
 
-        {/* Subtle EmpX brand-mark watermark — bottom-right interior */}
-        <span
-          aria-hidden
-          style={{
-            position: "absolute",
-            bottom: -22,
-            right: -22,
-            pointerEvents: "none",
-            transform: "rotate(-8deg)",
-          }}
-        >
-          <BrandMark size={180} color="var(--widget-primary, #FF8A00)" opacity={0.055} />
-        </span>
+        {/* Brandedge — 2px top strip, slab theme's replacement for corner brackets */}
+        {slab && (
+          <span
+            aria-hidden
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              height: 2,
+              background:
+                "linear-gradient(90deg, var(--widget-primary, #FF8A00) 0%, color-mix(in srgb, var(--widget-primary, #FF8A00) 48%, black) 42%, transparent 100%)",
+              pointerEvents: "none",
+            }}
+          />
+        )}
 
-        {/* Corner brackets — top-left + bottom-right */}
-        {!bracketless && (
+        {/* Corner brackets — top-left + bottom-right — default theme only */}
+        {!slab && !bracketless && (
           <>
             <span
               aria-hidden
@@ -159,46 +192,78 @@ export default function Modal({
 
         {(title || eyebrow || headerExtra || !hideClose) && (
           <header
-            style={{
-              position: "relative",
-              padding: "22px 24px 16px",
-              borderBottom: "1px solid rgba(255,255,255,0.06)",
-              display: "flex",
-              alignItems: "flex-start",
-              justifyContent: "space-between",
-              gap: 18,
-              zIndex: 1,
-            }}
+            style={
+              slab
+                ? {
+                    position: "relative",
+                    padding: "16px 18px 13px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 18,
+                    zIndex: 1,
+                  }
+                : {
+                    position: "relative",
+                    padding: "22px 24px 16px",
+                    borderBottom: "1px solid rgba(255,255,255,0.06)",
+                    display: "flex",
+                    alignItems: "flex-start",
+                    justifyContent: "space-between",
+                    gap: 18,
+                    zIndex: 1,
+                  }
+            }
           >
-            <div style={{ flex: 1, minWidth: 0 }}>
-              {eyebrow && (
-                <p
-                  style={{
-                    fontSize: 10,
-                    fontWeight: 700,
-                    letterSpacing: "0.40em",
-                    color: "var(--widget-primary, #FF8A00)",
-                    textTransform: "uppercase",
-                    margin: "0 0 8px",
-                  }}
-                >
-                  {eyebrow}
-                </p>
+            <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: slab ? 9 : 0 }}>
+              {slab && (
+                <span aria-hidden style={{ display: "inline-flex" }}>
+                  <BrandMark size={19} opacity={1} />
+                </span>
               )}
-              {title && (
-                <h2
-                  style={{
-                    fontFamily: "'Space Grotesk', sans-serif",
-                    fontSize: 24,
-                    fontWeight: 400,
-                    letterSpacing: "-0.025em",
-                    margin: 0,
-                    lineHeight: 1.1,
-                  }}
-                >
-                  {title}
-                </h2>
-              )}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                {!slab && eyebrow && (
+                  <p
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 700,
+                      letterSpacing: "0.40em",
+                      color: "var(--widget-primary, #FF8A00)",
+                      textTransform: "uppercase",
+                      margin: "0 0 8px",
+                    }}
+                  >
+                    {eyebrow}
+                  </p>
+                )}
+                {title && (
+                  <h2
+                    style={
+                      slab
+                        ? {
+                            fontFamily: "Inter, sans-serif",
+                            fontSize: 11,
+                            fontWeight: 700,
+                            letterSpacing: "0.34em",
+                            textTransform: "uppercase",
+                            color: "rgba(255,255,255,0.94)",
+                            margin: 0,
+                            lineHeight: 1.2,
+                          }
+                        : {
+                            fontFamily: "'Space Grotesk', sans-serif",
+                            fontSize: 24,
+                            fontWeight: 400,
+                            letterSpacing: "-0.025em",
+                            margin: 0,
+                            lineHeight: 1.1,
+                          }
+                    }
+                  >
+                    {title}
+                  </h2>
+                )}
+              </div>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
               {headerExtra}
@@ -207,29 +272,46 @@ export default function Modal({
                   type="button"
                   aria-label="Close"
                   onClick={onClose}
-                  style={{
-                    background: "rgba(255,255,255,0.05)",
-                    border: "1px solid rgba(255,255,255,0.10)",
-                    color: "rgba(255,255,255,0.65)",
-                    cursor: "pointer",
-                    padding: 0,
-                    width: 28,
-                    height: 28,
-                    borderRadius: 4,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    transition: "color 160ms ease, background 160ms ease, border-color 160ms ease",
-                  }}
+                  style={
+                    slab
+                      ? {
+                          background: "transparent",
+                          border: "none",
+                          color: "rgba(255,255,255,0.36)",
+                          cursor: "pointer",
+                          padding: 0,
+                          width: 26,
+                          height: 26,
+                          borderRadius: 3,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          transition: "color 160ms ease, background 160ms ease",
+                        }
+                      : {
+                          background: "rgba(255,255,255,0.05)",
+                          border: "1px solid rgba(255,255,255,0.10)",
+                          color: "rgba(255,255,255,0.65)",
+                          cursor: "pointer",
+                          padding: 0,
+                          width: 28,
+                          height: 28,
+                          borderRadius: 4,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          transition: "color 160ms ease, background 160ms ease, border-color 160ms ease",
+                        }
+                  }
                   onMouseEnter={(e) => {
                     e.currentTarget.style.color = "#fff";
-                    e.currentTarget.style.background = "rgba(255,255,255,0.10)";
-                    e.currentTarget.style.borderColor = "rgba(var(--widget-primary-rgb, 255, 138, 0), 0.40)";
+                    e.currentTarget.style.background = slab ? "rgba(255,255,255,0.05)" : "rgba(255,255,255,0.10)";
+                    if (!slab) e.currentTarget.style.borderColor = "rgba(var(--widget-primary-rgb, 255, 138, 0), 0.40)";
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.color = "rgba(255,255,255,0.65)";
-                    e.currentTarget.style.background = "rgba(255,255,255,0.05)";
-                    e.currentTarget.style.borderColor = "rgba(255,255,255,0.10)";
+                    e.currentTarget.style.color = slab ? "rgba(255,255,255,0.36)" : "rgba(255,255,255,0.65)";
+                    e.currentTarget.style.background = slab ? "transparent" : "rgba(255,255,255,0.05)";
+                    if (!slab) e.currentTarget.style.borderColor = "rgba(255,255,255,0.10)";
                   }}
                 >
                   <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
@@ -246,7 +328,15 @@ export default function Modal({
           </header>
         )}
 
-        <div style={{ padding: "18px 24px", overflowY: "auto", flex: 1, position: "relative", zIndex: 1 }}>
+        <div
+          style={{
+            padding: slab ? "14px 18px 18px" : "18px 24px",
+            overflowY: "auto",
+            flex: 1,
+            position: "relative",
+            zIndex: 1,
+          }}
+        >
           {children}
         </div>
 

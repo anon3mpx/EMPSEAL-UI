@@ -236,7 +236,7 @@ export default function WidgetSwapPage() {
     onSelectWallet,
     disconnect,
     switchChain,
-  } = useWalletConnection();
+  } = useWalletConnection({ includeNonEvm: false });
   const { nativeBalance, nativeTicker, nativeBalanceUSD } = useV2Balances();
   const setSelectedChainId = useSetSelectedChainId();
 
@@ -698,9 +698,18 @@ export default function WidgetSwapPage() {
             />
           )}
           {config.showPoweredBy && (
-            <span style={{ fontSize: 10, color: "rgba(255,255,255,0.45)", letterSpacing: "0.12em", textTransform: "uppercase" }}>
+            // Opens in a new tab: the embed lives in a partner's iframe, so
+            // navigating in place would load EmpX inside their page.
+            <a
+              href="https://empx.io/"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ fontSize: 10, color: "rgba(255,255,255,0.45)", letterSpacing: "0.12em", textTransform: "uppercase", textDecoration: "none" }}
+              onMouseEnter={(e) => { e.currentTarget.style.color = "rgba(255,255,255,0.80)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.color = "rgba(255,255,255,0.45)"; }}
+            >
               Powered by EmpX
-            </span>
+            </a>
           )}
         </div>
 

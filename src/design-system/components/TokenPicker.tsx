@@ -1,12 +1,15 @@
-// ─── TokenPicker — creative token selection modal ──────────────────────────
+// ─── TokenPicker — token selection modal, slab theme ───────────────────────
 //
-// Adds chain filter tabs (All / per-chain), recent/frequent quick-picks with
-// logo+ticker chip, refined list rows with category badges.
+// Chain filter tabs (All / per-chain), recent quick-pick chips, and list rows
+// split into "Your balances" / "All tokens". Chrome follows the locked
+// prototype's picker (public/swap-experience.html): slab modal, inset search
+// with a left accent bar, underline tabs, flat chips, square chain badge.
 
 import { ReactNode, useMemo, useState } from "react";
 import Modal from "./Modal";
 import Pill from "./Pill";
 import TokenLogo from "./TokenLogo";
+import ChainLogo from "./ChainLogo";
 
 export interface PickerToken {
   tokenKey?: string;
@@ -81,20 +84,32 @@ export default function TokenPicker({
     });
   }, [filtered, showBalances]);
 
+  // "Your balances" / "All tokens" split — ported from the draft's `.ghead`
+  // grouping. Only when balances are shown; otherwise one flat list.
+  const held = useMemo(
+    () => (showBalances ? sorted.filter((t) => (t.balanceUSD ?? 0) > 0) : []),
+    [sorted, showBalances],
+  );
+  const rest = useMemo(
+    () => (showBalances ? sorted.filter((t) => !((t.balanceUSD ?? 0) > 0)) : sorted),
+    [sorted, showBalances],
+  );
+
   return (
-    <Modal open={open} onClose={onClose} title={title} eyebrow="TOKEN" maxWidth={500}>
-      {/* Search */}
-      <div style={{ position: "relative", marginBottom: 14 }}>
+    <Modal open={open} onClose={onClose} title={title} eyebrow="TOKEN" maxWidth={500} theme="slab">
+      {/* Search — left accent bar inset, matching the draft's .search::before */}
+      <div style={{ position: "relative", marginBottom: 13, borderRadius: 4, overflow: "hidden", background: "rgba(255,255,255,0.03)" }}>
+        <span aria-hidden style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 2, background: "var(--widget-primary, #FF8A00)", opacity: 0.5 }} />
         <svg
-          width="14"
-          height="14"
+          width="13"
+          height="13"
           viewBox="0 0 14 14"
           style={{
             position: "absolute",
-            left: 14,
+            left: 13,
             top: "50%",
             transform: "translateY(-50%)",
-            color: "rgba(255,255,255,0.40)",
+            color: "rgba(255,255,255,0.36)",
           }}
         >
           <circle cx="6" cy="6" r="4.5" stroke="currentColor" strokeWidth="1.5" fill="none" />
@@ -107,23 +122,13 @@ export default function TokenPicker({
           placeholder="Search ticker, name, or paste address"
           style={{
             width: "100%",
-            padding: "11px 14px 11px 38px",
-            background: "rgba(255,255,255,0.03)",
-            border: "1px solid rgba(255,255,255,0.10)",
-            borderRadius: 5,
+            padding: "11px 12px 11px 34px",
+            background: "transparent",
+            border: "none",
             color: "#fff",
             fontFamily: "Inter, sans-serif",
-            fontSize: 13,
+            fontSize: 12.5,
             outline: "none",
-            transition: "border-color 160ms ease, background 160ms ease",
-          }}
-          onFocus={(e) => {
-            e.currentTarget.style.borderColor = "rgba(var(--widget-primary-rgb, 255, 138, 0), 0.40)";
-            e.currentTarget.style.background = "rgba(255,255,255,0.05)";
-          }}
-          onBlur={(e) => {
-            e.currentTarget.style.borderColor = "rgba(255,255,255,0.10)";
-            e.currentTarget.style.background = "rgba(255,255,255,0.03)";
           }}
         />
       </div>
@@ -155,10 +160,10 @@ export default function TokenPicker({
         <div
           style={{
             display: "flex",
-            gap: 4,
+            gap: 20,
             marginBottom: 14,
             overflowX: "auto",
-            paddingBottom: 4,
+            borderBottom: "1px solid rgba(255,255,255,0.07)",
           }}
         >
           <ChainTab name="ALL" active={activeChain === "ALL"} onClick={() => setActiveChain("ALL")} />
@@ -189,37 +194,37 @@ export default function TokenPicker({
           >
             Recent
           </p>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 16 }}>
-            {recent.map((t) => (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 16 }}>
+            {recent.map((t) => {
+              const isSelected = selected === (t.address || t.ticker);
+              return (
               <button
                 key={t.ticker}
                 type="button"
                 onClick={() => onSelect(t)}
                 style={{
+                  // Flat chip from the draft's `.chip` — no border box, state
+                  // reads from the background wash alone. The logo stays (the
+                  // draft's chip is text-only) so identity matches the list.
                   display: "inline-flex",
                   alignItems: "center",
                   gap: 6,
-                  padding: "5px 11px 5px 7px",
-                  background: "rgba(255,255,255,0.045)",
-                  border: "1px solid rgba(255,255,255,0.08)",
-                  borderRadius: 999,
-                  color: "rgba(255,255,255,0.85)",
+                  padding: "5px 10px 5px 6px",
+                  background: isSelected ? "rgba(var(--widget-primary-rgb, 255, 138, 0), 0.15)" : "rgba(255,255,255,0.035)",
+                  border: "none",
+                  borderRadius: 3,
+                  color: isSelected ? "var(--widget-primary, #FF8A00)" : "rgba(255,255,255,0.85)",
                   fontFamily: "Inter, sans-serif",
-                  fontSize: 11,
-                  fontWeight: 600,
-                  letterSpacing: "0.06em",
+                  fontSize: 10.5,
+                  fontWeight: 500,
                   cursor: "pointer",
-                  transition: "all 160ms ease",
+                  transition: "all 150ms ease",
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.background = "rgba(var(--widget-primary-rgb, 255, 138, 0), 0.10)";
-                  e.currentTarget.style.borderColor = "rgba(var(--widget-primary-rgb, 255, 138, 0), 0.35)";
-                  e.currentTarget.style.color = "var(--widget-primary, #FF8A00)";
+                  if (!isSelected) e.currentTarget.style.background = "rgba(var(--widget-primary-rgb, 255, 138, 0), 0.10)";
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.background = "rgba(255,255,255,0.045)";
-                  e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)";
-                  e.currentTarget.style.color = "rgba(255,255,255,0.85)";
+                  if (!isSelected) e.currentTarget.style.background = "rgba(255,255,255,0.035)";
                 }}
               >
                 {/* Compact tile for the recents row — TokenLogo tries TrustWallet image first. */}
@@ -229,11 +234,12 @@ export default function TokenPicker({
                   address={t.address}
                   logoUrl={t.logoUrl}
                   isNative={t.isNative}
-                  size={18}
+                  size={16}
                 />
                 {t.ticker}
               </button>
-            ))}
+              );
+            })}
           </div>
         </>
       )}
@@ -255,130 +261,187 @@ export default function TokenPicker({
             </p>
           </div>
         ) : (
-          sorted.map((token) => {
-            const isSelected = selected === (token.address || token.ticker);
-            return (
-              <button
+          <>
+            {held.length > 0 && <GroupHeader label="Your balances" />}
+            {held.map((token) => (
+              <TokenRow
                 key={(token.address || "") + token.ticker + (token.chainName || "")}
-                type="button"
-                onClick={() => onSelect(token)}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 12,
-                  padding: "11px 10px",
-                  background: isSelected ? "rgba(var(--widget-primary-rgb, 255, 138, 0), 0.06)" : "transparent",
-                  border: "none",
-                  borderLeft: isSelected ? "2px solid var(--widget-primary, #FF8A00)" : "2px solid transparent",
-                  width: "100%",
-                  cursor: "pointer",
-                  color: "#fff",
-                  transition: "background 140ms ease",
-                  textAlign: "left",
-                }}
-                onMouseEnter={(e) => {
-                  if (!isSelected) e.currentTarget.style.background = "rgba(255,255,255,0.035)";
-                }}
-                onMouseLeave={(e) => {
-                  if (!isSelected) e.currentTarget.style.background = "transparent";
-                }}
-              >
-                {/* Main row — TokenLogo (image + ticker fallback) plus optional chain dot overlay. */}
-                <div style={{ position: "relative", flexShrink: 0 }}>
-                  <TokenLogo
-                    ticker={token.ticker}
-                    chainId={token.chainId}
-                    address={token.address}
-                    logoUrl={token.logoUrl}
-                    isNative={token.isNative}
-                    size={34}
-                  />
-                  {token.chainColor && (
-                    <span
-                      aria-hidden
-                      style={{
-                        position: "absolute",
-                        right: -2,
-                        bottom: -2,
-                        width: 12,
-                        height: 12,
-                        borderRadius: "50%",
-                        background: token.chainColor,
-                        border: "2px solid #05050c",
-                      }}
-                    />
-                  )}
-                </div>
-
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-                    <span style={{ fontWeight: 600, fontSize: 13.5 }}>{token.ticker}</span>
-                    {showBadges && token.badge && (
-                      <Pill
-                        variant={
-                          token.badge === "VERIFIED"
-                            ? "success"
-                            : token.badge === "TRENDING"
-                            ? "accent"
-                            : token.badge === "LP"
-                            ? "info"
-                            : "default"
-                        }
-                      >
-                        {token.badge}
-                      </Pill>
-                    )}
-                  </div>
-                  {(token.name || token.chainName) && (
-                    <p
-                      style={{
-                        margin: "2px 0 0",
-                        fontSize: 11,
-                        color: "rgba(255,255,255,0.45)",
-                        whiteSpace: "nowrap",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                      }}
-                    >
-                      {token.name}
-                      {token.chainName && (
-                        <span style={{ color: "rgba(255,255,255,0.30)" }}> · {token.chainName}</span>
-                      )}
-                    </p>
-                  )}
-                </div>
-
-                {showBalances && token.balance && (
-                  <div style={{ textAlign: "right" }}>
-                    <p
-                      style={{
-                        margin: 0,
-                        fontSize: 13,
-                        fontWeight: 500,
-                        fontFamily: "'Space Grotesk', sans-serif",
-                      }}
-                    >
-                      {token.balance}
-                    </p>
-                    {token.balanceUSD !== undefined && token.balanceUSD > 0 && (
-                      <p
-                        style={{
-                          margin: "2px 0 0",
-                          fontSize: 11,
-                          color: "rgba(255,255,255,0.40)",
-                        }}
-                      >
-                        ${token.balanceUSD.toLocaleString("en-US", { maximumFractionDigits: 2 })}
-                      </p>
-                    )}
-                  </div>
-                )}
-              </button>
-            );
-          })
+                token={token}
+                selected={selected}
+                onSelect={onSelect}
+                showBalances={showBalances}
+                showBadges={showBadges}
+              />
+            ))}
+            {showBalances && rest.length > 0 && <GroupHeader label="All tokens" />}
+            {rest.map((token) => (
+              <TokenRow
+                key={(token.address || "") + token.ticker + (token.chainName || "")}
+                token={token}
+                selected={selected}
+                onSelect={onSelect}
+                showBalances={showBalances}
+                showBadges={showBadges}
+              />
+            ))}
+          </>
         )}
       </div>
     </Modal>
+  );
+}
+
+function GroupHeader({ label }: { label: string }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 9, padding: "13px 2px 8px" }}>
+      <span style={{ fontSize: 8.5, fontWeight: 600, letterSpacing: "0.22em", textTransform: "uppercase", color: "rgba(255,255,255,0.22)", whiteSpace: "nowrap" }}>
+        {label}
+      </span>
+      <span style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.05)" }} />
+    </div>
+  );
+}
+
+function TokenRow({
+  token,
+  selected,
+  onSelect,
+  showBalances,
+  showBadges,
+}: {
+  token: PickerToken;
+  selected?: string;
+  onSelect: (token: PickerToken) => void;
+  showBalances: boolean;
+  showBadges: boolean;
+}) {
+  const isSelected = selected === (token.address || token.ticker);
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect(token)}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 12,
+        padding: "11px 10px",
+        background: isSelected ? "rgba(var(--widget-primary-rgb, 255, 138, 0), 0.06)" : "transparent",
+        border: "none",
+        borderLeft: isSelected ? "2px solid var(--widget-primary, #FF8A00)" : "2px solid transparent",
+        width: "100%",
+        cursor: "pointer",
+        color: "#fff",
+        transition: "background 140ms ease",
+        textAlign: "left",
+      }}
+      onMouseEnter={(e) => {
+        if (!isSelected) e.currentTarget.style.background = "rgba(255,255,255,0.035)";
+      }}
+      onMouseLeave={(e) => {
+        if (!isSelected) e.currentTarget.style.background = "transparent";
+      }}
+    >
+      {/* Main row — TokenLogo with a real chain-logo badge overlay (not a
+          flat colour dot), matching the draft's row: a 14px square chain
+          icon at the token logo's bottom-right corner with a dark ring. */}
+      <div style={{ position: "relative", flexShrink: 0 }}>
+        <TokenLogo
+          ticker={token.ticker}
+          chainId={token.chainId}
+          address={token.address}
+          logoUrl={token.logoUrl}
+          isNative={token.isNative}
+          size={34}
+        />
+        {token.chainId !== undefined && (
+          <span
+            aria-hidden
+            style={{
+              position: "absolute",
+              right: -3,
+              bottom: -3,
+              width: 14,
+              height: 14,
+              borderRadius: 4,
+              overflow: "hidden",
+              border: "1.5px solid #0a0a12",
+              display: "flex",
+            }}
+          >
+            <ChainLogo
+              symbol={token.chainName?.slice(0, 3).toUpperCase() || "?"}
+              chainId={token.chainId}
+              bg={token.chainColor || "#888"}
+              size={14}
+            />
+          </span>
+        )}
+      </div>
+
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+          <span style={{ fontWeight: 600, fontSize: 13.5 }}>{token.ticker}</span>
+          {showBadges && token.badge && (
+            <Pill
+              variant={
+                token.badge === "VERIFIED"
+                  ? "success"
+                  : token.badge === "TRENDING"
+                  ? "accent"
+                  : token.badge === "LP"
+                  ? "info"
+                  : "default"
+              }
+            >
+              {token.badge}
+            </Pill>
+          )}
+        </div>
+        {(token.name || token.chainName) && (
+          <p
+            style={{
+              margin: "2px 0 0",
+              fontSize: 11,
+              color: "rgba(255,255,255,0.45)",
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+            }}
+          >
+            {token.name}
+            {token.chainName && (
+              <span style={{ color: "rgba(255,255,255,0.30)" }}> · {token.chainName}</span>
+            )}
+          </p>
+        )}
+      </div>
+
+      {showBalances && token.balance && (
+        <div style={{ textAlign: "right" }}>
+          <p
+            style={{
+              margin: 0,
+              fontSize: 13,
+              fontWeight: 500,
+              fontFamily: "'Space Grotesk', sans-serif",
+            }}
+          >
+            {token.balance}
+          </p>
+          {token.balanceUSD !== undefined && token.balanceUSD > 0 && (
+            <p
+              style={{
+                margin: "2px 0 0",
+                fontSize: 11,
+                color: "rgba(255,255,255,0.40)",
+              }}
+            >
+              ${token.balanceUSD.toLocaleString("en-US", { maximumFractionDigits: 2 })}
+            </p>
+          )}
+        </div>
+      )}
+    </button>
   );
 }
 
@@ -398,32 +461,31 @@ function ChainTab({
       type="button"
       onClick={onClick}
       style={{
+        position: "relative",
         display: "inline-flex",
         alignItems: "center",
         gap: 6,
-        padding: "6px 11px",
-        background: active ? "rgba(var(--widget-primary-rgb, 255, 138, 0), 0.10)" : "transparent",
-        border: `1px solid ${active ? "rgba(var(--widget-primary-rgb, 255, 138, 0), 0.45)" : "rgba(255,255,255,0.08)"}`,
-        borderRadius: 3,
-        color: active ? "var(--widget-primary, #FF8A00)" : "rgba(255,255,255,0.65)",
+        padding: "0 0 9px",
+        margin: "0 0 -1px",
+        background: "transparent",
+        border: "none",
+        color: active ? "var(--widget-primary, #FF8A00)" : "rgba(255,255,255,0.36)",
         fontFamily: "Inter, sans-serif",
         fontSize: 10,
-        fontWeight: 700,
-        letterSpacing: "0.25em",
+        fontWeight: 600,
+        letterSpacing: "0.16em",
         textTransform: "uppercase",
         cursor: "pointer",
         whiteSpace: "nowrap",
-        transition: "all 160ms ease",
+        transition: "color 160ms ease",
       }}
       onMouseEnter={(e) => {
         if (active) return;
-        e.currentTarget.style.borderColor = "rgba(255,255,255,0.20)";
-        e.currentTarget.style.color = "#fff";
+        e.currentTarget.style.color = "rgba(255,255,255,0.65)";
       }}
       onMouseLeave={(e) => {
         if (active) return;
-        e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)";
-        e.currentTarget.style.color = "rgba(255,255,255,0.65)";
+        e.currentTarget.style.color = "rgba(255,255,255,0.36)";
       }}
     >
       {color && (
@@ -434,11 +496,23 @@ function ChainTab({
             height: 6,
             borderRadius: "50%",
             background: color,
-            boxShadow: `0 0 6px ${color}`,
           }}
         />
       )}
       {name}
+      {active && (
+        <span
+          aria-hidden
+          style={{
+            position: "absolute",
+            left: 0,
+            right: 0,
+            bottom: -1,
+            height: 1.5,
+            background: "var(--widget-primary, #FF8A00)",
+          }}
+        />
+      )}
     </button>
   );
 }

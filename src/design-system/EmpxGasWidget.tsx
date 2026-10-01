@@ -1,8 +1,10 @@
 import { cloneElement, isValidElement, type ReactNode } from "react";
+import { useQuoteLifecycle } from "./hooks/useQuoteLifecycle";
 import {
   ChainPill,
   LogoFrame,
   MicroLabel,
+  QuoteStatusRow,
   ToggleRow,
   WidgetCTA,
   WidgetShell,
@@ -29,6 +31,18 @@ export interface GasDestination {
   chain: GasChain;
   usd: number;
   nativeOut: number;
+}
+
+export interface GasQuoteTiming {
+  issuedAt?: number | null;
+  validMs?: number | null;
+  /** Offered once the quote expires — Gas.zip quotes don't auto-refresh. */
+  onRefresh: () => void;
+}
+
+export interface GasNotice {
+  tone: "info" | "warn" | "error";
+  text: string;
 }
 
 export interface EmpxGasWidgetProps {
@@ -60,7 +74,18 @@ export interface EmpxGasWidgetProps {
   onSubmit: () => void;
   walletConnected: boolean;
   onConnect: () => void;
+
+  /** Quote age + refresh. Omit to hide the quote row. */
+  quote?: GasQuoteTiming;
+  /** One status line under the CTA (validation hints). */
+  notice?: GasNotice;
 }
+
+const NOTICE_COLOR: Record<GasNotice["tone"], string> = {
+  info: wk.t3,
+  warn: "#FFB347",
+  error: "#FCA5A5",
+};
 
 export default function EmpxGasWidget(props: EmpxGasWidgetProps) {
   const {
@@ -88,7 +113,15 @@ export default function EmpxGasWidget(props: EmpxGasWidgetProps) {
     onSubmit,
     walletConnected,
     onConnect,
+    quote,
+    notice,
   } = props;
+
+  const lifecycle = useQuoteLifecycle({
+    issuedAt: quote?.issuedAt,
+    validMs: quote?.validMs,
+    onRefresh: quote?.onRefresh,
+  });
 
   const amountEntered = destination.usd > 0;
   const ctaState: CtaState = !walletConnected
@@ -313,6 +346,25 @@ export default function EmpxGasWidget(props: EmpxGasWidgetProps) {
           onClick={ctaState === "connect" ? onConnect : ctaState === "ready" ? onSubmit : undefined}
         />
       </div>
+
+      {lifecycle.active && (
+        <QuoteStatusRow
+          ageSeconds={lifecycle.ageSeconds}
+          totalSeconds={lifecycle.totalSeconds}
+          canRefresh={lifecycle.canRefresh}
+          refreshing={lifecycle.refreshing}
+          onRefresh={lifecycle.refresh}
+        />
+      )}
+
+      {notice && (
+        <p
+          role={notice.tone === "info" ? "status" : "alert"}
+          style={{ margin: "11px 0 0", fontSize: 10, lineHeight: 1.55, color: NOTICE_COLOR[notice.tone] }}
+        >
+          {notice.text}
+        </p>
+      )}
     </WidgetShell>
   );
 }

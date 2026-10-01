@@ -1,3 +1,36 @@
+import type { LayerZeroQuoteDiagnostic } from "../api/contracts";
+
+export function layerZeroDiagnosticMessage(diagnostics?: LayerZeroQuoteDiagnostic[]): string | null {
+  const diagnostic = diagnostics?.find(item => item.provider === "layerzero_value_transfer_api");
+  if (!diagnostic) return null;
+  switch (diagnostic.code) {
+    case "unsupported_route": return "LayerZero does not support this token pair, even if both tokens appear in its catalog.";
+    case "authentication_failed": return "LayerZero quotes are unavailable because provider authentication failed.";
+    case "rate_limited": return "LayerZero is rate limiting quotes. Wait a moment and retry.";
+    case "timeout": return "LayerZero's quote request timed out. Please retry.";
+    case "unavailable": return "LayerZero quotes are temporarily unavailable. Please retry.";
+    case "invalid_response": return "LayerZero returned an incomplete quote. Please retry.";
+    case "quote_rejected": return `LayerZero: ${diagnostic.message || "No quote is available for this pair and amount."}`;
+  }
+  return null;
+}
+
+/**
+ * LayerZero diagnostic for the quote page. "No LayerZero route for this pair"
+ * (quote_rejected / unsupported_route) is noise when other rails returned
+ * offers, so it only shows when nothing quoted or a LayerZero offer is selected.
+ */
+export function layerZeroQuoteNotice(
+  diagnostics: LayerZeroQuoteDiagnostic[] | undefined,
+  { hasOffers, layerZeroSelected }: { hasOffers: boolean; layerZeroSelected: boolean },
+): string | null {
+  const diagnostic = diagnostics?.find(item => item.provider === "layerzero_value_transfer_api");
+  if (!diagnostic) return null;
+  const noRouteOnly = diagnostic.code === "quote_rejected" || diagnostic.code === "unsupported_route";
+  if (noRouteOnly && hasOffers && !layerZeroSelected) return null;
+  return layerZeroDiagnosticMessage(diagnostics);
+}
+
 function readErrorMessage(error: any): string | null {
   if (!error) return null;
 
@@ -24,6 +57,11 @@ function readErrorMessage(error: any): string | null {
 }
 
 export function mapCrossApiError(error: any): string {
+  const diagnostic = layerZeroDiagnosticMessage(error?.body?.providerDiagnostics);
+  if (diagnostic) return diagnostic;
+  if (error?.body?.error === "No route available for this pair") {
+    return "No provider returned a route for this token pair and amount.";
+  }
   if (error?.status === 409 && error?.body?.fallbackOfferSet) {
     return "Selected route expired. Please choose an updated route.";
   }
@@ -97,6 +135,12 @@ export function mapCrossApiError(error: any): string {
   }
   if (code.includes("INVALID_SELECTION_RESPONSE")) {
     return "The route response was incomplete. No transaction was sent.";
+  }
+  if (code.includes("SEQUENTIAL_PRIMARY_NOT_COMPOSABLE")) {
+    return "Multi-step routes cannot be combined with Gas Drop. Turn off Gas Drop or choose a one-step route.";
+  }
+  if (code.includes("GARDEN_NATIVE_SOURCE_NOT_COMPOSABLE")) {
+    return "Garden native routes cannot be combined with Gas Drop. Turn off Gas Drop or choose another route.";
   }
   if (code.includes("GARDEN_SOLANA_TRANSACTION_EXPIRED")) {
     return "Garden Solana transaction expired. Request a new quote and try again.";

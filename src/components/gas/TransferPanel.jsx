@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
-import { useAccount, useBalance } from "wagmi";
+import { useAccount, useBalance, useGasPrice } from "wagmi";
 import { useGasBridgeStore } from "../../redux/store/gasBridgeStore";
 import { useGetCalldataQuote } from "../../hooks/useGasBridgeAPI";
 import { useGasBridgeTx } from "../../hooks/useGasBridgeTx";
@@ -54,6 +54,9 @@ const WRAPPED_TOKENS = {
   324: "0x5AEa5775959fBC2557Cc8789bC1bf90A239D9a91", // WETH (zkSync)
 };
 
+// Gas units reserved (at current gas price) when using the percentage buttons
+const GAS_RESERVE_UNITS = 200_000n;
+
 // A simple debounce hook
 const useDebounce = (value, delay) => {
   const [debouncedValue, setDebouncedValue] = useState(value);
@@ -84,6 +87,7 @@ const TransferPanel = () => {
     address: connectedAddress,
     chainId: fromChainId,
   });
+  const { data: gasPrice } = useGasPrice({ chainId: fromChainId });
 
   // Set recipient to connected address by default
   useEffect(() => {
@@ -152,7 +156,18 @@ const TransferPanel = () => {
   const switchRef = useRef(null);
 
   const [selectedPercentage, setSelectedPercentage] = useState(null);
-  const balance = balanceData ? Number(balanceData.formatted) : 0;
+
+  // Leave enough native balance to pay for the deposit tx's gas. The deposit
+  // uses ~25k gas; the extra headroom covers wallet maxFee multipliers and L2 data fees.
+  const spendableWei =
+    balanceData && gasPrice
+      ? balanceData.value > gasPrice * GAS_RESERVE_UNITS
+        ? balanceData.value - gasPrice * GAS_RESERVE_UNITS
+        : 0n
+      : null;
+  const spendableFormatted =
+    spendableWei !== null ? formatEther(spendableWei) : "0";
+  const balance = Number(spendableFormatted);
 
   // Token price states for native tokens (from and to chains)
   const [fromTokenPrice, setFromTokenPrice] = useState(null);
@@ -179,7 +194,9 @@ const TransferPanel = () => {
   const handlePercentageChange = (percentage) => {
     if (!balance || balance <= 0) return;
 
-    const calculatedAmount = (balance * percentage) / 100;
+    const calculatedAmount = formatEther(
+      (spendableWei * BigInt(percentage)) / 100n,
+    );
 
     setSelectedPercentage(percentage);
     setAmount(truncateToSixDecimals(calculatedAmount));
@@ -196,9 +213,9 @@ const TransferPanel = () => {
 
     const numericValue = Number(value);
 
-    // Clamp amount to balance
+    // Clamp amount to the balance left after the gas reserve
     if (numericValue > balance) {
-      setAmount(truncateToSixDecimals(balanceData?.formatted || balance));
+      setAmount(truncateToSixDecimals(spendableFormatted));
       setSelectedPercentage(100);
       return;
     }

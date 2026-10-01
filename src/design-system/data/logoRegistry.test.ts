@@ -77,6 +77,15 @@ describe("tokenLogoCandidates", () => {
     expect(candidates).toContain("/icons/pls.svg");
   });
 
+  it("falls back to the home-chain icon for native coins without local artwork", () => {
+    expect(tokenLogoCandidates({ chainId: 0, ticker: "BTC", isNative: true }))
+      .toEqual(["https://icons.llamao.fi/icons/chains/rsz_bitcoin.jpg"]);
+    expect(tokenLogoCandidates({ chainId: 99, ticker: "SOL", isNative: true }))
+      .toEqual(["https://icons.llamao.fi/icons/chains/rsz_solana.jpg"]);
+    // Non-native tokens never borrow a chain icon.
+    expect(tokenLogoCandidates({ chainId: 1, ticker: "BTC" })).toEqual([]);
+  });
+
   it("deduplicates candidates and omits unusable addresses", () => {
     const candidates = tokenLogoCandidates({
       chainId: 42161,

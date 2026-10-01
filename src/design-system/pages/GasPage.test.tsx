@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import GasPage from "./GasPage";
 
 const wallet = vi.hoisted(() => ({ send: vi.fn(), balance: 1000000000000000000n }));
+const wagmiConfig = vi.hoisted(() => ({ chains: [{ id: 42161 }, { id: 8453 }] }));
 vi.mock("wagmi", () => ({
   useBalance: () => ({ data: { value: wallet.balance, formatted: "1" } }),
   useAccount: () => ({ chainId: 42161 }),
@@ -10,6 +11,8 @@ vi.mock("wagmi", () => ({
   useSwitchChain: () => ({ switchChainAsync: vi.fn() }),
   useSendTransaction: () => ({ sendTransactionAsync: wallet.send, isPending: false }),
   useWaitForTransactionReceipt: () => ({}),
+  useConfig: () => wagmiConfig,
+  useGasPrice: () => ({ data: 1000000000n }),
 }));
 vi.mock("../hooks/useWalletConnection", () => ({ useWalletConnection: () => ({
   walletState: { status: "connected", address: "0x1111111111111111111111111111111111111111", chain: { id: 42161, name: "Arbitrum", color: "#28A0F0" } }, walletOptions: [],

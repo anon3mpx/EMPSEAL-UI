@@ -11,7 +11,7 @@ import {
   getRailCapability,
   type OfferCapabilityContext,
 } from "../model/capabilities";
-import { isGardenNativeOffer } from "../model/quotes";
+import { getGasDropBlockReason } from "../model/quotes";
 
 const formatDisplayAmount = (value?: string, decimals = 18) => {
   if (!value) return "0";
@@ -186,18 +186,19 @@ export function CrossRouteList({
     : null;
   const hasGasOffers = gasOffers.length > 0;
   const capabilityContext = sourceWallet ? { sourceWallet } : undefined;
-  const selectedIsGardenNative = Boolean(
-    selectedOffer && isGardenNativeOffer(selectedOffer),
-  );
+  // Garden native, multi-step and explicit-only routes cannot be composed
+  // with a Gas.zip destination-gas leg.
+  const gasDropBlockReason = getGasDropBlockReason(selectedOffer);
+  const gasDropBlocked = gasDropBlockReason !== null;
 
   useEffect(() => {
-    if (selectedIsGardenNative && includeDestinationGas) {
+    if (gasDropBlocked && includeDestinationGas) {
       onIncludeDestinationGasChange?.(false);
     }
   }, [
+    gasDropBlocked,
     includeDestinationGas,
     onIncludeDestinationGasChange,
-    selectedIsGardenNative,
   ]);
 
   if (errorMessage) {
@@ -460,7 +461,8 @@ export function CrossRouteList({
               DESTINATION GAS RAIL
             </p>
             <p className="mt-2 text-[11px] text-white/35">
-              Optional second leg executed after the primary bridge route.
+              {gasDropBlockReason ??
+                "Optional second leg executed after the primary bridge route."}
             </p>
           </div>
 
@@ -484,14 +486,10 @@ export function CrossRouteList({
               onClick={() =>
                 onIncludeDestinationGasChange?.(!includeDestinationGas)
               }
-              disabled={selectedIsGardenNative}
-              title={
-                selectedIsGardenNative
-                  ? "Garden native routes cannot be composed with Gas.zip."
-                  : undefined
-              }
+              disabled={gasDropBlocked}
+              title={gasDropBlockReason ?? undefined}
               className={`border px-3 py-2 text-[10px] font-bold uppercase tracking-[0.12em] transition-colors ${
-                selectedIsGardenNative
+                gasDropBlocked
                   ? "cursor-not-allowed border-white/[0.06] bg-white/[0.03] text-white/20"
                   : includeDestinationGas
                   ? "border-[#FF8A00]/35 bg-[#FF8A00]/12 text-[#FF8A00]"
@@ -513,9 +511,9 @@ export function CrossRouteList({
                 <button
                   key={offer.offerId}
                   type="button"
-                  disabled={selectedIsGardenNative}
+                  disabled={gasDropBlocked}
                   onClick={() => {
-                    if (selectedIsGardenNative) return;
+                    if (gasDropBlocked) return;
                     onSelectGasOffer?.(offer.offerId);
                     onIncludeDestinationGasChange?.(true);
                   }}

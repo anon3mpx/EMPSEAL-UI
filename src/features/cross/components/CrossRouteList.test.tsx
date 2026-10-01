@@ -175,6 +175,53 @@ describe("CrossRouteList", () => {
     expect(onIncludeDestinationGasChange).toHaveBeenCalledWith(true);
   });
 
+  it("blocks destination gas for a selected multi-step route alongside Gas.zip offers", () => {
+    const onIncludeDestinationGasChange = vi.fn();
+    const onSelectGasOffer = vi.fn();
+
+    render(
+      <CrossRouteList
+        offers={[
+          {
+            offerId: "sequential",
+            rail: "ACROSS",
+            executionMode: "sequential_wallet",
+            economics: { settlementTimeSeconds: 120 },
+          } as any,
+          {
+            offerId: "cctp",
+            rail: "cctp",
+            executionMode: "router_intent",
+            economics: { settlementTimeSeconds: 90 },
+          } as any,
+        ]}
+        selectedOfferId="sequential"
+        onSelect={() => {}}
+        expiresAt={1740000000000}
+        gasOffers={[
+          {
+            offerId: "gas-1",
+            rail: "GASZIP",
+            executionMode: "provider_direct",
+            estimatedOut: "1000",
+            economics: { settlementTimeSeconds: 60 },
+          },
+        ]}
+        includeDestinationGas
+        selectedGasOfferId="gas-1"
+        onSelectGasOffer={onSelectGasOffer}
+        onIncludeDestinationGasChange={onIncludeDestinationGasChange}
+      />,
+    );
+
+    // Gas was on when the multi-step route got selected: it is switched off.
+    expect(onIncludeDestinationGasChange).toHaveBeenCalledWith(false);
+    expect(screen.getByText(/multi-step routes cannot be combined with gas drop/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /included/i })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: /gas\.zip/i }));
+    expect(onSelectGasOffer).not.toHaveBeenCalled();
+  });
+
   it("shows THORChain provider-direct review detail", () => {
     render(
       <CrossRouteList

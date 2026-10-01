@@ -322,6 +322,9 @@ export default function RampPage() {
           blockedReason={disabledReason ?? undefined}
         />
 
+        {/* Bridge ramp operations (fiat rail / account / KYC fields + onboarding,
+            transfer and delegation panels) — hidden for now, pending a styled
+            pass. Wiring is intact: remove this comment wrapper to restore.
         <label style={{ width: "100%", maxWidth: 480, fontSize: 11.5, color: "rgba(255,255,255,0.70)" }}>
           Fiat rail
           <select value={coerceFiatRail(direction, fiatRail)} onChange={(e) => setFiatRail(e.target.value as RampFiatRail)} style={{ marginLeft: 8 }}>
@@ -463,6 +466,7 @@ export default function RampPage() {
             void ramp.revokeDelegation(ramp.delegation.id, connectedAddress, chainId).then(() => toast.info("Delegation revoked")).catch(() => toast.error(ramp.errorMessage ?? "Revoke failed"));
           }}
         />
+        */}
       </main>
 
       <DappFooter />

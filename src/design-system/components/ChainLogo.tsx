@@ -35,7 +35,7 @@ export default function ChainLogo({
       candidates={candidates}
       alt={`${label} logo`}
       size={size}
-      radius="50%"
+      radius={4}
       className={className}
       style={{ background: bg, ...style }}
       fallback={
@@ -46,7 +46,7 @@ export default function ChainLogo({
             height: "100%",
             background: bg,
             color: fg,
-            borderRadius: "50%",
+            borderRadius: 4,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",

@@ -40,7 +40,7 @@ interface WalletModalProps {
 }
 
 const KIND_HEADER: Record<WalletKind, { label: string; hint: string }> = {
-  evm:     { label: "EVM",     hint: "MetaMask / Rabby / WalletConnect / Privy" },
+  evm:     { label: "EVM",     hint: "Browser extension / WalletConnect" },
   solana:  { label: "Solana",  hint: "Read-only address connection" },
   bitcoin: { label: "Bitcoin", hint: "Read-only address connection" },
   tron:    { label: "Tron",    hint: "Read-only address connection" },
@@ -75,6 +75,7 @@ export default function WalletModal({ open, onClose, wallets, onSelect, kindFilt
       title={title ?? (scoped && kindFilter ? `Connect ${KIND_HEADER[kindFilter].label} wallet` : "Connect wallet")}
       eyebrow="WALLET"
       maxWidth={420}
+      theme="slab"
     >
       {!scoped && (
         <p style={{ color: "rgba(255,255,255,0.55)", fontSize: 12, marginBottom: 16, lineHeight: 1.5 }}>
@@ -116,33 +117,32 @@ export default function WalletModal({ open, onClose, wallets, onSelect, kindFilt
             type="button"
             onClick={() => onSelect(w)}
             style={{
+              position: "relative",
               display: "flex",
               alignItems: "center",
               gap: 12,
-              padding: "12px 14px",
-              background: "rgba(255,255,255,0.025)",
-              border: "1px solid rgba(255,255,255,0.08)",
-              borderRadius: 5,
+              padding: "10px 10px",
+              background: "transparent",
+              border: "none",
+              borderLeft: "2px solid transparent",
               color: "#fff",
               cursor: "pointer",
-              transition: "border-color 160ms ease, background 160ms ease",
+              transition: "background 140ms ease",
               textAlign: "left",
               width: "100%",
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.borderColor = "rgba(var(--widget-primary-rgb, 255, 138, 0), 0.40)";
-              e.currentTarget.style.background = "rgba(255,255,255,0.045)";
+              e.currentTarget.style.background = "rgba(255,255,255,0.035)";
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)";
-              e.currentTarget.style.background = "rgba(255,255,255,0.025)";
+              e.currentTarget.style.background = "transparent";
             }}
           >
             <span
               style={{
                 width: 32,
                 height: 32,
-                borderRadius: 5,
+                borderRadius: 4,
                 background: "rgba(255,255,255,0.05)",
                 display: "flex",
                 alignItems: "center",

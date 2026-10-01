@@ -49,12 +49,16 @@ export interface MultiChain {
   name: string;
   color?: string;
   logoUrl?: string;
+  /** Rendered logo; wins over logoUrl when both are set. */
+  logo?: ReactNode;
 }
 
 export interface MultiToken {
   ticker: string;
   name?: string;
   logoUrl?: string;
+  /** Rendered logo; wins over logoUrl when both are set. */
+  logo?: ReactNode;
 }
 
 export interface MultiInputLeg {
@@ -75,6 +79,9 @@ export interface MultiOutputLeg {
   convergedAmount?: string;
   convergedUsd?: number;
   gasTopUpEnabled?: boolean;
+  /** Optional per-output recipient; empty means the connected wallet. */
+  recipient?: string;
+  recipientInvalid?: boolean;
 }
 
 export interface MultiScanRow {
@@ -114,6 +121,8 @@ export interface EmpxMultiWidgetProps {
   onAddOutput: () => void;
   canAddOutput: boolean;
   onToggleGasTopUp: (id: string) => void;
+  /** When set, each output gets a recipient field. */
+  onOutputRecipientChange?: (id: string, v: string) => void;
 
   /** Liquidator only — replaces the inputs section entirely. */
   scanRows: MultiScanRow[];
@@ -145,6 +154,7 @@ export default function EmpxMultiWidget({
   legCount, maxLegs,
   inputs, onInputAmountChange, onSelectInputChain, onSelectInputToken, onRemoveInput, onAddInput, canAddInput,
   outputs, onOutputAllocationChange, onSelectOutputChain, onSelectOutputToken, onRemoveOutput, onAddOutput, canAddOutput, onToggleGasTopUp,
+  onOutputRecipientChange,
   scanRows, onToggleScanRow, onRescan, scanning,
   totalFeeUSD, feeBps, estimatedTime, etaNote, blockedReason,
   walletConnected = true, onConnect, onReview,
@@ -225,7 +235,7 @@ export default function EmpxMultiWidget({
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
                 <TokenIdentityRow
                   compact
-                  logo={leg.token.logoUrl}
+                  logo={leg.token.logo ?? leg.token.logoUrl}
                   name={leg.token.ticker}
                   onClick={() => onSelectInputToken(leg.id)}
                 />
@@ -268,7 +278,7 @@ export default function EmpxMultiWidget({
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
             <TokenIdentityRow
               compact
-              logo={leg.token.logoUrl}
+              logo={leg.token.logo ?? leg.token.logoUrl}
               name={leg.token.ticker}
               onClick={() => onSelectOutputToken(leg.id)}
             />
@@ -308,6 +318,22 @@ export default function EmpxMultiWidget({
             enabled={!!leg.gasTopUpEnabled}
             onToggle={() => onToggleGasTopUp(leg.id)}
           />
+          {onOutputRecipientChange && (
+            <input
+              value={leg.recipient ?? ""}
+              onChange={(e) => onOutputRecipientChange(leg.id, e.target.value)}
+              placeholder="Recipient (optional, defaults to connected wallet)"
+              spellCheck={false}
+              autoComplete="off"
+              aria-label={`Output ${i + 1} recipient`}
+              aria-invalid={leg.recipientInvalid || undefined}
+              style={{
+                width: "100%", marginTop: 4, padding: "9px 0", background: "transparent",
+                border: "none", borderBottom: `1px solid ${leg.recipientInvalid ? "rgba(248,113,113,.55)" : wk.border}`,
+                outline: "none", color: wk.t1, fontFamily: "'Space Grotesk', sans-serif", fontSize: 11,
+              }}
+            />
+          )}
         </div>
       ))}
 
@@ -393,7 +419,7 @@ function LegHead({
         {index}
       </span>
       <span style={{ display: "flex", alignItems: "center", gap: 2 }}>
-        <ChainPill logo={chain.logoUrl} name={chain.name} onClick={onSelectChain} />
+        <ChainPill logo={chain.logo ?? chain.logoUrl} name={chain.name} onClick={onSelectChain} />
         {onRemove && (
           <TouchTooltip content={`Remove ${index}`}>
             <button
@@ -433,7 +459,7 @@ function ScanRow({ row, onToggle }: { row: MultiScanRow; onToggle: () => void })
       onMouseEnter={(e) => { if (!row.selected) e.currentTarget.style.background = "rgba(255,255,255,.035)"; }}
       onMouseLeave={(e) => { e.currentTarget.style.background = row.selected ? "rgba(255,138,0,.055)" : "transparent"; }}
     >
-      <LogoFrame src={row.token.logoUrl} size={30} />
+      <LogoFrame src={row.token.logoUrl} size={30}>{row.token.logo}</LogoFrame>
       <span style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 3 }}>
         <span style={{ fontSize: 12.5, fontWeight: 600, color: row.selected ? wk.t1 : wk.t2, lineHeight: 1.15 }}>
           {row.token.ticker}

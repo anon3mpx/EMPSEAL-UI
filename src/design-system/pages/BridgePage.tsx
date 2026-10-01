@@ -9,9 +9,13 @@
 //   • Source chain → destination chain picker
 //   • Amount input with USD preview
 //   • Recipient toggle
-//   • Route hop visualization
+//   • Route hop visualization (preview — no live quote)
 //   • Explicit preview-only quote/execution slots
-//   • Roadmap status panel on the right
+//
+// Layout: one centred 480px column holding EmpxBridgeWidget, same measure as
+// swap / cross / gas. No page header or side panel — the widget carries its
+// "Bridge" eyebrow, "Lock & mint" badge, route preview and the disabled CTA
+// with its reason.
 //
 // What WILL plug in when Via Labs rebuild lands:
 //   • Chain set sourced from ViaLabsRailPlugin.supportsRoute()
@@ -25,15 +29,11 @@
 import { useMemo, useState } from "react";
 import {
   AccountModal,
-  BrandMark,
-  Card,
+  ChainLogo,
   ChainPicker,
   DappFooter,
   DappNavbar,
   NetworkSelector,
-  Pill,
-  PrimaryButton,
-  RouteVisualization,
   Toaster,
   TokenPicker,
   WalletButton,
@@ -49,13 +49,11 @@ import { useWalletConnection } from "../hooks/useWalletConnection";
 import { useV2Balances } from "../hooks/useV2Balances";
 import { useAccountSnapshot } from "../hooks/useAccountSnapshot";
 import EmpxBridgeWidget from "../EmpxBridgeWidget";
+import { WidgetKitKeyframes } from "../widgetKit";
 import { getExplorerAddressUrl } from "../data/explorers";
 import { V2_AGGREGATOR_CHAINS } from "../data/v2ChainView";
 import { getTokensForChain } from "../data/v2TokenView";
-import {
-  V2_BRIDGE_ROUTE_STATUS,
-  buildUnavailableRouteRows,
-} from "../data/v2ProductRoutes";
+import { V2_BRIDGE_ROUTE_STATUS } from "../data/v2ProductRoutes";
 import {
   tierForChainId,
   tierLabel,
@@ -67,13 +65,6 @@ import {
 // this will be sourced from ViaLabsRailPlugin.supportsRoute().
 
 const BRIDGE_CHAINS = V2_AGGREGATOR_CHAINS;
-
-const TIER_STATUS: { tier: number; title: string; status: "queued" | "in_progress" | "done"; oneLine: string }[] = [
-  { tier: 1, title: "Feasibility",     status: "queued", oneLine: "Read Via Labs docs, map onto IRailPlugin" },
-  { tier: 2, title: "Implementation",  status: "queued", oneLine: "ViaLabsRailPlugin.sol + ViaLabsSolver.ts" },
-  { tier: 3, title: "UI",              status: "in_progress", oneLine: "This page — shell ready, awaiting SDK" },
-  { tier: 4, title: "Tokens",          status: "queued", oneLine: "Migrate tokens originally minted via legacy rails" },
-];
 
 type ChainPickerTarget = "from" | "to";
 
@@ -168,146 +159,58 @@ export default function BridgePage() {
         }
       />
 
-      <main style={{ maxWidth: 1180, margin: "0 auto", padding: isMobile ? "24px 16px 56px" : "32px 24px 72px" }}>
-        {/* Header */}
-        <header style={{ marginBottom: isMobile ? 20 : 26 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8, flexWrap: "wrap" }}>
-            <p style={{ margin: 0, fontSize: 10, letterSpacing: "0.40em", color: "#FF8A00", textTransform: "uppercase", fontWeight: 700 }}>
-              BRIDGE · MULTI-RAIL
-            </p>
-            <Pill variant="info">Shell ready · awaiting rail SDK</Pill>
-          </div>
-          <h1
-            style={{
-              margin: "4px 0 0",
-              fontFamily: "'Space Grotesk', sans-serif",
-              fontSize: isMobile ? 32 : "clamp(34px, 4.5vw, 56px)",
-              fontWeight: 300,
-              letterSpacing: "-0.03em",
-              lineHeight: 1,
-              color: "#fff",
-            }}
-          >
-            Bridge.{" "}
-            <span style={{ fontFamily: "'Instrument Serif', serif", fontStyle: "italic", color: "#FF8A00", letterSpacing: "-0.02em" }}>
-              Any chain. Any pair.
-            </span>
-          </h1>
-          <p style={{ margin: "12px 0 0", fontSize: 13, color: "rgba(255,255,255,0.65)", lineHeight: 1.6, maxWidth: 720 }}>
-            Lock-and-mint bridge for any-asset, any-chain pairs. EmpX is multi-chain by design — bridge rails compose into the routing engine and surface here as standalone entries. The UI is final; the underlying SDK is being rebuilt against updated rail architectures. For multi-rail cross-chain swaps today, use{" "}
-            <a href="/cross-v2" style={{ color: "#FF8A00", textDecoration: "none", borderBottom: "1px solid rgba(255,138,0,0.40)" }}>
-              cross-chain
-            </a>.
-          </p>
-        </header>
+      <WidgetKitKeyframes />
 
-        {/* Body */}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: isMobile ? "1fr" : "minmax(0, 1.3fr) minmax(0, 1fr)",
-            gap: isMobile ? 18 : 28,
-            alignItems: "start",
+      {/* Single centred 480px column — identical desktop and mobile. */}
+      <main
+        style={{
+          maxWidth: 480 + (isMobile ? 32 : 40),
+          margin: "0 auto",
+          padding: isMobile ? "24px 16px 40px" : "38px 20px 48px",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+        }}
+      >
+        <EmpxBridgeWidget
+          fromChain={{
+            id: fromChain.id,
+            name: fromChain.name,
+            color: fromChain.color,
+            logo: <ChainLogo chainId={fromChain.id} symbol={fromChain.name.slice(0, 3).toUpperCase()} bg={fromChain.color} size={17} />,
           }}
-        >
-          {/* LEFT — bridge widget (same anatomy as swap/cross widgets) */}
-          <div style={{ display: "flex", justifyContent: "center" }}>
-            <EmpxBridgeWidget
-              fromChain={{ id: fromChain.id, name: fromChain.name, color: fromChain.color }}
-              fromToken={{ ticker: token }}
-              fromAmount={amount}
-              fromBalance={undefined}
-              fromUsdValue={amountNum}
-              onFromAmountChange={setAmount}
-              onSelectFromToken={() => setTokenPickerOpen(true)}
-              onSelectFromChain={() => setChainPickerTarget("from")}
-              onPercentClick={undefined}
+          fromToken={{ ticker: token }}
+          fromAmount={amount}
+          fromBalance={undefined}
+          fromUsdValue={amountNum}
+          onFromAmountChange={setAmount}
+          onSelectFromToken={() => setTokenPickerOpen(true)}
+          onSelectFromChain={() => setChainPickerTarget("from")}
+          onPercentClick={undefined}
 
-              toChain={{ id: toChain.id, name: toChain.name, color: toChain.color }}
-              toToken={{ ticker: token }}
-              toAmount="Unavailable until quote"
-              toUsdValue={null}
-              onSelectToToken={() => setTokenPickerOpen(true)}
-              onSelectToChain={() => setChainPickerTarget("to")}
+          toChain={{
+            id: toChain.id,
+            name: toChain.name,
+            color: toChain.color,
+            logo: <ChainLogo chainId={toChain.id} symbol={toChain.name.slice(0, 3).toUpperCase()} bg={toChain.color} size={17} />,
+          }}
+          toToken={{ ticker: token }}
+          toAmount="—"
+          toUsdValue={null}
+          onSelectToToken={() => setTokenPickerOpen(true)}
+          onSelectToChain={() => setChainPickerTarget("to")}
 
-              routeHops={routeHops}
+          routeHops={routeHops}
 
-              swapDisabled={!V2_BRIDGE_ROUTE_STATUS.executionEnabled}
-              swapLabel={V2_BRIDGE_ROUTE_STATUS.primaryActionLabel}
-              comingSoonHint="Skeleton is preserved, but quotes and execution stay disabled until the rail SDK is wired."
-              onSwap={() => toast.info("Bridge preview only — rail SDK required")}
-              onFlip={flip}
+          swapDisabled={!V2_BRIDGE_ROUTE_STATUS.executionEnabled}
+          swapLabel={V2_BRIDGE_ROUTE_STATUS.primaryActionLabel}
+          comingSoonHint="Skeleton is preserved, but quotes and execution stay disabled until the rail SDK is wired."
+          onSwap={() => toast.info("Bridge preview only — rail SDK required")}
+          onFlip={flip}
 
-              walletConnected={walletState.status === "connected"}
-              onConnect={() => setShowWalletModal(true)}
-            />
-          </div>
-
-          {/* RIGHT — review + roadmap status */}
-          <aside style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            <Card style={{ padding: 16, position: "relative", overflow: "hidden" }}>
-              <div style={{ position: "absolute", top: -16, right: -16, opacity: 0.05, pointerEvents: "none" }}>
-                <BrandMark size={110} color="#FF8A00" />
-              </div>
-
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-                <p style={{ margin: 0, fontSize: 10, letterSpacing: "0.40em", color: "rgba(255,255,255,0.50)", textTransform: "uppercase", fontWeight: 700 }}>
-                  Route preview · no live quote
-                </p>
-              </div>
-
-              <RouteVisualization hops={routeHops} />
-
-              <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 8 }}>
-                <ReviewRow label="Bridge model" value="Lock & mint" />
-                {buildUnavailableRouteRows("bridge").map((row) => (
-                  <ReviewRow
-                    key={row.label}
-                    label={row.label}
-                    value={String(row.value)}
-                    sub={row.sub}
-                    accent={row.accent}
-                    highlight={row.label === "Status"}
-                  />
-                ))}
-              </div>
-            </Card>
-
-            {/* Roadmap status — compact */}
-            {/* <Card style={{ padding: 14 }}>
-              <p style={{ margin: 0, fontSize: 10, letterSpacing: "0.40em", color: "rgba(255,255,255,0.50)", textTransform: "uppercase", fontWeight: 700 }}>
-                Rebuild status
-              </p>
-              <p style={{ margin: "6px 0 12px", fontSize: 10.5, color: "rgba(255,255,255,0.55)", lineHeight: 1.5 }}>
-                Mirrors <code style={{ color: "rgba(255,255,255,0.85)" }}>ROADMAP-via-labs-bridge.md</code>. UI tier already done — engineers just swap the SDK calls.
-              </p>
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                {TIER_STATUS.map((t) => (
-                  <TierRow key={t.tier} tier={t} />
-                ))}
-              </div>
-            </Card> */}
-
-            {/* <Card style={{ padding: 14 }}>
-              <p style={{ margin: 0, fontSize: 10, letterSpacing: "0.40em", color: "rgba(255,255,255,0.50)", textTransform: "uppercase", fontWeight: 700 }}>
-                Plug-in points
-              </p>
-              <ul style={{ margin: "8px 0 0", padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 6 }}>
-                {[
-                  ["Chain list",  "ViaLabsRailPlugin.supportsRoute()"],
-                  ["Quote",       "ViaLabsSolver.quote()"],
-                  ["Execute",     "buildExecution() + wallet.send()"],
-                  ["Status",      "AsyncIterable<IntentEvent>"],
-                ].map(([label, target]) => (
-                  <li key={label} style={{ display: "flex", justifyContent: "space-between", gap: 10, fontSize: 11, color: "rgba(255,255,255,0.65)", lineHeight: 1.5 }}>
-                    <span>{label}</span>
-                    <code style={{ color: "rgba(255,255,255,0.55)", fontSize: 10 }}>{target}</code>
-                  </li>
-                ))}
-              </ul>
-            </Card> */}
-          </aside>
-        </div>
+          walletConnected={walletState.status === "connected"}
+          onConnect={() => setShowWalletModal(true)}
+        />
       </main>
 
       <WalletModal
@@ -370,97 +273,6 @@ export default function BridgePage() {
 
       <DappFooter />
       <Toaster />
-    </div>
-  );
-}
-
-// ─── Sub-components ──────────────────────────────────────────────────────
-
-function ReviewRow({
-  label, value, sub, accent, highlight,
-}: {
-  label: string;
-  value: string | number;
-  sub?: string;
-  accent?: boolean;
-  highlight?: boolean;
-}) {
-  return (
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
-      <span style={{ fontSize: 11.5, color: "rgba(255,255,255,0.55)", lineHeight: 1.5 }}>{label}</span>
-      <div style={{ textAlign: "right", maxWidth: "65%" }}>
-        <p
-          style={{
-            margin: 0,
-            fontSize: highlight ? 14 : 12.5,
-            fontWeight: highlight ? 600 : 500,
-            fontFamily: highlight ? "'Space Grotesk', sans-serif" : "Inter, sans-serif",
-            letterSpacing: highlight ? "-0.01em" : "normal",
-            color: accent ? "#FF8A00" : highlight ? "#fff" : "rgba(255,255,255,0.90)",
-          }}
-        >
-          {value}
-          {sub && <span style={{ fontSize: 10.5, color: "rgba(255,255,255,0.45)", fontWeight: 400, marginLeft: 4 }}>{sub}</span>}
-        </p>
-      </div>
-    </div>
-  );
-}
-
-function TierRow({ tier }: { tier: typeof TIER_STATUS[number] }) {
-  const color =
-    tier.status === "done"        ? "#34D399"
-    : tier.status === "in_progress" ? "#FF8A00"
-    : "rgba(255,255,255,0.30)";
-  const label =
-    tier.status === "done" ? "Done"
-    : tier.status === "in_progress" ? "Active"
-    : "Queued";
-  return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 10,
-        padding: "8px 10px",
-        background: tier.status === "in_progress" ? "rgba(255,138,0,0.04)" : "rgba(255,255,255,0.02)",
-        border: `1px solid ${tier.status === "in_progress" ? "rgba(255,138,0,0.25)" : "rgba(255,255,255,0.05)"}`,
-        borderRadius: 4,
-      }}
-    >
-      <span
-        style={{
-          fontFamily: "'Space Grotesk', sans-serif",
-          fontSize: 13,
-          color,
-          fontWeight: 500,
-          letterSpacing: "-0.02em",
-          minWidth: 22,
-        }}
-      >
-        T{tier.tier}
-      </span>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <p style={{ margin: 0, fontSize: 11.5, color: "#fff", fontWeight: 600 }}>{tier.title}</p>
-        <p style={{ margin: "1px 0 0", fontSize: 10.5, color: "rgba(255,255,255,0.50)", lineHeight: 1.4 }}>
-          {tier.oneLine}
-        </p>
-      </div>
-      <span
-        style={{
-          fontSize: 9,
-          fontWeight: 700,
-          letterSpacing: "0.18em",
-          color,
-          textTransform: "uppercase",
-          padding: "2px 6px",
-          borderRadius: 2,
-          border: `1px solid ${tier.status === "in_progress" ? "rgba(255,138,0,0.30)" : tier.status === "done" ? "rgba(52,211,153,0.30)" : "rgba(255,255,255,0.10)"}`,
-          background: tier.status === "in_progress" ? "rgba(255,138,0,0.10)" : tier.status === "done" ? "rgba(52,211,153,0.10)" : "rgba(255,255,255,0.03)",
-        }}
-      >
-        {label}
-      </span>
     </div>
   );
 }

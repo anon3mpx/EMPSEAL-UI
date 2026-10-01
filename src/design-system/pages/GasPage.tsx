@@ -33,7 +33,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { formatEther, parseEther, type Address } from "viem";
-import { useBalance } from "wagmi";
+import { useBalance, useConfig, useGasPrice } from "wagmi";
 import {
   AccountModal,
   BrandMark,
@@ -47,7 +47,6 @@ import {
   NetworkSelector,
   Pill,
   PrimaryButton,
-  QuoteCountdown,
   Tabs,
   Toaster,
   TradeSuccessModal,
@@ -61,7 +60,8 @@ import {
 import { useWalletConnection } from "../hooks/useWalletConnection";
 import { useV2Balances } from "../hooks/useV2Balances";
 import { useAccountSnapshot } from "../hooks/useAccountSnapshot";
-import EmpxGasWidget from "../EmpxGasWidget";
+import EmpxGasWidget, { type GasNotice } from "../EmpxGasWidget";
+import { WidgetKitKeyframes } from "../widgetKit";
 import { getExplorerAddressUrl, getExplorerTxUrl } from "../data/explorers";
 import { V2_AGGREGATOR_CHAINS } from "../data/v2ChainView";
 import {
@@ -70,6 +70,7 @@ import {
   buildGasTxRequest,
   formatGasHistoryRows,
   formatGasLookupResult,
+  type GasHistoryRow,
   normalizeGasChains,
   resolveGasSourceAmount,
   resolveSingleGasDestinationChain,
@@ -98,6 +99,10 @@ import { useGasBridgeStore } from "../../redux/store/gasBridgeStore";
 // ─── Constants ────────────────────────────────────────────────────────────
 
 const PER_DEST_USD_PRESETS = [5, 10, 20, 50];
+/** Gas.zip quote validity shown on the quote row (unchanged from the old side-panel countdown). */
+const GAS_QUOTE_VALID_MS = 30_000;
+/** Gas units (at current gas price) kept aside for the deposit tx's network fee. */
+const GAS_RESERVE_UNITS = 200_000n;
 
 // Chain set Gas.zip supports — production sources this from
 // useGetChains().  Demo seed is a representative subset.
@@ -178,9 +183,14 @@ export default function GasPage() {
     () => normalizeGasChains(gasChainsQuery.data ?? []),
     [gasChainsQuery.data],
   );
+  const { chains: wagmiChains } = useConfig();
+  // Sources must also be configured in wagmi, otherwise we can't switch to the
+  // chain, read its balance or track the tx receipt.
   const liveSourceChains = useMemo<GasV2Chain[]>(
-    () => normalizeGasChains(gasChainsQuery.data ?? [], { requireInbound: true }),
-    [gasChainsQuery.data],
+    () =>
+      normalizeGasChains(gasChainsQuery.data ?? [], { requireInbound: true })
+        .filter((c) => wagmiChains.some((w) => w.id === c.id)),
+    [gasChainsQuery.data, wagmiChains],
   );
   const supportedGasChains = liveDestinationChains.length > 0 ? liveDestinationChains : GAS_CHAINS;
   const supportedSourceChains = liveSourceChains.length > 0 ? liveSourceChains : GAS_CHAINS;
@@ -252,6 +262,8 @@ export default function GasPage() {
     chainId: sourceChainId as any,
     query: { enabled: Boolean(connectedAddress) },
   });
+  const { data: sourceGasPrice } = useGasPrice({ chainId: sourceChainId as any });
+  const gasReserve = sourceGasPrice ? sourceGasPrice * GAS_RESERVE_UNITS : 0n;
 
   useEffect(() => {
     setFromChain(sourceChainId);
@@ -385,9 +397,18 @@ export default function GasPage() {
     [supportedGasChains, tx.backendStatus],
   );
 
+  // Validation hints that used to sit in the side panel under its duplicate
+  // submit button — now one line under the widget's own CTA.
+  const gasNotice: GasNotice | undefined =
+    useDifferentRecipient && recipient.length > 0 && !recipientValid
+      ? { tone: "error", text: "Recipient must be a 0x… address." }
+      : !destinationValid
+        ? { tone: "warn", text: "Set a USD amount > 0 and choose a destination different from the source chain." }
+        : undefined;
+
   const onSubmit = () => {
     if (walletState.status !== "connected") { setShowWalletModal(true); return; }
-    if (sourceBalance && txRequest && txRequest.value >= sourceBalance.value) {
+    if (sourceBalance && txRequest && txRequest.value + gasReserve >= sourceBalance.value) {
       toast.error(`Insufficient ${sourceChain.ticker} balance. Reduce the amount or add funds to cover the transfer and network fee.`);
       return;
     }
@@ -452,42 +473,22 @@ export default function GasPage() {
         }
       />
 
-      <main style={{ maxWidth: 1180, margin: "0 auto", padding: isMobile ? "24px 16px 56px" : "32px 24px 72px" }}>
-        {/* Header */}
-        <header style={{ marginBottom: isMobile ? 20 : 26 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8, flexWrap: "wrap" }}>
-            <p style={{ margin: 0, fontSize: 10, letterSpacing: "0.40em", color: "#FF8A00", textTransform: "uppercase", fontWeight: 700 }}>
-              GAS · SINGLE DESTINATION
-            </p>
-            <Pill variant="info">Direct Gas.zip · bypasses SDK rails</Pill>
-          </div>
-          <h1
-            style={{
-              margin: "4px 0 0",
-              fontFamily: "'Space Grotesk', sans-serif",
-              fontSize: isMobile ? 32 : "clamp(34px, 4.5vw, 56px)",
-              fontWeight: 300,
-              letterSpacing: "-0.03em",
-              lineHeight: 1,
-              color: "#fff",
-            }}
-          >
-            Gas.{" "}
-            <span style={{ fontFamily: "'Instrument Serif', serif", fontStyle: "italic", color: "#FF8A00", letterSpacing: "-0.02em" }}>
-              Wherever you're going next.
-            </span>
-          </h1>
-          <p style={{ margin: "12px 0 0", fontSize: 13, color: "rgba(255,255,255,0.65)", lineHeight: 1.6, maxWidth: 720 }}>
-            Top up native gas.
-            For gas drops bundled with a swap, use{" "}
-            <a href="/cross-v2" style={{ color: "#FF8A00", textDecoration: "none", borderBottom: "1px solid rgba(255,138,0,0.40)" }}>
-              cross-chain swap
-            </a>{" "}with the gas-drop toggle.
-          </p>
-        </header>
+      <WidgetKitKeyframes />
 
-        {/* Tabs */}
-        <div style={{ marginBottom: 16 }}>
+      {/* Single centred 480px column, same measure as swap. No page header —
+          the widget carries its own "Gas" eyebrow. Tabs sit above the widget
+          since History / Tx lookup are different views, not modals. */}
+      <main
+        style={{
+          maxWidth: 480 + (isMobile ? 32 : 40),
+          margin: "0 auto",
+          padding: isMobile ? "24px 16px 40px" : "38px 20px 48px",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+        }}
+      >
+        <div style={{ width: "100%", maxWidth: 480, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 18 }}>
           <Tabs
             options={[
               { value: "send" as const,    label: "Send gas" },
@@ -498,191 +499,91 @@ export default function GasPage() {
             onChange={(value) => setTab(value as ActiveTab)}
             variant="underline"
           />
+          <Pill variant="info">Direct Gas.zip</Pill>
         </div>
 
         {tab === "send" && (
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: isMobile ? "1fr" : "minmax(0, 1.3fr) minmax(0, 1fr)",
-              gap: isMobile ? 18 : 28,
-              alignItems: "start",
-            }}
-          >
-            {/* LEFT — gas widget (same anatomy as swap/cross widgets) */}
-            <div style={{ display: "flex", justifyContent: "center" }}>
-              <EmpxGasWidget
-                sourceChain={{
-                  id: sourceChain.id,
-                  name: sourceChain.name,
-                  color: sourceChain.color,
-                  ticker: sourceChain.ticker,
-                  logo: (
-                    <ChainLogo
-                      chainId={sourceChain.id}
-                      symbol={sourceChain.name.slice(0, 3).toUpperCase()}
-                      bg={sourceChain.color}
-                      size={17}
-                    />
-                  ),
-                }}
-                sourceAmount={sourceAmountDisplay}
-                sourceUsdValue={totalCostUSD}
-                sourceBalance={sourceBalance ? `${Number(sourceBalance.formatted).toLocaleString(undefined, { maximumFractionDigits: 6 })} ${sourceChain.ticker}` : undefined}
-                onSelectSourceChain={() => setChainPickerTarget({ kind: "source" })}
-                onSwitchChains={switchChains}
-                canSwitchChains={Boolean(chainSwap)}
-                destination={{
-                  ...gasDestination,
-                  chain: {
-                    ...gasDestination.chain,
-                    logo: (
-                      <ChainLogo
-                        chainId={gasDestination.chain.id}
-                        symbol={gasDestination.chain.name.slice(0, 3).toUpperCase()}
-                        bg={gasDestination.chain.color}
-                        size={17}
-                      />
-                    ),
-                  },
-                }}
-                onSelectDestinationChain={() => setChainPickerTarget({ kind: "destination" })}
-                onSetDestinationUsd={setDestUsd}
-                presets={PER_DEST_USD_PRESETS}
-                bridgeFeeUSD={bridgeFeeUSD}
-                estimatedTime={formatEtaSeconds(estimatedTimeSeconds)}
-                useDifferentRecipient={useDifferentRecipient}
-                onToggleRecipient={() => setUseDifferentRecipient(!useDifferentRecipient)}
-                recipient={recipient}
-                onSetRecipient={setRecipient}
-                recipientValid={recipientValid}
-                canSubmit={Boolean(destinationValid && recipientValid && (!connectedAddress || canSubmit))}
-                swapLabel={
-                  quote.isLoading
-                    ? "Fetching Gas.zip route..."
-                    : `Send gas to ${destinationChain.name}`
-                }
-                onSubmit={onSubmit}
-                walletConnected={walletState.status === "connected"}
-                onConnect={() => setShowWalletModal(true)}
-              />
-            </div>
-
-
-            {/* RIGHT — review + execute */}
-            <aside style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-              <Card style={{ padding: 16, position: "relative", overflow: "hidden" }}>
-                <div style={{ position: "absolute", top: -16, right: -16, opacity: 0.05, pointerEvents: "none" }}>
-                  <BrandMark size={110} color="#FF8A00" />
-                </div>
-
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-                  <p style={{ margin: 0, fontSize: 10, letterSpacing: "0.40em", color: "rgba(255,255,255,0.50)", textTransform: "uppercase", fontWeight: 700 }}>
-                    Review
-                  </p>
-                  {walletState.status === "connected" && (
-                    <QuoteCountdown
-                      totalMs={30000}
-                      issuedAt={quoteIssuedAt}
-                      onRefresh={() => {
-                        setQuoteIssuedAt(Date.now());
-                        void quote.refetch();
-                        toast.info("Quote refreshed");
-                      }}
-                      compact
-                    />
-                  )}
-                </div>
-
-                <FeeBreakdown
-                  rows={(() => {
-                    const rows: FeeRow[] = [
-                      { label: "Destination",      value: destinationChain.name },
-                      { label: "Total to deliver", value: `$${totalDestUSD.toFixed(2)}` },
-                      { label: "Bridge fee",       value: bridgeFeeUSD <= 0.005 ? "FREE" : `$${bridgeFeeUSD.toFixed(2)}`, sub: quote.data ? "Gas.zip quote" : "estimate", accent: true },
-                      { label: `You send`,         value: `${sourceAmountDisplay} ${sourceChain.ticker}`, sub: `~$${totalCostUSD.toFixed(2)}` },
-                      { label: "Est. delivery",    value: formatEtaSeconds(estimatedTimeSeconds), muted: true },
-                    ];
-                    return rows;
-                  })()}
-                  bordered
+          <EmpxGasWidget
+            sourceChain={{
+              id: sourceChain.id,
+              name: sourceChain.name,
+              color: sourceChain.color,
+              ticker: sourceChain.ticker,
+              logo: (
+                <ChainLogo
+                  chainId={sourceChain.id}
+                  symbol={sourceChain.name.slice(0, 3).toUpperCase()}
+                  bg={sourceChain.color}
+                  size={17}
                 />
-
-                {!destinationValid && (
-                  <p style={{ margin: "12px 0 0", fontSize: 11, color: "#FFB347", lineHeight: 1.5 }}>
-                    Set a USD amount &gt; 0 and choose a destination different from the source chain.
-                  </p>
-                )}
-                {useDifferentRecipient && recipient.length > 0 && !recipientValid && (
-                  <p style={{ margin: "6px 0 0", fontSize: 11, color: "#F87171", lineHeight: 1.5 }}>
-                    Recipient must be a 0x… address.
-                  </p>
-                )}
-
-                <div style={{ marginTop: 14 }}>
-                  <PrimaryButton onClick={onSubmit} disabled={walletState.status === "connected" ? !canSubmit : false}>
-                    {walletState.status !== "connected"
-                      ? "Connect wallet"
-                      : quote.isLoading
-                      ? "Fetching Gas.zip route..."
-                      : `Send gas to ${destinationChain.name}`}
-                  </PrimaryButton>
-                </div>
-              </Card>
-
-              {/* Honest disclosure */}
-              {/* <Card style={{ padding: 14 }}>
-                <p style={{ margin: 0, fontSize: 10, letterSpacing: "0.40em", color: "rgba(255,255,255,0.50)", textTransform: "uppercase", fontWeight: 700 }}>
-                  How this works
-                </p>
-                <ul style={{ margin: "8px 0 0", padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 6 }}>
-                  {[
-                    "Page integrates DIRECTLY with Gas.zip's public backend.",
-                    "Does NOT route through the EmpX cross-chain rails / SDK.",
-                    "For gas drops bundled with a swap, use /cross-v2.",
-                    "One source transaction funds one destination.",
-                  ].map((line, i) => (
-                    <li key={i} style={{ display: "flex", gap: 10, fontSize: 11, color: "rgba(255,255,255,0.65)", lineHeight: 1.55 }}>
-                      <span style={{ color: "#FF8A00", flexShrink: 0, marginTop: 1 }}>•</span>
-                      <span>{line}</span>
-                    </li>
-                  ))}
-                </ul>
-              </Card> */}
-
-              {/* SDK source */}
-              {/* <Card style={{ padding: 14 }}>
-                <p style={{ margin: 0, fontSize: 10, letterSpacing: "0.40em", color: "rgba(255,255,255,0.50)", textTransform: "uppercase", fontWeight: 700 }}>
-                  Backed by
-                </p>
-                <ul style={{ margin: "8px 0 0", padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 6 }}>
-                  {[
-                    ["hooks/useGasBridgeAPI.js", "Gas.zip /v2 endpoints"],
-                    ["hooks/useGasBridgeTx.js",  "wagmi send + status poll"],
-                    ["redux/store/gasBridgeStore.js", "form state (zustand)"],
-                  ].map(([f, role]) => (
-                    <li key={f} style={{ fontSize: 11, color: "rgba(255,255,255,0.60)", lineHeight: 1.5 }}>
-                      <code style={{ color: "rgba(255,255,255,0.85)" }}>{f}</code>{" — "}{role}
-                    </li>
-                  ))}
-                </ul>
-              </Card> */}
-            </aside>
-          </div>
-        )}
-
-        {tab === "history" && (
-          <HistoryPanel
-            address={connectedAddress}
-            chains={supportedGasChains}
+              ),
+            }}
+            sourceAmount={sourceAmountDisplay}
+            sourceUsdValue={totalCostUSD}
+            sourceBalance={sourceBalance ? `${Number(sourceBalance.formatted).toLocaleString(undefined, { maximumFractionDigits: 6 })} ${sourceChain.ticker}` : undefined}
+            onSelectSourceChain={() => setChainPickerTarget({ kind: "source" })}
+            onSwitchChains={switchChains}
+            canSwitchChains={Boolean(chainSwap)}
+            destination={{
+              ...gasDestination,
+              chain: {
+                ...gasDestination.chain,
+                logo: (
+                  <ChainLogo
+                    chainId={gasDestination.chain.id}
+                    symbol={gasDestination.chain.name.slice(0, 3).toUpperCase()}
+                    bg={gasDestination.chain.color}
+                    size={17}
+                  />
+                ),
+              },
+            }}
+            onSelectDestinationChain={() => setChainPickerTarget({ kind: "destination" })}
+            onSetDestinationUsd={setDestUsd}
+            presets={PER_DEST_USD_PRESETS}
+            bridgeFeeUSD={bridgeFeeUSD}
+            estimatedTime={formatEtaSeconds(estimatedTimeSeconds)}
+            useDifferentRecipient={useDifferentRecipient}
+            onToggleRecipient={() => setUseDifferentRecipient(!useDifferentRecipient)}
+            recipient={recipient}
+            onSetRecipient={setRecipient}
+            recipientValid={recipientValid}
+            canSubmit={Boolean(destinationValid && recipientValid && (!connectedAddress || canSubmit))}
+            swapLabel={
+              quote.isLoading
+                ? "Fetching Gas.zip route..."
+                : `Send gas to ${destinationChain.name}`
+            }
+            onSubmit={onSubmit}
+            walletConnected={walletState.status === "connected"}
+            onConnect={() => setShowWalletModal(true)}
+            quote={walletState.status === "connected" ? {
+              issuedAt: quoteIssuedAt,
+              validMs: GAS_QUOTE_VALID_MS,
+              onRefresh: () => {
+                setQuoteIssuedAt(Date.now());
+                void quote.refetch();
+                toast.info("Quote refreshed");
+              },
+            } : undefined}
+            notice={gasNotice}
           />
         )}
-        {tab === "lookup"  && (
-          <LookupPanel
-            chains={supportedGasChains}
-            initialHash={submittedTxHash ?? tx.txHash ?? ""}
-          />
-        )}
+
+        <div style={{ width: "100%", maxWidth: 480 }}>
+          {tab === "history" && (
+            <HistoryPanel
+              address={connectedAddress}
+              chains={supportedGasChains}
+            />
+          )}
+          {tab === "lookup"  && (
+            <LookupPanel
+              chains={supportedGasChains}
+              initialHash={submittedTxHash ?? tx.txHash ?? ""}
+            />
+          )}
+        </div>
       </main>
 
       {/* Wallet modal */}
@@ -852,65 +753,85 @@ function HistoryPanel({
     [chains, history.data],
   );
 
+  const muted = (text: string, color = "rgba(255,255,255,0.45)") => (
+    <p style={{ margin: "10px 0 0", fontSize: 11.5, color, lineHeight: 1.6 }}>{text}</p>
+  );
+
   return (
-    <Card style={{ padding: 22, position: "relative", overflow: "hidden" }}>
-      <div style={{ position: "absolute", top: -16, right: -16, opacity: 0.05, pointerEvents: "none" }}>
-        <BrandMark size={120} color="#FF8A00" />
-      </div>
-      <p style={{ margin: 0, fontSize: 10, letterSpacing: "0.40em", color: "rgba(255,255,255,0.50)", textTransform: "uppercase", fontWeight: 700 }}>
+    <div style={{ width: "100%" }}>
+      <p style={{ margin: 0, fontSize: 10, letterSpacing: "0.40em", color: "rgba(255,255,255,0.45)", textTransform: "uppercase", fontWeight: 700 }}>
         Your gas history
       </p>
       {!address ? (
-        <p style={{ margin: "12px 0 0", fontSize: 12.5, color: "rgba(255,255,255,0.55)", lineHeight: 1.6 }}>
-          Connect your wallet to load past Gas.zip transactions.
-        </p>
+        muted("Connect your wallet to load past Gas.zip transactions.")
       ) : history.isLoading ? (
-        <p style={{ margin: "12px 0 0", fontSize: 12.5, color: "rgba(255,255,255,0.55)" }}>
-          Loading history...
-        </p>
+        muted("Loading history...")
       ) : history.error ? (
-        <p style={{ margin: "12px 0 0", fontSize: 12.5, color: "#F87171" }}>
-          Could not fetch transaction history from Gas.zip.
-        </p>
+        muted("Could not fetch transaction history from Gas.zip.", "#F87171")
       ) : rows.length === 0 ? (
-        <p style={{ margin: "12px 0 0", fontSize: 12.5, color: "rgba(255,255,255,0.55)" }}>
-          No past gas top-ups found for this wallet.
-        </p>
+        muted("No past gas top-ups found for this wallet.")
       ) : (
-        <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 8 }}>
+        <div style={{ marginTop: 18, display: "flex", flexDirection: "column" }}>
           {rows.map((row) => (
-            <div
-              key={row.sourceHash}
-              style={{
-                display: "grid",
-                gridTemplateColumns: "minmax(0, 1fr) 0.7fr 0.8fr 0.8fr",
-                alignItems: "center",
-                gap: 10,
-                padding: "10px 12px",
-                background: "rgba(255,255,255,0.02)",
-                border: "1px solid rgba(255,255,255,0.06)",
-                borderRadius: 4,
-                fontSize: 11,
-              }}
-            >
-              <a
-                href={row.sourceExplorer}
-                target="_blank"
-                rel="noreferrer"
-                style={{ color: "#fff", textDecoration: "none", fontFamily: "'Space Grotesk', sans-serif" }}
-              >
-                {row.sourceHashShort}
-              </a>
-              <span style={{ color: "rgba(255,255,255,0.55)" }}>{row.sourceChainName}</span>
-              <span style={{ color: row.status === "failed" ? "#F87171" : row.status === "delivered" ? "#34D399" : "#FF8A00", textTransform: "uppercase", fontWeight: 700, letterSpacing: "0.12em" }}>
-                {row.status}
-              </span>
-              <span style={{ color: "rgba(255,255,255,0.60)", textAlign: "right" }}>{row.value || row.destinationsLabel}</span>
-            </div>
+            <HistoryRow key={row.sourceHash} row={row} />
           ))}
         </div>
       )}
-    </Card>
+    </div>
+  );
+}
+
+const HISTORY_STATUS_COLOR: Record<GasHistoryRow["status"], string> = {
+  delivered: "#34D399",
+  pending: "#FF8A00",
+  failed: "#F87171",
+};
+const HISTORY_STATUS_LABEL: Record<GasHistoryRow["status"], string> = {
+  delivered: "Delivered",
+  pending: "In flight",
+  failed: "Failed",
+};
+
+function HistoryRow({ row }: { row: GasHistoryRow }) {
+  const tileChain = row.destinationChain ?? row.txChain;
+  const amount = row.usdValue != null ? `$${row.usdValue.toFixed(2)}` : row.nativeLabel || "—";
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 12,
+        padding: "12px 0",
+        borderTop: "1px solid rgba(255,255,255,0.07)",
+      }}
+    >
+      <ChainLogo
+        chainId={tileChain.id}
+        symbol={tileChain.ticker}
+        bg={tileChain.color}
+        size={30}
+      />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <p style={{ margin: 0, fontSize: 12.5, fontWeight: 600, color: "#fff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+          {row.sourceChainName} → {row.destinationsLabel}
+        </p>
+        <p style={{ margin: "2px 0 0", fontSize: 10, color: "rgba(255,255,255,0.40)" }}>{row.seenLabel}</p>
+      </div>
+      <div style={{ textAlign: "right", flexShrink: 0 }}>
+        <p
+          title={row.usdValue != null ? row.nativeLabel : undefined}
+          style={{ margin: 0, fontSize: 12.5, fontWeight: 500, color: "#fff", fontVariantNumeric: "tabular-nums" }}
+        >
+          {amount}
+        </p>
+        <p style={{ margin: "2px 0 0", fontSize: 9.5, fontWeight: 700, letterSpacing: "0.10em", textTransform: "uppercase", color: HISTORY_STATUS_COLOR[row.status] }}>
+          {HISTORY_STATUS_LABEL[row.status]}
+        </p>
+      </div>
+      {row.txShort && row.txExplorer && (
+        <TxHashChip chain={row.txChain} hashShort={row.txShort} explorer={row.txExplorer} compact />
+      )}
+    </div>
   );
 }
 
@@ -942,7 +863,7 @@ function LookupPanel({
   };
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: result ? "minmax(0, 1fr) minmax(0, 1.2fr)" : "1fr", gap: 18, alignItems: "start" }}>
+    <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 18, alignItems: "start" }}>
       {/* LEFT — lookup form */}
       <Card style={{ padding: 18 }}>
         <p style={{ margin: 0, fontSize: 10, letterSpacing: "0.40em", color: "rgba(255,255,255,0.50)", textTransform: "uppercase", fontWeight: 700 }}>
