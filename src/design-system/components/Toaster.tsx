@@ -1,9 +1,13 @@
-// ─── Toaster — creative notification system ───────────────────────────────
+// ─── Toaster — notification system, restyled to the locked language ───────
 //
-// Each toast: left accent bar in variant color (with subtle glow), iconified
-// badge in a circle with gradient, message + description, action button,
-// dismiss X.  Progress bar at the bottom auto-shrinks as time elapses.
-// Slide-in from right + scale-in.
+// Was a pre-lock "creative" design (backdrop blur, colored gradient icon
+// circles, glowing box-shadows) that never got updated when swap-experience
+// locked the frameless/flat visual language — same drift the TokenPicker
+// Recent-chip border and picker scrollbar already had (2026-08-19 fixes).
+// Restyled 2026-08-20: flat card + hairline border, no blur, no glow, bare
+// variant-colored icons instead of badge circles. Functionality unchanged —
+// variants, description, action button, dismiss, auto-progress bar,
+// multi-toast stacking all still work exactly as before.
 
 import { ReactNode, useEffect, useState } from "react";
 
@@ -56,34 +60,18 @@ export const toast = {
   dismiss: dismissToast,
 };
 
+// "Elevated card" — Variant A from public/toast-drafts.html (owner's pick,
+// 2026-08-20). Bigger footprint, a flat tinted square icon badge (not the
+// old glow-gradient circle — matches the "squarish containers" locked rule),
+// a 2px accent line across the top instead of a left bar.
 const PALETTE: Record<
   ToastItem["variant"],
-  { bar: string; iconBg: string; iconColor: string; glow: string }
+  { bar: string; iconBg: string; iconColor: string }
 > = {
-  info: {
-    bar: "#60A5FA",
-    iconBg: "linear-gradient(135deg, rgba(96,165,250,0.25) 0%, rgba(96,165,250,0.05) 100%)",
-    iconColor: "#93C5FD",
-    glow: "rgba(96,165,250,0.30)",
-  },
-  success: {
-    bar: "#34D399",
-    iconBg: "linear-gradient(135deg, rgba(52,211,153,0.25) 0%, rgba(52,211,153,0.05) 100%)",
-    iconColor: "#6EE7B7",
-    glow: "rgba(52,211,153,0.30)",
-  },
-  error: {
-    bar: "#EF4444",
-    iconBg: "linear-gradient(135deg, rgba(239,68,68,0.30) 0%, rgba(239,68,68,0.05) 100%)",
-    iconColor: "#FCA5A5",
-    glow: "rgba(239,68,68,0.35)",
-  },
-  pending: {
-    bar: "#FF8A00",
-    iconBg: "linear-gradient(135deg, rgba(255,138,0,0.25) 0%, rgba(255,138,0,0.05) 100%)",
-    iconColor: "#FFB347",
-    glow: "rgba(255,138,0,0.35)",
-  },
+  info: { bar: "#60A5FA", iconBg: "rgba(96,165,250,0.12)", iconColor: "#93C5FD" },
+  success: { bar: "#34D399", iconBg: "rgba(52,211,153,0.12)", iconColor: "#6EE7B7" },
+  error: { bar: "#EF4444", iconBg: "rgba(239,68,68,0.12)", iconColor: "#FCA5A5" },
+  pending: { bar: "#FF8A00", iconBg: "rgba(255,138,0,0.12)", iconColor: "#FFB347" },
 };
 
 const ICONS: Record<ToastItem["variant"], ReactNode> = {
@@ -132,15 +120,17 @@ export default function Toaster() {
     <div
       style={{
         position: "fixed",
-        bottom: 24,
-        right: 24,
+        bottom: 26,
+        left: "50%",
+        transform: "translateX(-50%)",
         display: "flex",
-        flexDirection: "column",
-        gap: 10,
+        flexDirection: "column-reverse",
+        alignItems: "center",
+        gap: 8,
         zIndex: 200,
         pointerEvents: "none",
         maxWidth: 380,
-        width: "calc(100vw - 48px)",
+        width: "calc(100vw - 40px)",
       }}
     >
       {items.map((t) => (
@@ -148,8 +138,8 @@ export default function Toaster() {
       ))}
       <style>{`
         @keyframes empxToastIn {
-          from { opacity: 0; transform: translateX(40px) scale(0.94); }
-          to   { opacity: 1; transform: translateX(0) scale(1); }
+          from { opacity: 0; transform: translateY(14px); }
+          to   { opacity: 1; transform: translateY(0); }
         }
         @keyframes empxToastSpin {
           from { transform: rotate(0deg); }
@@ -175,13 +165,15 @@ function ToastCard({ item }: { item: ToastItem }) {
         position: "relative",
         pointerEvents: "auto",
         display: "flex",
-        gap: 0,
-        background: "rgba(8,8,16,0.94)",
-        backdropFilter: "blur(22px)",
-        WebkitBackdropFilter: "blur(22px)",
-        border: "1px solid rgba(255,255,255,0.10)",
+        gap: 12,
+        padding: "14px 16px 14px 14px",
+        // Elevated card — flat #0a0a12 (matches the modal card, not the
+        // slimmer #0c0c15 toast pill this replaced), hairline border, no
+        // ambient glow. The top accent line + tinted icon badge carry state.
+        background: "#0a0a12",
+        border: "1px solid rgba(255,255,255,0.11)",
         borderRadius: 6,
-        boxShadow: `0 18px 50px rgba(0,0,0,0.55), 0 0 32px ${palette.glow}`,
+        boxShadow: "0 20px 50px rgba(0,0,0,0.55)",
         color: "#fff",
         fontFamily: "Inter, sans-serif",
         fontSize: 13,
@@ -190,81 +182,89 @@ function ToastCard({ item }: { item: ToastItem }) {
         minWidth: 0,
       }}
     >
-      {/* Left accent bar with glow */}
+      {/* Top accent line — 2px gradient, replaces the old left bar */}
       <span
         aria-hidden
         style={{
-          width: 3,
-          flexShrink: 0,
-          background: palette.bar,
-          boxShadow: `inset 0 0 12px ${palette.bar}, 0 0 16px ${palette.bar}66`,
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          height: 2,
+          background: `linear-gradient(90deg, ${palette.bar} 0%, transparent 100%)`,
         }}
       />
 
-      {/* Body */}
-      <div style={{ display: "flex", gap: 12, padding: "12px 14px", flex: 1, minWidth: 0 }}>
-        {/* Icon disc */}
-        <span
-          style={{
-            width: 28,
-            height: 28,
-            borderRadius: "50%",
-            background: palette.iconBg,
-            border: `1px solid ${palette.bar}40`,
-            color: palette.iconColor,
-            display: "inline-flex",
-            alignItems: "center",
-            justifyContent: "center",
-            flexShrink: 0,
-            marginTop: 1,
-          }}
-        >
-          {ICONS[item.variant]}
+      {/* Flat tinted square icon badge — 28px, 4px radius */}
+      <span
+        style={{
+          width: 28,
+          height: 28,
+          borderRadius: 4,
+          background: palette.iconBg,
+          color: palette.iconColor,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          flexShrink: 0,
+        }}
+      >
+        {ICONS[item.variant]}
+      </span>
+
+      {/* Body — right padding reserves room for the corner slab mark so long
+          messages can never run under it (caught in the draft's pre-flight
+          stress test with a long real error message). */}
+      <div style={{ flex: 1, minWidth: 0, paddingTop: 1, paddingRight: 86 }}>
+        <p style={{ margin: 0, fontWeight: 600, lineHeight: 1.3 }}>{item.message}</p>
+        {item.description && (
+          <p
+            style={{
+              margin: "3px 0 0",
+              color: "rgba(255,255,255,0.55)",
+              fontSize: 11.5,
+              lineHeight: 1.5,
+            }}
+          >
+            {item.description}
+          </p>
+        )}
+        {item.action && (
+          <button
+            type="button"
+            onClick={() => {
+              item.action!.onClick();
+              dismissToast(item.id);
+            }}
+            style={{
+              marginTop: 8,
+              padding: 0,
+              background: "transparent",
+              border: "none",
+              color: palette.iconColor,
+              fontFamily: "Inter, sans-serif",
+              fontSize: 11,
+              fontWeight: 700,
+              letterSpacing: "0.25em",
+              textTransform: "uppercase",
+              cursor: "pointer",
+              transition: "opacity 160ms ease",
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.7")}
+            onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
+          >
+            {item.action.label}
+          </button>
+        )}
+      </div>
+
+      {/* Corner cluster — slab mark (quiet signature, from the draft's `.a-slab`) then dismiss, side by side so neither overlaps the other */}
+      <span style={{ position: "absolute", top: 12, right: 12, display: "flex", alignItems: "center", gap: 8 }}>
+        <span aria-hidden style={{ display: "flex", gap: 2, opacity: 0.35 }}>
+          <img src="/brand/empx-mark-slab-1.png" alt="" style={{ height: 9, width: "auto", display: "block" }} />
+          <img src="/brand/empx-mark-slab-2.png" alt="" style={{ height: 9, width: "auto", display: "block" }} />
+          <img src="/brand/empx-mark-slab-3.png" alt="" style={{ height: 9, width: "auto", display: "block" }} />
         </span>
-
-        <div style={{ flex: 1, minWidth: 0, paddingTop: 1 }}>
-          <p style={{ margin: 0, fontWeight: 600, lineHeight: 1.3 }}>{item.message}</p>
-          {item.description && (
-            <p
-              style={{
-                margin: "3px 0 0",
-                color: "rgba(255,255,255,0.55)",
-                fontSize: 12,
-                lineHeight: 1.45,
-              }}
-            >
-              {item.description}
-            </p>
-          )}
-          {item.action && (
-            <button
-              type="button"
-              onClick={() => {
-                item.action!.onClick();
-                dismissToast(item.id);
-              }}
-              style={{
-                marginTop: 8,
-                padding: 0,
-                background: "transparent",
-                border: "none",
-                color: palette.iconColor,
-                fontFamily: "Inter, sans-serif",
-                fontSize: 11,
-                fontWeight: 700,
-                letterSpacing: "0.25em",
-                textTransform: "uppercase",
-                cursor: "pointer",
-                transition: "opacity 160ms ease",
-              }}
-              onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.7")}
-              onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
-            >
-              {item.action.label}
-            </button>
-          )}
-        </div>
-
         <button
           type="button"
           aria-label="Dismiss"
@@ -277,9 +277,6 @@ function ToastCard({ item }: { item: ToastItem }) {
             padding: 4,
             margin: -4,
             display: "flex",
-            alignItems: "flex-start",
-            justifyContent: "center",
-            flexShrink: 0,
             transition: "color 160ms ease",
           }}
           onMouseEnter={(e) => (e.currentTarget.style.color = "#fff")}
@@ -289,7 +286,7 @@ function ToastCard({ item }: { item: ToastItem }) {
             <path d="M1 1L9 9M9 1L1 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
           </svg>
         </button>
-      </div>
+      </span>
 
       {/* Auto-dismiss progress bar */}
       {hasProgress && (
@@ -297,7 +294,7 @@ function ToastCard({ item }: { item: ToastItem }) {
           aria-hidden
           style={{
             position: "absolute",
-            left: 3,
+            left: 0,
             right: 0,
             bottom: 0,
             height: 1.5,

@@ -1,8 +1,15 @@
+// ─── EmpxBridgeWidget — Via Labs lock-and-mint bridge ─────────────────────
+//
+// Locked widgetKit shape (matches EmpxSwapWidget / EmpxCrossWidget):
+// WidgetShell, eyebrow + "Lock & mint" badge + the two chains stated once,
+// MicroLabel / numeral / unit / amountUsd, one CTA with its hint beneath.
+// Execution is gated on the Via Labs rail rebuild, so the page keeps the CTA
+// disabled and the route renders as a preview, not a live quote.
+
 import { ReactNode } from "react";
-import { RouteVisualization, type RouteHop } from "./components";
+import { Pill, RouteVisualization, type RouteHop } from "./components";
 import {
   ChainPill,
-  Disclosure,
   MicroLabel,
   TokenIdentityRow,
   WidgetCTA,
@@ -26,6 +33,7 @@ export interface BridgeChain {
   id: number;
   name: string;
   color?: string;
+  logo?: ReactNode;
 }
 
 export interface EmpxBridgeWidgetProps {
@@ -113,14 +121,12 @@ export default function EmpxBridgeWidget(props: EmpxBridgeWidgetProps) {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 22 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <span style={eyebrow}>Bridge</span>
-          <span style={{ fontSize: 9.5, color: wk.t3, letterSpacing: "0.08em", textTransform: "uppercase" }}>
-            Lock & mint
-          </span>
+          <Pill variant="info">Lock &amp; mint</Pill>
         </div>
         <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <ChainPill name={fromChain.name} onClick={onSelectFromChain} />
+          <ChainPill logo={fromChain.logo} name={fromChain.name} onClick={onSelectFromChain} />
           <span style={{ fontSize: 11, color: wk.t4 }}>→</span>
-          <ChainPill name={toChain.name} onClick={onSelectToChain} />
+          <ChainPill logo={toChain.logo} name={toChain.name} onClick={onSelectToChain} />
         </span>
       </div>
 
@@ -216,14 +222,34 @@ export default function EmpxBridgeWidget(props: EmpxBridgeWidgetProps) {
 
       <div style={rule} />
 
+      {routeHops && routeHops.length > 1 && (
+        <>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 13 }}>
+            <MicroLabel>Route</MicroLabel>
+            <span style={{ fontSize: 9, color: wk.t3 }}>Preview · no live quote</span>
+          </div>
+          <div style={{ marginBottom: 24 }}>
+            <RouteVisualization hops={routeHops} animated compact />
+          </div>
+        </>
+      )}
+
       <div style={{ ...grid2, marginBottom: 24 }}>
         <div>
           <MicroLabel>Total cost</MicroLabel>
           <div style={{ fontSize: 12.5, fontWeight: 500, color: wk.orange, marginTop: 6, fontVariantNumeric: "tabular-nums" }}>
             {totalFeeUSD != null ? (totalFeeUSD <= 0.005 ? "FREE" : `$${totalFeeUSD.toFixed(2)}`) : "—"}
           </div>
-          {protocolFeeBps != null && (
-            <div style={{ fontSize: 9.5, color: wk.t3, marginTop: 4 }}>{protocolFeeBps} bps · via Via Labs</div>
+          {(protocolFeeBps != null || protocolFeeUSD != null) && (
+            <div style={{ fontSize: 9.5, color: wk.t3, marginTop: 4 }}>
+              {[
+                "Protocol fee",
+                protocolFeeBps != null ? `${protocolFeeBps} bps` : null,
+                protocolFeeUSD != null ? `$${protocolFeeUSD.toFixed(2)}` : null,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+            </div>
           )}
         </div>
         <div>
@@ -235,19 +261,6 @@ export default function EmpxBridgeWidget(props: EmpxBridgeWidgetProps) {
         </div>
       </div>
 
-      {routeHops && routeHops.length > 1 && (
-        <Disclosure label="Routing" defaultOpen>
-          <RouteVisualization hops={routeHops} animated compact />
-        </Disclosure>
-      )}
-
-      {(minimumReceived || slippageBps != null) && (
-        <div style={{ display: "flex", justifyContent: "space-between", marginTop: 11 }}>
-          {minimumReceived && <span style={{ fontSize: 9.5, color: wk.t3 }}>Min. received {minimumReceived}</span>}
-          {slippageBps != null && <span style={{ fontSize: 9.5, color: wk.t3 }}>Slippage {(slippageBps / 100).toFixed(2)}%</span>}
-        </div>
-      )}
-
       <WidgetCTA
         state={ctaState}
         label={ctaLabel}
@@ -258,6 +271,13 @@ export default function EmpxBridgeWidget(props: EmpxBridgeWidgetProps) {
         <p style={{ margin: "11px 2px 0", fontSize: 10, color: wk.t3, lineHeight: 1.6, textAlign: "center" }}>
           {comingSoonHint}
         </p>
+      )}
+
+      {(minimumReceived || slippageBps != null) && (
+        <div style={{ display: "flex", justifyContent: "space-between", marginTop: 11 }}>
+          {minimumReceived && <span style={{ fontSize: 9.5, color: wk.t3 }}>Min. received {minimumReceived}</span>}
+          {slippageBps != null && <span style={{ fontSize: 9.5, color: wk.t3 }}>Slippage {(slippageBps / 100).toFixed(2)}%</span>}
+        </div>
       )}
     </WidgetShell>
   );

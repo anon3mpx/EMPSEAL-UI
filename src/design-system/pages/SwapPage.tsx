@@ -2,11 +2,10 @@
 //
 // Page structure:
 //   • DappNavbar (responsive — drawer on mobile)
-//   • Page header — title + chain context
-//   • Two-column grid on desktop:
-//       LEFT (8 col)   — EmpxSwapWidget (the core flow)
-//       RIGHT (4 col)  — Live market snapshot + Recent trades + Settings card
-//   • Mobile → single column stack
+//   • One centred 480px column holding EmpxSwapWidget — identical on desktop
+//     and mobile. No page header (the widget carries its own "Swap"
+//     eyebrow) and no side panel: quote freshness, route, slippage settings
+//     and quote/execution status all live in the widget now.
 //
 // Wallet connection wired through useWalletConnection() — bridges wagmi v2
 // with the design-system WalletModal / WalletButton components.
@@ -14,19 +13,12 @@
 import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import {
   AccountModal,
-  Card,
   ChainLogo,
   ChainPicker,
   ConfirmTradeModal,
   DappFooter,
   DappNavbar,
   NetworkSelector,
-  Pill,
-  PrimaryButton,
-  QuoteCountdown,
-  RouteVisualization,
-  SplitRouteVisualization,
-  Tabs,
   Toaster,
   TokenLogo,
   TokenPicker,
@@ -75,7 +67,8 @@ import {
   type SwapHookToken,
 } from "../data/swapV2Adapters";
 
-import EmpxSwapWidget from "../EmpxSwapWidget";
+import EmpxSwapWidget, { type SwapNotice } from "../EmpxSwapWidget";
+import { WidgetKitKeyframes } from "../widgetKit";
 
 const SWAP_CHAINS: PickerChain[] = V2_AGGREGATOR_CHAINS.map((c) => ({
   id: c.id,
@@ -93,7 +86,6 @@ const SWAP_V2_CONTRACT_API = {
 
 // ─── Page state ───────────────────────────────────────────────────────────
 
-type SettingsTab = "slippage" | "route" | "mev";
 type SwapAction = "swap" | "wrap" | "unwrap";
 
 function shortHash(hash: string): string {
@@ -144,10 +136,8 @@ export default function SwapPage() {
   const activeV2Chain = getV2Chain(activeChain.id) ?? V2_AGGREGATOR_CHAINS.find((chain) => chain.id === activeChain.id) ?? V2_AGGREGATOR_CHAINS[0];
   const activeChainConfig = SUPPORTED_CHAINS[activeChain.id];
 
-  // Settings tab
-  const [settingsTab, setSettingsTab] = useState<SettingsTab>("slippage");
+  // Trade settings
   const [slippageBps, setSlippageBps] = useState(50);
-  const [mevEnabled, setMevEnabled] = useState(true);
 
   // Swap state — tokens sourced from shared V2 registry.
   const tokensForChain: SwapHookToken[] = useMemo(() => {
@@ -355,6 +345,24 @@ export default function SwapPage() {
   const isExecuting = ["APPROVING", "WAITING_FOR_CONFIRMATION", "SWAPPING"].includes(swapStatus);
   const canOpenConfirm = !!preparedRoute && !!quoteTradeInfo && Number(fromAmount) > 0;
 
+  // One status line under the quote row — replaces the old side panel's
+  // quote-source pill and error text.
+  const quoteNotice: SwapNotice | undefined = executionError
+    ? { tone: "error", text: executionError }
+    : quoteError && !quoteLoading
+      ? { tone: "error", text: "SDK and local route preparation failed. Refresh the quote or try a different amount." }
+      : splitQuoteLoading
+        ? { tone: "info", text: "Optimizing for a split route…" }
+        : quoteFallbackActive
+          ? { tone: "info", text: "Quoted via the local fallback router — SDK route unavailable." }
+          : undefined;
+
+  const numericFromAmount = Number(fromAmount.replace(/,/g, ""));
+  const numericToAmount = Number(toAmount.replace(/,/g, ""));
+  const rate = fromToken && toToken && numericFromAmount > 0 && numericToAmount > 0
+    ? `1 ${fromToken.ticker} = ${(numericToAmount / numericFromAmount).toLocaleString(undefined, { maximumFractionDigits: 6 })} ${toToken.ticker}`
+    : undefined;
+
   // Flip
   const flipTokens = () => {
     setFromToken(toToken);
@@ -419,349 +427,108 @@ export default function SwapPage() {
         }
       />
 
+      <WidgetKitKeyframes />
+
+      {/* Single centred 480px column — identical desktop and mobile. 480 is
+          the widget's measure, so the column is 480 + its own padding. */}
       <main
         style={{
-          maxWidth: 1180,
+          maxWidth: 480 + (isMobile ? 32 : 40),
           margin: "0 auto",
-          padding: isMobile ? "24px 16px 56px" : "32px 24px 72px",
+          padding: isMobile ? "24px 16px 40px" : "38px 20px 48px",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
         }}
       >
-        {/* Header */}
-        <header style={{ marginBottom: isMobile ? 18 : 24 }}>
-          <p
-            style={{
-              margin: 0,
-              fontSize: 10,
-              letterSpacing: "0.40em",
-              color: "#FF8A00",
-              textTransform: "uppercase",
-              fontWeight: 700,
-            }}
-          >
-            SAME-CHAIN AGGREGATION
-          </p>
-          <h1
-            style={{
-              margin: "8px 0 0",
-              fontFamily: "'Space Grotesk', sans-serif",
-              fontSize: isMobile ? 32 : "clamp(34px, 4.5vw, 56px)",
-              fontWeight: 300,
-              letterSpacing: "-0.03em",
-              lineHeight: 1,
-              color: "#fff",
-            }}
-          >
-            Swap.{" "}
-            <span
-              style={{
-                fontFamily: "'Instrument Serif', serif",
-                fontStyle: "italic",
-                color: "#FF8A00",
-                letterSpacing: "-0.02em",
-              }}
-            >
-              Best price, every chain.
-            </span>
-          </h1>
-        </header>
-
-        {/* Body — responsive grid */}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: isMobile ? "1fr" : "minmax(0, 1.4fr) minmax(0, 1fr)",
-            gap: isMobile ? 18 : 28,
-            alignItems: "start",
-          }}
-        >
-          {/* LEFT — swap widget */}
-          <div style={{ display: "flex", justifyContent: "center" }}>
-            <EmpxSwapWidget
-              chain={{
-                ...activeChain,
-                logo: (
-                  <ChainLogo
-                    chainId={activeChain.id}
-                    symbol={activeChain.name.slice(0, 3).toUpperCase()}
-                    bg={activeChain.color}
-                    size={17}
-                  />
-                ),
-              }}
-              fromToken={fromToken ? {
-                ticker: fromToken.ticker,
-                address: fromToken.address,
-                decimals: fromToken.decimal,
-                logo: (
-                  <TokenLogo
-                    ticker={fromToken.ticker}
-                    chainId={fromToken.chainId}
-                    address={fromToken.address}
-                    logoUrl={fromToken.logoUrl}
-                    isNative={fromToken.isNative}
-                    size={30}
-                  />
-                ),
-              } : null}
-              fromAmount={fromAmount}
-              fromBalance={isTokenBalanceLoading ? "Loading..." : selectedFromToken?.balance}
-              fromUsdValue={fromUSDValue}
-              onFromAmountChange={setFromAmount}
-              onSelectFromToken={() => setShowTokenPicker("from")}
-              onPercentClick={(pct) => {
-                const bal = Number((selectedFromToken?.balance || "0").replace(/,/g, ""));
-                if (Number.isFinite(bal)) setFromAmount(String((bal * pct) / 100));
-              }}
-              toToken={toToken ? {
-                ticker: toToken.ticker,
-                address: toToken.address,
-                decimals: toToken.decimal,
-                logo: (
-                  <TokenLogo
-                    ticker={toToken.ticker}
-                    chainId={toToken.chainId}
-                    address={toToken.address}
-                    logoUrl={toToken.logoUrl}
-                    isNative={toToken.isNative}
-                    size={30}
-                  />
-                ),
-              } : null}
-              toAmount={toAmount}
-              toUsdValue={toUSDValue}
-              onSelectToToken={() => setShowTokenPicker("to")}
-              pairType={pairType}
-              protocolFeeBps={feeBps}
-              protocolFeeUSD={protocolFeeUSD ?? undefined}
-              bestRoute={bestRoute}
-              routeLabel={routeLabel}
-              minimumReceived={`${minimumReceived} ${toToken?.ticker || ""}`}
-              slippageBps={slippageBps}
-              priceImpactBps={priceImpactBps}
-              routeHops={routeHops}
-              splitBranches={splitBranches}
-              swapDisabled={!canOpenConfirm || isRefreshingQuote}
-              swapLoading={quoteLoading}
-              walletConnected={walletState.status === "connected"}
-              onConnect={() => setShowWalletModal(true)}
-              onSwap={onSwap}
-              onFlip={flipTokens}
-              swapLabel={walletState.status === "connected" ? quoteLoading ? "Fetching quote..." : swapActionLabel : "Connect wallet"}
-            />
-          </div>
-
-          {/* RIGHT — context panel */}
-          <aside style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            {/* Quote freshness */}
-            {walletState.status === "connected" && (
-              <Card style={{ padding: 16 }}>
-                <p
-                  style={{
-                    margin: 0,
-                    fontSize: 10,
-                    letterSpacing: "0.40em",
-                    color: "rgba(255,255,255,0.40)",
-                    textTransform: "uppercase",
-                    fontWeight: 700,
-                  }}
-                >
-                  Quote freshness
-                </p>
-                <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-                  {quoteFreshness && (
-                    <QuoteCountdown
-                      totalMs={quoteFreshness.validMs}
-                      issuedAt={quoteFreshness.issuedAt}
-                      onRefresh={() => {
-                        void refreshQuotes();
-                        toast.info("Refreshing quote");
-                      }}
-                      compact
-                    />
-                  )}
-                  <Pill variant={quoteLoading || splitQuoteLoading ? "accent" : quoteFallbackActive ? "ghost" : isQuoteEnabled ? "info" : "ghost"}>
-                    {quoteLoading
-                      ? "Fetching single route"
-                      : splitQuoteLoading
-                        ? "Optimizing for split trade"
-                        : quoteFallbackActive
-                          ? "Local fallback"
-                          : isQuoteEnabled
-                            ? "SDK quote"
-                            : "Quote idle"}
-                  </Pill>
-                  {executionError && <Pill variant="danger">Execution error</Pill>}
-                </div>
-                {executionError && (
-                  <p style={{ margin: "10px 0 0", fontSize: 11, color: "#F87171", lineHeight: 1.45 }}>
-                    {executionError}
-                  </p>
-                )}
-                {quoteError && !quoteLoading && (
-                  <p style={{ margin: "10px 0 0", fontSize: 11, color: "#F87171", lineHeight: 1.45 }}>
-                    SDK and local route preparation failed. Refresh the quote or try a different amount.
-                  </p>
-                )}
-              </Card>
-            )}
-
-            {/* Routing detail */}
-            {walletState.status === "connected" && fromToken && toToken && (
-              <Card style={{ padding: 18 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-                  <p
-                    style={{
-                      margin: 0,
-                      fontSize: 10,
-                      letterSpacing: "0.40em",
-                      color: "rgba(255,255,255,0.40)",
-                      textTransform: "uppercase",
-                      fontWeight: 700,
-                    }}
-                  >
-                    Routing
-                  </p>
-                  <Pill variant="accent">{pairType}</Pill>
-                </div>
-                {splitBranches && splitBranches.length > 1 ? (
-                  <>
-                    {routeLabel && (
-                      <p style={{ margin: "0 0 10px", fontSize: 10, color: "#FF8A00", letterSpacing: "0.18em", textTransform: "uppercase" }}>
-                        {routeLabel}
-                      </p>
-                    )}
-                    <SplitRouteVisualization
-                      fromTicker={fromToken.ticker}
-                      fromChainName={activeChain.name}
-                      fromChainColor={activeChain.color}
-                      toTicker={toToken.ticker}
-                      toChainName={activeChain.name}
-                      toChainColor={activeChain.color}
-                      branches={splitBranches}
-                      animated
-                      compact
-                    />
-                  </>
-                ) : routeHops && routeHops.length > 1 ? (
-                  <RouteVisualization hops={routeHops} animated compact />
-                ) : (
-                  <p style={{ margin: 0, fontSize: 12, color: "rgba(255,255,255,0.55)", lineHeight: 1.55 }}>
-                    {quoteLoading
-                      ? "Preparing the best automatic SDK route..."
-                      : routeLabel ?? "No route available for the current pair and amount."}
-                  </p>
-                )}
-              </Card>
-            )}
-
-            {/* Settings */}
-            <Card style={{ padding: 18 }}>
-              <p
-                style={{
-                  margin: "0 0 12px",
-                  fontSize: 10,
-                  letterSpacing: "0.40em",
-                  color: "rgba(255,255,255,0.40)",
-                  textTransform: "uppercase",
-                  fontWeight: 700,
-                }}
-              >
-                Trade settings
-              </p>
-              <Tabs
-                options={[
-                  { value: "slippage" as const, label: "Slippage" },
-                  // { value: "route" as const,    label: "Routing" },
-                  // { value: "mev" as const,      label: "MEV" },
-                ]}
-                active={settingsTab}
-                onChange={setSettingsTab}
-                variant="pill"
+        <EmpxSwapWidget
+          chain={{
+            ...activeChain,
+            logo: (
+              <ChainLogo
+                chainId={activeChain.id}
+                symbol={activeChain.name.slice(0, 3).toUpperCase()}
+                bg={activeChain.color}
+                size={17}
               />
-              <div style={{ marginTop: 14 }}>
-                {settingsTab === "slippage" && (
-                  <SlippagePresets
-                    valueBps={slippageBps}
-                    onChange={(bps) => { setSlippageBps(bps); toast.info(`Slippage set to ${(bps / 100).toFixed(2)}%`); }}
-                  />
-                )}
-                {/* {settingsTab === "route" && (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                    <RouteToggle
-                      label="Automatic split routing"
-                      hint="SDK selects a split only when it improves the route"
-                      enabled
-                    />
-                    <RouteToggle
-                      label="Multi-hop"
-                      hint="Allow up to 3 hops through intermediate tokens"
-                      enabled
-                    />
-                    <p style={{ margin: "8px 4px 0", fontSize: 11, color: "rgba(255,255,255,0.45)", lineHeight: 1.5 }}>
-                      EmpX&apos;s pathfinder enumerates every adapter on the chain and
-                      picks by output. Stable-pair routes get -5 bps automatically via
-                      the pair-type fee model — no toggle needed.
-                    </p>
-                  </div>
-                )} */}
-                {/* {settingsTab === "mev" && (
-                  <div>
-                    <RouteToggle
-                      label="MEV protection"
-                      hint="Submit via private mempool. Adds 1-2 seconds."
-                      enabled={false}
-                      planned
-                    />
-                    <p style={{ margin: "12px 0 0", fontSize: 11, color: "rgba(255,255,255,0.45)", lineHeight: 1.55 }}>
-                      Not active. When wired, routes signing via Flashbots Protect
-                      on Ethereum and MEV-Share on supported L2s — a lightweight
-                      RPC swap at submit time, no extra fees.
-                    </p>
-                  </div>
-                )} */}
-              </div>
-            </Card>
-
-            {/* Disconnected sidebar — show context */}
-            {walletState.status === "disconnected" && (
-              <Card style={{ padding: 22 }}>
-                <p
-                  style={{
-                    margin: 0,
-                    fontSize: 10,
-                    letterSpacing: "0.40em",
-                    color: "#FF8A00",
-                    textTransform: "uppercase",
-                    fontWeight: 700,
-                  }}
-                >
-                  Before you trade
-                </p>
-                <p
-                  style={{
-                    margin: "10px 0 6px",
-                    fontFamily: "'Space Grotesk', sans-serif",
-                    fontSize: 18,
-                    fontWeight: 400,
-                    letterSpacing: "-0.015em",
-                  }}
-                >
-                  Connect a wallet
-                </p>
-                <p style={{ margin: 0, fontSize: 12.5, color: "rgba(255,255,255,0.55)", lineHeight: 1.55 }}>
-                  EmpX routes through every DEX on the chain you&apos;re connected to —
-                  Uniswap, Curve, Velodrome, Aerodrome, and chain-native AMMs.
-                  Pair-type pricing gives the cheapest stable-pair fees in DeFi.
-                </p>
-                <div style={{ marginTop: 12 }}>
-                  <PrimaryButton onClick={() => setShowWalletModal(true)}>
-                    Connect wallet
-                  </PrimaryButton>
-                </div>
-              </Card>
-            )}
-          </aside>
-        </div>
+            ),
+          }}
+          onSelectChain={() => setShowChainPicker(true)}
+          fromToken={fromToken ? {
+            ticker: fromToken.ticker,
+            address: fromToken.address,
+            decimals: fromToken.decimal,
+            logo: (
+              <TokenLogo
+                ticker={fromToken.ticker}
+                chainId={fromToken.chainId}
+                address={fromToken.address}
+                logoUrl={fromToken.logoUrl}
+                isNative={fromToken.isNative}
+                size={30}
+              />
+            ),
+          } : null}
+          fromAmount={fromAmount}
+          fromBalance={isTokenBalanceLoading ? "Loading..." : selectedFromToken?.balance}
+          fromUsdValue={fromUSDValue}
+          onFromAmountChange={setFromAmount}
+          onSelectFromToken={() => setShowTokenPicker("from")}
+          onPercentClick={(pct) => {
+            const bal = Number((selectedFromToken?.balance || "0").replace(/,/g, ""));
+            if (Number.isFinite(bal)) setFromAmount(String((bal * pct) / 100));
+          }}
+          toToken={toToken ? {
+            ticker: toToken.ticker,
+            address: toToken.address,
+            decimals: toToken.decimal,
+            logo: (
+              <TokenLogo
+                ticker={toToken.ticker}
+                chainId={toToken.chainId}
+                address={toToken.address}
+                logoUrl={toToken.logoUrl}
+                isNative={toToken.isNative}
+                size={30}
+              />
+            ),
+          } : null}
+          toAmount={toAmount}
+          toUsdValue={toUSDValue}
+          onSelectToToken={() => setShowTokenPicker("to")}
+          rate={rate}
+          pairType={pairType}
+          protocolFeeBps={feeBps}
+          protocolFeeUSD={protocolFeeUSD ?? undefined}
+          bestRoute={bestRoute}
+          routeLabel={routeLabel}
+          minimumReceived={`${minimumReceived} ${toToken?.ticker || ""}`}
+          slippageBps={slippageBps}
+          priceImpactBps={priceImpactBps}
+          routeHops={routeHops}
+          splitBranches={splitBranches}
+          onSlippageChange={(bps) => {
+            setSlippageBps(bps);
+            toast.info(`Slippage set to ${(bps / 100).toFixed(2)}%`);
+          }}
+          quote={walletState.status === "connected" && quoteFreshness ? {
+            issuedAt: quoteFreshness.issuedAt,
+            validMs: quoteFreshness.validMs,
+            onRefresh: () => {
+              void refreshQuotes();
+            },
+            // Never swap the route out from under an open review or a tx in flight.
+            paused: showConfirm || isExecuting,
+          } : undefined}
+          notice={walletState.status === "connected" ? quoteNotice : undefined}
+          swapDisabled={!canOpenConfirm || isRefreshingQuote}
+          swapLoading={quoteLoading}
+          walletConnected={walletState.status === "connected"}
+          onConnect={() => setShowWalletModal(true)}
+          onSwap={onSwap}
+          onFlip={flipTokens}
+          swapLabel={walletState.status === "connected" ? quoteLoading ? "Fetching quote..." : swapActionLabel : "Connect wallet"}
+        />
       </main>
 
       {/* ─── Overlays ─────────────────────────────────────────────────── */}
@@ -913,172 +680,5 @@ export default function SwapPage() {
       <DappFooter />
       <Toaster />
     </div>
-  );
-}
-
-// ─── Settings sub-components ──────────────────────────────────────────────
-
-function SlippagePresets({ valueBps, onChange }: { valueBps: number; onChange: (bps: number) => void }) {
-  const [custom, setCustom] = useState("");
-  const presets = [10, 25, 50, 100];
-  return (
-    <div>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
-        {presets.map((bps) => {
-          const active = valueBps === bps;
-          return (
-            <button
-              key={bps}
-              type="button"
-              onClick={() => onChange(bps)}
-              style={{
-                padding: "6px 11px",
-                background: active ? "rgba(255,138,0,0.10)" : "rgba(255,255,255,0.025)",
-                border: `1px solid ${active ? "rgba(255,138,0,0.40)" : "rgba(255,255,255,0.08)"}`,
-                borderRadius: 3,
-                color: active ? "#FF8A00" : "rgba(255,255,255,0.78)",
-                fontFamily: "Inter, sans-serif",
-                fontSize: 11,
-                fontWeight: 700,
-                letterSpacing: "0.20em",
-                cursor: "pointer",
-                transition: "all 160ms ease",
-              }}
-            >
-              {(bps / 100).toFixed(2)}%
-            </button>
-          );
-        })}
-        <div style={{ position: "relative" }}>
-          <input
-            type="text"
-            value={custom}
-            placeholder="Custom"
-            onChange={(e) => setCustom(e.target.value.replace(/[^0-9.]/g, ""))}
-            onBlur={() => {
-              const v = Number(custom);
-              if (Number.isFinite(v) && v > 0) onChange(Math.round(v * 100));
-            }}
-            style={{
-              width: 92,
-              padding: "6px 22px 6px 10px",
-              background: "rgba(255,255,255,0.025)",
-              border: "1px solid rgba(255,255,255,0.08)",
-              borderRadius: 3,
-              color: "#fff",
-              fontFamily: "Inter, sans-serif",
-              fontSize: 11,
-              fontWeight: 600,
-              outline: "none",
-            }}
-          />
-          <span
-            style={{
-              position: "absolute",
-              right: 8,
-              top: "50%",
-              transform: "translateY(-50%)",
-              color: "rgba(255,255,255,0.40)",
-              fontSize: 11,
-            }}
-          >
-            %
-          </span>
-        </div>
-      </div>
-      <p style={{ margin: 0, fontSize: 11, color: "rgba(255,255,255,0.45)", lineHeight: 1.5 }}>
-        Higher slippage tolerates volatile pools; lower protects price. EmpX warns
-        on slippage above 1% for stable pairs.
-      </p>
-    </div>
-  );
-}
-
-function RouteToggle({
-  label,
-  hint,
-  enabled,
-  onToggle,
-  planned,
-}: {
-  label: string;
-  hint: string;
-  enabled: boolean;
-  onToggle?: () => void;
-  /** When true, renders dimmed with a "PLANNED" pill (no toggling) */
-  planned?: boolean;
-}) {
-  const disabled = !onToggle || planned;
-  return (
-    <button
-      type="button"
-      onClick={disabled ? undefined : onToggle}
-      disabled={disabled}
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 12,
-        padding: "10px 12px",
-        background: enabled ? "rgba(255,138,0,0.04)" : "rgba(255,255,255,0.02)",
-        border: `1px solid ${enabled ? "rgba(255,138,0,0.25)" : "rgba(255,255,255,0.06)"}`,
-        borderRadius: 4,
-        width: "100%",
-        textAlign: "left",
-        color: "#fff",
-        cursor: disabled ? "default" : "pointer",
-        opacity: planned ? 0.62 : 1,
-        transition: "background 160ms ease, border-color 160ms ease, opacity 160ms ease",
-        fontFamily: "Inter, sans-serif",
-      }}
-    >
-      <span
-        aria-hidden
-        style={{
-          width: 26,
-          height: 14,
-          borderRadius: 8,
-          background: enabled ? "rgba(255,138,0,0.45)" : "rgba(255,255,255,0.10)",
-          position: "relative",
-          flexShrink: 0,
-          transition: "background 200ms ease",
-        }}
-      >
-        <span
-          style={{
-            position: "absolute",
-            top: 1,
-            left: enabled ? 13 : 1,
-            width: 12,
-            height: 12,
-            borderRadius: "50%",
-            background: enabled ? "#FF8A00" : "rgba(255,255,255,0.45)",
-            transition: "left 220ms cubic-bezier(0.22,1,0.36,1)",
-            boxShadow: enabled ? "0 0 6px rgba(255,138,0,0.50)" : "none",
-          }}
-        />
-      </span>
-      <span style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <p style={{ margin: 0, fontSize: 12.5, fontWeight: 600 }}>{label}</p>
-          {planned && (
-            <span
-              style={{
-                fontSize: 8,
-                padding: "2px 6px",
-                background: "rgba(96,165,250,0.12)",
-                color: "#93C5FD",
-                borderRadius: 2,
-                letterSpacing: "0.20em",
-                fontWeight: 700,
-                textTransform: "uppercase",
-              }}
-            >
-              Not active
-            </span>
-          )}
-        </div>
-        <p style={{ margin: "2px 0 0", fontSize: 11, color: "rgba(255,255,255,0.50)" }}>{hint}</p>
-      </span>
-    </button>
   );
 }

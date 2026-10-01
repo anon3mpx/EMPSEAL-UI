@@ -18,6 +18,8 @@ describe("mapCrossApiError", () => {
     ["EXECUTION_STEP_NOT_READY", /already in progress/i],
     ["INVALID_SELECTION_RESPONSE", /incomplete/i],
     ["GARDEN_SOLANA_TRANSACTION_EXPIRED", /new quote/i],
+    ["SEQUENTIAL_PRIMARY_NOT_COMPOSABLE", /multi-step routes cannot be combined with gas drop/i],
+    ["GARDEN_NATIVE_SOURCE_NOT_COMPOSABLE", /garden native routes cannot be combined with gas drop/i],
   ])("maps %s to actionable copy", (code, message) => {
     expect(mapCrossApiError({ body: { error: code } })).toMatch(message);
   });

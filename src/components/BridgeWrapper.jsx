@@ -9,7 +9,7 @@ export default function BridgeWrapper({ children }) {
     <WagmiProviderWrapper appType="bridge">
       <Provider store={store}>
         {children}
-        <ToastContainer position="top-right" theme="dark" autoClose={5000} />
+        <ToastContainer position="bottom-center" theme="dark" autoClose={5000} />
       </Provider>
     </WagmiProviderWrapper>
   );

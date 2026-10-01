@@ -1,11 +1,13 @@
-// ─── ChainPicker — searchable list with mode support ───────────────────────
+// ─── ChainPicker — grid picker, slab theme ─────────────────────────────────
+//
+// Chrome and tiles follow the locked drafts (public/cross-drafts.html chain
+// picker + public/swap-experience.html): slab modal, inset search with a left
+// accent bar, a 4-column grid of square tiles with a corner tier badge.
 //
 // MODES:
-//   "swap"  → simple list, switches the app's active network
-//   "cross" → list with extra context (kind label) for source/dest selection
-//
-// Both modes use a list layout (scrollable, searchable) — much faster than a
-// grid when the user knows what they want.
+//   "swap"  → one flat grid, switches the app's active network
+//   "cross" → grids grouped by kind / groupLabel for source/dest selection
+//             (CrossPage orders swap-leg chains first via groupOrder)
 
 import { ReactNode, useMemo, useState } from "react";
 import Modal from "./Modal";
@@ -46,7 +48,22 @@ interface ChainPickerProps {
   title?: string;
   /** Override eyebrow */
   eyebrow?: string;
+  /**
+   * Show the All / Aggregator / Rail-only / Native L1 tier tabs. Defaults to
+   * on in cross mode when the chains carry a tier; false also hides the
+   * per-tile tier badge and footer legend.
+   */
+  showTiers?: boolean;
 }
+
+type TierFilter = 1 | 2 | 3 | "all";
+
+const TIER_TABS: { tier: TierFilter; label: string }[] = [
+  { tier: "all", label: "All" },
+  { tier: 1, label: "Aggregator" },
+  { tier: 2, label: "Rail-only" },
+  { tier: 3, label: "Native L1" },
+];
 
 const KIND_LABEL: Record<NonNullable<PickerChain["kind"]>, string> = {
   EVM: "EVM Chains",
@@ -64,19 +81,35 @@ export default function ChainPicker({
   mode = "swap",
   title,
   eyebrow,
+  showTiers,
 }: ChainPickerProps) {
   const [query, setQuery] = useState("");
+  const [tierFilter, setTierFilter] = useState<TierFilter>("all");
+  const hasTiers = chains.some((c) => c.tier !== undefined);
+  // Tier badges + legend follow the data; the filter tabs default to cross
+  // mode, where all three tiers actually coexist.
+  const tiersVisible = showTiers ?? hasTiers;
+  const tierTabsVisible = showTiers ?? (mode === "cross" && hasTiers);
+  const tierCounts = useMemo(() => {
+    const counts: Record<string, number> = { all: chains.length };
+    chains.forEach((c) => {
+      if (c.tier !== undefined) counts[c.tier] = (counts[c.tier] ?? 0) + 1;
+    });
+    return counts;
+  }, [chains]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return chains;
-    return chains.filter(
-      (c) =>
+    return chains.filter((c) => {
+      if (tierTabsVisible && tierFilter !== "all" && c.tier !== tierFilter) return false;
+      if (!q) return true;
+      return (
         c.name.toLowerCase().includes(q) ||
         c.ticker?.toLowerCase().includes(q) ||
         String(c.id).includes(q)
-    );
-  }, [chains, query]);
+      );
+    });
+  }, [chains, query, tierFilter, tierTabsVisible]);
 
   // Sort: chains with balance first (highest USD first), then alphabetical
   const sorted = useMemo(() => {
@@ -125,19 +158,35 @@ export default function ChainPicker({
   const resolvedEyebrow = eyebrow ?? (mode === "swap" ? "NETWORK" : "CHAIN");
 
   return (
-    <Modal open={open} onClose={onClose} title={resolvedTitle} eyebrow={resolvedEyebrow} maxWidth={460}>
-      {/* Search */}
-      <div style={{ position: "relative", marginBottom: 14 }}>
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={resolvedTitle}
+      eyebrow={resolvedEyebrow}
+      maxWidth={460}
+      theme="slab"
+      footer={
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 9.5, color: "rgba(255,255,255,0.36)" }}>
+          <span>
+            {sorted.length} chain{sorted.length === 1 ? "" : "s"}
+          </span>
+          {tiersVisible && <span>T1 aggregator · T2 rail-only · T3 native L1</span>}
+        </div>
+      }
+    >
+      {/* Search — left accent bar inset, matching the draft's .search::before */}
+      <div style={{ position: "relative", marginBottom: 13, borderRadius: 4, overflow: "hidden", background: "rgba(255,255,255,0.03)" }}>
+        <span aria-hidden style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 2, background: "var(--widget-primary, #FF8A00)", opacity: 0.5 }} />
         <svg
-          width="14"
-          height="14"
+          width="13"
+          height="13"
           viewBox="0 0 14 14"
           style={{
             position: "absolute",
-            left: 14,
+            left: 13,
             top: "50%",
             transform: "translateY(-50%)",
-            color: "rgba(255,255,255,0.40)",
+            color: "rgba(255,255,255,0.36)",
           }}
         >
           <circle cx="6" cy="6" r="4.5" stroke="currentColor" strokeWidth="1.5" fill="none" />
@@ -150,92 +199,148 @@ export default function ChainPicker({
           placeholder="Search chains"
           style={{
             width: "100%",
-            padding: "11px 14px 11px 38px",
-            background: "rgba(255,255,255,0.03)",
-            border: "1px solid rgba(255,255,255,0.10)",
-            borderRadius: 4,
+            padding: "11px 12px 11px 34px",
+            background: "transparent",
+            border: "none",
             color: "#fff",
             fontFamily: "Inter, sans-serif",
-            fontSize: 13,
+            fontSize: 12.5,
             outline: "none",
-            transition: "border-color 160ms ease, background 160ms ease",
-          }}
-          onFocus={(e) => {
-            e.currentTarget.style.borderColor = "rgba(255,138,0,0.40)";
-            e.currentTarget.style.background = "rgba(255,255,255,0.05)";
-          }}
-          onBlur={(e) => {
-            e.currentTarget.style.borderColor = "rgba(255,255,255,0.10)";
-            e.currentTarget.style.background = "rgba(255,255,255,0.03)";
           }}
         />
       </div>
 
+      {/* Tier tabs */}
+      {tierTabsVisible && (
+        <div style={{ display: "flex", gap: 20, marginBottom: 4, borderBottom: "1px solid rgba(255,255,255,0.07)", overflowX: "auto" }}>
+          {TIER_TABS.filter((t) => t.tier === "all" || tierCounts[t.tier]).map((t) => {
+            const active = tierFilter === t.tier;
+            return (
+              <button
+                key={String(t.tier)}
+                type="button"
+                onClick={() => setTierFilter(t.tier)}
+                aria-pressed={active}
+                style={{
+                  position: "relative",
+                  background: "transparent",
+                  border: "none",
+                  padding: "9px 0",
+                  margin: "0 0 -1px",
+                  fontFamily: "Inter, sans-serif",
+                  fontSize: 10,
+                  fontWeight: 600,
+                  letterSpacing: "0.16em",
+                  textTransform: "uppercase",
+                  whiteSpace: "nowrap",
+                  color: active ? "var(--widget-primary, #FF8A00)" : "rgba(255,255,255,0.36)",
+                  cursor: "pointer",
+                  transition: "color 160ms ease",
+                }}
+                onMouseEnter={(e) => {
+                  if (!active) e.currentTarget.style.color = "rgba(255,255,255,0.65)";
+                }}
+                onMouseLeave={(e) => {
+                  if (!active) e.currentTarget.style.color = "rgba(255,255,255,0.36)";
+                }}
+              >
+                {t.label}
+                {active && (
+                  <span aria-hidden style={{ position: "absolute", left: 0, right: 0, bottom: -1, height: 1.5, background: "var(--widget-primary, #FF8A00)" }} />
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {sorted.length === 0 ? (
         <div style={{ padding: "32px 12px", textAlign: "center", color: "rgba(255,255,255,0.40)", fontSize: 12 }}>
-          No chains match "{query}"
+          {query.trim() ? `No chains match "${query}"` : "No chains in this tier"}
         </div>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {grouped.map((group) => (
             <div key={`${group.kind || "default"}:${group.label}`}>
               {/* Group header (cross mode only) */}
               {mode === "cross" && group.label && (
-                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8, padding: "0 2px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 9, padding: "4px 2px 2px" }}>
                   <span
                     style={{
-                      fontSize: 9,
-                      letterSpacing: "0.35em",
-                      color: "rgba(255,255,255,0.40)",
+                      fontSize: 8.5,
+                      letterSpacing: "0.22em",
+                      color: "rgba(255,255,255,0.30)",
                       textTransform: "uppercase",
-                      fontWeight: 700,
+                      fontWeight: 600,
+                      whiteSpace: "nowrap",
                     }}
                   >
                     {group.label}
                   </span>
-                  <span
-                    style={{
-                      flex: 1,
-                      height: 1,
-                      background: "linear-gradient(90deg, rgba(255,255,255,0.10) 0%, transparent 100%)",
-                    }}
-                  />
-                  <span style={{ fontSize: 10, color: "rgba(255,255,255,0.30)", fontWeight: 500 }}>
+                  <span style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.05)" }} />
+                  <span style={{ fontSize: 9.5, color: "rgba(255,255,255,0.30)", fontWeight: 500 }}>
                     {group.list.length}
                   </span>
                 </div>
               )}
 
-              {/* Chain rows */}
-              <div style={{ display: "flex", flexDirection: "column" }}>
+              {/* Chain tiles — 4-column grid, ported from the draft's .grid4/.gcell */}
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(4, 1fr)",
+                  gap: 7,
+                  padding: "10px 0 4px",
+                }}
+              >
                 {group.list.map((c) => {
                   const selected = selectedId === c.id;
+                  const hasBalance = c.balanceUSD !== undefined && c.balanceUSD > 0;
                   return (
                     <button
                       key={c.id}
                       type="button"
                       onClick={() => onSelect(c)}
+                      title={[c.name, c.tierLabel, `Chain ID ${c.id}`].filter(Boolean).join(" · ")}
                       style={{
+                        position: "relative",
                         display: "flex",
+                        flexDirection: "column",
                         alignItems: "center",
-                        gap: 12,
-                        padding: "10px 10px",
-                        background: selected ? "rgba(255,138,0,0.06)" : "transparent",
+                        gap: 7,
+                        padding: "12px 6px",
+                        borderRadius: 4,
+                        background: selected
+                          ? "linear-gradient(180deg, rgba(var(--widget-primary-rgb, 255, 138, 0), 0.13), rgba(var(--widget-primary-rgb, 255, 138, 0), 0.03))"
+                          : "transparent",
                         border: "none",
-                        borderLeft: `2px solid ${selected ? "#FF8A00" : "transparent"}`,
-                        width: "100%",
                         cursor: "pointer",
-                        color: "#fff",
-                        transition: "background 140ms ease",
-                        textAlign: "left",
+                        minWidth: 0,
+                        transition: "background 150ms ease",
                       }}
                       onMouseEnter={(e) => {
-                        if (!selected) e.currentTarget.style.background = "rgba(255,255,255,0.035)";
+                        if (!selected) e.currentTarget.style.background = "rgba(255,255,255,0.045)";
                       }}
                       onMouseLeave={(e) => {
                         if (!selected) e.currentTarget.style.background = "transparent";
                       }}
                     >
+                      {tiersVisible && c.tier !== undefined && (
+                        <span
+                          aria-hidden
+                          style={{
+                            position: "absolute",
+                            top: 5,
+                            right: 5,
+                            fontSize: 7,
+                            fontWeight: 700,
+                            letterSpacing: "0.1em",
+                            color: selected ? "var(--widget-primary, #FF8A00)" : "rgba(255,255,255,0.22)",
+                          }}
+                        >
+                          T{c.tier}
+                        </span>
+                      )}
                       <ChainLogo
                         chainId={c.id}
                         symbol={
@@ -244,84 +349,33 @@ export default function ChainPicker({
                             : c.name.slice(0, 3).toUpperCase()
                         }
                         bg={c.color || "#888"}
-                        size={32}
+                        size={34}
                       />
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                          <p style={{ margin: 0, fontWeight: 600, fontSize: 13.5, color: "#fff" }}>
-                            {c.name}
-                          </p>
-                          {c.tier !== undefined && (
-                            <span
-                              title={c.tierLabel}
-                              style={{
-                                fontSize: 8.5,
-                                fontWeight: 700,
-                                letterSpacing: "0.18em",
-                                textTransform: "uppercase",
-                                padding: "1px 5px",
-                                borderRadius: 2,
-                                color: c.tier === 1 ? "#FFB347" : c.tier === 2 ? "#93C5FD" : "#A78BFA",
-                                background:
-                                  c.tier === 1
-                                    ? "rgba(255,138,0,0.10)"
-                                    : c.tier === 2
-                                    ? "rgba(96,165,250,0.10)"
-                                    : "rgba(139,92,246,0.10)",
-                                border:
-                                  "1px solid " +
-                                  (c.tier === 1
-                                    ? "rgba(255,138,0,0.25)"
-                                    : c.tier === 2
-                                    ? "rgba(96,165,250,0.25)"
-                                    : "rgba(139,92,246,0.25)"),
-                              }}
-                            >
-                              T{c.tier}
-                            </span>
-                          )}
-                        </div>
-                        <p
-                          style={{
-                            margin: "2px 0 0",
-                            fontSize: 11,
-                            color: "rgba(255,255,255,0.40)",
-                          }}
-                        >
-                          {c.tierLabel ? `${c.tierLabel} · ` : c.ticker ? `${c.ticker} · ` : ""}
-                          Chain ID {c.id}
-                        </p>
-                      </div>
-                      {c.balanceUSD !== undefined && c.balanceUSD > 0 && (
+                      <span
+                        style={{
+                          fontSize: 9.5,
+                          color: selected ? "var(--widget-primary, #FF8A00)" : "rgba(255,255,255,0.58)",
+                          fontWeight: selected ? 600 : 400,
+                          textAlign: "center",
+                          lineHeight: 1.2,
+                          maxWidth: "100%",
+                          overflowWrap: "anywhere",
+                        }}
+                      >
+                        {c.name}
+                      </span>
+                      {hasBalance && (
                         <span
                           style={{
                             fontFamily: "'Space Grotesk', sans-serif",
-                            fontSize: 12,
-                            fontWeight: 500,
-                            color: "rgba(255,255,255,0.85)",
-                            letterSpacing: "-0.01em",
+                            fontSize: 9,
+                            color: "rgba(255,255,255,0.45)",
+                            fontVariantNumeric: "tabular-nums",
+                            marginTop: -3,
                           }}
                         >
-                          ${c.balanceUSD.toLocaleString("en-US", { maximumFractionDigits: 2 })}
+                          ${c.balanceUSD!.toLocaleString("en-US", { maximumFractionDigits: 2 })}
                         </span>
-                      )}
-                      {selected && (
-                        <svg
-                          width="12"
-                          height="12"
-                          viewBox="0 0 12 12"
-                          fill="none"
-                          style={{ color: "#FF8A00", flexShrink: 0 }}
-                        >
-                          <circle cx="6" cy="6" r="5.5" stroke="currentColor" strokeWidth="1" />
-                          <path
-                            d="M3.5 6L5.5 8L8.5 4.5"
-                            stroke="currentColor"
-                            strokeWidth="1.5"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                        </svg>
                       )}
                     </button>
                   );

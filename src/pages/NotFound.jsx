@@ -30,16 +30,14 @@ const NotFound = () => {
           </p>
           
           <div className='flex flex-col sm:flex-row gap-4 justify-center'>
-            <a
-              href='/swap'
-              target='_blank'
-              rel='noopener noreferrer'
+            <Link
+              to='/'
               className='inline-flex items-center justify-center px-8 py-3 border border-[#FF8A00]  text-[#040404] font-medium  bg-[#FF8A00] hover:border-[#FF8A00] hover:bg-transparent hover:text-[#FF8A00] transition-all duration-200'
             >
               Return to Home
-            </a>
+            </Link>
             <Link
-              to='/swap'
+              to='/swap-v2'
               className='inline-flex items-center justify-center px-8 py-3 border border-[#EEC485]  text-[#EEC485] font-medium  hover:border-[#FF8A00] hover:text-[#FF8A00] transition-all duration-200'
             >
               Go to Swap

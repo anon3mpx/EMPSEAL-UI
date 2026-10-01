@@ -271,9 +271,12 @@ function Panel({ items, activeHref }: { items: NavItem[]; activeHref: string }) 
 
 function PanelRow({ item, current }: { item: NavItem; current: boolean }) {
   const [hover, setHover] = useState(false);
+  // Disabled items stay listed but render without a link, so they can't be
+  // opened from the nav.
+  const Row = item.disabled ? "span" : "a";
   return (
-    <a
-      href={item.href}
+    <Row
+      {...(item.disabled ? { "aria-disabled": true } : { href: item.href })}
       role="menuitem"
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
@@ -285,8 +288,10 @@ function PanelRow({ item, current }: { item: NavItem; current: boolean }) {
         padding: "10px 12px",
         borderRadius: 4,
         textDecoration: "none",
-        background: hover ? "rgba(255,255,255,.04)" : "transparent",
+        background: hover && !item.disabled ? "rgba(255,255,255,.04)" : "transparent",
         transition: "background 160ms ease",
+        opacity: item.disabled ? 0.4 : 1,
+        cursor: item.disabled ? "not-allowed" : undefined,
       }}
     >
       {current && (
@@ -304,7 +309,7 @@ function PanelRow({ item, current }: { item: NavItem; current: boolean }) {
           {item.badge}
         </span>
       )}
-    </a>
+    </Row>
   );
 }
 
@@ -392,18 +397,22 @@ function MobileDrawer({
                 </div>
                 {items.map((item) => {
                   const current = item.href === activeHref;
+                  const rowStyle = {
+                    display: "flex", alignItems: "center", justifyContent: "space-between",
+                    padding: "11px 18px", textDecoration: "none", fontSize: 13,
+                    color: current ? ORANGE : T1,
+                    boxShadow: current ? `inset 2px 0 0 ${ORANGE}` : "none",
+                  } as const;
+                  if (item.disabled) {
+                    return (
+                      <span key={item.href} aria-disabled="true" style={{ ...rowStyle, opacity: 0.4, cursor: "not-allowed" }}>
+                        <span>{item.label}</span>
+                        <span style={{ fontSize: 9.5, color: T3 }}>{item.sub}</span>
+                      </span>
+                    );
+                  }
                   return (
-                    <a
-                      key={item.href}
-                      href={item.href}
-                      onClick={onClose}
-                      style={{
-                        display: "flex", alignItems: "center", justifyContent: "space-between",
-                        padding: "11px 18px", textDecoration: "none", fontSize: 13,
-                        color: current ? ORANGE : T1,
-                        boxShadow: current ? `inset 2px 0 0 ${ORANGE}` : "none",
-                      }}
-                    >
+                    <a key={item.href} href={item.href} onClick={onClose} style={rowStyle}>
                       <span>{item.label}</span>
                       <span style={{ fontSize: 9.5, color: T3 }}>{item.sub}</span>
                     </a>

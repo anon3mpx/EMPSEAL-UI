@@ -18,6 +18,12 @@
 // allocationBps MUST sum to 10_000 across outputs in one-to-many /
 // many-to-many; the form enforces this before letting the user quote.
 //
+// Layout: one centred 480px column (same measure as swap / cross / gas) —
+// mode tabs, legs, collapsible constraints, then the basket review / execute
+// card. The locked EmpxMultiWidget is NOT used here: it models a demo review
+// flow, while this page runs the real quote → plan → execute → retry
+// pipeline, per-output recipients and the live liquidator scan.
+//
 // Honest disclosures:
 //   • Per-leg revenueTier surfaced ("agg-wired" / "api-direct" / "unknown")
 //   • `skipped` legs from BasketQuote are explicit in the review panel
@@ -42,28 +48,30 @@ import {
 } from "../../features/basket";
 import {
   AccountModal,
-  BrandMark,
-  Card,
+  ChainLogo,
   ChainPicker,
-  ChainSwitcher,
   DappFooter,
   DappNavbar,
   FeeBreakdown,
   NetworkSelector,
-  Pill,
-  PrimaryButton,
-  Tabs,
   Toaster,
+  TokenLogo,
   TokenPicker,
-  TokenSwitcher,
   WalletButton,
   WalletModal,
   useIsMobile,
   toast,
-  type FeeRow,
   type PickerChain,
   type PickerToken,
 } from "../components";
+import { Disclosure, MicroLabel, WidgetKitKeyframes, wk } from "../widgetKit";
+import EmpxMultiWidget, {
+  type MultiChain,
+  type MultiInputLeg,
+  type MultiOutputLeg,
+  type MultiScanRow,
+  type MultiToken,
+} from "../EmpxMultiWidget";
 import { useWalletConnection } from "../hooks/useWalletConnection";
 import { useV2Balances } from "../hooks/useV2Balances";
 import { useAccountSnapshot } from "../hooks/useAccountSnapshot";
@@ -74,10 +82,11 @@ import {
 } from "../data/empxRegistry";
 import { V2_AGGREGATOR_CHAINS, getV2Chain } from "../data/v2ChainView";
 import { getTokensForChain } from "../data/v2TokenView";
-import { formatScannedUsdTotal, toMultiPickerToken } from "../data/multiV2Adapters";
+import { toMultiPickerToken } from "../data/multiV2Adapters";
 
 
-const AUTO_FUND_MAX_TOPUP_USD = 10;
+// Gas top-up toggled on from the widget drops this much native gas per leg.
+const DEFAULT_GAS_TOPUP_USD = 2.5;
 
 function basketChainCatalog(supportedChainIds?: number[]) {
   const allowed = supportedChainIds && supportedChainIds.length > 0
@@ -89,6 +98,36 @@ function basketChainCatalog(supportedChainIds?: number[]) {
 const chainName = (id: number) => getV2Chain(id)?.name ?? `Chain ${id}`;
 const chainColor = (id: number) => getV2Chain(id)?.color ?? "#888";
 
+function multiChainView(id: number): MultiChain {
+  const name = chainName(id);
+  const color = chainColor(id);
+  return {
+    id,
+    name,
+    color,
+    logo: <ChainLogo chainId={id} symbol={name.slice(0, 3).toUpperCase()} bg={color} size={17} />,
+  };
+}
+
+function multiTokenView(chainId: number, ticker: string, address?: string): MultiToken {
+  const config = getTokensForChain(chainId).find((token) => token.ticker === ticker);
+  return {
+    ticker,
+    logo: (
+      <TokenLogo
+        ticker={ticker}
+        chainId={chainId}
+        address={address ?? config?.address}
+        logoUrl={config?.logoUrl}
+        isNative={config?.isNative}
+        size={26}
+      />
+    ),
+  };
+}
+
+const formatEta = (seconds: number) => (seconds < 60 ? `~${Math.max(1, Math.round(seconds))}s` : `~${Math.round(seconds / 60)} min`);
+
 // ─── Mode definitions ─────────────────────────────────────────────────────
 
 type BasketMode = "multi-to-one" | "one-to-many" | "wallet-liquidator" | "many-to-many";
@@ -98,6 +137,15 @@ const MODE_LABEL: Record<BasketMode, string> = {
   "one-to-many":      "Split routes",
   "wallet-liquidator":"Liquidator",
   "many-to-many":     "Rebalancer",
+};
+
+// Short tab names (from the locked EmpxMultiWidget) so four tabs fit the
+// 480px column without wrapping; MODE_LABEL stays the full name elsewhere.
+const MODE_TAB_LABEL: Record<BasketMode, string> = {
+  "multi-to-one":     "Multiswap",
+  "one-to-many":      "Split",
+  "wallet-liquidator":"Liquidator",
+  "many-to-many":     "Rebalance",
 };
 
 const MODE_SUBTITLE: Record<BasketMode, string> = {
@@ -393,6 +441,94 @@ export default function MultiPage() {
     clearQuote();
   }, [clearQuote, editorFingerprint]);
 
+  // ── Widget view model ───────────────────────────────────────────────────
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const usesAllocation = mode === "one-to-many" || mode === "many-to-many";
+
+  const liquidatorScan = useLiquidatorScan({
+    walletConnected: walletState.status === "connected",
+    wallet: connectedAddress,
+    chainIds: capabilities?.supportedChainIds ?? [],
+    maxInputs: modeConfig.maxInputs,
+    onSelected: (next) => setLiquidatorInputs(next.map((asset) => ({
+      id: asset.id,
+      chainId: asset.chainId,
+      ticker: asset.ticker,
+      amount: asset.amount,
+      token: asset.token,
+      decimals: asset.decimals,
+      amountBase: asset.amountBase,
+      usdPrice: asset.usd != null
+        ? asset.usd / Number(asset.amount || 1)
+        : 0,
+    }))),
+  });
+
+  // Entering Liquidator with a wallet connected scans once automatically;
+  // the widget's Re-scan control handles every later run.
+  const autoScannedFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (mode !== "wallet-liquidator" || !connectedAddress) return;
+    if (!capabilities?.supportedChainIds?.length) return;
+    if (autoScannedFor.current === connectedAddress) return;
+    autoScannedFor.current = connectedAddress;
+    void liquidatorScan.scan();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, connectedAddress, capabilities?.supportedChainIds]);
+
+  const widgetInputs: MultiInputLeg[] = inputs.map((leg) => ({
+    id: leg.id,
+    chain: multiChainView(leg.chainId),
+    token: multiTokenView(leg.chainId, leg.ticker, leg.token),
+    amount: leg.amount,
+    usdValue: (Number(leg.amount) || 0) * (leg.usdPrice || priceOf(leg.ticker, leg.chainId)),
+  }));
+
+  // Converged output: the server quote's figure once quoted, otherwise a
+  // price-only estimate from the input total (fees not yet known).
+  const convergedUsd = basket.quote?.totals.outputsUsd ?? (totalInputUSD > 0 ? totalInputUSD : undefined);
+  const widgetOutputs: MultiOutputLeg[] = outputs.map((leg) => {
+    const outPrice = priceOf(leg.ticker, leg.chainId);
+    return {
+      id: leg.id,
+      chain: multiChainView(leg.chainId),
+      token: multiTokenView(leg.chainId, leg.ticker),
+      allocationBps: leg.allocationBps,
+      convergedUsd: usesAllocation ? undefined : convergedUsd,
+      convergedAmount: !usesAllocation && convergedUsd != null && outPrice > 0
+        ? (convergedUsd / outPrice).toLocaleString("en-US", { maximumFractionDigits: 4 })
+        : undefined,
+      gasTopUpEnabled: (leg.gasTopUpUSD ?? 0) > 0,
+      recipient: leg.recipient,
+      recipientInvalid: Boolean(leg.recipient?.trim()) && !isAddress(leg.recipient!.trim()),
+    };
+  });
+
+  const widgetScanRows: MultiScanRow[] = (liquidatorScan.assets ?? []).map((asset) => ({
+    id: asset.id,
+    token: multiTokenView(asset.chainId, asset.ticker, asset.token),
+    chainName: asset.chain,
+    amount: asset.balance,
+    usdValue: asset.usd ?? 0,
+    selected: asset.selected,
+  }));
+
+  const quoteFeeBps = basket.quote && basket.quote.totals.inputsUsd > 0
+    ? Math.round((basket.quote.totals.feeUsd / basket.quote.totals.inputsUsd) * 10_000)
+    : undefined;
+
+  const blockedReason = overCap
+    ? `Over basket cap · max ${modeConfig.maxLegs} legs`
+    : !allocOk
+      ? `Allocations total ${(totalBps / 100).toFixed(2)}% · need 100%`
+      : !recipientsValid
+        ? "Recipient must be a valid address"
+        : !inputsValid
+          ? mode === "wallet-liquidator" ? "Select tokens to sweep" : "Enter an amount on every input"
+          : capabilities && !capabilities.enabled
+            ? "Basket service unavailable"
+            : undefined;
+
   return (
     <div style={{ minHeight: "100vh", background: "#05050c", color: "#fff", fontFamily: "Inter, sans-serif" }}>
       <DappNavbar
@@ -415,384 +551,216 @@ export default function MultiPage() {
         }
       />
 
-      <main style={{ maxWidth: 1180, margin: "0 auto", padding: isMobile ? "24px 16px 56px" : "32px 24px 72px" }}>
-        {/* Header */}
-        <header style={{ marginBottom: isMobile ? 22 : 28 }}>
-          <p style={{ margin: 0, fontSize: 10, letterSpacing: "0.40em", color: "#FF8A00", textTransform: "uppercase", fontWeight: 700 }}>
-            INTENT BASKETS · 4 MODES · 1 PIPELINE
-          </p>
-          <h1
-            style={{
-              margin: "8px 0 0",
-              fontFamily: "'Space Grotesk', sans-serif",
-              fontSize: isMobile ? 32 : "clamp(34px, 4.5vw, 56px)",
-              fontWeight: 300,
-              letterSpacing: "-0.03em",
-              lineHeight: 1,
-              color: "#fff",
-            }}
-          >
-            Multi.{" "}
-            <span style={{ fontFamily: "'Instrument Serif', serif", fontStyle: "italic", color: "#FF8A00", letterSpacing: "-0.02em" }}>
-              Many in, many out.
-            </span>
-          </h1>
-          <p style={{ margin: "12px 0 0", fontSize: 13, color: "rgba(255,255,255,0.65)", lineHeight: 1.6, maxWidth: 720 }}>
-            All four flows share the IntentBasket abstraction. Each leg becomes a regular Intent — same-chain via the aggregator, cross-chain via the best eligible rail.
-          </p>
-        </header>
+      <WidgetKitKeyframes />
 
-        {/* Mode tabs */}
-        <div style={{ marginBottom: 18, overflowX: "auto", paddingBottom: 2 }}>
-          <Tabs
-            options={(["multi-to-one", "one-to-many", "wallet-liquidator", "many-to-many"] as const).map((m) => ({
-              value: m,
-              label: MODE_LABEL[m],
-            }))}
-            active={mode}
-            onChange={switchMode}
-            variant="underline"
-          />
-          <div style={{ marginTop: 10, padding: "12px 14px", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 4 }}>
-            <p style={{ margin: 0, fontSize: 11.5, color: "rgba(255,255,255,0.70)", lineHeight: 1.55 }}>
-              <strong style={{ color: "#fff" }}>{MODE_LABEL[mode]}</strong>{" "}
-              <span style={{ color: "rgba(255,255,255,0.45)" }}>· {MODE_SUBTITLE[mode]}</span>
-              <br />
-              <span style={{ color: "rgba(255,255,255,0.60)" }}>{MODE_BLURB[mode]}</span>
-            </p>
-            <div
-              style={{
-                marginTop: 10,
-                padding: "10px 12px",
-                background: "rgba(255,138,0,0.05)",
-                border: "1px solid rgba(255,138,0,0.18)",
-                borderRadius: 4,
-              }}
-            >
-              <p style={{ margin: 0, fontSize: 9.5, letterSpacing: "0.30em", color: "#FF8A00", textTransform: "uppercase", fontWeight: 700 }}>
-                {MODE_EXAMPLE[mode].title}
+      {/* Single centred column, same measure as swap / cross / gas. The
+          locked EmpxMultiWidget is the composer; the real server pipeline
+          (quote → plan → execute → retry) opens underneath once the user
+          asks to review the basket. */}
+      <main
+        style={{
+          maxWidth: 480 + (isMobile ? 32 : 40),
+          margin: "0 auto",
+          padding: isMobile ? "24px 16px 40px" : "38px 20px 48px",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+        }}
+      >
+        <EmpxMultiWidget
+          mode={mode}
+          onModeChange={(m) => switchMode(m)}
+          modeSubtitle={MODE_SUBTITLE[mode]}
+          modeBlurb={MODE_BLURB[mode]}
+          modeExample={MODE_EXAMPLE[mode].lines}
+
+          legCount={legCount}
+          maxLegs={modeConfig.maxLegs}
+
+          inputs={widgetInputs}
+          onInputAmountChange={(id, v) => setInputs(inputs.map((l) => (l.id === id ? { ...l, amount: v } : l)))}
+          onSelectInputChain={(id) => setChainPickerTarget({ kind: "input", id })}
+          onSelectInputToken={(id) => setTokenPickerTarget({ kind: "input", id })}
+          onRemoveInput={(id) => setInputs(inputs.filter((l) => l.id !== id))}
+          onAddInput={() => setInputs([...inputs, { id: nextId(), chainId: 42161, ticker: "ETH", amount: "", usdPrice: priceOf("ETH", 42161) }])}
+          canAddInput={mode !== "one-to-many" && mode !== "wallet-liquidator" && inputs.length < modeConfig.maxInputs}
+
+          outputs={widgetOutputs}
+          onOutputAllocationChange={(id, pct) =>
+            setOutputs(outputs.map((l) => (l.id === id
+              ? { ...l, allocationBps: Math.round(Math.max(0, Math.min(100, pct)) * 100) }
+              : l)))
+          }
+          onSelectOutputChain={(id) => setChainPickerTarget({ kind: "output", id })}
+          onSelectOutputToken={(id) => setTokenPickerTarget({ kind: "output", id })}
+          onRemoveOutput={(id) => setOutputs(outputs.filter((l) => l.id !== id))}
+          onAddOutput={() => setOutputs([...outputs, { id: nextId(), chainId: 8453, ticker: "USDC", allocationBps: 0 }])}
+          canAddOutput={usesAllocation && outputs.length < modeConfig.maxOutputs}
+          onToggleGasTopUp={(id) => setOutputs(outputs.map((l) => (l.id === id
+            ? { ...l, gasTopUpUSD: (l.gasTopUpUSD ?? 0) > 0 ? 0 : DEFAULT_GAS_TOPUP_USD }
+            : l)))}
+          onOutputRecipientChange={(id, v) => setOutputs(outputs.map((l) => (l.id === id ? { ...l, recipient: v } : l)))}
+
+          scanRows={widgetScanRows}
+          onToggleScanRow={liquidatorScan.toggleAsset}
+          onRescan={() => { void liquidatorScan.scan(); }}
+          scanning={liquidatorScan.scanning}
+
+          totalFeeUSD={basket.quote?.totals.feeUsd}
+          feeBps={quoteFeeBps}
+          estimatedTime={basket.quote ? formatEta(basket.quote.totals.parallelEtaSeconds) : undefined}
+          etaNote={basket.quote ? "Slowest leg governs" : "Quoted on review"}
+          blockedReason={blockedReason}
+
+          walletConnected={walletState.status === "connected"}
+          onConnect={() => setShowWalletModal(true)}
+          onReview={() => {
+            setReviewOpen(true);
+            if (!basket.busy) void runQuote();
+          }}
+        />
+
+        {mode === "wallet-liquidator" && (liquidatorScan.scanError || liquidatorScan.skipped.length > 0 || liquidatorScan.assets?.length === 0) && (
+          <div style={{ width: "100%", maxWidth: 480, padding: "10px 22px 0" }}>
+            {liquidatorScan.scanError && (
+              <p style={{ margin: 0, fontSize: 10.5, color: "#F87171", lineHeight: 1.6 }}>{liquidatorScan.scanError}</p>
+            )}
+            {liquidatorScan.assets?.length === 0 && (
+              <p style={{ margin: 0, fontSize: 10.5, color: wk.t3, lineHeight: 1.6 }}>
+                No balances returned for the supported basket chains.
               </p>
-              <ul style={{ margin: "6px 0 0", padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 4 }}>
-                {MODE_EXAMPLE[mode].lines.map((line, i) => (
-                  <li key={i} style={{ display: "flex", gap: 8, fontSize: 11, color: "rgba(255,255,255,0.70)", lineHeight: 1.55 }}>
-                    <span style={{ color: "rgba(255,138,0,0.70)", flexShrink: 0, fontWeight: 700, minWidth: 14, textAlign: "right" }}>{i + 1}.</span>
-                    <span>{line}</span>
-                  </li>
-                ))}
-              </ul>
+            )}
+            {liquidatorScan.skipped.length > 0 && (
+              <p style={{ margin: 0, fontSize: 10.5, color: wk.t3, lineHeight: 1.6 }}>
+                Skipped {liquidatorScan.skipped.length === 1 ? "chain" : `${liquidatorScan.skipped.length} chains`}: {liquidatorScan.skipped.map((entry) => chainName(entry.chainId)).join(", ")}
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* Basket review — server quote, plan, execute, retry. Hidden until
+            the widget's review CTA is pressed so the composer reads clean. */}
+        {(reviewOpen || basket.quote || basket.plan || basket.status) && (
+          <div style={{ width: "100%", maxWidth: 480, padding: "0 22px" }}>
+            <div style={{ height: 1, background: wk.border, margin: "8px 0 18px" }} />
+            <MicroLabel>Basket review</MicroLabel>
+            <div style={{ marginTop: 12 }}>
+              <FeeBreakdown
+                rows={[
+                  { label: "Mode", value: MODE_LABEL[mode] },
+                  { label: "Legs", value: `${legCount} configured · cap ${limits.maxLegs}` },
+                  { label: "Input estimate", value: `$${totalInputUSD.toLocaleString("en-US", { maximumFractionDigits: 2 })}`, muted: true },
+                  ...(basket.quote ? [
+                    { label: "Quote", value: basket.quote.basketId, sub: `${basket.quote.legs.length} legs · v${basket.quote.quoteVersion}` },
+                    { label: "Skipped", value: String(basket.quote.skipped.length), muted: true },
+                  ] : []),
+                  ...(basket.status ? [
+                    { label: "Status", value: basket.status.composite, accent: true },
+                  ] : []),
+                ]}
+              />
+            </div>
+            <div style={{ marginTop: 14 }}>
+              <BasketReviewPanel
+                mode={mode}
+                capabilities={capabilities}
+                capabilitiesError={capabilitiesError}
+                quote={basket.quote}
+                plan={basket.plan}
+                status={basket.status}
+                busy={basket.busy}
+                walletConnected={walletState.status === "connected"}
+                canQuote={inputsValid && allocOk && recipientsValid && !overCap}
+                executeLocked={basket.executeLocked}
+                onQuote={() => { void runQuote(); }}
+                onPlan={() => {
+                  void basket.requestPlan().then(() => toast.success("Server plan ready")).catch(() => {
+                    toast.error(basket.errorMessage ?? "Plan failed");
+                  });
+                }}
+                onExecute={() => {
+                  void basket.executePlan().then(() => toast.success("Submitted hashes acknowledged")).catch(() => {
+                    toast.error(basket.errorMessage ?? "Execution failed");
+                  });
+                }}
+                onRetry={() => {
+                  void basket.retryFailedLegs().then(() => toast.success("Failed legs retried")).catch(() => {
+                    toast.error(basket.errorMessage ?? "Retry failed");
+                  });
+                }}
+              />
+              {basket.errorMessage && (
+                <p style={{ margin: "10px 0 0", fontSize: 11.5, color: "#F87171", lineHeight: 1.5 }}>
+                  {basket.errorMessage}
+                </p>
+              )}
             </div>
           </div>
-        </div>
+        )}
 
-        {/* Body grid */}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: isMobile ? "1fr" : "minmax(0, 1.4fr) minmax(0, 1fr)",
-            gap: isMobile ? 18 : 28,
-            alignItems: "start",
-          }}
-        >
-          {/* LEFT — inputs + outputs */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            {/* Inputs panel */}
-            {mode === "wallet-liquidator" && (
-              <LiquidatorScanCard
-                walletConnected={walletState.status === "connected"}
-                wallet={connectedAddress}
-                chainIds={capabilities?.supportedChainIds ?? []}
-                maxInputs={modeConfig.maxInputs}
-                onSelected={(next) => setLiquidatorInputs(next.map((asset) => ({
-                  id: asset.id,
-                  chainId: asset.chainId,
-                  ticker: asset.ticker,
-                  amount: asset.amount,
-                  token: asset.token,
-                  decimals: asset.decimals,
-                  amountBase: asset.amountBase,
-                  usdPrice: asset.usd != null
-                    ? asset.usd / Number(asset.amount || 1)
-                    : 0,
-                })))}
-              />
-            )}
-            <LegsPanel
-              kind="input"
-              legs={inputs as any}
-              setLegs={setInputs as any}
-              mode={mode}
-              disabled={mode === "one-to-many" && inputs.length >= 1}
-              maxAdd={modeConfig.maxInputs}
-              onPickChain={(id) => setChainPickerTarget({ kind: "input", id })}
-              onPickToken={(id) => setTokenPickerTarget({ kind: "input", id })}
-            />
-
-            {/* Outputs panel */}
-            <LegsPanel
-              kind="output"
-              legs={outputs as any}
-              setLegs={setOutputs as any}
-              mode={mode}
-              disabled={(mode === "multi-to-one" || mode === "wallet-liquidator") && outputs.length >= 1}
-              maxAdd={modeConfig.maxOutputs}
-              onPickChain={(id) => setChainPickerTarget({ kind: "output", id })}
-              onPickToken={(id) => setTokenPickerTarget({ kind: "output", id })}
-            />
-          </div>
-
-          {/* RIGHT — review + execute */}
-          <aside style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            <Card style={{ padding: 16, position: "relative", overflow: "hidden" }}>
-              <div style={{ position: "absolute", top: -16, right: -16, opacity: 0.05, pointerEvents: "none" }}>
-                <BrandMark size={110} color="#FF8A00" />
-              </div>
-              <p style={{ margin: 0, fontSize: 10, letterSpacing: "0.40em", color: "rgba(255,255,255,0.50)", textTransform: "uppercase", fontWeight: 700 }}>
-                Basket review
-              </p>
-
-              <div style={{ marginTop: 14 }}>
-                <FeeBreakdown
-                  rows={(() => {
-                    const rows: FeeRow[] = [
-                      { label: "Mode",          value: MODE_LABEL[mode] },
-                      { label: "Legs",          value: `${legCount} configured · cap ${limits.maxLegs}` },
-                      { label: "Input estimate", value: `$${totalInputUSD.toLocaleString("en-US", { maximumFractionDigits: 2 })}`, muted: true },
-                      {
-                        label: "Capabilities",
-                        value: capabilities?.enabled ? "Available" : "Disabled",
-                        sub: capabilitiesError ?? capabilities?.modes?.[mode]?.reason,
-                        accent: !capabilities?.enabled,
-                      },
-                      ...(basket.quote ? [
-                        { label: "Quote", value: basket.quote.basketId, sub: `${basket.quote.legs.length} legs · v${basket.quote.quoteVersion}` },
-                        { label: "Skipped", value: String(basket.quote.skipped.length), muted: true },
-                      ] : []),
-                      ...(basket.status ? [
-                        { label: "Status", value: basket.status.composite, accent: true },
-                      ] : []),
-                    ];
-                    return rows;
-                  })()}
-                  bordered
-                />
-              </div>
-
-              {/* Allocation status */}
-              {(mode === "one-to-many" || mode === "many-to-many") && (
-                <div
-                  style={{
-                    marginTop: 12,
-                    padding: "10px 12px",
-                    background: allocOk ? "rgba(52,211,153,0.06)" : "rgba(248,113,113,0.08)",
-                    border: `1px solid ${allocOk ? "rgba(52,211,153,0.25)" : "rgba(248,113,113,0.30)"}`,
-                    borderRadius: 4,
-                    fontSize: 11.5,
-                    color: allocOk ? "#34D399" : "#F87171",
-                    lineHeight: 1.5,
-                  }}
+        {/* Constraints — under the widget behind a disclosure, so the
+            surface stays a tool rather than a settings panel. */}
+        <div style={{ width: "100%", maxWidth: 480, padding: "0 22px" }}>
+          <div style={{ height: 1, background: wk.border, margin: "8px 0 0" }} />
+          <Disclosure label={`Constraints · ${bpsToPct(slippageBps)}% slippage · ${Math.round(deadlineSeconds / 60)} min deadline`}>
+            <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 8 }}>
+              <span style={{ fontSize: 10.5, color: wk.t3 }}>Slippage tolerance</span>
+              <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 10.5, color: wk.t2, fontVariantNumeric: "tabular-nums" }}>
+                {slippageBps} bps
+              </span>
+            </div>
+            <div style={{ display: "flex", gap: 5, flexWrap: "wrap", alignItems: "center", marginBottom: 16 }}>
+              {SLIPPAGE_PCT_PRESETS.map((pct) => (
+                <ConstraintChip
+                  key={pct}
+                  active={slippageBps === pctToBps(pct)}
+                  onClick={() => setSlippageBps(pctToBps(pct))}
                 >
-                  Allocations: {(totalBps / 100).toFixed(2)}% of 100% · {allocOk ? "balanced" : `off by ${(10_000 - totalBps) > 0 ? "+" : ""}${((10_000 - totalBps) / 100).toFixed(2)}%`}
-                </div>
-              )}
-
-              {!recipientsValid && (
-                <div
+                  {pct}%
+                </ConstraintChip>
+              ))}
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                <input
+                  type="number"
+                  step={0.1}
+                  min={0.01}
+                  max={10}
+                  value={bpsToPct(slippageBps)}
+                  onChange={(e) => setSlippageBps(pctToBps(Math.max(0.01, Math.min(10, Number(e.target.value)))))}
+                  aria-label="Custom slippage percent"
                   style={{
-                    marginTop: 12,
-                    padding: "10px 12px",
-                    background: "rgba(248,113,113,0.08)",
-                    border: "1px solid rgba(248,113,113,0.30)",
-                    borderRadius: 4,
-                    fontSize: 11.5,
-                    color: "#F87171",
-                    lineHeight: 1.5,
-                  }}
-                >
-                  Each output recipient must be empty (connected wallet) or a valid address.
-                </div>
-              )}
-
-              {!inputsValid && (
-                <div
-                  style={{
-                    marginTop: 12,
-                    padding: "10px 12px",
-                    background: "rgba(255,138,0,0.06)",
-                    border: "1px solid rgba(255,138,0,0.25)",
-                    borderRadius: 4,
-                    fontSize: 11.5,
-                    color: "#FFB347",
-                    lineHeight: 1.5,
-                  }}
-                >
-                  Enter an amount &gt; 0 on every input leg to keep the preview valid.
-                </div>
-              )}
-
-              <div style={{ marginTop: 14 }}>
-                <BasketReviewPanel
-                  mode={mode}
-                  capabilities={capabilities}
-                  capabilitiesError={capabilitiesError}
-                  quote={basket.quote}
-                  plan={basket.plan}
-                  status={basket.status}
-                  busy={basket.busy}
-                  walletConnected={walletState.status === "connected"}
-                  canQuote={inputsValid && allocOk && recipientsValid && !overCap}
-                  executeLocked={basket.executeLocked}
-                  onQuote={() => { void runQuote(); }}
-                  onPlan={() => {
-                    void basket.requestPlan().then(() => toast.success("Server plan ready")).catch(() => {
-                      toast.error(basket.errorMessage ?? "Plan failed");
-                    });
-                  }}
-                  onExecute={() => {
-                    void basket.executePlan().then(() => toast.success("Submitted hashes acknowledged")).catch(() => {
-                      toast.error(basket.errorMessage ?? "Execution failed");
-                    });
-                  }}
-                  onRetry={() => {
-                    void basket.retryFailedLegs().then(() => toast.success("Failed legs retried")).catch(() => {
-                      toast.error(basket.errorMessage ?? "Retry failed");
-                    });
+                    width: 56, padding: "5px 7px", borderRadius: 4, outline: "none",
+                    background: "rgba(255,255,255,.035)", border: "1px solid transparent",
+                    color: wk.t1, fontFamily: "'Space Grotesk', sans-serif", fontSize: 10.5, textAlign: "right",
                   }}
                 />
-                {basket.errorMessage && (
-                  <p style={{ margin: "10px 0 0", fontSize: 11.5, color: "#F87171", lineHeight: 1.5 }}>
-                    {basket.errorMessage}
-                  </p>
-                )}
-              </div>
-            </Card>
+                <span style={{ fontSize: 10.5, color: wk.t3 }}>%</span>
+              </span>
+            </div>
 
-            {/* Constraints */}
-            <Card style={{ padding: 16 }}>
-              <p style={{ margin: 0, fontSize: 10, letterSpacing: "0.40em", color: "rgba(255,255,255,0.50)", textTransform: "uppercase", fontWeight: 700 }}>
-                Constraints
-              </p>
-              <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 12 }}>
-                {/* Slippage — percent UI mapped to SDK bps */}
-                <div>
-                  <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 6 }}>
-                    <span style={{ fontSize: 11.5, color: "rgba(255,255,255,0.65)" }}>Slippage tolerance</span>
-                    <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 11, color: "rgba(255,255,255,0.45)", letterSpacing: "-0.005em" }}>
-                      = {pctToBps(bpsToPct(slippageBps))} bps
-                    </span>
-                  </div>
-                  <div style={{ display: "flex", gap: 5, flexWrap: "wrap", alignItems: "center" }}>
-                    {SLIPPAGE_PCT_PRESETS.map((pct) => {
-                      const active = slippageBps === pctToBps(pct);
-                      return (
-                        <button
-                          key={pct}
-                          type="button"
-                          onClick={() => setSlippageBps(pctToBps(pct))}
-                          style={{
-                            padding: "5px 11px",
-                            background: active ? "rgba(255,138,0,0.12)" : "transparent",
-                            border: `1px solid ${active ? "rgba(255,138,0,0.45)" : "rgba(255,255,255,0.10)"}`,
-                            borderRadius: 4,
-                            color: active ? "#FF8A00" : "rgba(255,255,255,0.65)",
-                            fontFamily: "Inter, sans-serif",
-                            fontSize: 11,
-                            fontWeight: 600,
-                            cursor: "pointer",
-                            letterSpacing: "0.02em",
-                          }}
-                        >
-                          {pct}%
-                        </button>
-                      );
-                    })}
-                    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                      <input
-                        type="number"
-                        step={0.1}
-                        min={0.01}
-                        max={10}
-                        value={bpsToPct(slippageBps)}
-                        onChange={(e) => setSlippageBps(pctToBps(Math.max(0.01, Math.min(10, Number(e.target.value)))))}
-                        style={{
-                          width: 56,
-                          padding: "5px 7px",
-                          background: "rgba(255,255,255,0.03)",
-                          border: "1px solid rgba(255,255,255,0.10)",
-                          borderRadius: 4,
-                          color: "#fff",
-                          fontFamily: "'Space Grotesk', sans-serif",
-                          fontSize: 11,
-                          textAlign: "right",
-                          outline: "none",
-                        }}
-                      />
-                      <span style={{ fontSize: 11, color: "rgba(255,255,255,0.50)" }}>%</span>
-                    </div>
-                  </div>
-                  <p style={{ margin: "6px 0 0", fontSize: 10.5, color: "rgba(255,255,255,0.40)", lineHeight: 1.45 }}>
-                    Applies per leg unless a leg overrides it. Lower = tighter price but higher revert chance.
-                  </p>
-                </div>
+            <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 8 }}>
+              <span style={{ fontSize: 10.5, color: wk.t3 }}>Quote deadline</span>
+              <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 10.5, color: wk.t2, fontVariantNumeric: "tabular-nums" }}>
+                {Math.round(deadlineSeconds / 60)} min
+              </span>
+            </div>
+            <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+              {[300, 600, 1800].map((secs) => (
+                <ConstraintChip
+                  key={secs}
+                  active={deadlineSeconds === secs}
+                  onClick={() => setDeadlineSeconds(secs)}
+                >
+                  {secs / 60} min
+                </ConstraintChip>
+              ))}
+            </div>
 
-                {/* Deadline */}
-                <div>
-                  <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 6 }}>
-                    <span style={{ fontSize: 11.5, color: "rgba(255,255,255,0.65)" }}>Quote deadline</span>
-                    <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 11, color: "rgba(255,255,255,0.45)" }}>
-                      {Math.round(deadlineSeconds / 60)} min
-                    </span>
-                  </div>
-                  <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
-                    {[300, 600, 1800].map((secs) => {
-                      const active = deadlineSeconds === secs;
-                      return (
-                        <button
-                          key={secs}
-                          type="button"
-                          onClick={() => setDeadlineSeconds(secs)}
-                          style={{
-                            padding: "5px 11px",
-                            background: active ? "rgba(96,165,250,0.10)" : "transparent",
-                            border: `1px solid ${active ? "rgba(96,165,250,0.35)" : "rgba(255,255,255,0.10)"}`,
-                            borderRadius: 4,
-                            color: active ? "#93C5FD" : "rgba(255,255,255,0.65)",
-                            fontFamily: "Inter, sans-serif",
-                            fontSize: 11,
-                            fontWeight: 600,
-                            cursor: "pointer",
-                          }}
-                        >
-                          {secs / 60} min
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-              <p style={{ margin: "10px 0 0", fontSize: 10.5, color: "rgba(255,255,255,0.40)", lineHeight: 1.5 }}>
-                Caps: max {limits.maxInputs} inputs · max {limits.maxOutputs} outputs · max {limits.maxLegs} total legs.
-              </p>
-            </Card>
-
-            {/* SDK source */}
-            {/* <Card style={{ padding: 14 }}>
-              <p style={{ margin: 0, fontSize: 10, letterSpacing: "0.40em", color: "rgba(255,255,255,0.50)", textTransform: "uppercase", fontWeight: 700 }}>
-                Backed by
-              </p>
-              <ul style={{ margin: "8px 0 0", padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 6 }}>
-                {[
-                  ["core/IntentBasket.ts", "validateBasket + 4 modes + caps"],
-                  ["services/BasketQuoteEngine.ts", "per-leg quote orchestration"],
-                  ["services/BasketStatusEngine.ts", "composite status rollup"],
-                  ["services/WalletScanner.ts", "liquidator chain scan (5×50)"],
-                ].map(([f, role]) => (
-                  <li key={f} style={{ fontSize: 11, color: "rgba(255,255,255,0.60)", lineHeight: 1.5 }}>
-                    <code style={{ color: "rgba(255,255,255,0.85)" }}>{f}</code>{" — "}{role}
-                  </li>
-                ))}
-              </ul>
-            </Card> */}
-          </aside>
+            <p style={{ margin: "14px 0 0", fontSize: 9.5, color: wk.t3, lineHeight: 1.6 }}>
+              Applies per leg unless a leg overrides it. Caps: max {limits.maxInputs} inputs ·
+              max {limits.maxOutputs} outputs · max {limits.maxLegs} legs.
+            </p>
+          </Disclosure>
         </div>
       </main>
 
@@ -902,397 +870,7 @@ export default function MultiPage() {
   );
 }
 
-// ─── Sub-component: input/output legs panel ───────────────────────────────
-
-interface AnyLeg {
-  id: string;
-  chainId: number;
-  ticker: string;
-  amount?: string;
-  usdPrice?: number;
-  allocationBps?: number;
-  recipient?: string;
-  gasTopUpUSD?: number;
-}
-
-function LegsPanel({
-  kind, legs, setLegs, mode, disabled, maxAdd, onPickChain, onPickToken,
-}: {
-  kind: "input" | "output";
-  legs: AnyLeg[];
-  setLegs: (next: AnyLeg[]) => void;
-  mode: BasketMode;
-  disabled?: boolean;
-  maxAdd: number;
-  onPickChain: (legId: string) => void;
-  onPickToken: (legId: string) => void;
-}) {
-  const isInput = kind === "input";
-  const title = isInput ? "Inputs" : "Outputs";
-  const helpHint = isInput
-    ? "Source chains, tokens, and amounts you're putting in."
-    : (mode === "one-to-many" || mode === "many-to-many")
-        ? "Destination tokens + percentage allocations. Allocations must sum to 100%."
-        : "Destination token for the converged basket.";
-
-  const setLeg = (id: string, patch: Partial<AnyLeg>) =>
-    setLegs(legs.map((l) => (l.id === id ? { ...l, ...patch } : l)));
-  const removeLeg = (id: string) => setLegs(legs.filter((l) => l.id !== id));
-  const addLeg = () => {
-    if (legs.length >= maxAdd) return;
-    const next: AnyLeg = isInput
-      ? { id: nextId(), chainId: 42161, ticker: "ETH", amount: "0", usdPrice: priceOf("ETH", 42161) }
-      : { id: nextId(), chainId: 8453, ticker: "USDC", allocationBps: 0 };
-    setLegs([...legs, next]);
-  };
-
-  // Distribute allocations evenly across outputs
-  const distributeEvenly = () => {
-    if (isInput || legs.length === 0) return;
-    const each = Math.floor(10_000 / legs.length);
-    const remainder = 10_000 - each * legs.length;
-    setLegs(legs.map((l, i) => ({ ...l, allocationBps: each + (i === 0 ? remainder : 0) })));
-  };
-
-  return (
-    <Card style={{ width: "100%", maxWidth: 480, padding: 22 }}>
-      {/* Header — matches swap/cross widget anatomy */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span
-            style={{
-              fontFamily: "Inter, sans-serif",
-              fontSize: 11,
-              fontWeight: 700,
-              letterSpacing: "0.40em",
-              color: "rgba(255,255,255,0.92)",
-              textTransform: "uppercase",
-            }}
-          >
-            {title}
-          </span>
-          <Pill variant="ghost">{legs.length} / {maxAdd}</Pill>
-        </div>
-      </div>
-
-      <p style={{ margin: "0 0 4px", fontSize: 11, color: "rgba(255,255,255,0.50)", lineHeight: 1.5 }}>
-        {helpHint}
-      </p>
-
-      <div style={{ display: "flex", flexDirection: "column" }}>
-        {legs.map((leg, i) => (
-          <LegRow
-            key={leg.id}
-            index={i + 1}
-            kind={kind}
-            mode={mode}
-            leg={leg}
-            onChange={(patch) => setLeg(leg.id, patch)}
-            onRemove={() => removeLeg(leg.id)}
-            canRemove={legs.length > 1}
-            onPickChain={() => onPickChain(leg.id)}
-            onPickToken={() => onPickToken(leg.id)}
-          />
-        ))}
-      </div>
-
-      <div style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" }}>
-        <button
-          type="button"
-          onClick={addLeg}
-          disabled={disabled || legs.length >= maxAdd}
-          style={addBtn(disabled || legs.length >= maxAdd)}
-        >
-          + Add {kind}
-        </button>
-        {!isInput && (mode === "one-to-many" || mode === "many-to-many") && legs.length > 1 && (
-          <button
-            type="button"
-            onClick={distributeEvenly}
-            style={{
-              ...addBtn(false),
-              background: "transparent",
-              border: "1px solid rgba(255,255,255,0.15)",
-              color: "rgba(255,255,255,0.70)",
-            }}
-          >
-            Distribute evenly
-          </button>
-        )}
-      </div>
-    </Card>
-  );
-}
-
-const addBtn = (disabled: boolean): React.CSSProperties => ({
-  padding: "8px 14px",
-  background: disabled ? "rgba(255,255,255,0.04)" : "rgba(255,138,0,0.08)",
-  border: `1px solid ${disabled ? "rgba(255,255,255,0.08)" : "rgba(255,138,0,0.30)"}`,
-  borderRadius: 4,
-  color: disabled ? "rgba(255,255,255,0.30)" : "#FF8A00",
-  fontFamily: "Inter, sans-serif",
-  fontSize: 11.5,
-  fontWeight: 600,
-  letterSpacing: "0.10em",
-  textTransform: "uppercase",
-  cursor: disabled ? "not-allowed" : "pointer",
-  transition: "all 160ms ease",
-});
-
-// ─── Sub-component: a single leg row ──────────────────────────────────────
-
-// Leg row built on AmountInput anatomy — matches swap/cross widget pattern.
-// Top row: index pill + ChainSwitcher (right-aligned, mirroring topMeta).
-// Big amount row: token + amount input OR allocation % input.
-// Bottom row: gas top-up toggle (output legs only) + remove button.
-function LegRow({
-  kind, mode, leg, onChange, onRemove, canRemove, index, onPickChain, onPickToken,
-}: {
-  kind: "input" | "output";
-  mode: BasketMode;
-  leg: AnyLeg;
-  onChange: (patch: Partial<AnyLeg>) => void;
-  onRemove: () => void;
-  canRemove: boolean;
-  index: number;
-  onPickChain: () => void;
-  onPickToken: () => void;
-}) {
-  const showAlloc = kind === "output" && (mode === "one-to-many" || mode === "many-to-many");
-  const showGasTopUp = kind === "output";
-  const chain = getV2Chain(leg.chainId) ?? {
-    id: leg.chainId,
-    name: chainName(leg.chainId),
-    color: chainColor(leg.chainId),
-    ticker: "ETH",
-  };
-
-  return (
-    <div style={{ padding: "12px 0", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
-      {/* Top row — label + ChainSwitcher (mirrors AmountInput topMeta) */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-        <span
-          style={{
-            fontSize: 10,
-            fontWeight: 700,
-            letterSpacing: "0.30em",
-            color: "rgba(255,255,255,0.55)",
-            textTransform: "uppercase",
-          }}
-        >
-          {kind === "input" ? `In · ${index}` : `Out · ${index}`}
-        </span>
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <ChainSwitcher
-            name={chain.name}
-            color={chain.color}
-            onClick={onPickChain}
-            size="md"
-          />
-          {canRemove && (
-            <button
-              type="button"
-              onClick={onRemove}
-              aria-label="Remove leg"
-              style={{
-                width: 22,
-                height: 22,
-                background: "transparent",
-                border: "1px solid rgba(255,255,255,0.10)",
-                borderRadius: 4,
-                color: "rgba(255,255,255,0.55)",
-                cursor: "pointer",
-                padding: 0,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: 13,
-                lineHeight: 1,
-              }}
-            >
-              ×
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Big amount row (mirrors AmountInput's large numerals) */}
-      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 10 }}>
-        {/* TOKEN selector — opens TokenPicker modal */}
-        <TokenSwitcher
-          ticker={leg.ticker}
-          onClick={onPickToken}
-          size="md"
-        />
-
-        {/* AMOUNT or ALLOCATION — big right-aligned number */}
-        {kind === "input" ? (
-          <div style={{ display: "flex", alignItems: "baseline", gap: 4, flex: 1, minWidth: 0, justifyContent: "flex-end" }}>
-            <input
-              type="text"
-              inputMode="decimal"
-              value={leg.amount ?? ""}
-              onChange={(e) => onChange({ amount: e.target.value })}
-              placeholder="0"
-              style={{
-                width: "100%",
-                maxWidth: 180,
-                padding: 0,
-                background: "transparent",
-                border: "none",
-                color: "#fff",
-                fontFamily: "'Space Grotesk', sans-serif",
-                fontSize: 30,
-                fontWeight: 500,
-                letterSpacing: "-0.02em",
-                outline: "none",
-                lineHeight: 1,
-                textAlign: "right",
-              }}
-            />
-          </div>
-        ) : showAlloc ? (
-          <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
-            <input
-              type="number"
-              min={0}
-              max={100}
-              step={0.01}
-              value={leg.allocationBps != null ? leg.allocationBps / 100 : 0}
-              onChange={(e) => onChange({ allocationBps: Math.round(Math.max(0, Math.min(100, Number(e.target.value))) * 100) })}
-              style={{
-                width: 100,
-                padding: 0,
-                background: "transparent",
-                border: "none",
-                color: "#FF8A00",
-                fontFamily: "'Space Grotesk', sans-serif",
-                fontSize: 30,
-                fontWeight: 500,
-                letterSpacing: "-0.02em",
-                outline: "none",
-                lineHeight: 1,
-                textAlign: "right",
-              }}
-            />
-            <span style={{ fontSize: 22, color: "rgba(255,255,255,0.50)", fontFamily: "'Space Grotesk', sans-serif", fontWeight: 500, lineHeight: 1 }}>
-              %
-            </span>
-          </div>
-        ) : (
-          <span style={{ fontSize: 13, color: "rgba(255,255,255,0.45)", fontStyle: "italic", paddingBottom: 4 }}>
-            Auto · converged
-          </span>
-        )}
-      </div>
-
-      {/* USD value sub-row (mirrors AmountInput's usdValue line) + optional gas top-up */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginTop: 6 }}>
-        <span style={{ fontSize: 10.5, color: "rgba(255,255,255,0.45)", fontFamily: "'Space Grotesk', sans-serif" }}>
-          {kind === "input" && leg.amount
-            ? `≈ $${(Number(leg.amount) * (leg.usdPrice ?? priceOf(leg.ticker, leg.chainId))).toLocaleString("en-US", { maximumFractionDigits: 2 })}`
-            : showAlloc && leg.allocationBps
-            ? `${(leg.allocationBps / 100).toFixed(2)}% allocation`
-            : ""}
-        </span>
-        {showGasTopUp && <GasTopUpToggle leg={leg} onChange={onChange} />}
-      </div>
-      {kind === "output" && (
-        <input
-          type="text"
-          value={leg.recipient ?? ""}
-          onChange={(e) => onChange({ recipient: e.target.value })}
-          placeholder="Recipient (optional — connected wallet)"
-          spellCheck={false}
-          style={{ ...inputStyle(), marginTop: 8, fontSize: 11 }}
-        />
-      )}
-    </div>
-  );
-}
-
-function GasTopUpToggle({ leg, onChange }: { leg: AnyLeg; onChange: (p: Partial<AnyLeg>) => void }) {
-  const enabled = (leg.gasTopUpUSD ?? 0) > 0;
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
-      <button
-        type="button"
-        onClick={() => onChange({ gasTopUpUSD: enabled ? 0 : 2.5 })}
-        style={{
-          width: 28,
-          height: 16,
-          padding: 0,
-          background: enabled ? "#FF8A00" : "rgba(255,255,255,0.10)",
-          border: "1px solid " + (enabled ? "rgba(255,138,0,0.60)" : "rgba(255,255,255,0.15)"),
-          borderRadius: 999,
-          cursor: "pointer",
-          position: "relative",
-          flexShrink: 0,
-        }}
-        aria-pressed={enabled}
-        title="Drop native gas on this destination chain"
-      >
-        <span
-          style={{
-            position: "absolute",
-            top: 1,
-            left: enabled ? 13 : 1,
-            width: 12,
-            height: 12,
-            background: "#fff",
-            borderRadius: "50%",
-            transition: "left 180ms ease",
-          }}
-        />
-      </button>
-      {enabled ? (
-        <input
-          type="number"
-          min={0}
-          max={AUTO_FUND_MAX_TOPUP_USD}
-          step={0.5}
-          value={leg.gasTopUpUSD ?? 0}
-          onChange={(e) => onChange({ gasTopUpUSD: Math.max(0, Math.min(AUTO_FUND_MAX_TOPUP_USD, Number(e.target.value))) })}
-          style={{ ...inputStyle(), width: 60, fontSize: 11 }}
-          title={`Cap ${AUTO_FUND_MAX_TOPUP_USD} USD per leg`}
-        />
-      ) : (
-        <span style={{ fontSize: 10.5, color: "rgba(255,255,255,0.45)" }}>gas drop</span>
-      )}
-    </div>
-  );
-}
-
-function selectStyle(): React.CSSProperties {
-  return {
-    width: "100%",
-    padding: "7px 8px",
-    background: "rgba(255,255,255,0.03)",
-    border: "1px solid rgba(255,255,255,0.10)",
-    borderRadius: 4,
-    color: "#fff",
-    fontFamily: "Inter, sans-serif",
-    fontSize: 11.5,
-    outline: "none",
-    cursor: "pointer",
-  };
-}
-
-function inputStyle(): React.CSSProperties {
-  return {
-    width: "100%",
-    padding: "7px 9px",
-    background: "rgba(255,255,255,0.03)",
-    border: "1px solid rgba(255,255,255,0.10)",
-    borderRadius: 4,
-    color: "#fff",
-    fontFamily: "'Space Grotesk', sans-serif",
-    fontSize: 12,
-    outline: "none",
-  };
-}
-
-// ─── Liquidator scan card ─────────────────────────────────────────────────
+// ─── Liquidator wallet scan ──────────────────────────────────────────────
 
 interface ScannedAsset {
   id: string;
@@ -1309,7 +887,18 @@ interface ScannedAsset {
   selected: boolean;
 }
 
-function LiquidatorScanCard({
+type SelectedScanAsset = {
+  id: string;
+  chainId: number;
+  ticker: string;
+  token: string;
+  decimals: number;
+  amount: string;
+  amountBase: string;
+  usd: number | null;
+};
+
+function useLiquidatorScan({
   walletConnected,
   wallet,
   chainIds,
@@ -1320,16 +909,7 @@ function LiquidatorScanCard({
   wallet?: string;
   chainIds: number[];
   maxInputs: number;
-  onSelected: (assets: Array<{
-    id: string;
-    chainId: number;
-    ticker: string;
-    token: string;
-    decimals: number;
-    amount: string;
-    amountBase: string;
-    usd: number | null;
-  }>) => void;
+  onSelected: (assets: SelectedScanAsset[]) => void;
 }) {
   const [scanning, setScanning] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
@@ -1382,8 +962,17 @@ function LiquidatorScanCard({
     }
   };
 
-  const emitSelected = (next: ScannedAsset[] | null) => {
-    onSelected((next ?? []).filter((a) => a.selected).map((a) => ({
+  const toggleAsset = (id: string) => {
+    if (!assets) return;
+    const current = assets.find((asset) => asset.id === id);
+    const selectedCount = assets.filter((asset) => asset.selected).length;
+    if (current && !current.selected && selectedCount >= maxInputs) {
+      toast.info(`Basket inputs are capped at ${maxInputs}.`);
+      return;
+    }
+    const next = assets.map((a) => (a.id === id ? { ...a, selected: !a.selected } : a));
+    setAssets(next);
+    onSelected(next.filter((a) => a.selected).map((a) => ({
       id: a.id,
       chainId: a.chainId,
       ticker: a.ticker,
@@ -1394,302 +983,28 @@ function LiquidatorScanCard({
       usd: a.usd,
     })));
   };
-  const toggleAsset = (id: string) =>
-    setAssets((cur) => {
-      if (!cur) return cur;
-      const current = cur.find((asset) => asset.id === id);
-      const selectedCount = cur.filter((asset) => asset.selected).length;
-      if (current && !current.selected && selectedCount >= maxInputs) {
-        toast.info(`Basket inputs are capped at ${maxInputs}.`);
-        return cur;
-      }
-      const next = cur.map((a) => (a.id === id ? { ...a, selected: !a.selected } : a));
-      emitSelected(next);
-      return next;
-    });
-  const setAll = (selected: boolean) =>
-    setAssets((cur) => {
-      if (!cur) return cur;
-      let remaining = maxInputs;
-      const next = cur.map((asset) => {
-        if (!selected) return { ...asset, selected: false };
-        if (remaining <= 0) return { ...asset, selected: false };
-        remaining -= 1;
-        return { ...asset, selected: true };
-      });
-      emitSelected(next);
-      return next;
-    });
 
-  const selectedAssets = (assets ?? []).filter((a) => a.selected);
-  const preservedAssets = (assets ?? []).filter((a) => !a.selected);
-  const totalSelectedUSD = selectedAssets.reduce((s, a) => s + (a.usd ?? 0), 0);
-  const preservedUSD = preservedAssets.reduce((s, a) => s + (a.usd ?? 0), 0);
-  const selectedUnpriced = selectedAssets.filter((a) => a.usd == null).length;
-  const preservedUnpriced = preservedAssets.filter((a) => a.usd == null).length;
-
-  return (
-    <Card style={{ padding: 16 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6, flexWrap: "wrap", gap: 8 }}>
-        <div style={{ minWidth: 0 }}>
-          <p style={{ margin: 0, fontSize: 10, letterSpacing: "0.40em", color: "rgba(255,255,255,0.50)", textTransform: "uppercase", fontWeight: 700 }}>
-            Wallet scan + asset selection
-          </p>
-          <p style={{ margin: "4px 0 0", fontSize: 11.5, color: "rgba(255,255,255,0.55)", lineHeight: 1.5 }}>
-            Check the tokens to liquidate. Uncheck any you want to preserve. Scan uses supported basket chains, 50 tokens per chain, and at most {maxInputs} selected inputs.
-          </p>
-        </div>
-        <Pill variant={assets ? "success" : "ghost"}>
-          {assets ? `${assets.length} found` : "scan"}
-        </Pill>
-      </div>
-
-      <div style={{ marginTop: 12 }}>
-        <PrimaryButton onClick={() => { void scan(); }} disabled={scanning || !walletConnected}>
-          {scanning ? "Scanning…" : assets ? "Re-scan wallet" : "Scan my wallet"}
-        </PrimaryButton>
-      </div>
-      {scanError && (
-        <p style={{ margin: "10px 0 0", fontSize: 11.5, color: "#F87171", lineHeight: 1.5 }}>
-          {scanError}
-        </p>
-      )}
-
-      {assets && (
-        <div style={{ marginTop: 14 }}>
-          {assets.length === 0 && (
-            <div
-              style={{
-                padding: "11px 12px",
-                background: "rgba(255,138,0,0.06)",
-                border: "1px solid rgba(255,138,0,0.20)",
-                borderRadius: 4,
-                fontSize: 11.5,
-                color: "rgba(255,255,255,0.70)",
-                lineHeight: 1.5,
-                marginBottom: 10,
-              }}
-            >
-              No balances returned for the supported basket chains. Skipped chains stay listed below when the scanner could not read them.
-            </div>
-          )}
-          {/* Totals + controls */}
-          {assets.length > 0 && <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
-            <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
-              <Totals label="Liquidating" value={formatScannedUsdTotal(totalSelectedUSD, selectedUnpriced)} accent />
-              <Totals label="Preserving" value={formatScannedUsdTotal(preservedUSD, preservedUnpriced)} muted />
-            </div>
-            <div style={{ display: "flex", gap: 6 }}>
-              <button
-                type="button"
-                onClick={() => setAll(true)}
-                style={selBtnStyle()}
-              >
-                Select all
-              </button>
-              <button
-                type="button"
-                onClick={() => setAll(false)}
-                style={selBtnStyle()}
-              >
-                None
-              </button>
-            </div>
-          </div>}
-
-          {/* Asset rows with checkboxes */}
-          {assets.length > 0 && <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 280, overflowY: "auto" }}>
-            {assets.map((a) => (
-              <button
-                type="button"
-                key={a.id}
-                onClick={() => toggleAsset(a.id)}
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "auto 1fr 1fr 1fr auto",
-                  alignItems: "center",
-                  gap: 10,
-                  padding: "9px 10px",
-                  background: a.selected ? "rgba(255,138,0,0.05)" : "rgba(255,255,255,0.02)",
-                  border: `1px solid ${a.selected ? "rgba(255,138,0,0.25)" : "rgba(255,255,255,0.05)"}`,
-                  borderRadius: 4,
-                  fontSize: 11.5,
-                  textAlign: "left",
-                  cursor: "pointer",
-                  color: "#fff",
-                  width: "100%",
-                  transition: "all 140ms ease",
-                }}
-              >
-                <span
-                  aria-hidden
-                  style={{
-                    width: 16,
-                    height: 16,
-                    flexShrink: 0,
-                    background: a.selected ? "#FF8A00" : "transparent",
-                    border: `1.5px solid ${a.selected ? "#FF8A00" : "rgba(255,255,255,0.30)"}`,
-                    borderRadius: 3,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    color: "#05050c",
-                    fontSize: 11,
-                    fontWeight: 800,
-                    lineHeight: 1,
-                  }}
-                >
-                  {a.selected ? "✓" : ""}
-                </span>
-                <span style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
-                  <span
-                    style={{
-                      width: 18,
-                      height: 18,
-                      background: a.chainColor,
-                      borderRadius: 3,
-                      flexShrink: 0,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: 7,
-                      fontWeight: 700,
-                    }}
-                  />
-                  <span style={{ color: a.selected ? "rgba(255,255,255,0.95)" : "rgba(255,255,255,0.55)", fontWeight: 600 }}>{a.ticker}</span>
-                </span>
-                <span style={{ color: a.selected ? "rgba(255,255,255,0.65)" : "rgba(255,255,255,0.40)" }}>{a.chain}</span>
-                <span style={{ color: a.selected ? "rgba(255,255,255,0.75)" : "rgba(255,255,255,0.40)", fontFamily: "'Space Grotesk', sans-serif" }}>{a.balance}</span>
-                <span style={{ color: a.selected ? "#fff" : "rgba(255,255,255,0.40)", fontFamily: "'Space Grotesk', sans-serif", textAlign: "right", fontWeight: a.selected ? 600 : 400 }}>
-                  {a.usd == null
-                    ? "Price unavailable"
-                    : formatScannedUsdTotal(a.usd, 0)}
-                </span>
-              </button>
-            ))}
-          </div>}
-
-          {assets.length > 0 && selectedAssets.length === 0 && (
-            <p style={{ margin: "10px 0 0", fontSize: 11, color: "#FFB347", lineHeight: 1.45 }}>
-              Select at least one asset to liquidate.
-            </p>
-          )}
-          {skipped.length > 0 && (
-            <p style={{ margin: "10px 0 0", fontSize: 11, color: "rgba(255,255,255,0.50)", lineHeight: 1.45 }}>
-              Skipped {skipped.length === 1 ? "chain" : `${skipped.length} chains`}: {skipped.map((entry) => chainName(entry.chainId)).join(", ")}
-            </p>
-          )}
-        </div>
-      )}
-    </Card>
-  );
+  return { assets, scanning, scanError, skipped, scan, toggleAsset };
 }
 
-function Totals({ label, value, accent, muted }: { label: string; value: string; accent?: boolean; muted?: boolean }) {
+function ConstraintChip({
+  active, onClick, children,
+}: { active: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
-    <div>
-      <p style={{ margin: 0, fontSize: 9, letterSpacing: "0.30em", color: "rgba(255,255,255,0.45)", textTransform: "uppercase", fontWeight: 700 }}>
-        {label}
-      </p>
-      <p
-        style={{
-          margin: "2px 0 0",
-          fontFamily: "'Space Grotesk', sans-serif",
-          fontSize: 16,
-          fontWeight: 500,
-          color: accent ? "#FF8A00" : muted ? "rgba(255,255,255,0.45)" : "#fff",
-          letterSpacing: "-0.01em",
-          lineHeight: 1.1,
-        }}
-      >
-        {value}
-      </p>
-    </div>
-  );
-}
-
-function selBtnStyle(): React.CSSProperties {
-  return {
-    padding: "5px 11px",
-    background: "transparent",
-    border: "1px solid rgba(255,255,255,0.12)",
-    borderRadius: 4,
-    color: "rgba(255,255,255,0.70)",
-    fontFamily: "Inter, sans-serif",
-    fontSize: 10.5,
-    fontWeight: 600,
-    letterSpacing: "0.10em",
-    textTransform: "uppercase",
-    cursor: "pointer",
-  };
-}
-
-// ─── Review row primitive ─────────────────────────────────────────────────
-
-function ReviewRow({
-  label, value, sub, accent, highlight, warning,
-}: {
-  label: string;
-  value: string | number;
-  sub?: string;
-  accent?: boolean;
-  highlight?: boolean;
-  warning?: boolean;
-}) {
-  return (
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
-      <span style={{ fontSize: 11.5, color: warning ? "#F87171" : "rgba(255,255,255,0.55)", lineHeight: 1.5 }}>
-        {label}
-      </span>
-      <div style={{ textAlign: "right", maxWidth: "60%" }}>
-        <p
-          style={{
-            margin: 0,
-            fontSize: highlight ? 14 : 12.5,
-            fontWeight: highlight ? 600 : 500,
-            fontFamily: highlight ? "'Space Grotesk', sans-serif" : "Inter, sans-serif",
-            letterSpacing: highlight ? "-0.01em" : "normal",
-            color: warning ? "#F87171" : accent ? "#FF8A00" : highlight ? "#fff" : "rgba(255,255,255,0.90)",
-          }}
-        >
-          {value}
-        </p>
-        {sub && (
-          <p style={{ margin: "2px 0 0", fontSize: 10.5, color: "rgba(255,255,255,0.40)", lineHeight: 1.45 }}>
-            {sub}
-          </p>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ─── Number input primitive ───────────────────────────────────────────────
-
-function NumInput({
-  label, hint, value, setValue,
-}: {
-  label: string;
-  hint?: string;
-  value: number;
-  setValue: (v: number) => void;
-}) {
-  return (
-    <div>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-        <span style={{ fontSize: 11.5, color: "rgba(255,255,255,0.65)" }}>{label}</span>
-        <input
-          type="number"
-          value={value}
-          onChange={(e) => setValue(Number(e.target.value))}
-          style={{ ...inputStyle(), width: 90, textAlign: "right" }}
-        />
-      </div>
-      {hint && (
-        <p style={{ margin: "4px 0 0", fontSize: 10.5, color: "rgba(255,255,255,0.40)", lineHeight: 1.45 }}>
-          {hint}
-        </p>
-      )}
-    </div>
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      style={{
+        padding: "5px 11px", borderRadius: 4, cursor: "pointer",
+        background: active ? "rgba(255,138,0,.12)" : "rgba(255,255,255,.035)",
+        border: `1px solid ${active ? "rgba(255,138,0,.45)" : "transparent"}`,
+        color: active ? wk.orange : wk.t2,
+        fontFamily: "Inter, sans-serif", fontSize: 10.5, fontWeight: 600,
+        fontVariantNumeric: "tabular-nums",
+      }}
+    >
+      {children}
+    </button>
   );
 }

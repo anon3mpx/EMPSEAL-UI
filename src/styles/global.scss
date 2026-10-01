@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..700&family=Instrument+Serif:ital@0;1&family=Inter:wght@200..900&display=swap");
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -141,7 +141,13 @@ body::after {
   z-index: 9998;
 }
 
-/* Scrollbar */
+/* Scrollbar — every scrollable element site-wide, including modal/picker
+   bodies. `--empx-gold-dim` here was a typo that never matched any defined
+   token (the file only ever defines `--empx-orange-dim`), so this rule's
+   thumb color was invalid and silently dropped by every browser. A second,
+   later `::-webkit-scrollbar{width:0px}` block (removed below) then won the
+   cascade outright and made every scrollbar on the site 0px wide. Firefox
+   gets the standard property too — it never supported ::-webkit-scrollbar. */
 ::-webkit-scrollbar {
   width: 3px;
 }
@@ -149,8 +155,12 @@ body::after {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--empx-gold-dim);
+  background: var(--empx-orange-dim);
   border-radius: 2px;
+}
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--empx-orange-dim) transparent;
 }
 
 /* Section divider */
@@ -180,10 +190,6 @@ body::after {
   will-change: transform;
 }
 
-::-webkit-scrollbar {
-  width: 0px;
-}
-
 :root {
   --table-bg: #222222;
   --primary: #ff8a00;
@@ -192,20 +198,6 @@ body::after {
   --black: #000000;
 }
 
-/* Track */
-::-webkit-scrollbar-track {
-  background: #000000;
-}
-
-/* Handle */
-::-webkit-scrollbar-thumb {
-  background: #000000;
-}
-
-/* Handle on hover */
-::-webkit-scrollbar-thumb:hover {
-  background: #000000;
-}
 .tablescrool::-webkit-scrollbar {
   width: 4px;
 }
@@ -1428,9 +1420,10 @@ input[type="range"]::-moz-range-track {
 /* Custom EMPSEAL Toast Notifications - HIGH SPECIFICITY */
 
 /* Container positioning */
-.Toastify__toast-container.Toastify__toast-container--bottom-right {
-  bottom: 20px !important;
-  right: 20px !important;
+// Slab-theme toast: bottom-center, ported from the locked draft's `.toast`
+// position (public/swap-experience.html) — was hard-pinned bottom-right.
+.Toastify__toast-container.Toastify__toast-container--bottom-center {
+  bottom: 26px !important;
   padding: 0 !important;
 }
 
@@ -1489,35 +1482,35 @@ input[type="range"]::-moz-range-track {
   display: none !important;
 }
 
-/* Slide animation from right */
-@keyframes slideInFromRight {
+/* Fade + rise from the bottom, matching the draft's bottom-center toast (was slide-from-right) */
+@keyframes slideInFromBottom {
   from {
-    transform: translateX(100%);
+    transform: translateY(14px);
     opacity: 0;
   }
   to {
-    transform: translateX(0);
+    transform: translateY(0);
     opacity: 1;
   }
 }
 
-@keyframes slideOutToRight {
+@keyframes slideOutToBottom {
   from {
-    transform: translateX(0);
+    transform: translateY(0);
     opacity: 1;
   }
   to {
-    transform: translateX(100%);
+    transform: translateY(14px);
     opacity: 0;
   }
 }
 
 .Toastify__toast-container .Toastify__toast--enter {
-  animation: slideInFromRight 0.3s ease-out forwards !important;
+  animation: slideInFromBottom 0.3s ease-out forwards !important;
 }
 
 .Toastify__toast-container .Toastify__toast--exit {
-  animation: slideOutToRight 0.2s ease-in forwards !important;
+  animation: slideOutToBottom 0.2s ease-in forwards !important;
 }
 
 /* Toast stacking gap */

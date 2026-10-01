@@ -14,7 +14,7 @@ import { useEffect, useState } from "react";
 import { getDexScreenerTokenPrices } from "../../lib/api/dexScreener";
 import { getGeckoTerminalTokenPrices } from "../../lib/api/geckoTerminal";
 import { getTokenAddress } from "../data/logoRegistry";
-import { getCachedPrice, getTokenPrice } from "../data/priceService";
+import { getCachedPrice, getTokenPrice, llamaCoinKey } from "../data/priceService";
 
 /**
  * Returns the current USD price for a token on a chain, or null if unavailable.
@@ -30,9 +30,16 @@ export function useUnifiedPrice(
       getTokenAddress(chainId, ticker) ??
       getTokenAddress(chainId, `W${ticker}`)
     : null;
+  // Non-EVM native coins (BTC, SOL, ...) have no address but DefiLlama can
+  // still price them by CoinGecko id.
+  const addresslessCoinKey = chainId != null && ticker && !resolvedTokenAddress
+    ? llamaCoinKey(chainId, ticker)
+    : null;
   const identity = chainId != null && ticker && resolvedTokenAddress
     ? `${chainId}:${resolvedTokenAddress.toLowerCase()}`
-    : null;
+    : addresslessCoinKey
+      ? `${chainId}:${ticker!.toUpperCase()}`
+      : null;
   const cachedPrice = chainId != null && ticker
     ? getCachedPrice(chainId, ticker, resolvedTokenAddress ?? undefined)
     : null;
@@ -42,12 +49,22 @@ export function useUnifiedPrice(
   }>({ identity: null, price: null });
 
   useEffect(() => {
-    if (!identity || chainId == null || !ticker || !resolvedTokenAddress) {
+    if (!identity || chainId == null || !ticker) {
       return;
     }
 
     let cancelled = false;
     setResolved({ identity, price: cachedPrice });
+
+    if (!resolvedTokenAddress) {
+      // GeckoTerminal and DexScreener need a contract address; DefiLlama only.
+      void getTokenPrice(chainId, ticker).then((price) => {
+        if (!cancelled) setResolved({ identity, price });
+      });
+      return () => {
+        cancelled = true;
+      };
+    }
 
     const token = {
       id: identity,

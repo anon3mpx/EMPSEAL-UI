@@ -280,8 +280,11 @@ export function tokenLogoCandidates(identity: TokenLogoIdentity): string[] {
   const configured = normalizeLogoUrl(identity.configuredUrl);
   const fromAddress = trustWalletTokenUrl(identity.chainId, identity.address);
 
+  // A native coin's artwork is its home chain's icon (BTC → bitcoin), which
+  // covers BTC, SOL, DOGE, etc. that have no local file or contract address.
+  const nativeCoin = identity.isNative ? chainLogoUrl(ticker) : null;
   const candidates = identity.isNative
-    ? [local, configured, fromAddress]
+    ? [local, configured, fromAddress, nativeCoin]
     : [configured, fromAddress, local];
 
   return dedupe(candidates.filter((candidate): candidate is string => Boolean(candidate)));

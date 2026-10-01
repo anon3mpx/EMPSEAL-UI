@@ -444,9 +444,9 @@ export default function WidgetPage() {
                 )}
               </div>
 
-              <p style={{ margin: "10px 0 0", fontSize: 10.5, color: "rgba(255,255,255,0.40)", lineHeight: 1.5 }}>
+              {/* <p style={{ margin: "10px 0 0", fontSize: 10.5, color: "rgba(255,255,255,0.40)", lineHeight: 1.5 }}>
                 Preview loads <code style={{ color: "rgba(255,255,255,0.65)" }}>/widget/swap</code> (the embed page, unchanged). Use the Embed tab to copy the snippet for partner sites.
-              </p>
+              </p> */}
 
               {/* Keyframes for the loading-dot pulse */}
               <style>{`@keyframes empx-blink { 0%,100% { opacity: 1 } 50% { opacity: 0.3 } }`}</style>
@@ -537,7 +537,7 @@ function BrandingTab({
 }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-      <Field label="Chain" hint="Widget runs single-chain inside the iframe. For cross-chain, partners can iframe /cross-v2 instead.">
+      <Field label="Chain" hint="">
         <button
           type="button"
           onClick={onPickChain}

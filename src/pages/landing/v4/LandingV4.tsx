@@ -20,6 +20,8 @@
 // first mount.
 
 import { useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
+import { EMPX_SOCIALS } from "../../../design-system/data/socials";
 import { mountLandingV4 } from "./landingV4Engine";
 import "./landing-v4.css";
 
@@ -110,10 +112,82 @@ function useLandingSeo() {
   }, []);
 }
 
+// ─── Links ────────────────────────────────────────────────────────────────
+// The engine owns this subtree and the teardown restores raw markup, so React
+// Router <Link>s would lose their handlers. Links are plain hrefs instead, and
+// one delegated click handler on the root (which survives the restore) routes
+// in-app paths through the router and turns `data-go` into a section scroll.
+
+const LAUNCH_APP_PATH = "/portfolio-v2";
+const DOCS_URL = "https://docs.empx.io";
+const socialHref = (kind: (typeof EMPX_SOCIALS)[number]["kind"]) =>
+  EMPX_SOCIALS.find((s) => s.kind === kind)?.href ?? "#";
+
+// Scroll progress (0–1 through #sw) that lands inside each section. Values sit
+// just past the start of the engine's own ranges (landingV4Engine.ts `RB` and
+// the L[] toggles) so the target layer is the active one on arrival. Update
+// here if the engine's timeline changes.
+const SECTION_PROGRESS = {
+  swap: 0.11, // 02 · Swap · Cross · Agents — "SWAP" slide (100+ DEXes)
+  rails: 0.135, // 02 · same section — "CROSS · Twelve-rail cross-chain" slide
+  chains: 0.235, // 03 · Chain reach
+  layers: 0.37, // 04 · How value settles — five layers
+  build: 0.635, // 06 · One engine, three doors — SDK / contracts / widget
+  // 08 · Why EmpX — its seven cards assemble progressively across the range;
+  // the last (28 / 15 bps pricing) locks in at ~0.884, so land just after.
+  why: 0.886,
+} as const;
+type SectionKey = keyof typeof SECTION_PROGRESS;
+
+function scrollToSection(root: HTMLElement, key: SectionKey) {
+  const sw = root.querySelector<HTMLElement>("#sw");
+  const stg = root.querySelector<HTMLElement>("#stg");
+  if (!sw || !stg) return;
+  const travel = sw.offsetHeight - stg.offsetHeight;
+  const top = sw.getBoundingClientRect().top + window.scrollY + travel * SECTION_PROGRESS[key];
+  window.scrollTo({ top, behavior: "smooth" });
+}
+
 export default function LandingV4() {
   useLandingSeo();
 
   const rootRef = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+
+    const onClick = (e: MouseEvent) => {
+      if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      const link = (e.target as Element | null)?.closest<HTMLAnchorElement>("a");
+      if (!link || !root.contains(link)) return;
+
+      const go = link.dataset.go as SectionKey | undefined;
+      if (go && go in SECTION_PROGRESS) {
+        e.preventDefault();
+        root.querySelector("#cmd")?.classList.remove("open");
+        scrollToSection(root, go);
+        return;
+      }
+
+      const href = link.getAttribute("href");
+      if (href === "#") {
+        // Unwired placeholder — don't jump to the top of the scroll stage.
+        e.preventDefault();
+        return;
+      }
+      if (href?.startsWith("/") && !link.target) {
+        e.preventDefault();
+        navigate(href);
+        // The landing is ~13k px tall; don't carry that offset into the app page.
+        window.scrollTo(0, 0);
+      }
+    };
+
+    root.addEventListener("click", onClick);
+    return () => root.removeEventListener("click", onClick);
+  }, [navigate]);
 
   useEffect(() => {
     const root = rootRef.current;
@@ -139,15 +213,15 @@ export default function LandingV4() {
             <div className="cmd" id="cmd">
               <div className="cur" id="cmdCur"><span className="ixn" id="cmdIx">01</span><span className="nmn" id="cmdNm">The settlement layer</span><span className="chev"></span></div>
               <div className="lks">
-                <a href="#" data-go="1">Swap</a><a href="#" data-go="4">Layers</a><a href="#" data-go="2">Chains</a>
-                <a href="#" data-go="5">Build</a><a href="#" data-go="8">Why</a><a href="#" className="cta" data-go="8">Launch app</a>
+                <a href="#" data-go="swap">Swap</a><a href="#" data-go="layers">Layers</a><a href="#" data-go="chains">Chains</a>
+                <a href="#" data-go="build">Build</a><a href="#" data-go="why">Why</a><a href={LAUNCH_APP_PATH} className="cta">Launch app</a>
               </div>
             </div>
             <div className="ly s1" id="L1">
               <div className="ct">
                 <h1>The settlement layer<br />for <b>every chain.</b></h1>
                 <p className="bo">On-chain, permissionless aggregation with native settlement across 15+ chains and 100+ DEXes — and cross-chain reach to over 180. One router, one signature.</p>
-                <div className="row"><span className="btnA">Launch app</span><span className="btnB" data-open="Integration">Integrate EmpX</span></div>
+                <div className="row"><a className="btnA" href={LAUNCH_APP_PATH} style={{ textDecoration: 'none' }}>Launch app</a><span className="btnB" data-open="Integration">Integrate EmpX</span></div>
                 <div className="tls">
                   <div className="tl"><div className="tp"><div className="dg"><i className="on"></i><i></i><i className="on"></i><i></i><i className="on"></i><i></i><i className="on"></i><i className="on"></i><i></i></div><span className="bdg">Live</span></div>
                     <div className="v">180+</div><div className="l">Chains reachable</div></div>
@@ -280,7 +354,7 @@ export default function LandingV4() {
                     <circle className="ln" cx="95" cy="75" r="58" /><circle className="ln" id="a1r2" cx="95" cy="75" r="34" />
                     <circle className="lnA" id="a1core" cx="95" cy="75" r="13" />
                     <circle className="lnA" id="a1dot" cx="153" cy="75" r="3.5" fill="#FF8A00" /></svg></div>
-                  <div className="foot3">Read the docs →</div></div>
+                  <a className="foot3" href={DOCS_URL} target="_blank" rel="noopener noreferrer" style={{ display: 'block', textDecoration: 'none' }}>Read the docs →</a></div>
                 <div className="c3"><h3>Earn</h3><div className="rule"></div>
                   <p>Every route carries your affiliate address. Ten, twenty-five or fifty percent of protocol fees, settled on-chain.</p>
                   <div className="art"><svg width="170" height="128" viewBox="0 0 190 150">
@@ -304,13 +378,17 @@ export default function LandingV4() {
             <div className="brandcol">
               <div className="bmark"><img id="fmark" alt="EmpX" /><span>EmpX</span></div>
               <div className="socials">
-                <a href="#" aria-label="X"><svg viewBox="0 0 24 24"><path d="M18.9 2H22l-7.1 8.1L23 22h-6.6l-5.2-6.8L5.3 22H2.2l7.6-8.7L1.5 2h6.8l4.7 6.2zM17.8 20.2h1.7L7.3 3.7H5.5z" /></svg></a>
-                <a href="#" aria-label="GitHub"><svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 0 0-3.2 19.5c.5.1.7-.2.7-.5v-1.7c-2.8.6-3.4-1.3-3.4-1.3-.5-1.2-1.1-1.5-1.1-1.5-.9-.6.1-.6.1-.6 1 .1 1.5 1 1.5 1 .9 1.5 2.3 1.1 2.9.8.1-.6.3-1.1.6-1.3-2.2-.3-4.6-1.1-4.6-5 0-1.1.4-2 1-2.7-.1-.3-.4-1.3.1-2.7 0 0 .8-.3 2.7 1a9.4 9.4 0 0 1 5 0c1.9-1.3 2.7-1 2.7-1 .5 1.4.2 2.4.1 2.7.6.7 1 1.6 1 2.7 0 3.9-2.4 4.7-4.6 5 .3.3.7 1 .7 2v2.9c0 .3.2.6.7.5A10 10 0 0 0 12 2z" /></svg></a>
+                <a href={socialHref("x")} target="_blank" rel="noopener noreferrer" aria-label="X"><svg viewBox="0 0 24 24"><path d="M18.9 2H22l-7.1 8.1L23 22h-6.6l-5.2-6.8L5.3 22H2.2l7.6-8.7L1.5 2h6.8l4.7 6.2zM17.8 20.2h1.7L7.3 3.7H5.5z" /></svg></a>
+                <a href={socialHref("github")} target="_blank" rel="noopener noreferrer" aria-label="GitHub"><svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 0 0-3.2 19.5c.5.1.7-.2.7-.5v-1.7c-2.8.6-3.4-1.3-3.4-1.3-.5-1.2-1.1-1.5-1.1-1.5-.9-.6.1-.6.1-.6 1 .1 1.5 1 1.5 1 .9 1.5 2.3 1.1 2.9.8.1-.6.3-1.1.6-1.3-2.2-.3-4.6-1.1-4.6-5 0-1.1.4-2 1-2.7-.1-.3-.4-1.3.1-2.7 0 0 .8-.3 2.7 1a9.4 9.4 0 0 1 5 0c1.9-1.3 2.7-1 2.7-1 .5 1.4.2 2.4.1 2.7.6.7 1 1.6 1 2.7 0 3.9-2.4 4.7-4.6 5 .3.3.7 1 .7 2v2.9c0 .3.2.6.7.5A10 10 0 0 0 12 2z" /></svg></a>
               </div>
             </div>
-            <div><h4>Product</h4><ul><li><a href="#">Swap</a></li><li><a href="#">Cross-chain</a></li><li><a href="#">Multi-send</a></li><li><a href="#">Gas top-up</a></li><li><a href="#">Portfolio</a></li></ul></div>
-            <div><h4>Build</h4><ul><li><a href="#">Swap SDK</a></li><li><a href="#">MCP server</a></li><li><a href="#">Widget</a></li><li><a href="#">API reference</a></li><li><a href="#">Contracts</a></li></ul></div>
-            <div><h4>Network</h4><ul><li><a href="#">Chains</a></li><li><a href="#">Rails</a></li><li><a href="#">DEX coverage</a></li><li><a href="#">Status</a></li><li><a href="#">Fees</a></li></ul></div>
+            <div><h4>Product</h4><ul><li><a href="/swap-v2">Swap</a></li><li><a href="/cross-v2">Cross-chain</a></li><li><a href="/multi-v2">Multi-send</a></li><li><a href="/gas-v2">Gas top-up</a></li><li><a href="/portfolio-v2">Portfolio</a></li></ul></div>
+            {/* Only the docs home and the widget-integration page are known docs
+                URLs locally — SDK / MCP / API / Contracts use the docs home until
+                deep links exist. */}
+            <div><h4>Build</h4><ul><li><a href={DOCS_URL} target="_blank" rel="noopener noreferrer">Swap SDK</a></li><li><a href={DOCS_URL} target="_blank" rel="noopener noreferrer">MCP server</a></li><li><a href="/widget-v2">Widget</a></li><li><a href={DOCS_URL} target="_blank" rel="noopener noreferrer">API reference</a></li><li><a href={DOCS_URL} target="_blank" rel="noopener noreferrer">Contracts</a></li></ul></div>
+            {/* Status has no page or matching section yet — left as a placeholder. */}
+            <div><h4>Network</h4><ul><li><a href="#" data-go="chains">Chains</a></li><li><a href="#" data-go="rails">Rails</a></li><li><a href="#" data-go="swap">DEX coverage</a></li><li><a href="#">Status</a></li><li><a href="#" data-go="why">Fees</a></li></ul></div>
             <div><h4>Company</h4><ul><li><a href="#">Whitepaper</a></li><li><a href="#" data-open="Affiliate">Affiliate program</a></li><li><a href="#">Brand kit</a></li><li><a href="#">Terms</a></li><li><a href="#">Privacy</a></li></ul></div>
           </div>
           <div className="ftrBase"><span>© EmpX · The settlement layer for every chain</span><span>Built on-chain · Non-custodial</span></div>

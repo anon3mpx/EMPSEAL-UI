@@ -1,12 +1,32 @@
-import { ReactNode } from "react";
+// ─── EmpxSwapWidget — same-chain swap, the pattern-setting surface ────────
+//
+// Layout ported from public/swap-experience.html (design-locked 2026-08-19):
+// frameless, "You pay" input → "You receive" orange outcome numeral, route,
+// cost + impact, then ONE CTA with the quote countdown as a 2px bar on its
+// bottom edge, the quote row, and the min-received / slippage line.
+//
+// Data contract is the local one (ReactNode logos, SDK route hops / split
+// branches, page-computed CTA state). Everything the locked layout added on
+// top — quote lifecycle, slippage settings, chain switching, rate, notice —
+// is optional, so /widget/swap (SwapEmbed) renders unchanged when it doesn't
+// opt in.
+//
+// Quote lifecycle rule (owner decision): auto-refresh when the quote expires
+// (60s for SDK quotes), manual refresh from 30s, and the swap stays enabled
+// while the quote ages — blocking it would punish hesitation. The window
+// comes from the quote itself, so a 30s local-fallback quote scales down
+// rather than outliving useSwapExecution's expiry guard.
+
+import { ReactNode, useState } from "react";
 import TouchTooltip from "../components/TouchTooltip";
 import { RouteVisualization, type RouteHop, type SplitBranch } from "./components";
+import { useQuoteLifecycle } from "./hooks/useQuoteLifecycle";
 import {
   ChainPill,
-  Disclosure,
   ImpactMeter,
   LogoFrame,
   MicroLabel,
+  QuoteStatusRow,
   TokenIdentityRow,
   WidgetCTA,
   WidgetShell,
@@ -34,8 +54,23 @@ export interface SwapChain {
   logo?: ReactNode;
 }
 
+export interface SwapQuoteTiming {
+  issuedAt?: number | null;
+  validMs?: number | null;
+  onRefresh: () => void;
+  /** Hold auto-refresh — e.g. while the review modal is open. */
+  paused?: boolean;
+}
+
+export interface SwapNotice {
+  tone: "info" | "error";
+  text: string;
+}
+
 export interface EmpxSwapWidgetProps {
   chain: SwapChain;
+  /** Makes the chain pill a network switcher. */
+  onSelectChain?: () => void;
 
   fromToken: SwapToken | null;
   fromAmount: string;
@@ -49,6 +84,8 @@ export interface EmpxSwapWidgetProps {
   toAmount: string;
   toUsdValue?: number | null;
   onSelectToToken: () => void;
+  /** e.g. "1 ETH = 3,184.2 USDC" — shown on the receive identity row. */
+  rate?: string;
 
   pairType?: "V/V" | "V/S" | "S/S";
   protocolFeeBps?: number;
@@ -56,6 +93,8 @@ export interface EmpxSwapWidgetProps {
   bestRoute?: string;
   minimumReceived?: string;
   slippageBps?: number;
+  /** When set, a settings toggle in the header lets the user edit slippage. */
+  onSlippageChange?: (bps: number) => void;
   priceImpactBps?: number;
 
   routeHops?: RouteHop[];
@@ -68,16 +107,25 @@ export interface EmpxSwapWidgetProps {
   onSwap: () => void;
   onFlip?: () => void;
 
+  /** Quote age + refresh. Omit to hide the quote row and timer bar. */
+  quote?: SwapQuoteTiming;
+  /** One status line under the quote row (quote source, errors). */
+  notice?: SwapNotice;
+
   walletConnected?: boolean;
   onConnect?: () => void;
 }
 
+const MANUAL_UNLOCK_MS = 30_000;
+const SLIPPAGE_PRESETS_BPS = [10, 25, 50, 100];
+
 function usdLine(value?: number | null) {
-  return value != null ? `≈ $${value.toLocaleString(undefined, { maximumFractionDigits: 2 })}` : "\u00a0";
+  return value != null ? `≈ $${value.toLocaleString(undefined, { maximumFractionDigits: 2 })}` : " ";
 }
 
 export default function EmpxSwapWidget({
   chain,
+  onSelectChain,
   fromToken,
   fromAmount,
   fromBalance,
@@ -89,12 +137,14 @@ export default function EmpxSwapWidget({
   toAmount,
   toUsdValue,
   onSelectToToken,
+  rate,
   pairType,
   protocolFeeBps,
   protocolFeeUSD,
   bestRoute,
   minimumReceived,
   slippageBps,
+  onSlippageChange,
   priceImpactBps,
   routeHops,
   routeLabel,
@@ -104,9 +154,22 @@ export default function EmpxSwapWidget({
   swapLabel = "Swap",
   onSwap,
   onFlip,
+  quote,
+  notice,
   walletConnected = true,
   onConnect,
 }: EmpxSwapWidgetProps) {
+  const [settingsOpen, setSettingsOpen] = useState(false);
+
+  const lifecycle = useQuoteLifecycle({
+    issuedAt: quote?.issuedAt,
+    validMs: quote?.validMs,
+    onRefresh: quote?.onRefresh,
+    autoRefresh: true,
+    manualUnlockMs: quote?.validMs ? Math.min(MANUAL_UNLOCK_MS, quote.validMs / 2) : undefined,
+    paused: quote?.paused,
+  });
+
   const amountEntered = Number((fromAmount || "0").replace(/,/g, "")) > 0;
   const ctaState: CtaState = !walletConnected
     ? "connect"
@@ -118,25 +181,40 @@ export default function EmpxSwapWidget({
   const ctaLabel =
     ctaState === "connect"
       ? "Connect wallet"
-      : ctaState === "working"
-        ? swapLabel
-        : ctaState === "idle"
-          ? amountEntered
-            ? swapLabel
-            : "Enter an amount"
-          : swapLabel;
+      : ctaState === "idle" && !amountEntered
+        ? "Enter an amount"
+        : swapLabel;
 
   const feeSub = [pairType?.replace("/", " / "), protocolFeeUSD != null ? `$${protocolFeeUSD.toFixed(2)}` : null]
     .filter(Boolean)
     .join(" · ");
 
+  const hasRoute =
+    !!routeLabel || !!bestRoute || (splitBranches?.length ?? 0) > 1 || (routeHops?.length ?? 0) > 1;
+
   return (
     <WidgetShell edge>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 22 }}>
+      {/* Header — eyebrow, the chain stated once, settings toggle */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: settingsOpen ? 12 : 22 }}>
         <span style={eyebrow}>Swap</span>
-        <ChainPill logo={chain.logo} name={chain.name} fallbackLabel={chain.name.slice(0, 3).toUpperCase()} />
+        <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <ChainPill
+            logo={chain.logo}
+            name={chain.name}
+            fallbackLabel={chain.name.slice(0, 3).toUpperCase()}
+            onClick={onSelectChain}
+          />
+          {onSlippageChange && (
+            <SettingsToggle open={settingsOpen} onToggle={() => setSettingsOpen((v) => !v)} />
+          )}
+        </span>
       </div>
 
+      {settingsOpen && onSlippageChange && (
+        <SlippageSettings valueBps={slippageBps ?? 50} onChange={onSlippageChange} />
+      )}
+
+      {/* ── You pay ── */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
         <MicroLabel>You pay</MicroLabel>
         {fromBalance && (
@@ -187,6 +265,7 @@ export default function EmpxSwapWidget({
         ariaLabel={`Select from token${fromToken?.ticker ? `, current ${fromToken.ticker}` : ""}`}
       />
 
+      {/* ── flip ── */}
       <div style={{ display: "flex", justifyContent: "center", margin: "12px 0" }}>
         <TouchTooltip content="Flip tokens">
           <button
@@ -220,6 +299,7 @@ export default function EmpxSwapWidget({
         </TouchTooltip>
       </div>
 
+      {/* ── You receive — the OUTCOME, one of orange's four roles ── */}
       <div style={{ marginBottom: 10 }}>
         <MicroLabel>You receive</MicroLabel>
       </div>
@@ -231,13 +311,15 @@ export default function EmpxSwapWidget({
       <TokenIdentityRow
         logo={toToken?.logo}
         name={toToken?.ticker ?? "Select a token"}
+        sub={rate}
         onClick={onSelectToToken}
         ariaLabel={`Select to token${toToken?.ticker ? `, current ${toToken.ticker}` : ""}`}
       />
 
       <div style={rule} />
 
-      {(routeLabel || bestRoute || (splitBranches && splitBranches.length > 1) || (routeHops && routeHops.length > 1)) && (
+      {/* ── Route ── */}
+      {hasRoute && (
         <>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 13 }}>
             <MicroLabel>Route</MicroLabel>
@@ -270,6 +352,7 @@ export default function EmpxSwapWidget({
         </>
       )}
 
+      {/* ── Cost + impact ── */}
       <div style={{ ...grid2, marginBottom: 24 }}>
         <div>
           <MicroLabel>Protocol fee</MicroLabel>
@@ -281,20 +364,161 @@ export default function EmpxSwapWidget({
         {priceImpactBps != null && <ImpactMeter bps={priceImpactBps} />}
       </div>
 
-      {(minimumReceived || slippageBps != null) && (
-        <Disclosure label="Trade details">
-          <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 0" }}>
-            {minimumReceived && <span style={{ fontSize: 9.5, color: wk.t3 }}>Min. received {minimumReceived}</span>}
-            {slippageBps != null && <span style={{ fontSize: 9.5, color: wk.t3 }}>Slippage {(slippageBps / 100).toFixed(2)}%</span>}
-          </div>
-        </Disclosure>
-      )}
-
+      {/* ── CTA + quote lifecycle ── */}
       <WidgetCTA
         state={ctaState}
         label={ctaLabel}
         onClick={ctaState === "connect" ? onConnect : ctaState === "ready" ? onSwap : undefined}
+        timerPct={lifecycle.active ? lifecycle.remainingPct : undefined}
       />
+
+      {lifecycle.active && (
+        <QuoteStatusRow
+          ageSeconds={lifecycle.ageSeconds}
+          totalSeconds={lifecycle.totalSeconds}
+          canRefresh={lifecycle.canRefresh}
+          refreshing={lifecycle.refreshing}
+          onRefresh={lifecycle.refresh}
+        />
+      )}
+
+      {notice && (
+        <p
+          role={notice.tone === "error" ? "alert" : "status"}
+          style={{
+            margin: "11px 0 0",
+            fontSize: 10,
+            lineHeight: 1.55,
+            color: notice.tone === "error" ? "#FCA5A5" : wk.t3,
+          }}
+        >
+          {notice.text}
+        </p>
+      )}
+
+      {(minimumReceived || slippageBps != null) && (
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginTop: 11 }}>
+          {minimumReceived && <span style={{ fontSize: 9.5, color: wk.t3 }}>Min. received {minimumReceived}</span>}
+          {slippageBps != null && (
+            <span style={{ fontSize: 9.5, color: wk.t3, whiteSpace: "nowrap" }}>Slippage {(slippageBps / 100).toFixed(2)}%</span>
+          )}
+        </div>
+      )}
     </WidgetShell>
+  );
+}
+
+// ─── Settings ─────────────────────────────────────────────────────────────
+
+function SettingsToggle({ open, onToggle }: { open: boolean; onToggle: () => void }) {
+  return (
+    <TouchTooltip content="Trade settings">
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-label="Trade settings"
+        aria-expanded={open}
+        style={{
+          width: 32,
+          height: 32,
+          display: "grid",
+          placeItems: "center",
+          border: "none",
+          borderRadius: 3,
+          background: open ? "rgba(255,255,255,.05)" : "transparent",
+          color: open ? wk.orange : wk.t3,
+          cursor: "pointer",
+          transition: "color .2s, background .2s",
+        }}
+        onMouseEnter={(e) => {
+          if (!open) e.currentTarget.style.color = wk.t1;
+        }}
+        onMouseLeave={(e) => {
+          if (!open) e.currentTarget.style.color = wk.t3;
+        }}
+      >
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round">
+          <path d="M4 7h10M18 7h2M4 17h2M10 17h10" />
+          <circle cx="16" cy="7" r="2" />
+          <circle cx="8" cy="17" r="2" />
+        </svg>
+      </button>
+    </TouchTooltip>
+  );
+}
+
+function SlippageSettings({ valueBps, onChange }: { valueBps: number; onChange: (bps: number) => void }) {
+  const [custom, setCustom] = useState("");
+  const isPreset = SLIPPAGE_PRESETS_BPS.includes(valueBps);
+
+  const commitCustom = () => {
+    const v = Number(custom);
+    if (Number.isFinite(v) && v > 0) onChange(Math.round(v * 100));
+  };
+
+  return (
+    <div style={{ borderTop: `1px solid ${wk.border}`, borderBottom: `1px solid ${wk.border}`, padding: "12px 0 13px", marginBottom: 20 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 9 }}>
+        <MicroLabel>Max slippage</MicroLabel>
+        <span style={{ fontSize: 10, color: wk.t2, fontVariantNumeric: "tabular-nums" }}>{(valueBps / 100).toFixed(2)}%</span>
+      </div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+        {SLIPPAGE_PRESETS_BPS.map((bps) => {
+          const active = valueBps === bps;
+          return (
+            <button
+              key={bps}
+              type="button"
+              onClick={() => onChange(bps)}
+              aria-pressed={active}
+              style={{
+                padding: "6px 10px",
+                background: active ? "rgba(var(--widget-primary-rgb, 255, 138, 0), .12)" : "rgba(255,255,255,.035)",
+                border: "none",
+                borderRadius: 3,
+                color: active ? wk.orange : wk.t2,
+                fontFamily: "Inter, sans-serif",
+                fontSize: 10.5,
+                fontWeight: 600,
+                cursor: "pointer",
+                fontVariantNumeric: "tabular-nums",
+              }}
+            >
+              {(bps / 100).toFixed(2)}%
+            </button>
+          );
+        })}
+        <span style={{ position: "relative", display: "inline-flex" }}>
+          <input
+            type="text"
+            inputMode="decimal"
+            value={custom}
+            placeholder={isPreset ? "Custom" : (valueBps / 100).toFixed(2)}
+            aria-label="Custom slippage percent"
+            onChange={(e) => setCustom(e.target.value.replace(/[^0-9.]/g, ""))}
+            onBlur={commitCustom}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") commitCustom();
+            }}
+            style={{
+              width: 76,
+              padding: "6px 20px 6px 9px",
+              background: !isPreset ? "rgba(var(--widget-primary-rgb, 255, 138, 0), .12)" : "rgba(255,255,255,.035)",
+              border: "none",
+              borderRadius: 3,
+              color: wk.t1,
+              fontFamily: "Inter, sans-serif",
+              fontSize: 10.5,
+              fontWeight: 600,
+              outline: "none",
+            }}
+          />
+          <span style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", fontSize: 10, color: wk.t3 }}>%</span>
+        </span>
+      </div>
+      <p style={{ margin: "9px 0 0", fontSize: 9.5, color: wk.t3, lineHeight: 1.5 }}>
+        Higher slippage tolerates volatile pools; lower protects price.
+      </p>
+    </div>
   );
 }

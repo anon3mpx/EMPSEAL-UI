@@ -241,6 +241,13 @@ export type CrossV2OfferDisplay = {
   bridgeFeeUSD: number;
   protocolFeeUSD: number;
   totalFeeUSD: number;
+  /**
+   * Provider-direct rails often report a zero provider fee because it is taken
+   * from the output (deBridge, THORChain) — show "Included in quote", not FREE.
+   */
+  feeIncludedInQuote: boolean;
+  /** Fee paid as native msg.value on the source chain (Hyperlane interchain gas), formatted. */
+  networkFeeNative?: string;
   estimatedTimeSeconds: number | null;
   isBest: boolean;
   capabilityStatus: RailCapabilityStatus;
@@ -427,24 +434,8 @@ function readThorchainDisplayDecimals(offer: any, fallback: number) {
     ],
   );
   if (Number.isFinite(explicit)) return explicit;
+  // Raw THORNode quote fields are always in THOR's 1e8 units.
   return isThorchainOffer(offer) ? 8 : fallback;
-}
-
-function hasThorchainNativeAsset(offer: any) {
-  const values = [
-    offer?.routeAsset?.assetStandard,
-    offer?.sourceSettlementAsset?.assetStandard,
-    offer?.destinationSettlementAsset?.assetStandard,
-    offer?.amounts?.output?.symbol,
-    offer?.amounts?.minimumOutput?.symbol,
-    offer?.execution?.quote?.amounts?.output?.symbol,
-    offer?.execution?.quote?.routeAsset?.assetStandard,
-    offer?.execution?.thorQuote?.fees?.asset,
-  ];
-  return values.some((value) =>
-    typeof value === "string" &&
-    (value.toLowerCase() === "thor_native" || /^[A-Z0-9]+(?:\.[A-Z0-9]+)+$/.test(value)),
-  );
 }
 
 function readUsd(value: unknown): number {
@@ -453,13 +444,32 @@ function readUsd(value: unknown): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+// THORChain-style asset ids: CHAIN.SYMBOL[-CONTRACT], with "/" (synth) or
+// "~" (trade asset) separators, e.g. "ETH.USDC-0XA0B8…" or "BTC.BTC".
+const THOR_ASSET_ID = /^(?:BTC|ETH|BSC|AVAX|BASE|ARB|GAIA|DOGE|LTC|BCH|TRON|XRP|SOL|THOR|MAYA|DASH|KUJI|ZEC)[./~]([A-Z0-9]+)(?:-.+)?$/i;
+
+/** A short ticker for route display: THOR asset ids → symbol, addresses → null. */
+function displaySymbol(raw: string): string | null {
+  const value = raw.trim();
+  if (!value || /^0x[0-9a-f]{40}$/i.test(value)) return null;
+  const thorAsset = THOR_ASSET_ID.exec(value);
+  return thorAsset ? thorAsset[1].toUpperCase() : value;
+}
+
 function readSymbol(value: unknown): string | null {
   if (!value) return null;
-  if (typeof value === "string") return value;
-  if (typeof (value as any).canonicalAssetId === "string") return (value as any).canonicalAssetId;
-  if (typeof (value as any).providerAssetId === "string") return (value as any).providerAssetId;
-  if (typeof (value as any).tokenOutSymbol === "string") return (value as any).tokenOutSymbol;
-  if (typeof (value as any).symbol === "string") return (value as any).symbol;
+  if (typeof value === "string") return displaySymbol(value);
+  const candidates = [
+    (value as any).canonicalAssetId,
+    (value as any).providerAssetId,
+    (value as any).tokenOutSymbol,
+    (value as any).symbol,
+  ];
+  for (const candidate of candidates) {
+    if (typeof candidate !== "string") continue;
+    const symbol = displaySymbol(candidate);
+    if (symbol) return symbol;
+  }
   return null;
 }
 
@@ -563,14 +573,19 @@ export function formatCrossOffer(
   const minimumAmount = useThorchainProviderOutput
     ? readThorchainProviderOutput(offer, "minimum") ?? quotedMinimumAmount
     : quotedMinimumAmount;
-  const outputDecimals = thorchainOffer && hasThorchainNativeAsset(offer)
-    ? 8
-    : useThorchainProviderOutput
+  // The backend converts THOR's 1e8 units into the destination token's own
+  // decimals for estimatedOut/minAmountOut, so those use tokenOutDecimals like
+  // every other rail. Only the raw provider-field fallback is in 1e8 units.
+  // Deliberately not offer.amounts.output.decimals: some sequential offers
+  // still mislabel it with the carrier's decimals.
+  const outputDecimals = useThorchainProviderOutput
     ? readThorchainDisplayDecimals(offer, tokenOutDecimals)
     : tokenOutDecimals;
   const bridgeFeeUSD = readUsd(offer?.economics?.providerFeeUSD ?? offer?.fees?.providerFeeUSD);
   const protocolFeeUSD = readUsd(offer?.economics?.protocolFeeUSD ?? offer?.fees?.protocolFeeUSD);
   const capability = getOfferCapability(offer, capabilityContext);
+  const mode = offer?.composition?.carrierExecutionMode ?? offer?.executionMode;
+  const interchainGasFee = readAmountString(offer?.execution?.interchainGasFee);
 
   return {
     offerId: offer.offerId,
@@ -582,6 +597,10 @@ export function formatCrossOffer(
     bridgeFeeUSD,
     protocolFeeUSD,
     totalFeeUSD: bridgeFeeUSD + protocolFeeUSD,
+    feeIncludedInQuote: bridgeFeeUSD <= 0.005 && mode === "provider_direct",
+    networkFeeNative: amountIsZero(interchainGasFee)
+      ? undefined
+      : normalizeDisplayAmount(formatBaseUnits(interchainGasFee, 18)),
     estimatedTimeSeconds:
       typeof offer?.economics?.settlementTimeSeconds === "number"
         ? offer.economics.settlementTimeSeconds
@@ -591,6 +610,55 @@ export function formatCrossOffer(
     selectable: capability.selectable,
     restrictionReason: capability.reason,
   };
+}
+
+/** USD value of destination gas Gas Drop aims for (matches the backend auto-fund default). */
+export const GAS_DROP_TARGET_USD = 2;
+/** Requested when the destination native price is unknown. */
+export const GAS_DROP_FALLBACK_AMOUNT = "0.001";
+
+/**
+ * Destination native amount for Gas Drop, sized to targetUSD at the current
+ * native price. Rounded to 2 significant figures so small price ticks do not
+ * change the quote request (and trigger a requote).
+ */
+export function sizeDestinationGasAmount(
+  nativePriceUSD: number | null | undefined,
+  targetUSD = GAS_DROP_TARGET_USD,
+): string {
+  if (nativePriceUSD == null || !Number.isFinite(nativePriceUSD) || nativePriceUSD <= 0) {
+    return GAS_DROP_FALLBACK_AMOUNT;
+  }
+  const rounded = Number((targetUSD / nativePriceUSD).toPrecision(2));
+  if (!Number.isFinite(rounded) || rounded <= 0) return GAS_DROP_FALLBACK_AMOUNT;
+  // Plain decimal (no exponent) with at most 18 decimals, as parseUnits expects.
+  return rounded.toLocaleString("en-US", { useGrouping: false, maximumFractionDigits: 18 });
+}
+
+/** Outputs worth more than this multiple of the input are treated as unit bugs. */
+export const MAX_PLAUSIBLE_OUTPUT_RATIO = 1.2;
+
+/**
+ * True when an offer's output is clearly impossible: priced above
+ * MAX_PLAUSIBLE_OUTPUT_RATIO × the priced input. Catches decimal/unit bugs
+ * (e.g. 10^10× THORChain outputs) and looping-swap quotes. False whenever
+ * either side is unpriced, so missing prices never hide offers.
+ */
+export function isImplausibleOfferOutput(
+  outputAmount: string | number | undefined,
+  outputPriceUSD: number | null | undefined,
+  inputUSD: number | null | undefined,
+  maxRatio = MAX_PLAUSIBLE_OUTPUT_RATIO,
+): boolean {
+  const output = Number(String(outputAmount ?? "").replace(/,/g, ""));
+  if (
+    outputPriceUSD == null || inputUSD == null ||
+    !Number.isFinite(output) || !Number.isFinite(outputPriceUSD) || !Number.isFinite(inputUSD) ||
+    outputPriceUSD <= 0 || inputUSD <= 0
+  ) {
+    return false;
+  }
+  return output * outputPriceUSD > inputUSD * maxRatio;
 }
 
 export function buildCrossRouteHops(

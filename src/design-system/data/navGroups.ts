@@ -3,6 +3,8 @@ export interface NavItem {
   href: string;
   sub: string;
   badge?: string;
+  /** Listed but not navigable — shown dimmed, rendered without a link. */
+  disabled?: boolean;
 }
 
 export interface NavGroup {
@@ -18,14 +20,15 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: "Swap", href: "/swap-v2", sub: "Same-chain, best execution" },
       { label: "Cross", href: "/cross-v2", sub: "Any chain to any chain" },
-      { label: "Bridge", href: "/bridge-v2", sub: "Move one asset, one hop", badge: "Preview" },
+      // Bridge + Ramp: disabled in the nav for now (routes still exist).
+      { label: "Bridge", href: "/bridge-v2", sub: "Move one asset, one hop", badge: "Preview", disabled: true },
       { label: "Multi", href: "/multi-v2", sub: "One basket, many recipients" },
     ],
   },
   {
     label: "Fund",
     items: [
-      { label: "Ramp", href: "/ramp-v2", sub: "Card and bank to on-chain", badge: "Demo" },
+      { label: "Ramp", href: "/ramp-v2", sub: "Card and bank to on-chain", badge: "Demo", disabled: true },
       { label: "Gas", href: "/gas-v2", sub: "Top up native gas anywhere" },
     ],
   },

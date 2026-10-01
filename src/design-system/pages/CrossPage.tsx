@@ -37,7 +37,6 @@ import { config } from "../../Wagmi/config";
 import { resolveCrossNavbarChainId } from "../data/crossPageIdentity";
 import {
   AccountModal,
-  Card,
   ChainLogo,
   ChainPicker,
   ConfirmTradeModal,
@@ -45,8 +44,6 @@ import {
   DappNavbar,
   NetworkSelector,
   Pill,
-  QuoteCountdown,
-  Tabs,
   Toaster,
   TokenLogo,
   TokenPicker,
@@ -95,11 +92,16 @@ import {
 import { useCrossExecutionSession } from "../../features/cross/hooks/useCrossExecutionSession";
 import { useCrossIntentTracking } from "../../features/cross/hooks/useCrossIntentTracking";
 import { useCrossQuote } from "../../features/cross/hooks/useCrossQuote";
+import { useLayerZeroDestinations, filterLayerZeroDestinations, layerZeroDestinationListed } from "../../features/cross/hooks/useLayerZeroDestinations";
 import { useCrossRecovery } from "../../features/cross/hooks/useCrossRecovery";
 import {
   findMatchingRefreshedOffer,
+  getBestAvailableOfferId,
+  getDefaultPrimaryOfferId,
+  getGasDropBlockReason,
   getPrimaryOffers,
   isGardenNativeOffer,
+  isGasDropComposableOffer,
   normalizeOfferSet,
 } from "../../features/cross/model/quotes";
 import {
@@ -108,7 +110,7 @@ import {
   getRailCapability,
   type OfferCapabilityContext,
 } from "../../features/cross/model/capabilities";
-import { mapCrossApiError } from "../../features/cross/utils/errors";
+import { mapCrossApiError, layerZeroQuoteNotice } from "../../features/cross/utils/errors";
 import type {
   CrossExecutionSession,
   LayerZeroValueTransferApiQuoteContext,
@@ -129,7 +131,8 @@ import { useWalletConnection } from "../hooks/useWalletConnection";
 import { useUnifiedPrice } from "../hooks/useUnifiedPrice";
 import { useV2Balances } from "../hooks/useV2Balances";
 import { useAccountSnapshot } from "../hooks/useAccountSnapshot";
-import EmpxCrossWidget from "../EmpxCrossWidget";
+import EmpxCrossWidget, { type CrossNotice, type CrossRailsState } from "../EmpxCrossWidget";
+import { Disclosure, MicroLabel, WidgetKitKeyframes, wk } from "../widgetKit";
 import { getExplorerAddressUrl, getExplorerTxUrl } from "../data/explorers";
 import { V2_ALL_CHAINS, getV2Chain } from "../data/v2ChainView";
 import { getTokensForChain, type V2TokenConfig } from "../data/v2TokenView";
@@ -143,6 +146,8 @@ import {
   buildLayerZeroChainCatalog,
   formatCrossOffer,
   getCrossQuoteUiState,
+  isImplausibleOfferOutput,
+  sizeDestinationGasAmount,
   mergeLayerZeroChainOptions,
   mergeLayerZeroTokens,
   shortHash,
@@ -351,7 +356,6 @@ export function tokensFor(
 
 type ChainPickerTarget = "from" | "to";
 type TokenPickerTarget = "from" | "to";
-type SidePanelTab = "offers" | "settings" | "rails" | "lifecycle";
 
 function findTokenByTicker(tokens: Token[], ticker: string) {
   const normalized = ticker.toUpperCase();
@@ -360,7 +364,8 @@ function findTokenByTicker(tokens: Token[], ticker: string) {
 
 // Gas-drop typical USD value per destination chain (rough — production reads
 // from DestinationGasAutoFund.ts policy).
-const GAS_DROP_USD = 2.5;
+/** Cross quote validity shown on the quote row (unchanged from the old side-panel countdown). */
+const CROSS_QUOTE_VALID_MS = 30_000;
 
 export default function CrossPage() {
   const isMobile = useIsMobile();
@@ -429,7 +434,13 @@ export default function CrossPage() {
   // Gas settings. Paymaster is intentionally disabled in the UI for now.
   const [gasDropOnDestination, setGasDropOnDestination] = useState(false);
 
-  const [sidePanel, setSidePanel] = useState<SidePanelTab>("offers");
+  // Confirming a route renders the execution panels under the widget; this
+  // brings them into view (they used to live in a side-panel tab).
+  const executionRef = useRef<HTMLElement>(null);
+  const [executionFocusTick, setExecutionFocusTick] = useState(0);
+  useEffect(() => {
+    if (executionFocusTick) executionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [executionFocusTick]);
   const deferredFromAmount = useDeferredValue(fromAmount);
 
   const layerZeroCatalog = useQuery({
@@ -513,6 +524,16 @@ export default function CrossPage() {
       toTokenCatalog.find((token) => token.ticker === toTicker) ?? null,
     [toTicker, toTokenCatalog, toTokenKey, tokenKey],
   );
+  const layerZeroDestinations = useLayerZeroDestinations({
+    chainKey: fromChain.providerChainKey,
+    chainType: fromChain.providerChainType,
+    address: fromTokenConfig?.providerAssetId ?? fromTokenConfig?.address,
+  });
+  const destinationChainRef = { chainKey: toChain.providerChainKey, chainType: toChain.providerChainType };
+  const selectedLayerZeroDestinationListed = layerZeroDestinationListed(
+    layerZeroDestinations.isError ? undefined : layerZeroDestinations.data,
+    destinationChainRef, toTokenConfig?.providerAssetId ?? toTokenConfig?.address,
+  );
   const fromTokenPriceUSD = useUnifiedPrice(
     fromChainId,
     fromTicker,
@@ -523,6 +544,9 @@ export default function CrossPage() {
     toTicker,
     toTokenConfig?.address,
   );
+  const destinationNativePriceUSD = useUnifiedPrice(toChainId, toChain.ticker);
+  // Gas Drop asks for ~$2 of destination native gas, whatever the chain.
+  const destinationGasAmount = sizeDestinationGasAmount(destinationNativePriceUSD);
   const toTokenDecimals = Number(toTokenConfig?.decimals ?? 18);
   const providerDestinationIsNonEvm = Boolean(
     toChain.providerChainType && toChain.providerChainType.toUpperCase() !== "EVM",
@@ -684,12 +708,13 @@ export default function CrossPage() {
         nativeSource: layerZeroValueTransferApi ? undefined : quoteNativeSourceCandidate,
         layerZeroValueTransferApi,
         includeDestinationGas: gasDropOnDestination,
-        destinationGasAmount: "0.001",
+        destinationGasAmount,
       }),
     [
       activeNativeSourceWallet?.address,
       deferredFromAmount,
       destinationAddressRequired,
+      destinationGasAmount,
       destinationWalletAddress,
       fromChainId,
       fromChain.quoteChainId,
@@ -749,25 +774,63 @@ export default function CrossPage() {
     () => getPrimaryOffers(effectiveQuote),
     [effectiveQuote],
   );
+  // Value of the amount this quote was requested for (the quote key uses the
+  // deferred amount, and a new key clears quote.data until it resolves).
+  const quotedFromAmount = Number(deferredFromAmount.replace(/,/g, ""));
+  const quotedInputUSD =
+    fromTokenPriceUSD != null && Number.isFinite(quotedFromAmount)
+      ? quotedFromAmount * fromTokenPriceUSD
+      : undefined;
   const offerEntries = useMemo<CrossOfferEntry[]>(() => {
-    return displayOffers.map((offer: any) => ({
-      ...formatCrossOffer(offer, toTokenDecimals, offerCapabilityContext),
-      rawOffer: offer,
-    }));
-  }, [displayOffers, offerCapabilityContext, toTokenDecimals]);
+    return displayOffers.map((offer: any) => {
+      const display = formatCrossOffer(offer, toTokenDecimals, offerCapabilityContext);
+      // Output sanity guard: an offer worth far more than its input is a unit
+      // or routing bug, so it is shown as unavailable and never selected.
+      if (!isImplausibleOfferOutput(display.outputAmount, toTokenPriceUSD, quotedInputUSD)) {
+        return { ...display, rawOffer: offer };
+      }
+      return {
+        ...display,
+        outputAmount: "—",
+        minimumReceived: "—",
+        isBest: false,
+        selectable: false,
+        quoteUnavailable: true,
+        restrictionReason: "Quote unavailable: the quoted output is far above the input value.",
+        rawOffer: offer,
+      };
+    });
+  }, [displayOffers, offerCapabilityContext, quotedInputUSD, toTokenDecimals, toTokenPriceUSD]);
+  const eligibleOffers = useMemo(() => {
+    const unavailable = new Set(
+      offerEntries.filter((entry) => entry.quoteUnavailable).map((entry) => entry.offerId),
+    );
+    return unavailable.size
+      ? displayOffers.filter((offer) => !unavailable.has(offer.offerId))
+      : displayOffers;
+  }, [displayOffers, offerEntries]);
   const quoteUiState = getCrossQuoteUiState({
     walletConnected: sourceWalletConnected,
     quoteReady: quoteEnabled,
     isFetching: quote.isFetching,
     offerCount: offerEntries.length,
   });
+  // With Gas Drop on, the default primary must be composable with Gas.zip, so
+  // it can differ from bestOfferId (e.g. when the best route is multi-step).
+  const defaultOfferId = useMemo(
+    () => getDefaultPrimaryOfferId(effectiveQuote, eligibleOffers, gasDropOnDestination),
+    [effectiveQuote, eligibleOffers, gasDropOnDestination],
+  );
+  const bestAvailableOfferId = useMemo(
+    () => getBestAvailableOfferId(effectiveQuote, eligibleOffers),
+    [effectiveQuote, eligibleOffers],
+  );
   const selectedOffer = useMemo(
     () =>
-      displayOffers.find((offer: any) => offer.offerId === selectedOfferId) ??
-      displayOffers.find((offer: any) => offer.offerId === effectiveQuote?.bestOfferId) ??
-      displayOffers[0] ??
+      eligibleOffers.find((offer: any) => offer.offerId === selectedOfferId) ??
+      eligibleOffers.find((offer: any) => offer.offerId === defaultOfferId) ??
       null,
-    [displayOffers, effectiveQuote?.bestOfferId, selectedOfferId],
+    [defaultOfferId, eligibleOffers, selectedOfferId],
   );
   const selectedOfferDisplay = useMemo(
     () => (selectedOffer ? formatCrossOffer(selectedOffer, toTokenDecimals, offerCapabilityContext) : null),
@@ -775,23 +838,18 @@ export default function CrossPage() {
   );
 
   useEffect(() => {
-    if (!displayOffers.length) {
+    if (!eligibleOffers.length) {
       setSelectedOfferId(null);
       return;
     }
 
     if (
       !selectedOfferId ||
-      !displayOffers.some((offer: any) => offer.offerId === selectedOfferId)
+      !eligibleOffers.some((offer: any) => offer.offerId === selectedOfferId)
     ) {
-      setSelectedOfferId(
-        displayOffers.find((offer: any) => offer.offerId === effectiveQuote?.bestOfferId)
-          ?.offerId ??
-          displayOffers[0]?.offerId ??
-          null,
-      );
+      setSelectedOfferId(defaultOfferId);
     }
-  }, [displayOffers, effectiveQuote?.bestOfferId, selectedOfferId]);
+  }, [defaultOfferId, eligibleOffers, selectedOfferId]);
 
   useEffect(() => {
     if (!gasOffers.length) {
@@ -939,18 +997,36 @@ export default function CrossPage() {
     tokenKey,
   ]);
 
-  // Gas-drop eligibility — Gas.zip must support the destination
+  // Gas-drop eligibility — Gas.zip must support the destination and the
+  // primary must be a one-step route. A non-composable route the user picked
+  // blocks Gas Drop; one that is only the default gets swapped for a
+  // composable primary when Gas Drop is turned on.
   const gasZipRail = RAILS.find((r) => r.name === "Gas.zip");
-  const selectedOfferIsGardenNative = Boolean(
-    selectedOffer && isGardenNativeOffer(selectedOffer),
+  const gasDropSupported = !!gasZipRail && gasZipRail.destinations.includes(toChainId);
+  const selectedOfferGasDropBlockReason = getGasDropBlockReason(selectedOffer);
+  const selectedOfferIsUserChoice = Boolean(
+    selectedOffer && selectedOffer.offerId !== defaultOfferId,
   );
-  const gasDropAvailable =
-    !!gasZipRail &&
-    gasZipRail.destinations.includes(toChainId) &&
-    !selectedOfferIsGardenNative;
+  const composableOfferAvailable =
+    !eligibleOffers.length || eligibleOffers.some((offer) => isGasDropComposableOffer(offer));
+  const gasDropBlockReason = !composableOfferAvailable
+    ? `${getGasDropBlockReason(eligibleOffers[0]) ?? "No available route can be combined with Gas Drop."} No other route is available for this pair.`
+    : selectedOfferGasDropBlockReason && selectedOfferIsUserChoice
+      ? `${selectedOfferGasDropBlockReason} Select a one-step route to drop destination gas.`
+      : null;
+  const gasDropAvailable = gasDropSupported && !gasDropBlockReason;
   useEffect(() => {
     if (!gasDropAvailable && gasDropOnDestination) setGasDropOnDestination(false);
   }, [gasDropAvailable, gasDropOnDestination]);
+  const toggleGasDrop = useCallback(() => {
+    if (!gasDropOnDestination && selectedOfferGasDropBlockReason) {
+      // The current default is not composable; fall back to the Gas Drop
+      // default primary instead of composing with a multi-step route.
+      setSelectedOfferId(null);
+      toast.info("Gas Drop needs a one-step route. Switched to the best one-step route.");
+    }
+    setGasDropOnDestination(!gasDropOnDestination);
+  }, [gasDropOnDestination, selectedOfferGasDropBlockReason]);
 
   const tracking = useCrossIntentTracking(
     session?.mode === "single" ? session.intentId : undefined,
@@ -1109,6 +1185,18 @@ export default function CrossPage() {
   }, [now, session]);
 
   const quoteErrorMessage = quote.error ? mapCrossApiError(quote.error) : null;
+  // "No LayerZero route" diagnostics only matter when nothing else quoted or
+  // the user is looking at a LayerZero offer.
+  const layerZeroNotice = layerZeroQuoteNotice(effectiveQuote?.providerDiagnostics, {
+    hasOffers: offerEntries.length > 0,
+    layerZeroSelected: String(selectedOffer?.rail ?? "").toUpperCase() === "LAYERZERO",
+  })
+    ?? (layerZeroDestinations.isError
+      ? "LayerZero destination discovery is unavailable. Token choices remain available; request a quote to check the route."
+      : selectedLayerZeroDestinationListed === false &&
+          (offerEntries.length === 0 || String(selectedOffer?.rail ?? "").toUpperCase() === "LAYERZERO")
+        ? "LayerZero does not list this destination for the selected source token. Other providers will still be checked."
+        : null);
   const trackingData = tracking.data as any;
   const fromBalanceLabel =
     sourceUsesEvmWallet && walletState.status === "connected" && fromTokenBalance
@@ -1207,13 +1295,21 @@ export default function CrossPage() {
       selectedChain.providerChainKey &&
       (layerZeroCatalog.data?.tokens ?? []).some((token) => token.chainKey === selectedChain.providerChainKey),
     );
-    const { tokens, restrictedReason } = tokensFor(
+    const { tokens: candidates, restrictedReason } = tokensFor(
       chainId,
       role,
       eligible,
       catalog,
       providerDiscovered,
     );
+    const otherRails = eligible.filter(rail => rail.name !== "LayerZero");
+    const otherRailTokens = otherRails.length === 0 ? []
+      : tierForChainId(chainId) === 1 ? catalog
+      : tokensFor(chainId, role, otherRails, configTokensForChain(chainId), false).tokens;
+    const tokens = role === "to" ? filterLayerZeroDestinations(
+      candidates, layerZeroDestinations.isError ? undefined : layerZeroDestinations.data,
+      { chainKey: selectedChain.providerChainKey, chainType: selectedChain.providerChainType }, otherRailTokens,
+    ) : candidates;
     const chainName = selectedChain.name;
     const chainColor = selectedChain.color;
     return {
@@ -1235,9 +1331,11 @@ export default function CrossPage() {
           ? connectedBalance.nativeBalanceUSD ?? undefined
           : undefined,
       })),
-      restrictedReason,
+      restrictedReason: role === "to" && layerZeroDestinations.data && !layerZeroDestinations.isError
+        ? "LayerZero destinations are filtered by your source token. Other-rail candidates are retained. A live quote confirms availability."
+        : restrictedReason,
     };
-  }, [tokenPickerTarget, fromChainId, toChainId, connectedBalance.nativeBalance, connectedBalance.nativeBalanceUSD, connectedBalance.nativeTicker, fromChain, toChain, fromTokenCatalog, toTokenCatalog, layerZeroCatalog.data?.tokens, tokenKey]);
+  }, [layerZeroDestinations.data, layerZeroDestinations.isError, tokenPickerTarget, fromChainId, toChainId, connectedBalance.nativeBalance, connectedBalance.nativeBalanceUSD, connectedBalance.nativeTicker, fromChain, toChain, fromTokenCatalog, toTokenCatalog, layerZeroCatalog.data?.tokens, tokenKey]);
 
   const routeHops: RouteHop[] = useMemo(() => {
     if (!selectedOffer) return [];
@@ -1608,7 +1706,7 @@ export default function CrossPage() {
     }
 
     // Selection creates a backend intent but does not submit user funds. The
-    // lifecycle tab owns the subsequent wallet execution step.
+    // execution panel (rendered under the widget) owns the subsequent wallet execution step.
     const response = await execution.selectSingleIntent({
       offerSetId: quoteForSelection.offerSetId,
       offerId: offerForSelection.offerId,
@@ -1668,11 +1766,13 @@ export default function CrossPage() {
         );
       }
 
-      if (
-        gasDropOnDestination &&
-        selectedGasOfferId &&
-        !isGardenNativeOffer(selectedOffer)
-      ) {
+      if (gasDropOnDestination && selectedGasOfferId) {
+        // Never compose with a multi-step or explicit-only primary: the
+        // backend rejects it, and silently dropping the gas leg would be wrong.
+        const blockReason = getGasDropBlockReason(selectedOffer);
+        if (blockReason) {
+          throw new Error(`${blockReason} Turn off Gas Drop or choose a one-step route.`);
+        }
         // Gas.zip destination gas is a composed route: primary bridge leg plus
         // an independent gas-drop leg, each with its own intent lifecycle.
         const response = await execution.selectComposedIntent({
@@ -1704,7 +1804,7 @@ export default function CrossPage() {
       }
 
       setShowConfirm(false);
-      setSidePanel("lifecycle");
+      setExecutionFocusTick((t) => t + 1);
     } catch (error: any) {
       toast.error(mapCrossApiError(error));
     }
@@ -2061,6 +2161,46 @@ export default function CrossPage() {
       : null;
   const sourceWalletModalOptions = sourceUsesNativeWallet ? nativeWalletOptions : walletOptions;
 
+  // ─── Widget view state (replaces the old side panel) ────────────────────
+  const railsState: CrossRailsState = !quoteEnabled
+    ? "idle"
+    : quote.isFetching
+      ? offerEntries.length > 0 ? "refreshing" : "loading"
+      : quoteErrorMessage
+        ? "error"
+        : offerEntries.length === 0
+          ? "empty"
+          : "ready";
+  const railsMessage = railsState === "error"
+    ? quoteErrorMessage ?? undefined
+    : quoteUiState.emptyMessage || undefined;
+  // Price the gas drop from what is actually requested: the quoted Gas.zip
+  // output when present, otherwise the requested native amount.
+  const selectedGasOffer =
+    gasOffers.find((offer: any) => offer.offerId === selectedGasOfferId) ?? gasOffers[0];
+  const gasDropNativeAmount = (() => {
+    try {
+      const quoted = selectedGasOffer?.estimatedOut ? BigInt(selectedGasOffer.estimatedOut) : 0n;
+      if (quoted > 0n) return Number(formatUnits(quoted, 18));
+    } catch {
+      // Fall through to the requested amount.
+    }
+    return Number(destinationGasAmount);
+  })();
+  const gasDropUSD =
+    destinationNativePriceUSD != null ? gasDropNativeAmount * destinationNativePriceUSD : null;
+  const gasDropLabel = `${gasDropNativeAmount.toLocaleString("en-US", { maximumFractionDigits: 6 })} ${toChain.ticker}${
+    gasDropUSD != null ? ` (~$${gasDropUSD.toFixed(2)})` : ""
+  }`;
+  const gasDropHint = !gasDropSupported
+    ? `Gas.zip doesn't support ${toChain.name} as a destination.`
+    : gasDropBlockReason
+      ?? `Arrive on ${toChain.name} with ~${gasDropLabel} so you can transact immediately. Routed via Gas.zip side-leg.`;
+  const crossNotice: CrossNotice | undefined =
+    selectedOfferId && selectedOfferId !== defaultOfferId
+      ? { tone: "info", text: "User-selected route — select it again to return to the best route." }
+      : undefined;
+
   // ─── Render ──────────────────────────────────────────────────────────────
   return (
     <div style={{ minHeight: "100vh", background: "#05050c", color: "#fff", fontFamily: "Inter, sans-serif" }}>
@@ -2092,291 +2232,263 @@ export default function CrossPage() {
         }
       />
 
-      <main style={{ maxWidth: 1180, margin: "0 auto", padding: isMobile ? "24px 16px 56px" : "32px 24px 72px" }}>
-        <header style={{ marginBottom: isMobile ? 18 : 24 }}>
-          <p style={{ margin: 0, fontSize: 10, letterSpacing: "0.40em", color: "#FF8A00", textTransform: "uppercase", fontWeight: 700 }}>
-            CROSS-CHAIN · {RAILS.length} RAILS
+      <WidgetKitKeyframes />
+
+      {/* Single centred 480px column — identical desktop and mobile. No page
+          header or side panel: rails, the full offers list, gas drop and the
+          quote row live in the widget; once a route is confirmed the
+          execution + tracking panels render directly beneath it. */}
+      <main
+        style={{
+          maxWidth: 480 + (isMobile ? 32 : 40),
+          margin: "0 auto",
+          padding: isMobile ? "24px 16px 40px" : "38px 20px 48px",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+        }}
+      >
+        {layerZeroNotice && (
+          <p role="status" style={{ width: "100%", margin: "0 0 12px", fontSize: 12, color: "#aaa", lineHeight: 1.5 }}>
+            {layerZeroNotice}
           </p>
-          <h1
-            style={{
-              margin: "8px 0 0",
-              fontFamily: "'Space Grotesk', sans-serif",
-              fontSize: isMobile ? 32 : "clamp(34px, 4.5vw, 56px)",
-              fontWeight: 300,
-              letterSpacing: "-0.03em",
-              lineHeight: 1,
-              color: "#fff",
-            }}
-          >
-            Cross.{" "}
-            <span
-              style={{
-                fontFamily: "'Instrument Serif', serif",
-                fontStyle: "italic",
-                color: "#FF8A00",
-                letterSpacing: "-0.02em",
-              }}
-            >
-              Every chain, every rail.
-            </span>
-          </h1>
-        </header>
-
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: isMobile ? "1fr" : "minmax(0, 1.4fr) minmax(0, 1fr)",
-            gap: isMobile ? 18 : 28,
-            alignItems: "start",
-          }}
-        >
-          {/* LEFT — cross widget */}
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 14 }}>
-            <EmpxCrossWidget
-              fromChain={{
-                ...fromChain,
-                logo: (
-                  <ChainLogo
-                    chainId={fromChainId}
-                    symbol={fromChain.name.slice(0, 3).toUpperCase()}
-                    bg={fromChain.color}
-                    size={17}
-                  />
-                ),
-              }}
-              fromToken={{
-                ticker: fromTicker,
-                logo: (
-                  <TokenLogo
-                    ticker={fromTicker}
-                    chainId={fromChainId}
-                    address={fromTokenConfig?.address}
-                    logoUrl={fromTokenConfig?.logoUrl}
-                    isNative={fromTokenConfig?.isNative}
-                    size={30}
-                  />
-                ),
-              }}
-              fromAmount={fromAmount}
-              fromBalance={fromBalanceLabel}
-              fromUsdValue={fromUsdValue}
-              onFromAmountChange={setFromAmount}
-              onSelectFromToken={() => setTokenPickerTarget("from")}
-              onSelectFromChain={() => setChainPickerTarget("from")}
-              onPercentClick={(pct) => setFromAmount(String((fromBalanceNumeric * pct) / 100))}
-
-              toChain={{
-                ...toChain,
-                logo: (
-                  <ChainLogo
-                    chainId={toChainId}
-                    symbol={toChain.name.slice(0, 3).toUpperCase()}
-                    bg={toChain.color}
-                    size={17}
-                  />
-                ),
-              }}
-              toToken={{
-                ticker: toTicker,
-                logo: (
-                  <TokenLogo
-                    ticker={toTicker}
-                    chainId={toChainId}
-                    address={toTokenConfig?.address}
-                    logoUrl={toTokenConfig?.logoUrl}
-                    isNative={toTokenConfig?.isNative}
-                    size={30}
-                  />
-                ),
-              }}
-              toAmount={toAmountDisplay}
-              toUsdValue={toUsdValue}
-              onSelectToToken={() => setTokenPickerTarget("to")}
-              onSelectToChain={() => setChainPickerTarget("to")}
-
-              railName={selectedOfferDisplay?.railName}
-              railBadge={selectedOfferDisplay?.executionLabel}
-              protocolFeeBps={selectedOffer?.economics?.protocolFeeBps ?? selectedOffer?.fees?.protocolFeeBps}
-              protocolFeeUSD={selectedOfferDisplay?.protocolFeeUSD}
-              bridgeFeeUSD={selectedOfferDisplay?.bridgeFeeUSD}
-              estimatedTime={selectedOfferDisplay?.estimatedTimeSeconds ? formatEtaSeconds(selectedOfferDisplay.estimatedTimeSeconds) : undefined}
-              minimumReceived={selectedOfferDisplay ? `${selectedOfferDisplay.minimumReceived} ${toTicker}` : undefined}
-              slippageBps={30}
-              priceImpactBps={priceImpactBps}
-              routeHops={routeHops}
-
-              walletConnected={sourceWalletConnected}
-              onConnect={() => setShowWalletModal(true)}
-              onSwap={onSwap}
-              onFlip={flip}
-              swapDisabled={
-                !selectedOffer ||
-                !selectedOfferDisplay?.selectable ||
-                quote.isFetching ||
-                execution.isSelecting ||
-                (nativeDestinationRequired && !nativeDstAddressValid) ||
-                (destinationAddressRequired && !destinationAddressValid)
-              }
-              rails={offerEntries.map((o): RailCardData => ({
-                name: o.railName,
-                mode: "B",
-                outAmount: o.outputAmount,
-                eta: o.estimatedTimeSeconds != null ? formatEtaSeconds(o.estimatedTimeSeconds) : "—",
-                tag: o.isBest ? "BEST" : undefined,
-                isActive: o.offerId === (selectedOffer?.offerId ?? selectedOfferId),
-              }))}
-              onSelectRail={(name) => {
-                const hit = offerEntries.find((entry) => entry.railName === name);
-                if (!hit) return;
-                setSelectedOfferId((cur) => (cur === hit.offerId ? effectiveQuote?.bestOfferId ?? null : hit.offerId));
-              }}
-              swapLoading={quote.isFetching || execution.isSelecting}
-              swapLabel={
-                !sourceWalletConnected
-                  ? "Connect wallet"
-                  : quote.isFetching
-                    ? "Fetching route..."
-                    : selectedOffer
-                      ? "Review route"
-                      : quoteErrorMessage ?? "No route"
-              }
-            />
-            {nativeDestinationRequired ? (
-              <Card style={{ width: "100%", maxWidth: 620, padding: 16 }}>
-                {nativeDestinationKind ? (
-                  <DestinationAddressInput
-                    id="cross-v2-native-destination"
-                    chainKind={nativeDestinationKind}
-                    chainLabel={toChain.name}
-                    value={nativeDstAddress}
-                    onChange={setNativeDstAddress}
-                    onValidate={handleNativeDestinationValidation}
-                    required
-                    label="Native destination address"
-                  />
-                ) : (
-                  <p style={{ margin: 0, color: "rgba(255,255,255,0.58)", fontSize: 12, lineHeight: 1.5 }}>
-                    Address validation for {toChain.name} is not available yet,
-                    so quoting and execution remain disabled for this destination.
-                  </p>
-                )}
-                <p style={{ margin: "10px 0 0", color: "rgba(255,138,0,0.72)", fontSize: 10.5, lineHeight: 1.45 }}>
-                  This address receives funds on {toChain.name}. Your connected
-                  source wallet remains the source/refund address.
-                </p>
-              </Card>
-            ) : null}
-            {destinationAddressRequired ? (
-              <Card style={{ width: "100%", maxWidth: 620, padding: 16 }}>
-                <DestinationAddressInput
-                  id="cross-v2-evm-destination"
-                  chainKind="evm"
-                  chainLabel={toChain.name}
-                  value={destinationAddress}
-                  onChange={setDestinationAddress}
-                  onValidate={handleDestinationAddressValidation}
-                  required
-                  label="Destination address"
-                />
-                <p style={{ margin: "10px 0 0", color: "rgba(255,138,0,0.72)", fontSize: 10.5, lineHeight: 1.45 }}>
-                  This address receives funds on {toChain.name}. Your connected
-                  {sourceWalletKind === "solana" ? " Solana" : " Bitcoin"} wallet remains the source/refund address.
-                </p>
-              </Card>
-            ) : null}
-          </div>
-
-          {/* RIGHT — context panel */}
-          <aside style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            {sourceWalletConnected && (
-              <Card style={{ padding: 14 }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
-                  {quoteEnabled ? (
-                    <QuoteCountdown
-                      totalMs={30000}
-                      issuedAt={quoteIssuedAt}
-                      onRefresh={() => {
-                        refreshQuote();
-                        toast.info("Quote refreshed");
-                      }}
-                      compact
-                    />
-                  ) : null}
-                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    <Pill variant="info">{quoteUiState.summary}</Pill>
-                    {selectedOfferId && selectedOfferId !== effectiveQuote?.bestOfferId && <Pill variant="accent">User-selected</Pill>}
-                  </div>
-                </div>
-              </Card>
-            )}
-
-            <Card style={{ padding: 18, paddingBottom: 14 }}>
-              <p style={{ margin: "0 0 12px", fontSize: 10, letterSpacing: "0.40em", color: "rgba(255,255,255,0.40)", textTransform: "uppercase", fontWeight: 700 }}>
-                Rail intelligence
-              </p>
-              <Tabs
-                options={[
-                  { value: "offers" as const,    label: "Live offers", count: offerEntries.length },
-                  { value: "settings" as const,  label: "Gas" },
-                  { value: "rails" as const,     label: "Rail guide", count: RAILS.length },
-                  { value: "lifecycle" as const, label: "Lifecycle" },
-                ]}
-                active={sidePanel}
-                onChange={(value) => setSidePanel(value as SidePanelTab)}
-                variant="pill"
+        )}
+        <EmpxCrossWidget
+          fromChain={{
+            ...fromChain,
+            logo: (
+              <ChainLogo
+                chainId={fromChainId}
+                symbol={fromChain.name.slice(0, 3).toUpperCase()}
+                bg={fromChain.color}
+                size={17}
               />
-              <div style={{ marginTop: 14 }}>
-                {sidePanel === "offers"   && (
-                  <OffersList
-                    offers={offerEntries}
-                    bestOfferId={effectiveQuote?.bestOfferId}
-                    selectedOfferId={selectedOffer?.offerId ?? selectedOfferId}
-                    isLoading={quote.isFetching}
-                    error={quoteErrorMessage}
-                    emptyMessage={quoteUiState.emptyMessage}
-                    onSelectOffer={(offerId) => {
-                      setSelectedOfferId((cur) => (cur === offerId ? effectiveQuote?.bestOfferId ?? null : offerId));
-                      toast.info(selectedOfferId === offerId ? "Reverted to best route" : "Selected route");
-                    }}
-                    toTicker={toTicker}
+            ),
+          }}
+          fromToken={{
+            ticker: fromTicker,
+            logo: (
+              <TokenLogo
+                ticker={fromTicker}
+                chainId={fromChainId}
+                address={fromTokenConfig?.address}
+                logoUrl={fromTokenConfig?.logoUrl}
+                isNative={fromTokenConfig?.isNative}
+                size={30}
+              />
+            ),
+          }}
+          fromAmount={fromAmount}
+          fromBalance={fromBalanceLabel}
+          fromUsdValue={fromUsdValue}
+          onFromAmountChange={setFromAmount}
+          onSelectFromToken={() => setTokenPickerTarget("from")}
+          onSelectFromChain={() => setChainPickerTarget("from")}
+          onPercentClick={(pct) => setFromAmount(String((fromBalanceNumeric * pct) / 100))}
+
+          toChain={{
+            ...toChain,
+            logo: (
+              <ChainLogo
+                chainId={toChainId}
+                symbol={toChain.name.slice(0, 3).toUpperCase()}
+                bg={toChain.color}
+                size={17}
+              />
+            ),
+          }}
+          toToken={{
+            ticker: toTicker,
+            logo: (
+              <TokenLogo
+                ticker={toTicker}
+                chainId={toChainId}
+                address={toTokenConfig?.address}
+                logoUrl={toTokenConfig?.logoUrl}
+                isNative={toTokenConfig?.isNative}
+                size={30}
+              />
+            ),
+          }}
+          toAmount={toAmountDisplay}
+          toUsdValue={toUsdValue}
+          onSelectToToken={() => setTokenPickerTarget("to")}
+          onSelectToChain={() => setChainPickerTarget("to")}
+          destinationSlot={nativeDestinationRequired || destinationAddressRequired ? (
+            <>
+              {nativeDestinationRequired ? (
+                <div>
+                  {nativeDestinationKind ? (
+                    <DestinationAddressInput
+                      id="cross-v2-native-destination"
+                      chainKind={nativeDestinationKind}
+                      chainLabel={toChain.name}
+                      value={nativeDstAddress}
+                      onChange={setNativeDstAddress}
+                      onValidate={handleNativeDestinationValidation}
+                      required
+                      label="Native destination address"
+                    />
+                  ) : (
+                    <p style={{ margin: 0, color: "rgba(255,255,255,0.58)", fontSize: 12, lineHeight: 1.5 }}>
+                      Address validation for {toChain.name} is not available yet,
+                      so quoting and execution remain disabled for this destination.
+                    </p>
+                  )}
+                  <p style={{ margin: "10px 0 0", color: "rgba(255,138,0,0.72)", fontSize: 10.5, lineHeight: 1.45 }}>
+                    This address receives funds on {toChain.name}. Your connected
+                    source wallet remains the source/refund address.
+                  </p>
+                </div>
+              ) : null}
+              {destinationAddressRequired ? (
+                <div>
+                  <DestinationAddressInput
+                    id="cross-v2-evm-destination"
+                    chainKind="evm"
+                    chainLabel={toChain.name}
+                    value={destinationAddress}
+                    onChange={setDestinationAddress}
+                    onValidate={handleDestinationAddressValidation}
+                    required
+                    label="Destination address"
                   />
-                )}
-                {sidePanel === "settings" && (
-                  <GasSettings
-                    gasDropOnDestination={gasDropOnDestination}
-                    setGasDropOnDestination={setGasDropOnDestination}
-                    gasDropAvailable={gasDropAvailable}
-                    gardenNativeSelected={selectedOfferIsGardenNative}
-                    destinationName={toChain.name}
-                    destinationNative={toChain.ticker}
-                    gasDropUSD={GAS_DROP_USD}
-                  />
-                )}
-                {sidePanel === "rails"     && <RailsCatalog />}
-                {sidePanel === "lifecycle" && (
-                  <LifecycleStatus
-                    session={session}
-                    tracking={trackingData}
-                    trackingLinks={crossTrackingLinks}
-                    isExecuting={isExecuting}
-                    isCancelling={recovery.cancel.isPending}
-                    isRefunding={recovery.refund.isPending}
-                    onExecuteSingle={handleSingleAction}
-                    onExecutePrimary={() => handleExecuteComposedLeg("primary")}
-                    onExecuteGas={() => handleExecuteComposedLeg("gas")}
-                    onCancel={handleCancel}
-                    onRefund={handleRefund}
-                    onClearSession={() => setSession(null)}
-                    singleActionLabel={singleActionLabel}
-                    singleActionDisabled={singleActionDisabled}
-                    singleExecutionHint={singleExecutionHint}
-                    singleExecutionError={session?.lastError ?? null}
-                    sourceWallet={offerCapabilityContext?.sourceWallet}
-                  />
-                )}
-              </div>
-            </Card>
-          </aside>
+                  <p style={{ margin: "10px 0 0", color: "rgba(255,138,0,0.72)", fontSize: 10.5, lineHeight: 1.45 }}>
+                    This address receives funds on {toChain.name}. Your connected
+                    {sourceWalletKind === "solana" ? " Solana" : " Bitcoin"} wallet remains the source/refund address.
+                  </p>
+                </div>
+              ) : null}
+            </>
+          ) : undefined}
+
+          railName={selectedOfferDisplay?.railName}
+          railBadge={selectedOfferDisplay?.executionLabel}
+          protocolFeeBps={selectedOffer?.economics?.protocolFeeBps ?? selectedOffer?.fees?.protocolFeeBps}
+          protocolFeeUSD={selectedOfferDisplay?.protocolFeeUSD}
+          bridgeFeeUSD={selectedOfferDisplay?.bridgeFeeUSD}
+          feeIncludedInQuote={selectedOfferDisplay?.feeIncludedInQuote}
+          networkFee={selectedOfferDisplay?.networkFeeNative ? `${selectedOfferDisplay.networkFeeNative} ${fromChain.ticker}` : undefined}
+          estimatedTime={selectedOfferDisplay?.estimatedTimeSeconds ? formatEtaSeconds(selectedOfferDisplay.estimatedTimeSeconds) : undefined}
+          minimumReceived={selectedOfferDisplay ? `${selectedOfferDisplay.minimumReceived} ${toTicker}` : undefined}
+          slippageBps={selectedOffer?.economics?.slippageBps}
+          priceImpactBps={priceImpactBps}
+          routeHops={routeHops}
+
+          walletConnected={sourceWalletConnected}
+          onConnect={() => setShowWalletModal(true)}
+          onSwap={onSwap}
+          onFlip={flip}
+          swapDisabled={
+            !selectedOffer ||
+            !selectedOfferDisplay?.selectable ||
+            quote.isFetching ||
+            execution.isSelecting ||
+            (nativeDestinationRequired && !nativeDstAddressValid) ||
+            (destinationAddressRequired && !destinationAddressValid)
+          }
+          rails={offerEntries.map((o): RailCardData => ({
+            name: o.railName,
+            mode: "B",
+            outAmount: o.outputAmount,
+            eta: o.estimatedTimeSeconds != null ? formatEtaSeconds(o.estimatedTimeSeconds) : "—",
+            tag: o.quoteUnavailable
+              ? "UNAVAILABLE"
+              : o.isBest ? "BEST" : o.offerId === bestAvailableOfferId ? "BEST AVAILABLE" : undefined,
+            isActive: o.offerId === (selectedOffer?.offerId ?? selectedOfferId),
+          }))}
+          onSelectRail={(name) => {
+            const hit = offerEntries.find((entry) => entry.railName === name);
+            if (!hit || hit.quoteUnavailable) return;
+            setSelectedOfferId((cur) => (cur === hit.offerId ? defaultOfferId : hit.offerId));
+          }}
+          railsState={railsState}
+          railsMessage={railsMessage}
+          railsFooter={offerEntries.length > 0 ? (
+            <Disclosure label={`All offers · ${offerEntries.length}`}>
+              <OffersList
+                offers={offerEntries}
+                bestOfferId={effectiveQuote?.bestOfferId}
+                bestAvailableOfferId={bestAvailableOfferId}
+                selectedOfferId={selectedOffer?.offerId ?? selectedOfferId}
+                isLoading={quote.isFetching}
+                error={quoteErrorMessage}
+                emptyMessage={quoteUiState.emptyMessage}
+                onSelectOffer={(offerId) => {
+                  setSelectedOfferId((cur) => (cur === offerId ? defaultOfferId : offerId));
+                  toast.info(selectedOfferId === offerId ? "Reverted to best route" : "Selected route");
+                }}
+                toTicker={toTicker}
+              />
+            </Disclosure>
+          ) : undefined}
+          gasDrop={{
+            enabled: gasDropOnDestination,
+            available: gasDropAvailable,
+            hint: gasDropHint,
+            onToggle: toggleGasDrop,
+          }}
+          quote={sourceWalletConnected && quoteEnabled ? {
+            issuedAt: quoteIssuedAt,
+            validMs: CROSS_QUOTE_VALID_MS,
+            onRefresh: () => {
+              refreshQuote();
+              toast.info("Quote refreshed");
+            },
+          } : undefined}
+          notice={crossNotice}
+          swapLoading={quote.isFetching || execution.isSelecting}
+          swapLabel={
+            !sourceWalletConnected
+              ? "Connect wallet"
+              : quote.isFetching
+                ? "Fetching route..."
+                : selectedOffer
+                  ? "Review route"
+                  : quoteErrorMessage ?? "No route"
+          }
+        />
+
+        {session && (
+          <section
+            ref={executionRef}
+            aria-label="Execution"
+            style={{ width: "100%", maxWidth: 480, marginTop: 28, scrollMarginTop: 24 }}
+          >
+            <div style={{ marginBottom: 12 }}>
+              <MicroLabel>Execution</MicroLabel>
+            </div>
+            <LifecycleStatus
+              session={session}
+              tracking={trackingData}
+              trackingLinks={crossTrackingLinks}
+              isExecuting={isExecuting}
+              isCancelling={recovery.cancel.isPending}
+              isRefunding={recovery.refund.isPending}
+              onExecuteSingle={handleSingleAction}
+              onExecutePrimary={() => handleExecuteComposedLeg("primary")}
+              onExecuteGas={() => handleExecuteComposedLeg("gas")}
+              onCancel={handleCancel}
+              onRefund={handleRefund}
+              onClearSession={() => setSession(null)}
+              singleActionLabel={singleActionLabel}
+              singleActionDisabled={singleActionDisabled}
+              singleExecutionHint={singleExecutionHint}
+              singleExecutionError={session?.lastError ?? null}
+              sourceWallet={offerCapabilityContext?.sourceWallet}
+            />
+          </section>
+        )}
+
+        <div style={{ width: "100%", maxWidth: 480, marginTop: session ? 18 : 28, borderTop: `1px solid ${wk.border}` }}>
+          {!session && (
+            <Disclosure label="How execution works">
+              <LifecycleExplainer />
+            </Disclosure>
+          )}
+          <Disclosure label={`Rail guide · ${RAILS.length} rails`}>
+            <RailsCatalog />
+          </Disclosure>
         </div>
       </main>
 
@@ -2499,8 +2611,16 @@ export default function CrossPage() {
                   ? [{ label: "Route steps", value: selectedOfferDisplay.stepSummary }]
                   : []),
                 { label: "Protocol fee",  value: `$${selectedOfferDisplay.protocolFeeUSD.toFixed(2)}`, accent: true },
-                { label: "Bridge fee",    value: selectedOfferDisplay.bridgeFeeUSD <= 0.005 ? "FREE" : `$${selectedOfferDisplay.bridgeFeeUSD.toFixed(2)}` },
-                ...(gasDropOnDestination ? [{ label: "Gas drop", value: `+$${GAS_DROP_USD.toFixed(2)} ${toChain.ticker}` }] : []),
+                {
+                  label: "Bridge fee",
+                  value: selectedOfferDisplay.bridgeFeeUSD > 0.005
+                    ? `$${selectedOfferDisplay.bridgeFeeUSD.toFixed(2)}`
+                    : selectedOfferDisplay.feeIncludedInQuote ? "Included in quote" : "FREE",
+                },
+                ...(selectedOfferDisplay.networkFeeNative
+                  ? [{ label: "Network fee", value: `${selectedOfferDisplay.networkFeeNative} ${fromChain.ticker}` }]
+                  : []),
+                ...(gasDropOnDestination ? [{ label: "Gas drop", value: `+${gasDropLabel}` }] : []),
                 ...(selectedOfferDisplay.estimatedTimeSeconds ? [{ label: "Est. time", value: formatEtaSeconds(selectedOfferDisplay.estimatedTimeSeconds) }] : []),
                 { label: "Minimum received", value: `${selectedOfferDisplay.minimumReceived} ${toTicker}`, muted: true },
                 ...(priceImpactBps !== undefined
@@ -2510,11 +2630,11 @@ export default function CrossPage() {
             : []
         }
         quoteIssuedAt={quoteIssuedAt}
-        quoteValidMs={30000}
+        quoteValidMs={CROSS_QUOTE_VALID_MS}
         onRefreshQuote={quoteEnabled ? refreshQuote : undefined}
         warning={
           selectedOffer?.executionMode === "provider_direct"
-            ? "Provider-direct routes may require wallet-specific transaction steps. Review the lifecycle tab after route selection."
+            ? "Provider-direct routes may require wallet-specific transaction steps. Review the execution steps below the widget after route selection."
             : undefined
         }
       />
@@ -2592,11 +2712,14 @@ export default function CrossPage() {
 
 type CrossOfferEntry = CrossV2OfferDisplay & {
   rawOffer: any;
+  /** Failed the output sanity guard: shown, but never default, best or selectable. */
+  quoteUnavailable?: boolean;
 };
 
 function OffersList({
   offers,
   bestOfferId,
+  bestAvailableOfferId,
   selectedOfferId,
   onSelectOffer,
   toTicker,
@@ -2606,6 +2729,8 @@ function OffersList({
 }: {
   offers: CrossOfferEntry[];
   bestOfferId?: string;
+  /** Tagged when bestOfferId is hidden in this UI and this offer is the fallback. */
+  bestAvailableOfferId?: string | null;
   selectedOfferId: string | null;
   onSelectOffer: (offerId: string) => void;
   toTicker: string;
@@ -2643,11 +2768,13 @@ function OffersList({
       </p>
       <div style={{ display: "flex", flexDirection: "column", gap: 1, maxHeight: 320, overflowY: "auto" }}>
         {offers.map((o, idx) => {
-          const isBest = o.offerId === bestOfferId || o.isBest;
+          const isBestAvailable = o.offerId === bestAvailableOfferId;
+          const isBest = !o.quoteUnavailable && (o.offerId === bestOfferId || o.isBest || isBestAvailable);
           const isSelected = o.offerId === selectedOfferId;
           const isActive = isSelected || (!selectedOfferId && isBest);
-          const capabilityTag =
-            o.capabilityStatus === "quote_only"
+          const capabilityTag = o.quoteUnavailable
+            ? "UNAVAILABLE"
+            : o.capabilityStatus === "quote_only"
               ? "QUOTE ONLY"
               : o.capabilityStatus === "restricted"
                 ? "RESTRICTED"
@@ -2658,9 +2785,11 @@ function OffersList({
             capabilityTag ??
             (isSelected && !isBest
               ? "SELECTED"
-              : isBest
-                ? "BEST"
-                : null);
+              : isBestAvailable
+                ? "BEST AVAILABLE"
+                : isBest
+                  ? "BEST"
+                  : null);
           const tagAccent = isSelected || isBest;
           const modeColor = o.executionLabel === "Provider Direct" ? "#93C5FD" : "#FFB347";
           return (
@@ -2791,153 +2920,13 @@ function OffersList({
   );
 }
 
-// ─── Gas settings tab ─────────────────────────────────────────────────────
-
-function GasSettings({
-  gasDropOnDestination, setGasDropOnDestination, gasDropAvailable,
-  gardenNativeSelected, destinationName, destinationNative, gasDropUSD,
-}: {
-  gasDropOnDestination: boolean;
-  setGasDropOnDestination: (v: boolean) => void;
-  gasDropAvailable: boolean;
-  gardenNativeSelected?: boolean;
-  destinationName: string;
-  destinationNative: string;
-  gasDropUSD: number;
-}) {
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-      {/* <GasToggle
-        title="Gasless source"
-        hint="Paymaster execution is temporarily unavailable in this interface."
-        enabled={false}
-        disabled
-        tag="EIP-4337"
-      /> */}
-      <GasToggle
-        title="Drop destination gas"
-        hint={
-          gardenNativeSelected
-            ? "Garden native routes cannot be composed with Gas.zip. Select a different rail to drop destination gas."
-            : gasDropAvailable
-            ? `Arrive on ${destinationName} with ~$${gasDropUSD.toFixed(2)} of ${destinationNative} so you can transact immediately. Routed via Gas.zip side-leg.`
-            : `Gas.zip doesn't support ${destinationName} as a destination.`
-        }
-        enabled={gasDropOnDestination}
-        disabled={!gasDropAvailable}
-        onToggle={() => setGasDropOnDestination(!gasDropOnDestination)}
-        tag="GAS.ZIP"
-      />
-    </div>
-  );
-}
-
-function GasToggle({
-  title, hint, enabled, disabled, onToggle, tag,
-}: {
-  title: string;
-  hint: string;
-  enabled: boolean;
-  disabled?: boolean;
-  onToggle?: () => void;
-  tag?: string;
-}) {
-  return (
-    <div
-      style={{
-        display: "flex",
-        gap: 12,
-        padding: "12px 12px",
-        background: disabled ? "rgba(255,255,255,0.015)" : "rgba(255,255,255,0.03)",
-        border: `1px solid ${enabled ? "rgba(255,138,0,0.30)" : "rgba(255,255,255,0.06)"}`,
-        borderRadius: 4,
-        opacity: disabled ? 0.55 : 1,
-      }}
-    >
-      <div style={{ flex: 1 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <p style={{ margin: 0, fontSize: 12.5, fontWeight: 600, color: "#fff" }}>{title}</p>
-          {tag && (
-            <span
-              style={{
-                fontSize: 8.5,
-                fontWeight: 700,
-                letterSpacing: "0.20em",
-                padding: "1px 5px",
-                borderRadius: 2,
-                color: "rgba(255,255,255,0.55)",
-                background: "rgba(255,255,255,0.05)",
-                border: "1px solid rgba(255,255,255,0.10)",
-              }}
-            >
-              {tag}
-            </span>
-          )}
-          {disabled && (
-            <span
-              style={{
-                fontSize: 8.5,
-                fontWeight: 700,
-                letterSpacing: "0.18em",
-                padding: "1px 5px",
-                borderRadius: 2,
-                color: "#A78BFA",
-                background: "rgba(139,92,246,0.10)",
-                border: "1px solid rgba(139,92,246,0.25)",
-              }}
-            >
-              N/A HERE
-            </span>
-          )}
-        </div>
-        <p style={{ margin: "4px 0 0", fontSize: 11, color: "rgba(255,255,255,0.55)", lineHeight: 1.5 }}>
-          {hint}
-        </p>
-      </div>
-      <button
-        type="button"
-        onClick={disabled ? undefined : onToggle}
-        disabled={disabled}
-        aria-pressed={enabled}
-        style={{
-          width: 34,
-          height: 20,
-          flexShrink: 0,
-          alignSelf: "center",
-          position: "relative",
-          background: enabled ? "#FF8A00" : "rgba(255,255,255,0.10)",
-          border: "1px solid " + (enabled ? "rgba(255,138,0,0.60)" : "rgba(255,255,255,0.15)"),
-          borderRadius: 999,
-          cursor: disabled ? "not-allowed" : "pointer",
-          transition: "all 180ms ease",
-          padding: 0,
-        }}
-      >
-        <span
-          style={{
-            position: "absolute",
-            top: 1.5,
-            left: enabled ? 15 : 1.5,
-            width: 15,
-            height: 15,
-            background: "#fff",
-            borderRadius: "50%",
-            transition: "left 180ms ease",
-            boxShadow: "0 1px 3px rgba(0,0,0,0.30)",
-          }}
-        />
-      </button>
-    </div>
-  );
-}
-
 // ─── Rails catalog (read-only) ────────────────────────────────────────────
 
 function RailsCatalog() {
   return (
     <div>
       <p style={{ margin: "0 0 10px", fontSize: 10.5, color: "rgba(255,255,255,0.45)", lineHeight: 1.5 }}>
-        Reference catalog only. Live availability for the selected pair appears under Live offers.
+        Reference catalog only. Live availability for the selected pair appears under All offers.
       </p>
       <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 330, overflowY: "auto", paddingRight: 4 }}>
         {RAILS.map((r) => {

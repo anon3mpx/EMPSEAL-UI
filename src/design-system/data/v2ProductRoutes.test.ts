@@ -56,6 +56,11 @@ describe("navGroups", () => {
     expect(byHref["/multi-v2"].badge).toBeUndefined();
   });
 
+  it("disables only Bridge and Ramp in the nav", () => {
+    const disabled = NAV_DESTINATIONS.filter((d) => d.disabled).map((d) => d.href);
+    expect(disabled).toEqual(["/bridge-v2", "/ramp-v2"]);
+  });
+
   it("does not put fabricated rail counts in nav copy", () => {
     const copy = JSON.stringify(NAV_GROUPS);
     expect(copy).not.toMatch(/\d+\s+rails?/i);

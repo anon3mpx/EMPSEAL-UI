@@ -46,6 +46,8 @@ import {
   findMissingProviderApprovals,
   getCrossTokensForChain,
   getCrossUiChains,
+  getDefaultPrimaryOfferId,
+  getGasDropBlockReason,
   getThorchainTokensForChain,
   getThorchainUiChains,
   getOfferOutputAmount,
@@ -304,14 +306,12 @@ export default function CrossChainPage() {
       !selectedOfferId ||
       !displayOffers.some((offer: any) => offer.offerId === selectedOfferId)
     ) {
+      // With destination gas on, default to a primary that Gas.zip can compose with.
       setSelectedOfferId(
-        displayOffers.find((offer: any) => offer.offerId === effectiveQuote?.bestOfferId)
-          ?.offerId ??
-          displayOffers[0]?.offerId ??
-          null,
+        getDefaultPrimaryOfferId(effectiveQuote, displayOffers, includeDestinationGas),
       );
     }
-  }, [displayOffers, effectiveQuote?.bestOfferId, selectedOfferId]);
+  }, [displayOffers, effectiveQuote, includeDestinationGas, selectedOfferId]);
 
   useEffect(() => {
     if (!gasOffers.length) {
@@ -724,6 +724,11 @@ export default function CrossChainPage() {
       }
 
       if (includeDestinationGas && selectedGasOfferId) {
+        // Multi-step and explicit-only routes cannot be a composed primary.
+        const blockReason = getGasDropBlockReason(selectedOffer);
+        if (blockReason) {
+          throw new Error(`${blockReason} Turn off destination gas or choose a one-step route.`);
+        }
         const response = await execution.selectComposedIntent({
           offerSetId: effectiveQuote.offerSetId,
           primaryTransferOfferId: selectedOffer.offerId,

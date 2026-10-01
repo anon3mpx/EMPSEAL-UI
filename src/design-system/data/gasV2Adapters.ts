@@ -55,7 +55,19 @@ export type GasHistoryRow = {
   value: string;
   sourceChainName: string;
   destinationsLabel: string;
+  /** Primary destination chain (first delivery), for the row's chain tile. */
+  destinationChain: GasHistoryChain | null;
+  /** USD value reported by Gas.zip; null when the API omits it. */
+  usdValue: number | null;
+  /** Human native amount sent, e.g. "0.0031 ETH". */
+  nativeLabel: string;
+  /** First destination tx (falls back to the source tx while in flight). */
+  txShort: string;
+  txExplorer?: string;
+  txChain: GasHistoryChain;
 };
+
+export type GasHistoryChain = { id: number; name: string; color: string; ticker: string };
 
 export type GasLookupDelivery = {
   chain: { name: string; color: string; ticker: string };
@@ -303,12 +315,54 @@ function chainNameFromId(chainId: number | null, chains: GasV2Chain[]): string {
   return chains.find((chain) => chain.id === chainId)?.name ?? chainMeta(chainId).name;
 }
 
+function readUsd(value: any): number | null {
+  const raw = value?.usd ?? value?.usdValue;
+  if (raw == null || raw === "") return null;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function formatNativeLabel(value: unknown, ticker: string): string {
+  if (value == null || value === "") return "";
+  // Gas.zip reports wei as a bare integer string; anything else is already
+  // a display string (e.g. "0.01 ETH").
+  if (!/^\d+$/.test(String(value))) return String(value);
+  const amount = Number(formatNativeWei(value));
+  const display = amount === 0
+    ? "0"
+    : amount.toLocaleString("en-US", { maximumSignificantDigits: 4 });
+  return `${display} ${ticker}`;
+}
+
+function historyChainDisplay(chainId: number | null, chains: GasV2Chain[]) {
+  const meta = chainId
+    ? chains.find((chain) => chain.id === chainId) ?? chainMeta(chainId)
+    : null;
+  return {
+    id: chainId ?? 0,
+    name: meta?.name ?? "Unknown",
+    color: meta?.color ?? getV2Chain(chainId ?? 0)?.color ?? "#FF8A00",
+    ticker: meta?.ticker ?? "GAS",
+  };
+}
+
 export function formatGasHistoryRows(history: any[] = [], chains: GasV2Chain[] = []): GasHistoryRow[] {
   return history.map((entry) => {
     const deposit = entry?.deposit ?? entry;
     const sourceHash = readHash(deposit);
     const sourceChainId = readChainId(deposit);
     const destinations = Array.isArray(entry?.txs) ? entry.txs : [];
+    const sourceChain = historyChainDisplay(sourceChainId, chains);
+    const firstDestination = destinations[0];
+    const destinationChainId = firstDestination ? readChainId(firstDestination) : null;
+    const destinationHash = firstDestination ? readHash(firstDestination) : "";
+    const destinationUsd = destinations.reduce(
+      (sum: number | null, tx: any) => {
+        const usd = readUsd(tx);
+        return usd == null ? sum : (sum ?? 0) + usd;
+      },
+      null,
+    );
 
     return {
       sourceHash,
@@ -328,6 +382,16 @@ export function formatGasHistoryRows(history: any[] = [], chains: GasV2Chain[] =
             })
             .join(", ")
         : "Pending",
+      destinationChain: destinationChainId ? historyChainDisplay(destinationChainId, chains) : null,
+      usdValue: readUsd(deposit) ?? destinationUsd,
+      nativeLabel: formatNativeLabel(deposit?.value ?? deposit?.amount, sourceChain.ticker),
+      txShort: destinationHash ? shortHash(destinationHash) : shortHash(sourceHash),
+      txExplorer: destinationHash
+        ? (destinationChainId ? getExplorerTxUrl(destinationChainId, destinationHash) ?? undefined : undefined)
+        : sourceChainId ? getExplorerTxUrl(sourceChainId, sourceHash) ?? undefined : undefined,
+      txChain: destinationHash && destinationChainId
+        ? historyChainDisplay(destinationChainId, chains)
+        : sourceChain,
     };
   });
 }
