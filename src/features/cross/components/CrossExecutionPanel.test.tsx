@@ -39,6 +39,137 @@ describe("CrossExecutionPanel", () => {
     expect(screen.getByRole("button", { name: /awaiting confirmation/i })).toBeDisabled();
   });
 
+  function requoteSession(errorCode: string, overrides: Record<string, unknown> = {}): any {
+    return {
+      mode: "single",
+      intentId: "intent-sequential",
+      selectedOfferId: "offer",
+      offerSetId: "set",
+      quote: { rail: "CCTP", srcChainId: 8453, dstChainId: 42161 },
+      sourceChainId: 8453,
+      status: "REQUOTE_REQUIRED",
+      integration: {
+        mode: "sequential_wallet", planId: "plan", stepId: "source", expectedVersion: 5, approvals: [],
+      },
+      executionPlan: {
+        planId: "plan", intentId: "intent-sequential", mode: "sequential_wallet",
+        status: "REQUOTE_REQUIRED", version: 5, atomic: false, carrierAsset: "bridge:8453:USDC",
+        currentStep: 0, expiresAt: 9999999999,
+        steps: [
+          { stepId: "source", index: 0, kind: "source_swap", chainId: 8453, status: "CONFIRMED", tokenIn: "a", tokenOut: "b", quotedAmountIn: "1", quotedAmountOut: "1", minimumAmountOut: "1", txHash: "0xswap", errorCode, expiresAt: 9999999999 },
+          { stepId: "rail", index: 1, kind: "rail_transfer", chainId: 8453, status: "PLANNED", tokenIn: "b", tokenOut: "b", quotedAmountIn: "1", quotedAmountOut: "1", minimumAmountOut: "1", expiresAt: 9999999999 },
+          { stepId: "destination", index: 2, kind: "destination_swap", chainId: 42161, status: "PLANNED", tokenIn: "b", tokenOut: "c", quotedAmountIn: "1", quotedAmountOut: "1", minimumAmountOut: "1", expiresAt: 9999999999 },
+        ],
+      },
+      ...overrides,
+    };
+  }
+
+  it("explains a carrier re-quote stop and keeps the action disabled even with a parent label", () => {
+    render(
+      <CrossExecutionPanel
+        session={requoteSession("CARRIER_REQUOTE_UNAVAILABLE")}
+        isExecuting={false}
+        onExecuteSingle={() => {}}
+        onExecutePrimary={() => {}}
+        onExecuteGas={() => {}}
+        singleActionLabel="Execute Route"
+      />,
+    );
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      /Your swap completed, but the selected bridge route is no longer available on the same terms\. Your USDC is in your wallet on Base\. Get a new quote to continue\./,
+    );
+    expect(screen.getByRole("button", { name: /re-quote required/i })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: /execute/i })).not.toBeInTheDocument();
+  });
+
+  it("keeps the action disabled for a stopped plan even if a stale tx is still in the session", () => {
+    const session = requoteSession("CARRIER_REQUOTE_UNAVAILABLE");
+    session.integration = {
+      ...session.integration,
+      tx: { to: "0x1111111111111111111111111111111111111111", data: "0x", value: "0", chainId: 8453 },
+    };
+    render(
+      <CrossExecutionPanel
+        session={session}
+        isExecuting={false}
+        onExecuteSingle={() => {}}
+        onExecutePrimary={() => {}}
+        onExecuteGas={() => {}}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: /re-quote required/i })).toBeDisabled();
+  });
+
+  it.each([
+    ["MINIMUM_OUTPUT_NOT_MET", /below the planned minimum output/i],
+    ["DESTINATION_SWAP_UNAVAILABLE", /destination swap is no longer available.*USDC.*Arbitrum/i],
+    ["SOMETHING_NEW", /stopped before the next step and needs a new quote/i],
+  ])("explains a %s re-quote stop", (errorCode, message) => {
+    render(
+      <CrossExecutionPanel
+        session={requoteSession(errorCode)}
+        isExecuting={false}
+        onExecutePrimary={() => {}}
+        onExecuteSingle={() => {}}
+        onExecuteGas={() => {}}
+      />,
+    );
+
+    expect(screen.getByRole("alert")).toHaveTextContent(message);
+    expect(screen.getByRole("button", { name: /re-quote required/i })).toBeDisabled();
+  });
+
+  it.each([
+    ["FAILED", /route failed/i],
+    ["EXPIRED", /route expired/i],
+    ["COMPLETED", /route completed/i],
+  ])("disables execution on a %s plan", (status, label) => {
+    const session = requoteSession("CARRIER_REQUOTE_UNAVAILABLE");
+    session.executionPlan.status = status;
+    render(
+      <CrossExecutionPanel
+        session={session}
+        isExecuting={false}
+        onExecuteSingle={() => {}}
+        onExecutePrimary={() => {}}
+        onExecuteGas={() => {}}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: label })).toBeDisabled();
+  });
+
+  it("enables a READY sequential step with a prepared tx", () => {
+    const session = requoteSession("CARRIER_REQUOTE_UNAVAILABLE");
+    session.status = "SELECTED";
+    session.integration = {
+      ...session.integration,
+      tx: { to: "0x1111111111111111111111111111111111111111", data: "0x", value: "0", chainId: 8453 },
+    };
+    session.executionPlan = {
+      ...session.executionPlan,
+      status: "ACTIVE",
+      steps: session.executionPlan.steps.map((step: any, index: number) =>
+        index === 0 ? { ...step, status: "READY", errorCode: undefined } : step,
+      ),
+    };
+    render(
+      <CrossExecutionPanel
+        session={session}
+        isExecuting={false}
+        onExecuteSingle={() => {}}
+        onExecutePrimary={() => {}}
+        onExecuteGas={() => {}}
+      />,
+    );
+
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /execute source swap/i })).not.toBeDisabled();
+  });
+
   it("renders a custom single-route action label when provided", () => {
     render(
       <CrossExecutionPanel

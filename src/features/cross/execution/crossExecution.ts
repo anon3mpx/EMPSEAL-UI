@@ -1,5 +1,6 @@
 import type {
   ExecutionPlan,
+  ExecutionPlanStatus,
   SelectedOfferIntegration,
   SingleCrossExecutionSession,
 } from "../api/contracts";
@@ -14,6 +15,20 @@ export interface ExecuteCrossIntegrationInput {
   integration: SelectedOfferIntegration;
   sourceChainId: number;
   approvalsComplete: boolean;
+  /** Last known plan for sequential-wallet sessions; checked before sending. */
+  executionPlan?: ExecutionPlan;
+}
+
+const TERMINAL_EXECUTION_PLAN_STATUSES: ReadonlySet<ExecutionPlanStatus> = new Set([
+  "REQUOTE_REQUIRED",
+  "FAILED",
+  "EXPIRED",
+  "COMPLETED",
+]);
+
+/** A terminal plan never accepts another wallet transaction. */
+export function isExecutionPlanTerminal(plan: ExecutionPlan | null | undefined): boolean {
+  return Boolean(plan && TERMINAL_EXECUTION_PLAN_STATUSES.has(plan.status));
 }
 
 export interface CrossExecutionDependencies {
@@ -70,6 +85,25 @@ export async function executeCrossIntegration(
   }
 
   if (integration.mode === "sequential_wallet") {
+    const plan = input.executionPlan;
+    if (plan) {
+      if (plan.planId !== integration.planId || isExecutionPlanTerminal(plan)) {
+        throw new Error(
+          "EXECUTION_PLAN_STOPPED: This route has stopped and cannot send another transaction.",
+        );
+      }
+      const currentStep = plan.steps[plan.currentStep];
+      if (currentStep?.stepId !== integration.stepId || currentStep.status !== "READY") {
+        throw new Error(
+          "EXECUTION_STEP_NOT_READY: The current route step is not ready for a wallet transaction.",
+        );
+      }
+    }
+    if (!integration.tx) {
+      throw new Error(
+        "EXECUTION_STEP_NOT_READY: No prepared transaction is available for this route step.",
+      );
+    }
     if ((integration.approvals?.length ?? 0) > 0 && !input.approvalsComplete) {
       throw new Error(
         "PROVIDER_APPROVAL_FAILED: Sequential action approval is required before execution.",
@@ -180,11 +214,16 @@ export function syncSequentialExecutionPlan(
     return session;
   }
   const currentStep = plan.steps[plan.currentStep];
-  const prepared = currentStep?.status === "READY" ? currentStep.preparedAction : undefined;
+  const prepared = !isExecutionPlanTerminal(plan) && currentStep?.status === "READY"
+    ? currentStep.preparedAction
+    : undefined;
   return {
     ...session,
     executionPlan: plan,
     status: plan.status,
+    // Only a READY step carries a sendable transaction. Anything else (step in
+    // flight, or the plan stopped) drops the previous tx so an already-broadcast
+    // step cannot be sent a second time.
     integration: prepared ? {
       mode: "sequential_wallet",
       planId: plan.planId,
@@ -192,6 +231,12 @@ export function syncSequentialExecutionPlan(
       expectedVersion: plan.version,
       tx: prepared.tx,
       approvals: prepared.approvals ?? [],
-    } : session.integration,
+    } : {
+      mode: "sequential_wallet",
+      planId: plan.planId,
+      stepId: currentStep?.stepId ?? session.integration.stepId,
+      expectedVersion: plan.version,
+      approvals: [],
+    },
   };
 }
