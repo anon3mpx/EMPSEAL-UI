@@ -11,7 +11,7 @@ import { fallback } from "viem";
 import { prependPrimaryRpcUrl } from "../config/rpc";
 import { walletConnectProjectId } from "./walletConnectProjectId";
 import {
-  chains,
+  walletChains,
   pulsechain,
   sonic,
   base,
@@ -33,6 +33,7 @@ import {
   unichain,
   worldchain,
 } from "./chains";
+import { layerZeroWalletChains } from "./layerZeroChains";
 
 // Wallet configuration for swap
 const swapConnectors = connectorsForWallets(
@@ -82,8 +83,11 @@ const chainTransport = (
 export const config = getDefaultConfig({
   appName: "Empseal Swap",
   projectId: walletConnectProjectId,
-  chains,
+  chains: walletChains,
   transports: {
+    ...Object.fromEntries(
+      layerZeroWalletChains.map((chain) => [chain.id, chainTransport(chain.id, chain)]),
+    ),
     [mainnet.id]: chainTransport(mainnet.id, mainnet),
     [pulsechain.id]: chainTransport(pulsechain.id, pulsechain, [
       "https://rpc.pulsechain.com",

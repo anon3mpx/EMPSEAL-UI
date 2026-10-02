@@ -285,3 +285,32 @@ describe("cross-chain rail capability policy", () => {
     });
   });
 });
+
+describe("LayerZero Value Transfer API offer capability", () => {
+  const lzOffer = (srcChainId: number, srcChainType: string, srcChainKey: string) => ({
+    rail: "LAYERZERO",
+    offerType: "lz_api_direct" as const,
+    srcChainId,
+    dstChainId: 8453,
+    sourceChainRef: { namespace: "layerzero", chainKey: srcChainKey, chainType: srcChainType, chainId: srcChainId },
+    destinationChainRef: { namespace: "layerzero", chainKey: "base", chainType: "EVM", chainId: 8453 },
+  });
+
+  it("selects EVM chains the UI only knows through LayerZero", () => {
+    const capability = getOfferCapability(lzOffer(5042, "EVM", "arc"));
+    expect(capability.selectable).toBe(true);
+    expect(capability.nativeDestinationAddressRequired).toBe(false);
+  });
+
+  it("explains instead of failing when the wallet cannot switch to the source chain", () => {
+    const capability = getOfferCapability(lzOffer(7_777_777_777, "EVM", "doma"));
+    expect(capability.selectable).toBe(false);
+    expect(capability.reason).toMatch(/wallet connection/i);
+  });
+
+  it("trusts the provider chain type over an ambiguous chain id", () => {
+    const capability = getOfferCapability(lzOffer(1, "SOLANA", "solana"));
+    expect(capability.selectable).toBe(false);
+    expect(capability.reason).toMatch(/non-EVM/i);
+  });
+});

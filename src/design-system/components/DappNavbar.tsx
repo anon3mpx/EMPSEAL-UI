@@ -389,7 +389,7 @@ function MobileDrawer({
               <div key={group.label}>
                 <div
                   style={{
-                    padding: "14px 18px 6px", fontSize: 8.5, fontWeight: 700,
+                    padding: "14px 18px 6px", fontSize: 10, fontWeight: 700,
                     letterSpacing: "0.28em", textTransform: "uppercase", color: T3,
                   }}
                 >
@@ -399,7 +399,7 @@ function MobileDrawer({
                   const current = item.href === activeHref;
                   const rowStyle = {
                     display: "flex", alignItems: "center", justifyContent: "space-between",
-                    padding: "11px 18px", textDecoration: "none", fontSize: 13,
+                    gap: 12, padding: "11px 18px", textDecoration: "none", fontSize: 14,
                     color: current ? ORANGE : T1,
                     boxShadow: current ? `inset 2px 0 0 ${ORANGE}` : "none",
                   } as const;
@@ -407,14 +407,14 @@ function MobileDrawer({
                     return (
                       <span key={item.href} aria-disabled="true" style={{ ...rowStyle, opacity: 0.4, cursor: "not-allowed" }}>
                         <span>{item.label}</span>
-                        <span style={{ fontSize: 9.5, color: T3 }}>{item.sub}</span>
+                        <span style={{ fontSize: 11, color: T3, textAlign: "right" }}>{item.sub}</span>
                       </span>
                     );
                   }
                   return (
                     <a key={item.href} href={item.href} onClick={onClose} style={rowStyle}>
                       <span>{item.label}</span>
-                      <span style={{ fontSize: 9.5, color: T3 }}>{item.sub}</span>
+                      <span style={{ fontSize: 11, color: T3, textAlign: "right" }}>{item.sub}</span>
                     </a>
                   );
                 })}

@@ -1,34 +1,23 @@
 import type { LayerZeroQuoteDiagnostic } from "../api/contracts";
 
-export function layerZeroDiagnosticMessage(diagnostics?: LayerZeroQuoteDiagnostic[]): string | null {
-  const diagnostic = diagnostics?.find(item => item.provider === "layerzero_value_transfer_api");
-  if (!diagnostic) return null;
-  switch (diagnostic.code) {
-    case "unsupported_route": return "LayerZero does not support this token pair, even if both tokens appear in its catalog.";
-    case "authentication_failed": return "LayerZero quotes are unavailable because provider authentication failed.";
-    case "rate_limited": return "LayerZero is rate limiting quotes. Wait a moment and retry.";
-    case "timeout": return "LayerZero's quote request timed out. Please retry.";
-    case "unavailable": return "LayerZero quotes are temporarily unavailable. Please retry.";
-    case "invalid_response": return "LayerZero returned an incomplete quote. Please retry.";
-    case "quote_rejected": return `LayerZero: ${diagnostic.message || "No quote is available for this pair and amount."}`;
-  }
-  return null;
-}
+export const NO_ROUTES_MESSAGE = "No routes available for this pair and amount.";
+const NO_ROUTES_RETRY_MESSAGE = "No routes available right now. Please retry in a moment.";
+const TRANSIENT_DIAGNOSTIC_CODES = new Set([
+  "authentication_failed",
+  "rate_limited",
+  "timeout",
+  "unavailable",
+  "invalid_response",
+]);
 
 /**
- * LayerZero diagnostic for the quote page. "No LayerZero route for this pair"
- * (quote_rejected / unsupported_route) is noise when other rails returned
- * offers, so it only shows when nothing quoted or a LayerZero offer is selected.
+ * Rail-agnostic copy for an empty quote. Provider diagnostics only decide
+ * whether retrying could help; they never name a rail to the user.
  */
-export function layerZeroQuoteNotice(
-  diagnostics: LayerZeroQuoteDiagnostic[] | undefined,
-  { hasOffers, layerZeroSelected }: { hasOffers: boolean; layerZeroSelected: boolean },
-): string | null {
-  const diagnostic = diagnostics?.find(item => item.provider === "layerzero_value_transfer_api");
-  if (!diagnostic) return null;
-  const noRouteOnly = diagnostic.code === "quote_rejected" || diagnostic.code === "unsupported_route";
-  if (noRouteOnly && hasOffers && !layerZeroSelected) return null;
-  return layerZeroDiagnosticMessage(diagnostics);
+export function noRoutesMessage(diagnostics?: LayerZeroQuoteDiagnostic[]): string {
+  return diagnostics?.some(item => TRANSIENT_DIAGNOSTIC_CODES.has(item.code))
+    ? NO_ROUTES_RETRY_MESSAGE
+    : NO_ROUTES_MESSAGE;
 }
 
 function readErrorMessage(error: any): string | null {
@@ -57,10 +46,8 @@ function readErrorMessage(error: any): string | null {
 }
 
 export function mapCrossApiError(error: any): string {
-  const diagnostic = layerZeroDiagnosticMessage(error?.body?.providerDiagnostics);
-  if (diagnostic) return diagnostic;
   if (error?.body?.error === "No route available for this pair") {
-    return "No provider returned a route for this token pair and amount.";
+    return noRoutesMessage(error.body.providerDiagnostics);
   }
   if (error?.status === 409 && error?.body?.fallbackOfferSet) {
     return "Selected route expired. Please choose an updated route.";

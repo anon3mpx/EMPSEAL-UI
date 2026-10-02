@@ -12,6 +12,7 @@ import {
   worldchain,
 } from 'wagmi/chains';
 import { getPrimaryRpcUrl } from '../config/rpc';
+import { layerZeroWalletChains } from './layerZeroChains';
 
 export {
   avalanche,
@@ -294,3 +295,13 @@ export const chains = [
   unichain,
   worldchain,
 ] as const;
+
+// Every chain the wallet connection can switch to and sign on: the app's own
+// chains plus the LayerZero-reachable EVM chains.
+export const walletChains = [...chains, ...layerZeroWalletChains] as const;
+
+const WALLET_CHAIN_IDS: ReadonlySet<number> = new Set(walletChains.map((chain) => chain.id));
+
+export function isWalletChain(chainId: number | undefined | null): boolean {
+  return chainId != null && WALLET_CHAIN_IDS.has(chainId);
+}

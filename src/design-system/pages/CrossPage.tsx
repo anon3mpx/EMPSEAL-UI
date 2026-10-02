@@ -96,7 +96,13 @@ import {
 import { useCrossExecutionSession } from "../../features/cross/hooks/useCrossExecutionSession";
 import { useCrossIntentTracking } from "../../features/cross/hooks/useCrossIntentTracking";
 import { useCrossQuote } from "../../features/cross/hooks/useCrossQuote";
-import { useLayerZeroDestinations, filterLayerZeroDestinations, layerZeroDestinationListed } from "../../features/cross/hooks/useLayerZeroDestinations";
+import { useLayerZeroDestinations } from "../../features/cross/hooks/useLayerZeroDestinations";
+import {
+  scopeDestinationTokens,
+  settlementDestinationTokens,
+  splitDestinationTokens,
+  supportsAnyDestinationToken,
+} from "../../features/cross/utils/destinationScope";
 import { useCrossRecovery } from "../../features/cross/hooks/useCrossRecovery";
 import {
   findMatchingRefreshedOffer,
@@ -114,7 +120,7 @@ import {
   getRailCapability,
   type OfferCapabilityContext,
 } from "../../features/cross/model/capabilities";
-import { mapCrossApiError, layerZeroQuoteNotice } from "../../features/cross/utils/errors";
+import { mapCrossApiError } from "../../features/cross/utils/errors";
 import type {
   CrossExecutionSession,
   ExecutionPlan,
@@ -330,7 +336,7 @@ export function tokensFor(
   if (providerDiscovered) {
     return {
       tokens: full,
-      restrictedReason: "LayerZero-discovered candidates. An exact live quote is still required before a route is available.",
+      restrictedReason: "A live quote confirms whether a route is available.",
     };
   }
 
@@ -534,11 +540,6 @@ export default function CrossPage() {
     chainType: fromChain.providerChainType,
     address: fromTokenConfig?.providerAssetId ?? fromTokenConfig?.address,
   });
-  const destinationChainRef = { chainKey: toChain.providerChainKey, chainType: toChain.providerChainType };
-  const selectedLayerZeroDestinationListed = layerZeroDestinationListed(
-    layerZeroDestinations.isError ? undefined : layerZeroDestinations.data,
-    destinationChainRef, toTokenConfig?.providerAssetId ?? toTokenConfig?.address,
-  );
   const fromTokenPriceUSD = useUnifiedPrice(
     fromChainId,
     fromTicker,
@@ -735,6 +736,50 @@ export default function CrossPage() {
       toTokenConfig,
     ],
   );
+  // Destination tokens the UI expects to route from the current source
+  // selection, listed first in the picker. This is guidance only: every pair
+  // is still quoted, because other providers can route pairs these rules miss.
+  const destinationScope = useMemo(() => {
+    const eligible = eligibleRailsFor(fromChainId, toChainId, undefined);
+    const providerDiscovered = Boolean(
+      toChain.providerChainKey &&
+      (layerZeroCatalog.data?.tokens ?? []).some((token) => token.chainKey === toChain.providerChainKey),
+    );
+    const { tokens: candidates, restrictedReason } = tokensFor(
+      toChainId, "to", eligible, toTokenCatalog, providerDiscovered,
+    );
+    const anyToken = supportsAnyDestinationToken({
+      srcAggregator: tierForChainId(fromChainId) === 1,
+      dstAggregator: tierForChainId(toChainId) === 1,
+      sourceTicker: fromTokenConfig?.ticker,
+      rails: eligible,
+    });
+    const otherRails = eligible.filter((rail) => rail.name !== "LayerZero");
+    const layerZeroApplies = Boolean(
+      fromChain.providerChainKey && fromChain.providerChainType &&
+      toChain.providerChainKey && toChain.providerChainType,
+    );
+    const routable = scopeDestinationTokens({
+      candidates,
+      anyToken,
+      settlementTokens: settlementDestinationTokens(toTokenCatalog, otherRails),
+      layerZero: layerZeroApplies
+        ? {
+            applies: true,
+            reachable: layerZeroDestinations.isError ? undefined : layerZeroDestinations.data,
+            chain: { chainKey: toChain.providerChainKey, chainType: toChain.providerChainType },
+          }
+        : { applies: false },
+    });
+    return {
+      ...splitDestinationTokens(candidates, routable),
+      restrictedReason: anyToken ? restrictedReason : undefined,
+    };
+  }, [
+    fromChain.providerChainKey, fromChain.providerChainType, fromChainId, fromTokenConfig?.ticker,
+    layerZeroCatalog.data?.tokens, layerZeroDestinations.data, layerZeroDestinations.isError,
+    toChain.providerChainKey, toChain.providerChainType, toChainId, toTokenCatalog,
+  ]);
   const quoteEnabled = Boolean(
     sourceWalletConnected &&
       quoteRequest &&
@@ -1191,18 +1236,6 @@ export default function CrossPage() {
   }, [now, session]);
 
   const quoteErrorMessage = quote.error ? mapCrossApiError(quote.error) : null;
-  // "No LayerZero route" diagnostics only matter when nothing else quoted or
-  // the user is looking at a LayerZero offer.
-  const layerZeroNotice = layerZeroQuoteNotice(effectiveQuote?.providerDiagnostics, {
-    hasOffers: offerEntries.length > 0,
-    layerZeroSelected: String(selectedOffer?.rail ?? "").toUpperCase() === "LAYERZERO",
-  })
-    ?? (layerZeroDestinations.isError
-      ? "LayerZero destination discovery is unavailable. Token choices remain available; request a quote to check the route."
-      : selectedLayerZeroDestinationListed === false &&
-          (offerEntries.length === 0 || String(selectedOffer?.rail ?? "").toUpperCase() === "LAYERZERO")
-        ? "LayerZero does not list this destination for the selected source token. Other providers will still be checked."
-        : null);
   const trackingData = tracking.data as any;
   const fromBalanceLabel =
     sourceUsesEvmWallet && walletState.status === "connected" && fromTokenBalance
@@ -1301,21 +1334,16 @@ export default function CrossPage() {
       selectedChain.providerChainKey &&
       (layerZeroCatalog.data?.tokens ?? []).some((token) => token.chainKey === selectedChain.providerChainKey),
     );
-    const { tokens: candidates, restrictedReason } = tokensFor(
-      chainId,
-      role,
-      eligible,
-      catalog,
-      providerDiscovered,
-    );
-    const otherRails = eligible.filter(rail => rail.name !== "LayerZero");
-    const otherRailTokens = otherRails.length === 0 ? []
-      : tierForChainId(chainId) === 1 ? catalog
-      : tokensFor(chainId, role, otherRails, configTokensForChain(chainId), false).tokens;
-    const tokens = role === "to" ? filterLayerZeroDestinations(
-      candidates, layerZeroDestinations.isError ? undefined : layerZeroDestinations.data,
-      { chainKey: selectedChain.providerChainKey, chainType: selectedChain.providerChainType }, otherRailTokens,
-    ) : candidates;
+    const sourceScope = role === "from"
+      ? tokensFor(chainId, role, eligible, catalog, providerDiscovered)
+      : null;
+    const unconfirmed = new Set(sourceScope ? [] : destinationScope.unconfirmed);
+    const tokens = sourceScope?.tokens ?? [...destinationScope.routable, ...destinationScope.unconfirmed];
+    const restrictedReason = sourceScope
+      ? sourceScope.restrictedReason
+      : unconfirmed.size > 0
+        ? "Tokens marked “Route unconfirmed” may have no route from your source token. A live quote confirms."
+        : destinationScope.restrictedReason;
     const chainName = selectedChain.name;
     const chainColor = selectedChain.color;
     return {
@@ -1329,7 +1357,7 @@ export default function CrossPage() {
         isNative: t.isNative,
         chainName,
         chainColor,
-        badge: t.badge,
+        badge: unconfirmed.has(t) ? "UNCONFIRMED" : t.badge,
         balance: role === "from" && t.ticker === connectedBalance.nativeTicker
           ? connectedBalance.nativeBalance
           : undefined,
@@ -1337,11 +1365,9 @@ export default function CrossPage() {
           ? connectedBalance.nativeBalanceUSD ?? undefined
           : undefined,
       })),
-      restrictedReason: role === "to" && layerZeroDestinations.data && !layerZeroDestinations.isError
-        ? "LayerZero destinations are filtered by your source token. Other-rail candidates are retained. A live quote confirms availability."
-        : restrictedReason,
+      restrictedReason,
     };
-  }, [layerZeroDestinations.data, layerZeroDestinations.isError, tokenPickerTarget, fromChainId, toChainId, connectedBalance.nativeBalance, connectedBalance.nativeBalanceUSD, connectedBalance.nativeTicker, fromChain, toChain, fromTokenCatalog, toTokenCatalog, layerZeroCatalog.data?.tokens, tokenKey]);
+  }, [destinationScope, tokenPickerTarget, fromChainId, toChainId, connectedBalance.nativeBalance, connectedBalance.nativeBalanceUSD, connectedBalance.nativeTicker, fromChain, toChain, fromTokenCatalog, toTokenCatalog, layerZeroCatalog.data?.tokens, tokenKey]);
 
   const routeHops: RouteHop[] = useMemo(() => {
     if (!selectedOffer) return [];
@@ -2262,11 +2288,6 @@ export default function CrossPage() {
           alignItems: "center",
         }}
       >
-        {layerZeroNotice && (
-          <p role="status" style={{ width: "100%", margin: "0 0 12px", fontSize: 12, color: "#aaa", lineHeight: 1.5 }}>
-            {layerZeroNotice}
-          </p>
-        )}
         <EmpxCrossWidget
           fromChain={{
             ...fromChain,
@@ -2552,8 +2573,27 @@ export default function CrossPage() {
                 allowed.find((token) => token.category === "stable") ??
                 allowed.find((token) => token.category === "native") ??
                 allowed[0];
-              setFromTicker(fallback?.ticker ?? selectedChain.ticker);
+              const nextFromTicker = fallback?.ticker ?? selectedChain.ticker;
+              setFromTicker(nextFromTicker);
               setFromTokenKey(fallback ? tokenKey(fallback) : null);
+              // Most cross-chain routes move the same asset (USDC→USDC,
+              // WETH→WETH), so follow the source asset when the destination has it.
+              const sameAsset = findTokenByTicker(
+                tokensFor(
+                  toChainId,
+                  "to",
+                  eligibleRailsFor(c.id, toChainId, undefined),
+                  toTokenCatalog,
+                  Boolean(toChain.providerChainKey && layerZeroCatalog.data?.tokens?.some(
+                    (token) => token.chainKey === toChain.providerChainKey,
+                  )),
+                ).tokens,
+                nextFromTicker,
+              );
+              if (sameAsset) {
+                setToTicker(sameAsset.ticker);
+                setToTokenKey(tokenKey(sameAsset));
+              }
             } else {
               setToChainId(c.id);
               const allowed = tokensFor(
@@ -2565,6 +2605,7 @@ export default function CrossPage() {
               ).tokens;
               const settlementTicker = defaultSettlementTicker(c.id);
               const fallback =
+                findTokenByTicker(allowed, fromTicker) ??
                 findTokenByTicker(allowed, settlementTicker) ??
                 findTokenByTicker(allowed, toTicker) ??
                 allowed.find((token) => token.category === "stable") ??

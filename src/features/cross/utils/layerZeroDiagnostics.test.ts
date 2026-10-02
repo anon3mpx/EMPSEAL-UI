@@ -1,25 +1,27 @@
 import { it, expect } from 'vitest';
-import { mapCrossApiError, layerZeroDiagnosticMessage, layerZeroQuoteNotice } from './errors';
-import { normalizeOfferSet } from '../model/quotes';
+import { mapCrossApiError, noRoutesMessage, NO_ROUTES_MESSAGE } from './errors';
 
-it('distinguishes provider quote failures and preserves diagnostics when other routes succeed', () => {
-  for (const [code, expected] of [['unsupported_route', /does not support/i], ['timeout', /timed out/i], ['authentication_failed', /authentication/i], ['rate_limited', /rate.limit/i]]) {
-    expect(mapCrossApiError({ status: 400, body: { error: 'No route available for this pair', providerDiagnostics: [{ provider: 'layerzero_value_transfer_api', code, message: 'upstream' }] } })).toMatch(expected);
-  }
-  const providerDiagnostics: any = [{ provider: 'layerzero_value_transfer_api', code: 'quote_rejected', message: 'Insufficient liquidity' }];
-  const result = normalizeOfferSet({ offerSet: { offerSetId: 'other-route', expiresAt: 123, offers: [], providerDiagnostics } });
-  expect(layerZeroDiagnosticMessage(result.providerDiagnostics)).toMatch(/Insufficient liquidity/);
+const noRoute = (code: string): any => ({
+  status: 400,
+  body: {
+    error: 'No route available for this pair',
+    providerDiagnostics: [{ provider: 'layerzero_value_transfer_api', code, message: 'upstream' }],
+  },
 });
 
-it('hides "no LayerZero route" notices when other rails quoted and LayerZero is not selected', () => {
-  const diagnostics = (code: string, message = 'Unsupported token'): any => [{ provider: 'layerzero_value_transfer_api', code, message }];
-
-  for (const code of ['quote_rejected', 'unsupported_route']) {
-    expect(layerZeroQuoteNotice(diagnostics(code), { hasOffers: true, layerZeroSelected: false })).toBeNull();
-    expect(layerZeroQuoteNotice(diagnostics(code), { hasOffers: false, layerZeroSelected: false })).not.toBeNull();
-    expect(layerZeroQuoteNotice(diagnostics(code), { hasOffers: true, layerZeroSelected: true })).not.toBeNull();
+it('reports an empty quote as "no routes" without naming a rail', () => {
+  for (const code of ['unsupported_route', 'quote_rejected']) {
+    expect(mapCrossApiError(noRoute(code))).toBe(NO_ROUTES_MESSAGE);
   }
-  // Operational failures still surface.
-  expect(layerZeroQuoteNotice(diagnostics('rate_limited'), { hasOffers: true, layerZeroSelected: false })).toMatch(/rate limiting/i);
-  expect(layerZeroQuoteNotice(undefined, { hasOffers: false, layerZeroSelected: false })).toBeNull();
+  expect(mapCrossApiError({ status: 400, body: { error: 'No route available for this pair' } })).toBe(NO_ROUTES_MESSAGE);
+});
+
+it('suggests a retry when a provider failed transiently', () => {
+  for (const code of ['timeout', 'rate_limited', 'unavailable', 'authentication_failed', 'invalid_response']) {
+    const message = mapCrossApiError(noRoute(code));
+    expect(message).toMatch(/no routes available/i);
+    expect(message).toMatch(/retry/i);
+    expect(message).not.toMatch(/layerzero/i);
+  }
+  expect(noRoutesMessage(undefined)).toBe(NO_ROUTES_MESSAGE);
 });

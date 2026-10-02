@@ -10,7 +10,7 @@
 //
 // The engine owns this subtree once mounted: it mutates these nodes directly
 // and React must never re-render over it. That is safe precisely because this
-// component holds NO state — if you add any, hoist it above LandingV4 or give
+// component holds NO state — if you add any, hoist it above LandingV4Stage or give
 // the shell a stable `key`, or the engine's work will be wiped on re-render.
 //
 // StrictMode note: the app mounts under React.StrictMode (src/main.jsx), so
@@ -19,10 +19,11 @@
 // pass, so teardown restores the pristine shell markup captured before the
 // first mount.
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useSyncExternalStore } from "react";
 import { useNavigate } from "react-router-dom";
 import { EMPX_SOCIALS } from "../../../design-system/data/socials";
 import { mountLandingV4 } from "./landingV4Engine";
+import LandingV4Mobile from "./LandingV4Mobile";
 import "./landing-v4.css";
 
 
@@ -148,9 +149,27 @@ function scrollToSection(root: HTMLElement, key: SectionKey) {
   window.scrollTo({ top, behavior: "smooth" });
 }
 
+// The stage's fixed-pixel composition needs .sw's 1180px min-width plus the
+// page gutters (landing-v4.css); narrower viewports get the stacked layout.
+const STAGE_MEDIA_QUERY = "(min-width: 1240px)";
+
+function subscribeStageMedia(onChange: () => void) {
+  const query = window.matchMedia(STAGE_MEDIA_QUERY);
+  query.addEventListener("change", onChange);
+  return () => query.removeEventListener("change", onChange);
+}
+
 export default function LandingV4() {
   useLandingSeo();
+  const fitsStage = useSyncExternalStore(
+    subscribeStageMedia,
+    () => window.matchMedia(STAGE_MEDIA_QUERY).matches,
+    () => true,
+  );
+  return fitsStage ? <LandingV4Stage /> : <LandingV4Mobile />;
+}
 
+function LandingV4Stage() {
   const rootRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
