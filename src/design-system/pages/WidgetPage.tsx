@@ -217,7 +217,8 @@ export default function WidgetPage() {
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: isMobile ? "1fr" : "minmax(0, 1.2fr) minmax(0, 1fr)",
+            // minmax(0, …) lets columns shrink below the 440px preview iframe.
+            gridTemplateColumns: isMobile ? "minmax(0, 1fr)" : "minmax(0, 1.2fr) minmax(0, 1fr)",
             gap: isMobile ? 18 : 28,
             alignItems: "start",
           }}

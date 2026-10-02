@@ -1,4 +1,5 @@
 import { isEvmChain } from "@/lib/wallet/chainKind";
+import { isWalletChain } from "@/Wagmi/chains";
 import type { RailOffer, RailIdentifier } from "../api/contracts";
 
 export interface CrossChainCapability {
@@ -194,7 +195,12 @@ export function getOfferCapability(
     Partial<
       Pick<
         RailOffer,
-        "routeAsset" | "sourceSettlementAsset" | "destinationSettlementAsset" | "offerType"
+        | "routeAsset"
+        | "sourceSettlementAsset"
+        | "destinationSettlementAsset"
+        | "offerType"
+        | "sourceChainRef"
+        | "destinationChainRef"
       >
     > & {
     actionKind?: string;
@@ -203,9 +209,10 @@ export function getOfferCapability(
   context?: OfferCapabilityContext,
 ): RailCapability {
   const base = getRailCapability(offer.rail);
+  const srcIsEvm = offerChainIsEvm(offer.sourceChainRef, offer.srcChainId);
   const contextualBase: RailCapability = {
     ...base,
-    nativeDestinationAddressRequired: !isEvmChain(offer.dstChainId),
+    nativeDestinationAddressRequired: !offerChainIsEvm(offer.destinationChainRef, offer.dstChainId),
   };
   if (offer.offerType === "lz_stargate_native") {
     return {
@@ -227,7 +234,7 @@ export function getOfferCapability(
     base.status === "quote_only" ||
     base.status === "restricted"
   ) {
-    return !isEvmChain(offer.srcChainId) && base.status !== "disabled"
+    return !srcIsEvm && base.status !== "disabled"
       ? { ...contextualBase, requiredSourceWallet: nonEvmSourceWallet }
       : contextualBase;
   }
@@ -263,13 +270,22 @@ export function getOfferCapability(
     };
   }
 
-  if (!isEvmChain(offer.srcChainId)) {
+  if (!srcIsEvm) {
     return {
       ...contextualBase,
       status: "restricted",
       selectable: false,
       requiredSourceWallet: nonEvmSourceWallet,
       reason: "The connected wallet cannot execute this non-EVM source action.",
+    };
+  }
+
+  if (!isWalletChain(offer.srcChainId)) {
+    return {
+      ...contextualBase,
+      status: "restricted",
+      selectable: false,
+      reason: "This source chain isn't supported by the wallet connection yet.",
     };
   }
 
@@ -312,6 +328,19 @@ export function getOfferCapability(
   }
 
   return contextualBase;
+}
+
+/**
+ * Provider offers (LayerZero Value Transfer API) carry the chain's own type,
+ * which is authoritative: provider chain ids can be ambiguous (Solana and
+ * Ethereum both use 1) or outside the UI's static EVM list (Arc, Mantle, …).
+ */
+function offerChainIsEvm(
+  chainRef: { chainType?: string } | undefined,
+  chainId: number,
+): boolean {
+  const chainType = chainRef?.chainType?.trim().toUpperCase();
+  return chainType ? chainType === "EVM" : isEvmChain(chainId);
 }
 
 function isGardenHtlcOffer(offer: {

@@ -37,6 +37,9 @@ export default function Tabs<T extends string = string>({
         borderBottom:
           variant === "underline" ? "1px solid rgba(255,255,255,0.06)" : "none",
         paddingBottom: variant === "underline" ? 2 : 0,
+        // Narrow containers scroll the tab row instead of wrapping labels.
+        overflowX: "auto",
+        scrollbarWidth: "none",
         ...style,
       }}
     >
@@ -52,6 +55,8 @@ export default function Tabs<T extends string = string>({
               alignItems: "center",
               gap: 8,
               padding: variant === "pill" ? "7px 14px" : "9px 14px",
+              flexShrink: 0,
+              whiteSpace: "nowrap",
               background:
                 variant === "pill"
                   ? isActive

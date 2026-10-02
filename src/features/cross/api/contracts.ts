@@ -191,6 +191,13 @@ export interface OfferEconomics {
   protocolFeeBps?: number;
 }
 
+export interface ProviderChainRef {
+  namespace?: string;
+  chainKey: string;
+  chainType: string;
+  chainId?: number;
+}
+
 export interface RailOffer {
   offerSetId?: string;
   offerId: string;
@@ -200,6 +207,9 @@ export interface RailOffer {
   railType: "messaging" | "liquidity";
   srcChainId: number;
   dstChainId: number;
+  /** Provider-native chain identity, present on provider-direct offers. */
+  sourceChainRef?: ProviderChainRef;
+  destinationChainRef?: ProviderChainRef;
   tokenIn: string;
   tokenOut: string;
   amountIn: string;

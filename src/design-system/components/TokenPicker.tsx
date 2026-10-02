@@ -24,7 +24,7 @@ export interface PickerToken {
   chainId?: number;
   logoUrl?: string;
   isNative?: boolean;
-  badge?: "TRENDING" | "VERIFIED" | "NEW" | "LP" | "WARNING";
+  badge?: "TRENDING" | "VERIFIED" | "NEW" | "LP" | "WARNING" | "UNCONFIRMED";
 }
 
 interface TokenPickerProps {
@@ -381,7 +381,8 @@ function TokenRow({
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
           <span style={{ fontWeight: 600, fontSize: 13.5 }}>{token.ticker}</span>
-          {showBadges && token.badge && (
+          {/* Route status is functional, not decorative: shown even when badges are off. */}
+          {(showBadges || token.badge === "UNCONFIRMED") && token.badge && (
             <Pill
               variant={
                 token.badge === "VERIFIED"
@@ -393,7 +394,7 @@ function TokenRow({
                   : "default"
               }
             >
-              {token.badge}
+              {token.badge === "UNCONFIRMED" ? "Route unconfirmed" : token.badge}
             </Pill>
           )}
         </div>
