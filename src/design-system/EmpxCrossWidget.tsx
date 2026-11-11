@@ -113,6 +113,8 @@ export interface EmpxCrossWidgetProps {
   outboundFeeUSD?: number;
   sourceGasUSD?: number;
   destinationGasUSD?: number;
+  /** Relayer fee and gas taken from the order (V2 EMPX order path). */
+  relayerFeeUSD?: number;
   estimatedTime?: string;
   minimumReceived?: string;
   slippageBps?: number;
@@ -177,6 +179,7 @@ export default function EmpxCrossWidget({
   outboundFeeUSD,
   sourceGasUSD,
   destinationGasUSD,
+  relayerFeeUSD,
   estimatedTime,
   minimumReceived,
   slippageBps,
@@ -220,7 +223,7 @@ export default function EmpxCrossWidget({
         : "Enter an amount";
 
   const totalFeeUSD =
-    (protocolFeeUSD ?? 0) + (bridgeFeeUSD ?? 0) + (outboundFeeUSD ?? 0) + (sourceGasUSD ?? 0) + (destinationGasUSD ?? 0);
+    (protocolFeeUSD ?? 0) + (bridgeFeeUSD ?? 0) + (outboundFeeUSD ?? 0) + (sourceGasUSD ?? 0) + (destinationGasUSD ?? 0) + (relayerFeeUSD ?? 0);
   const hasFee = protocolFeeUSD != null || bridgeFeeUSD != null;
 
   const hasRails = !!rails && rails.length > 0 && !!onSelectRail;
@@ -230,6 +233,7 @@ export default function EmpxCrossWidget({
     { label: "Outbound fee", value: outboundFeeUSD },
     { label: "Source gas (est.)", value: sourceGasUSD },
     { label: "Destination gas (est.)", value: destinationGasUSD },
+    { label: "Relayer & gas", value: relayerFeeUSD },
   ]
     .filter((f): f is { label: string; value: number } => f.value != null && f.value > 0)
     .map((f) => ({ label: f.label, value: `$${f.value.toFixed(2)}` }));
