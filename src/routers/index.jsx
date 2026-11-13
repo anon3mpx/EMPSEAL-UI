@@ -26,7 +26,7 @@ import LandingV4 from "../pages/landing/v4/LandingV4";
 import DesignSystemPreview from "../design-system/DesignSystemPreview";
 import PortfolioPageV2 from "../design-system/pages/PortfolioPage";
 import SwapPageV2 from "../design-system/pages/SwapPage";
-import CrossPageV2 from "../design-system/pages/CrossPage";
+import CrossEnginePage from "../features/cross/CrossEnginePage";
 import MultiPageV2 from "../design-system/pages/MultiPage";
 import GasPageV2 from "../design-system/pages/GasPage";
 import WidgetPageV2 from "../design-system/pages/WidgetPage";
@@ -209,7 +209,8 @@ function MyRoutes() {
             {/* New portfolio page built from the design system */}
             <Route path="/portfolio-v2" element={<V2Wrapper><PortfolioPageV2 /></V2Wrapper>} />
             <Route path="/swap-v2" element={<V2Wrapper><SwapPageV2 /></V2Wrapper>} />
-            <Route path="/cross-v2" element={<V2Wrapper><CrossPageV2 /></V2Wrapper>} />
+            {/* V1 | V2 cross-chain engine chooser (VITE_CROSS_ENGINES); see src/features/cross/engine.ts. */}
+            <Route path="/cross-v2" element={<V2Wrapper><CrossEnginePage /></V2Wrapper>} />
             {/* Bridge + Ramp disabled for now (also disabled in the nav) — direct
                 URLs redirect to Swap. Restore by swapping these back:
                 <Route path="/bridge-v2" element={<V2Wrapper><BridgePageV2 /></V2Wrapper>} /> */}
