@@ -1,7 +1,8 @@
 // REST client for the EMPX V2 API, through the same-origin proxy (never the V1 origin, never a key in the browser). Money-moving calls carry an Idempotency-Key.
 import { CROSS_V2_PROXY_BASE } from "./config";
+import type { BasketLegSteps, BasketPlanRequest, BasketView } from "./basketTypes";
 import type {
-  CorridorsResponse, HumanAcceptance, IntentStatus, JourneyAdvance, JourneyDetail, JourneyPlanResponse, JourneyQuote, QuoteInput, TwoHopQuote,
+  CapabilitiesResponse, CorridorsResponse, HumanAcceptance, IntentStatus, JourneyAdvance, JourneyDetail, JourneyPlanResponse, JourneyQuote, QuoteInput, TwoHopQuote,
   WireOffer, WirePlan, WireQuoteResponse,
 } from "./types";
 
@@ -105,6 +106,33 @@ export function createCrossV2Client(o: CrossV2ClientOptions = {}) {
   });
 
   return {
+    basketPlan(r: BasketPlanRequest, signal?: AbortSignal) {
+      return request<BasketView>("POST", "/v2/baskets", { signal, body: r, idempotencyKey: newKey("basket") });
+    },
+    basketStatus(basketId: string, signal?: AbortSignal) {
+      return request<BasketView>("GET", `/v2/baskets/${encodeURIComponent(basketId)}`, { signal });
+    },
+    basketBegin(basketId: string, expectedVersion: number, acknowledgeSkipped: string[], signal?: AbortSignal) {
+      return request<BasketView>("POST", `/v2/baskets/${encodeURIComponent(basketId)}/begin`, {
+        signal, body: { expectedVersion, acknowledgeSkipped }, idempotencyKey: newKey("begin"),
+      });
+    },
+    basketCancel(basketId: string, signal?: AbortSignal) {
+      return request<BasketView>("POST", `/v2/baskets/${encodeURIComponent(basketId)}/cancel`, { signal, body: {}, idempotencyKey: `cancel-${basketId}` });
+    },
+    basketCommitLeg(basketId: string, legId: string, signal?: AbortSignal) {
+      return request<{ intentId: string; replayed: boolean }>("POST", `/v2/baskets/${encodeURIComponent(basketId)}/legs/${encodeURIComponent(legId)}/commit`, {
+        signal, body: {}, idempotencyKey: `commit-${basketId}-${legId}`,
+      });
+    },
+    basketLegSteps(basketId: string, legId: string, signal?: AbortSignal) {
+      return request<BasketLegSteps>("GET", `/v2/baskets/${encodeURIComponent(basketId)}/legs/${encodeURIComponent(legId)}/steps`, { signal });
+    },
+    basketRequoteLeg(basketId: string, legId: string, expectedVersion: number, signal?: AbortSignal) {
+      return request<BasketView>("POST", `/v2/baskets/${encodeURIComponent(basketId)}/legs/${encodeURIComponent(legId)}/requote`, {
+        signal, body: { expectedVersion }, idempotencyKey: `requote-${basketId}-${legId}-${expectedVersion}`,
+      });
+    },
     quote(i: QuoteInput, signal?: AbortSignal): Promise<WireQuoteResponse> {
       return request<WireQuoteResponse>("POST", "/v2/quote", { signal, body: quoteBody(i) });
     },
@@ -114,6 +142,10 @@ export function createCrossV2Client(o: CrossV2ClientOptions = {}) {
     },
     corridors(signal?: AbortSignal): Promise<CorridorsResponse> {
       return request<CorridorsResponse>("GET", "/v2/capabilities/corridors", { signal });
+    },
+    /** Every asset pair the server routes (public); the picker offers each EVM asset named here. */
+    capabilities(signal?: AbortSignal): Promise<CapabilitiesResponse> {
+      return request<CapabilitiesResponse>("GET", "/v2/capabilities", { signal });
     },
     /** `plan` and `journey` are the objects the API returned, unchanged: the server refuses a journey that is not what the plan determines.
      *  `humanAcceptance` is the user's explicit acceptance of a warning/unpriced route, exactly as displayed. */

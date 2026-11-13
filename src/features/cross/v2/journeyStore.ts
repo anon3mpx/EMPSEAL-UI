@@ -60,9 +60,21 @@ export interface StoredIntent {
   fromChain: string;
   toChain: string;
   toAsset: string;
-  sourceTxs: Array<{ chainId: number; hash: string }>;
+  /** The compiled rail (for its explorer link). Absent on transfers stored before it was recorded. */
+  rail?: string;
+  /** `stepId` says what each transaction was (fee, approval, transfer). Absent on transfers stored before it was recorded. */
+  sourceTxs: Array<{ chainId: number; hash: string; stepId?: string }>;
 }
 const intents = walletList<StoredIntent & { id: string }>("empx.v2.intents");
 export const openIntents = (wallet: string): StoredIntent[] => intents.list(wallet);
 export const rememberIntent = (wallet: string, i: StoredIntent) => intents.remember(wallet, { ...i, id: i.intentId });
 export const forgetIntent = (wallet: string, intentId: string) => intents.forget(wallet, intentId);
+
+export interface StoredBasket {
+  basketId: string;
+  createdAt: number;
+}
+const baskets = walletList<StoredBasket & { id: string }>("empx.v2.baskets");
+export const openBaskets = (wallet: string): StoredBasket[] => baskets.list(wallet);
+export const rememberBasket = (wallet: string, b: StoredBasket) => baskets.remember(wallet, { ...b, id: b.basketId });
+export const forgetBasket = (wallet: string, basketId: string) => baskets.forget(wallet, basketId);

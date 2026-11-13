@@ -37,13 +37,14 @@ describe("provider plans in the local check", () => {
     expect(r.ok).toBe(true);
     expect(r.extraNative).toBe(1_000_000_000_000_000n);
   });
-  it("shows a provider's fee as quoted, above EMPX's 150 bps ceiling, while EMPX orders keep the ceiling", () => {
+  it("shows a provider's fee as quoted; EMPX orders pass up to the router's 10000 bps hard cap, not past it", () => {
     const o = providerOffer("layerzero-vt", { value: "0" });
     o.execution.plan.fees = { maxTotalBps: 420, breakdown: [] };
     o.execution.plan.hash = planHashOf(o.execution.plan);
     o.journey.hops[0]!.planHash = o.execution.plan.hash;
     expect(checkOffer(o, CTX)).toMatchObject({ ok: true, problems: [] });
-    expect(checkOffer(makeOffer({ plan: { fees: { maxTotalBps: 151, breakdown: [] } } }), CTX).ok).toBe(false);
+    expect(checkOffer(makeOffer({ plan: { fees: { maxTotalBps: 151, breakdown: [] } } }), CTX).ok).toBe(true);
+    expect(checkOffer(makeOffer({ plan: { fees: { maxTotalBps: 10_001, breakdown: [] } } }), CTX).ok).toBe(false);
   });
   it("still refuses a provider transaction to a contract the plan does not allow", () => {
     expect(checkOffer(providerOffer("hyperlane", { value: "0", to: SENDER }), CTX).problems.join()).toMatch(/does not allow/);

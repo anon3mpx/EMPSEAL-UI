@@ -115,6 +115,8 @@ export interface EmpxCrossWidgetProps {
   destinationGasUSD?: number;
   /** Relayer fee and gas taken from the order (V2 EMPX order path). */
   relayerFeeUSD?: number;
+  /** Itemised fees (V2): each charge, the total and the cap. Replaces the extra-fee lines when given. */
+  feeRows?: Array<{ label: string; value: string; muted?: boolean; hint?: string }>;
   estimatedTime?: string;
   minimumReceived?: string;
   slippageBps?: number;
@@ -180,6 +182,7 @@ export default function EmpxCrossWidget({
   sourceGasUSD,
   destinationGasUSD,
   relayerFeeUSD,
+  feeRows,
   estimatedTime,
   minimumReceived,
   slippageBps,
@@ -238,6 +241,7 @@ export default function EmpxCrossWidget({
     .filter((f): f is { label: string; value: number } => f.value != null && f.value > 0)
     .map((f) => ({ label: f.label, value: `$${f.value.toFixed(2)}` }));
   if (networkFee) extraFees.push({ label: "Network fee", value: networkFee });
+  const feeList: Array<{ label: string; value: string; muted?: boolean; hint?: string }> = feeRows ?? extraFees;
 
   return (
     <WidgetShell edge>
@@ -471,12 +475,12 @@ export default function EmpxCrossWidget({
         </p>
       )}
 
-      {extraFees.length > 0 && (
-        <div style={{ marginTop: 11, display: "flex", flexDirection: "column", gap: 4 }}>
-          {extraFees.map((f) => (
-            <div key={f.label} style={{ display: "flex", justifyContent: "space-between", fontSize: 9.5 }}>
+      {feeList.length > 0 && (
+        <div aria-label="Fee breakdown" style={{ marginTop: 11, display: "flex", flexDirection: "column", gap: 4 }}>
+          {feeList.map((f) => (
+            <div key={f.label} title={f.hint} style={{ display: "flex", justifyContent: "space-between", gap: 12, fontSize: 9.5 }}>
               <span style={{ color: wk.t3 }}>{f.label}</span>
-              <span style={{ color: wk.t2, fontVariantNumeric: "tabular-nums" }}>{f.value}</span>
+              <span style={{ color: f.muted ? wk.t3 : wk.t2, fontVariantNumeric: "tabular-nums", textAlign: "right" }}>{f.value}</span>
             </div>
           ))}
         </div>

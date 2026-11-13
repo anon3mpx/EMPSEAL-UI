@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { AmbiguousSubmission, executeCheckedPlan, type WalletPort } from "./execute";
+import { AmbiguousSubmission, executeCheckedPlan, performSteps, type WalletPort } from "./execute";
 import { describeV2Error } from "./errors";
 import { makeOffer, SENDER } from "./v2Fixtures";
 import type { CrossV2Client } from "./client";
@@ -77,5 +77,38 @@ describe("executeCheckedPlan", () => {
     const { client, wallet } = setup({ sendTransaction: vi.fn(async () => { throw new Error("rpc timeout"); }) });
     const o = makeOffer();
     await expect(executeCheckedPlan(client, { plan: o.execution.plan, journey: o.journey }, 8453, wallet)).rejects.toThrow(/may or may not have been sent/);
+  });
+});
+
+describe("deposits", () => {
+  it("evm erc20 deposit sends transfer", async () => {
+    const { client, wallet } = setup();
+    const plan = makeOffer().execution.plan;
+    plan.steps = [{ id: "deposit", type: "deposit", chain: "eip155:1", address: SENDER,
+      asset: "eip155:1/erc20:0x3333333333333333333333333333333333333333", amount: "12345",
+      walletMode: "external-wallet", readiness: "executable", dependsOn: [], expiresAt: plan.expiresAt }];
+    await performSteps(client, "int_1", "contract", plan, 1, wallet);
+    expect(wallet.sendTransaction).toHaveBeenCalledWith({ chainId: 1, to: "0x3333333333333333333333333333333333333333",
+      data: expect.stringMatching(/^0xa9059cbb/), value: 0n });
+    expect(client.reportStep).toHaveBeenCalledWith("int_1", "deposit", "0xabc", undefined);
+  });
+  it("btc deposit returns instructions without the wallet", async () => {
+    const { client, wallet } = setup();
+    const plan = makeOffer().execution.plan;
+    plan.steps = [{ id: "deposit", type: "deposit", chain: "bip122:000000000019d6689c085ae165831e93",
+      asset: "bip122:000000000019d6689c085ae165831e93/slip44:0", address: "bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq", amount: "12345",
+      walletMode: "external-wallet", readiness: "executable", dependsOn: [], expiresAt: plan.expiresAt }];
+    const result = await performSteps(client, "int_1", "provider-direct", plan, 0, wallet);
+    expect(wallet.sendTransaction).not.toHaveBeenCalled();
+    expect(wallet.ensureChain).not.toHaveBeenCalled();
+    expect(result.deposit?.address).toBe("bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq");
+  });
+  it("evm native deposit sends the exact value", async () => {
+    const { client, wallet } = setup();
+    const plan = makeOffer().execution.plan;
+    plan.steps = [{ id: "deposit", type: "deposit", chain: "eip155:1", address: SENDER, asset: "eip155:1/slip44:60", amount: "12345",
+      walletMode: "external-wallet", readiness: "executable", dependsOn: [], expiresAt: plan.expiresAt }];
+    await performSteps(client, "int_1", "contract", plan, 1, wallet);
+    expect(wallet.sendTransaction).toHaveBeenCalledWith({ chainId: 1, to: SENDER, data: "0x", value: 12345n });
   });
 });

@@ -10,11 +10,13 @@ describe("corridorMap", () => {
       { from: "eip155:8453", to: "eip155:42161", executableAutomatic: 2 },
       { from: "eip155:8453", to: "eip155:10", executableAutomatic: 0 },
       { from: "eip155:8453", to: "eip155:8453", executableAutomatic: 1 },
-      { from: "bip122:000000000019d6689c085ae165831e93", to: "eip155:1", executableAutomatic: 1 },
-      { from: "eip155:56", to: "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp", executableAutomatic: 1 },
     ]);
     expect([...m.keys()]).toEqual([8453]);
     expect([...m.get(8453)!]).toEqual([42161]);
+  });
+  it("corridor to bitcoin", () => {
+    const m = corridorMap([{ from: "eip155:8453", to: "bip122:000000000019d6689c085ae165831e93", executableAutomatic: 1 }]);
+    expect(m.get(8453)?.has(0)).toBe(true);
   });
 });
 

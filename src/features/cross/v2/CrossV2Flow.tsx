@@ -3,7 +3,7 @@
 // Flow: live quote (useV2Quote) -> rail cards -> confirm -> the wallet signs the locally checked plan -> tracking (useV2Intent) to a terminal state.
 // Chains come from the live capability corridors. Held-back routes need an explicit accept; two-order journeys and recovery come in later sections.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { formatUnits, isAddress, type Address } from "viem";
+import { formatUnits, type Address } from "viem";
 import { useBalance } from "wagmi";
 import DestinationAddressInput from "../../../components/DestinationAddressInput";
 import EmpxCrossWidget from "../../../design-system/EmpxCrossWidget";
@@ -18,12 +18,12 @@ import { useV2Balances } from "../../../design-system/hooks/useV2Balances";
 import { useWalletConnection } from "../../../design-system/hooks/useWalletConnection";
 import { Disclosure, WidgetKitKeyframes } from "../../../design-system/widgetKit";
 import type { V2TokenConfig } from "../../../design-system/data/v2TokenView";
-import { assetIdOf, defaultToken, tickerForAsset, v2Chains, v2Tokens } from "./assets";
+import { assetIdOf, defaultToken, tickerForAsset, v2ChainById, v2Tokens } from "./assets";
 import { createCrossV2Client } from "./client";
 import CrossV2ExecutionPanel from "./CrossV2ExecutionPanel";
 import CrossV2JourneyPanel from "./CrossV2JourneyPanel";
 import { describeV2Error, errText } from "./errors";
-import { executeCheckedPlan } from "./execute";
+import { executeCheckedPlan, type ExecuteResult } from "./execute";
 import { checkOffer } from "./planCheck";
 import type { HumanAcceptance } from "./types";
 import { useV2Corridors } from "./useV2Corridors";
@@ -33,10 +33,11 @@ import { useV2TwoHopFlow } from "./useV2TwoHopFlow";
 import V2OffersFooter, { acceptableWithheld } from "./V2OffersFooter";
 import { useV2WalletPort } from "./useV2WalletPort";
 import { formatUnitsShort, planIdOf, railCardNames, railNameOf, routeHopsOf, selectedOfferView, toRailCards } from "./widgetView";
+import { chainKindFor, isNonEvmChain } from "@/lib/wallet/chainKind";
+import { addressValidFor } from "./nonEvm";
 
 const client = createCrossV2Client();
 type Side = "from" | "to";
-
 export default function CrossV2Flow() {
   const isMobile = useIsMobile();
   const { walletState, walletOptions, onSelectWallet, disconnect } = useWalletConnection();
@@ -46,7 +47,6 @@ export default function CrossV2Flow() {
   const connectedBalance = useV2Balances();
   const [showWalletModal, setShowWalletModal] = useState(false);
   const [showAccountModal, setShowAccountModal] = useState(false);
-
   const corridors = useV2Corridors(client);
   const [fromChainId, setFromChainId] = useState(8453);
   const [toChainId, setToChainId] = useState(42161);
@@ -54,10 +54,9 @@ export default function CrossV2Flow() {
   const [toToken, setToToken] = useState<V2TokenConfig | undefined>(() => defaultToken(42161));
   const [fromAmount, setFromAmount] = useState("10");
   const [recipient, setRecipient] = useState("");
-  const [recipientValid, setRecipientValid] = useState(true);
+  const [sourceAddress, setSourceAddress] = useState("");
   const [chainPicker, setChainPicker] = useState<Side | null>(null);
   const [tokenPicker, setTokenPicker] = useState<Side | null>(null);
-
   const destinations = corridors.destinationsFor(fromChainId);
   const fromChain = corridors.sources.find((c) => c.id === fromChainId) ?? corridors.sources[0]!;
   const toChain = destinations.find((c) => c.id === toChainId) ?? destinations[0] ?? fromChain;
@@ -74,19 +73,19 @@ export default function CrossV2Flow() {
   }, [fromChain.id, toChain.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const fromAsset = fromToken ? assetIdOf(fromToken) : "";
   const toAsset = toToken ? assetIdOf(toToken) : "";
-  const recipientOrSender = recipient.trim() || sender || "";
-
+  const recipientOrSender = recipient.trim() || (isNonEvmChain(toChain.id) ? "" : sender || "");
+  const recipientValid = addressValidFor(toChain.id, recipientOrSender);
+  const quoteSender = isNonEvmChain(fromChain.id) ? sourceAddress.trim() : sender;
   const [showConfirm, setShowConfirm] = useState(false);
   const [executing, setExecuting] = useState(false);
   const quote = useV2Quote(
     client,
     {
-      fromAsset, fromDecimals: fromToken?.decimals ?? 18, toAsset, amount: fromAmount, sender,
-      recipient: recipient.trim() && recipientValid ? recipient.trim() : undefined, paused: showConfirm || executing,
+      fromAsset, fromDecimals: fromToken?.decimals ?? 18, toAsset, amount: fromAmount, sender, sourceAddress,
+      recipient: recipient.trim(), paused: showConfirm || executing,
     },
     errText,
   );
-
   // Selection: the user's pick while it is still offered (a normal route, an accepted held-back route, or one delivering another token),
   // else the first normal route that passed the local check. Held-back and other-token routes are never selected automatically.
   const [pickedPlanId, setPickedPlanId] = useState<string | null>(null);
@@ -114,31 +113,29 @@ export default function CrossV2Flow() {
   const view = useMemo(
     () =>
       chosen
-        ? selectedOfferView(chosen.offer.journey, railNameOf(chosen.offer), ticker, priceOf)
+        ? selectedOfferView(chosen.offer.journey, railNameOf(chosen.offer), ticker, priceOf, chosen.offer.sponsoredRelayerFee)
         : twoHop
           ? selectedOfferView(twoHop.journey, `Two orders via ${viaName}`, ticker, priceOf)
           : null,
     [chosen, twoHop, viaName, ticker, priceOf],
   );
-
   const { data: fromBalance } = useBalance({
     address: sender as Address | undefined,
     chainId: fromChainId as never,
     token: fromToken && !fromToken.isNative && fromToken.address ? (fromToken.address as Address) : undefined,
-    query: { enabled: Boolean(sender && fromToken) },
+    query: { enabled: Boolean(sender && fromToken && !isNonEvmChain(fromChainId)) },
   });
   const fromBalanceNum = fromBalance ? Number(formatUnits(fromBalance.value, fromBalance.decimals)) : 0;
   const amountNum = Number(fromAmount.replace(/,/g, ""));
-
   // Execution
   const [stepNote, setStepNote] = useState<string | null>(null);
+  const [deposit, setDeposit] = useState<{ instruction: NonNullable<ExecuteResult["deposit"]>; rail: string; sourceAddress: string; client: typeof client }>();
   const [execError, setExecError] = useState<string | null>(null);
   const [execErrorRef, setExecErrorRef] = useState<string | undefined>(undefined);
   const intent = useV2Intent(client, sender, port, errText);
   const { intentId, status } = intent;
   const [inFlight, setInFlight] = useState(false);
   const commitKeys = useRef(new Map<string, string>());
-
   async function execute() {
     setShowConfirm(false);
     if (twoHop && port && sender) {
@@ -148,14 +145,15 @@ export default function CrossV2Flow() {
       if (err) toast.error(err);
       return;
     }
-    if (!chosen || !port || !sender) return;
+    if (!chosen || !quoteSender || (!port && !isNonEvmChain(fromChainId))) return;
     // Re-check at the moment of signing: the quote may have aged while the user read it.
     const recheck = checkOffer(chosen.offer, {
-      fromAsset, amount: chosen.offer.execution.plan.journey.from.amount, toAsset: chosenToAsset, sender, recipient: recipientOrSender, now: Math.floor(Date.now() / 1000), allowHeldBack: Boolean(humanAcceptance),
+      fromAsset, amount: chosen.offer.execution.plan.journey.from.amount, toAsset: chosenToAsset, sender: quoteSender!, recipient: recipientOrSender, now: Math.floor(Date.now() / 1000), allowHeldBack: Boolean(humanAcceptance),
     });
     setInFlight(true);
     intent.clear();
     setExecErrorRef(undefined);
+    setDeposit(undefined);
     if (!recheck.ok) {
       setExecError(`This route can no longer be signed: ${recheck.problems[0]}. Refresh the quote.`);
       return;
@@ -167,23 +165,25 @@ export default function CrossV2Flow() {
     const commitKey = commitKeys.current.get(plan.hash) ?? `commit-${crypto.randomUUID()}`;
     commitKeys.current.set(plan.hash, commitKey);
     // Remembered from the commit on, and updated per broadcast, so a stop midway (or a reload) keeps the transfer and its links.
-    const record = { intentId: "", createdAt: Date.now(), fromChain: `eip155:${recheck.sourceChainId}`, toChain: chosenToAsset.split("/")[0]!, toAsset: chosenToAsset, sourceTxs: [] as Array<{ chainId: number; hash: string }> };
+    const record = { intentId: "", createdAt: Date.now(), fromChain: fromAsset.split("/")[0], toChain: chosenToAsset.split("/")[0]!, toAsset: chosenToAsset, rail: plan.compiled.rail, sourceTxs: [] as Array<{ chainId: number; hash: string; stepId?: string }> };
     try {
       const r = await executeCheckedPlan(client, { plan, journey: chosen.offer.journey }, recheck.sourceChainId, port, {
         commitKey,
+        sender: quoteSender,
         humanAcceptance,
         onCommitted: (id) => {
           record.intentId = id;
           intent.track({ ...record });
         },
         onSent: (t) => {
-          record.sourceTxs = [...record.sourceTxs, { chainId: t.chainId, hash: t.hash }];
+          record.sourceTxs = [...record.sourceTxs, { chainId: t.chainId, hash: t.hash, stepId: t.stepId }];
           if (record.intentId) intent.track({ ...record });
         },
         onStep: (id, phase) => setStepNote(phase === "wallet" ? `Confirm in your wallet (${id})` : phase === "confirming" ? `Waiting for confirmation (${id})` : null),
       });
       record.intentId = r.intentId;
-      intent.track({ ...record, sourceTxs: r.txs.map((t) => ({ chainId: t.chainId, hash: t.hash })) });
+      if (r.deposit) setDeposit({ instruction: r.deposit, rail: plan.compiled.rail, sourceAddress: quoteSender, client });
+      intent.track({ ...record, sourceTxs: r.txs.map((t) => ({ chainId: t.chainId, hash: t.hash, stepId: t.stepId })) });
       if (r.waiting.length) setExecError(`Steps still waiting: ${r.waiting.join(", ")}`);
       if (r.tracking === "unavailable" || r.tracking === "failed")
         toast.info("Sent. Live tracking for this provider is not linked yet, so the status may stay pending: check the provider's explorer.");
@@ -285,12 +285,12 @@ export default function CrossV2Flow() {
           ? "No automatic route: see the options below."
           : "No route is available for this transfer right now."
       : quote.state === "idle"
-        ? "Connect a wallet to fetch live cross-chain offers."
+        ? isNonEvmChain(fromChainId) ? "Enter the source and recipient addresses to fetch offers." : "Connect a wallet to fetch live cross-chain offers."
         : quote.error ?? undefined;
-  const quoting = Boolean(sender) && (quote.state === "loading" || (quote.state === "refreshing" && quote.forNewInput));
+  const quoting = Boolean(quoteSender) && (quote.state === "loading" || (quote.state === "refreshing" && quote.forNewInput));
   const routeJourney = chosen?.offer.journey ?? twoHop?.journey;
   const routeHops = useMemo(
-    () => (routeJourney ? routeHopsOf(routeJourney, ticker, (c) => v2Chains().find((x) => `eip155:${x.id}` === c)) : []),
+    () => (routeJourney ? routeHopsOf(routeJourney, ticker, (c) => v2ChainById(Number(c.split(":")[1]))) : []),
     [routeJourney, ticker],
   );
   const walletDisplay = walletState.status === "connected" ? walletState : null;
@@ -340,17 +340,18 @@ export default function CrossV2Flow() {
           onSelectToToken={() => setTokenPicker("to")}
           onSelectToChain={() => setChainPicker("to")}
           destinationSlot={
-            <Disclosure label={recipient ? "Recipient · another address" : "Send to another address"}>
-              <DestinationAddressInput
-                id="cross-v2-recipient"
-                chainKind="evm"
-                chainLabel={toChain.name}
-                value={recipient}
-                onChange={(v: string) => { setRecipient(v); setRecipientValid(!v.trim() || isAddress(v.trim())); }}
-                onValidate={(r: { valid: boolean }) => setRecipientValid(!recipient.trim() || r.valid)}
-                label="Recipient (defaults to your wallet)"
-              />
-            </Disclosure>
+            <>
+              {isNonEvmChain(fromChain.id) && <DestinationAddressInput id="cross-v2-source-address"
+                chainKind={chainKindFor(fromChain.id)!} chainLabel={fromChain.name} value={sourceAddress}
+                onChange={setSourceAddress} label={`Your ${fromChain.name} address (refunds go here)`} required />}
+              {isNonEvmChain(toChain.id) ? <DestinationAddressInput id="cross-v2-recipient"
+                chainKind={chainKindFor(toChain.id)!} chainLabel={toChain.name} value={recipient} onChange={setRecipient}
+                label={`Recipient on ${toChain.name} (required)`} required /> :
+                <Disclosure label={recipient ? "Recipient · another address" : "Send to another address"}>
+                  <DestinationAddressInput id="cross-v2-recipient" chainKind={chainKindFor(toChain.id)!}
+                    chainLabel={toChain.name} value={recipient} onChange={setRecipient} label="Recipient (defaults to your wallet)" />
+                </Disclosure>}
+            </>
           }
           railName={view?.railName}
           routeHops={routeHops}
@@ -358,7 +359,7 @@ export default function CrossV2Flow() {
           protocolFeeBps={view?.protocolFeeBps}
           protocolFeeUSD={view?.protocolFeeUSD}
           bridgeFeeUSD={view?.bridgeFeeUSD}
-          relayerFeeUSD={view?.relayerFeeUSD}
+          relayerFeeUSD={view?.relayerFeeUSD} feeRows={view?.feeRows}
           estimatedTime={view?.estimatedTime}
           minimumReceived={view?.minimumReceived}
           slippageBps={view?.slippageBps}
@@ -385,15 +386,15 @@ export default function CrossV2Flow() {
           }
           railsState={sameChain ? "idle" : quote.state}
           railsMessage={sameChain ? "Pick two different chains." : railsMessage}
-          walletConnected={Boolean(sender)}
+          walletConnected={Boolean(quoteSender)}
           onConnect={() => setShowWalletModal(true)}
           onSwap={() => setShowConfirm(true)}
           onFlip={flip}
           // While a quote is in flight the routes on screen are for the previous input: nothing can be reviewed until it lands.
-          swapDisabled={!(chosen?.check.ok || twoHop) || !port || executing || sameChain || !recipientValid || quoting}
+          swapDisabled={!(chosen?.check.ok || twoHop) || (!port && !isNonEvmChain(fromChainId)) || executing || sameChain || !recipientValid || quoting}
           swapLoading={quoting || executing}
-          swapLabel={!sender ? "Connect wallet" : quoting ? "Fetching route..." : chosen || twoHop ? "Review route" : quote.twoHop?.check.ok ? "Pick the two-step route" : "No route"}
-          quote={sender && quote.issuedAt ? { issuedAt: quote.issuedAt, validMs: quote.validMs, onRefresh: () => { quote.refresh(); toast.info("Quote refreshed"); } } : undefined}
+          swapLabel={!quoteSender ? "Connect wallet" : quoting ? "Fetching route..." : chosen || twoHop ? "Review route" : quote.twoHop?.check.ok ? "Pick the two-step route" : "No route"}
+          quote={quoteSender && quote.issuedAt ? { issuedAt: quote.issuedAt, validMs: quote.validMs, onRefresh: () => { quote.refresh(); toast.info("Quote refreshed"); } } : undefined}
           notice={notice}
         />
 
@@ -412,12 +413,14 @@ export default function CrossV2Flow() {
         {(inFlight || intentId) && (
           <CrossV2ExecutionPanel
             stepNote={stepNote}
+            deposit={deposit}
             intentId={intentId}
             status={status}
             delivered={deliveredLine}
             error={execError ?? intent.pollError}
             errorRef={execErrorRef}
             sentTxs={intent.stored?.sourceTxs}
+            rail={intent.stored?.rail}
             canClaim={Boolean(claimTx(status, sender))}
             claiming={intent.claiming}
             onClaim={() => void claimParked()}
@@ -451,7 +454,7 @@ export default function CrossV2Flow() {
         feeRows={view ? [
           { label: "Via rail", value: view.railName },
           { label: "Guarantee", value: view.railBadge },
-          ...view.feeLines.map((f, i) => ({ ...f, accent: i === 0 })),
+          ...view.feeRows.map((f, i) => ({ ...f, accent: i === 0 })),
           ...(extraNativeText ? [{ label: "Provider fee (gas token)", value: extraNativeText }] : []),
           { label: "Est. time", value: view.estimatedTime },
           { label: "Recipient", value: recipientOrSender ? `${recipientOrSender.slice(0, 6)}…${recipientOrSender.slice(-4)}` : "—", muted: true },

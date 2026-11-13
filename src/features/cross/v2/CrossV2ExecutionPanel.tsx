@@ -5,6 +5,9 @@ import { getExplorerTxUrl } from "../../../design-system/data/explorers";
 import { MicroLabel, wk } from "../../../design-system/widgetKit";
 import { statusLabel } from "./offerView";
 import type { IntentStatus } from "./types";
+import DepositInstructions from "./DepositInstructions";
+import type { CrossV2Client } from "./client";
+import type { DepositInstruction } from "./planCheck";
 
 export interface CrossV2ExecutionPanelProps {
   stepNote: string | null;
@@ -15,11 +18,14 @@ export interface CrossV2ExecutionPanelProps {
   /** `x-request-id` of the failed call, for support. */
   errorRef?: string;
   /** Source transactions this page sent (shown before the server lists them). */
-  sentTxs?: Array<{ chainId: number; hash: string }>;
+  sentTxs?: Array<{ chainId: number; hash: string; stepId?: string }>;
+  /** The compiled rail, for its own explorer link. */
+  rail?: string;
   canClaim?: boolean;
   claiming?: boolean;
   onClaim?: () => void;
   onDone: () => void;
+  deposit?: { instruction: DepositInstruction; rail: string; sourceAddress: string; client: CrossV2Client };
 }
 
 type StageState = "done" | "active" | "todo" | "warn" | "bad";
@@ -55,12 +61,32 @@ const NOTE: Partial<Record<StageState, string>> = { done: "Done", active: "In pr
 const short = (h: string) => (h.length > 14 ? `${h.slice(0, 8)}…${h.slice(-6)}` : h);
 
 /** Page-sent and server-listed transactions, deduplicated by hash. */
-export function txLinks(sent: Array<{ chainId: number; hash: string }>, status: IntentStatus | null) {
-  const all = [
-    ...sent.map((t) => ({ kind: "source" as const, chainId: t.chainId, hash: t.hash })),
+export function txLinks(sent: Array<{ chainId: number; hash: string; stepId?: string }>, status: IntentStatus | null) {
+  const all: Array<{ kind: string; chainId: number; hash: string; stepId?: string }> = [
+    ...sent.map((t) => ({ kind: "source", chainId: t.chainId, hash: t.hash, stepId: t.stepId })),
     ...(status?.transactions ?? []).map((t) => ({ kind: t.kind, chainId: Number(/^eip155:(\d+)$/.exec(t.chain)?.[1]), hash: t.txHash })),
   ];
   return all.filter((t, i) => all.findIndex((x) => x.hash.toLowerCase() === t.hash.toLowerCase()) === i);
+}
+
+/** What a transaction was, from the plan step that sent it. Unknown step ids keep the generic label. */
+export function txLabel(t: { kind: string; stepId?: string }): string {
+  if (t.kind !== "source") return "Destination tx";
+  const id = t.stepId ?? "";
+  if (/^fee/i.test(id)) return "EMPX fee";
+  if (/^approve/i.test(id)) return "Approval";
+  if (/^transfer/i.test(id)) return "Bridge transfer";
+  return "Source tx";
+}
+
+/** The rail's own explorer, from the transaction that carries the transfer: the last source tx that is not a fee or an approval. */
+export function railLink(rail: string | undefined, sent: Array<{ hash: string; stepId?: string }>): { label: string; url: string } | null {
+  const carrier = [...sent].reverse().find((t) => !/^(fee|approve)/i.test(t.stepId ?? ""));
+  if (!rail || !carrier) return null;
+  if (rail === "hyperlane") return { label: "Hyperlane explorer", url: `https://explorer.hyperlane.xyz/?search=${carrier.hash}` };
+  if (rail.startsWith("layerzero")) return { label: "LayerZero Scan", url: `https://layerzeroscan.com/tx/${carrier.hash}` };
+  if (rail === "thorchain") return { label: "THORChain explorer", url: `https://runescan.io/tx/${carrier.hash}` };
+  return null;
 }
 
 export default function CrossV2ExecutionPanel(p: CrossV2ExecutionPanelProps) {
@@ -74,6 +100,7 @@ export default function CrossV2ExecutionPanel(p: CrossV2ExecutionPanelProps) {
       </div>
       <div style={{ border: `1px solid ${wk.border}`, borderRadius: 10, padding: "16px 18px", display: "flex", flexDirection: "column", gap: 10 }}>
         {stepNote && <span style={{ fontSize: 13, fontWeight: 600, color: wk.t1 }}>{stepNote}</span>}
+        {p.deposit && intentId && <DepositInstructions key={intentId} {...p.deposit} intentId={intentId} />}
         {!intentId && !stepNote && !error && <span style={{ fontSize: 13, color: wk.t2 }}>Preparing</span>}
         {intentId &&
           stagesOf(status?.status, sent.length > 0).map((st) => (
@@ -91,7 +118,7 @@ export default function CrossV2ExecutionPanel(p: CrossV2ExecutionPanelProps) {
           const mono = { fontFamily: "ui-monospace, monospace" } as const;
           return (
             <div key={t.hash} style={{ display: "flex", justifyContent: "space-between", gap: 16, fontSize: 11 }}>
-              <span style={{ color: wk.t3 }}>{t.kind === "source" ? "Source tx" : "Destination tx"}</span>
+              <span style={{ color: wk.t3 }}>{txLabel(t)}</span>
               {url ? (
                 <a href={url} target="_blank" rel="noreferrer" title={t.hash} style={{ ...mono, color: wk.orange }}>
                   {short(t.hash)} ↗
@@ -102,6 +129,17 @@ export default function CrossV2ExecutionPanel(p: CrossV2ExecutionPanelProps) {
             </div>
           );
         })}
+        {(() => {
+          const link = railLink(p.rail, sent);
+          return link ? (
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 16, fontSize: 11 }}>
+              <span style={{ color: wk.t3 }}>Track on</span>
+              <a href={link.url} target="_blank" rel="noreferrer" style={{ color: wk.orange }}>
+                {link.label} ↗
+              </a>
+            </div>
+          ) : null;
+        })()}
         {status && status.anomalies.length > 0 && <Row label="Needs attention" value={status.anomalies.join("; ")} tone={wk.warn} />}
         {status?.status === "parked" && (
           <p style={{ margin: 0, fontSize: 11, lineHeight: 1.5, color: wk.t2 }}>

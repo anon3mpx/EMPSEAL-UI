@@ -1,25 +1,27 @@
 // Which chain pairs V2 can execute automatically right now, from GET /v2/capabilities/corridors (public, no key).
-// Only EVM corridors with at least one automatic rail count; the interim USDC chain set stands in until (or if) the fetch fails.
+// Supported EVM and non-EVM corridors with at least one automatic rail count; the interim USDC set stands in if the fetch fails.
+// Alongside, GET /v2/capabilities names every asset the server routes, so the pickers offer those chains and tokens too.
 import { useEffect, useMemo, useState } from "react";
 import type { V2ChainConfig } from "../../../design-system/data/v2ChainView";
+import { getV2Chain } from "../../../design-system/data/v2ChainView";
+import { getTokensForChain } from "../../../design-system/data/v2TokenView";
+import { crossApi } from "../api/crossApi";
 import { v2Chains, v2ChainsFor } from "./assets";
+import { registerCatalog } from "./catalog";
 import type { CrossV2Client } from "./client";
 import type { CorridorRow } from "./types";
+import { chainIdOfCaip2 } from "./nonEvm";
 
 /** source chain id -> destination chain ids it can reach. */
 export type CorridorMap = ReadonlyMap<number, ReadonlySet<number>>;
 
-const evmId = (caip2: string): number | null => {
-  const m = /^eip155:(\d+)$/.exec(caip2);
-  return m ? Number(m[1]) : null;
-};
 
 export function corridorMap(rows: readonly CorridorRow[]): CorridorMap {
   const map = new Map<number, Set<number>>();
   for (const r of rows) {
-    const from = evmId(r.from);
-    const to = evmId(r.to);
-    if (from === null || to === null || from === to || !(r.executableAutomatic > 0)) continue;
+    const from = chainIdOfCaip2(r.from);
+    const to = chainIdOfCaip2(r.to);
+    if (from === undefined || to === undefined || from === to || !(r.executableAutomatic > 0)) continue;
     (map.get(from) ?? map.set(from, new Set()).get(from)!).add(to);
   }
   return map;
@@ -45,9 +47,15 @@ export function useV2Corridors(client: CrossV2Client): V2Corridors {
 
   useEffect(() => {
     const ctl = new AbortController();
-    client
-      .corridors(ctl.signal)
-      .then((res) => {
+    const lz = <T,>(p: Promise<T>) => p.catch(() => [] as unknown as T);
+    Promise.all([
+      client.corridors(ctl.signal),
+      client.capabilities(ctl.signal).catch(() => null),
+      lz(crossApi.listAllLayerZeroChains(ctl.signal)),
+      lz(crossApi.listAllLayerZeroTokens({}, ctl.signal)),
+    ])
+      .then(([res, caps, lzChains, lzTokens]) => {
+        if (caps && Array.isArray(caps.entries)) registerCatalog(caps.entries, getV2Chain, getTokensForChain, lzChains, lzTokens);
         const m = corridorMap(Array.isArray(res.rows) ? res.rows : []);
         // Keep the interim set if no live source chain is one the app can show.
         if (v2ChainsFor(m.keys()).length > 0) {

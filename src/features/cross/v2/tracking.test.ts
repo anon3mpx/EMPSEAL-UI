@@ -1,7 +1,7 @@
 import { decodeFunctionData, parseAbi } from "viem";
 import { describe, expect, it, vi } from "vitest";
 import { CrossV2ApiError } from "./client";
-import { stagesOf, txLinks } from "./CrossV2ExecutionPanel";
+import { railLink, stagesOf, txLabel, txLinks } from "./CrossV2ExecutionPanel";
 import { EMPX_DEPLOYMENTS } from "./deployments";
 import { describeV2Error } from "./errors";
 import { AmbiguousSubmission } from "./execute";
@@ -78,5 +78,24 @@ describe("intent store", () => {
     forgetIntent(SENDER, "b");
     expect(openIntents(SENDER).map((x) => x.intentId)).toEqual(["a"]);
     vi.unstubAllGlobals();
+  });
+});
+
+describe("txLabel / railLink", () => {
+  const sent = [
+    { hash: "0xfee", stepId: "fee-leg" },
+    { hash: "0xapp", stepId: "approve" },
+    { hash: "0xbridge", stepId: "transfer-remote" },
+  ];
+  it("says what each source transaction was", () => {
+    expect(sent.map((t) => txLabel({ kind: "source", ...t }))).toEqual(["EMPX fee", "Approval", "Bridge transfer"]);
+    expect(txLabel({ kind: "source" })).toBe("Source tx");
+    expect(txLabel({ kind: "destination" })).toBe("Destination tx");
+  });
+  it("links the rail's explorer from the transfer transaction, not the fee or approval", () => {
+    expect(railLink("hyperlane", sent)?.url).toBe("https://explorer.hyperlane.xyz/?search=0xbridge");
+    expect(railLink("layerzero", sent)?.url).toBe("https://layerzeroscan.com/tx/0xbridge");
+    expect(railLink("ccip", sent)).toBeNull();
+    expect(railLink(undefined, sent)).toBeNull();
   });
 });

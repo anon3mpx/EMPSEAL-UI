@@ -24,7 +24,8 @@ export type WireStep = {
       message: Record<string, unknown>;
     }
   | { type: "tx"; chain: string; to: string; data: string; value: string }
-  | { type: "native_tx" | "deposit" | "submit" | "wait" | "relay" | "recovery"; [k: string]: unknown }
+  | { type: "deposit"; chain: string; address: string; memo?: string; asset: string; amount: string }
+  | { type: "native_tx" | "submit" | "wait" | "relay" | "recovery"; [k: string]: unknown }
 );
 
 export interface WirePlan {
@@ -118,6 +119,8 @@ export interface WireOffer {
   rank: number;
   journey: JourneyQuote;
   execution: { plan: WirePlan };
+  /** Canary tenants: the relayer cost EMPX pays above the capped fee; not charged to the user (empx-core apps/api/src/quoteRoute.ts). */
+  sponsoredRelayerFee?: WireAmount;
 }
 /** An offer economic eligibility held back from automatic selection; a human may accept a warning/unpriced one explicitly. */
 export type WithheldOffer = WireOffer & { executableByApiKey?: boolean; label?: string };
@@ -162,6 +165,10 @@ export interface CorridorRow {
   executableAutomatic: number;
   degraded?: boolean;
   unavailable?: Record<string, string[]>;
+}
+/** GET /v2/capabilities, only the fields the UI reads. */
+export interface CapabilitiesResponse {
+  entries: Array<{ from: string; to: string }>;
 }
 export interface CorridorsResponse {
   generatedAt: number;

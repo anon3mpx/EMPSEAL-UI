@@ -1,7 +1,7 @@
 /// <reference types="node" />
 // Same-origin proxy for the EMPX V2 API, shared by the Vercel function (api/cross-v2, prod) and the Vite dev server (vite.config.js).
 // The V2 API says browsers must not hold keys, so /api/cross-v2/... adds EMPX_V2_API_KEY on the server (a client-supplied key is ignored)
-// and allows only the calls src/features/cross/v2/client.ts makes.
+// and allows only the intent, journey and basket calls src/features/cross/v2/client.ts makes.
 // The upstream host comes from EMPX_V2_API_BASE_URL only, never from the request. Anything not allowlisted is a 404 and never reaches upstream.
 // Errors the proxy produces itself use the V2 API's own shape: {"error":{"code","message","retryable"}}.
 import type { IncomingMessage, ServerResponse } from "node:http";
@@ -27,8 +27,8 @@ export interface ProxyResponse {
   body: string;
 }
 
-// A server id as client.ts sends it (encodeURIComponent of a server id). No "%", no leading dot, so the segment can never become a traversal.
-const ID = "[A-Za-z0-9_-][A-Za-z0-9_.-]{0,127}";
+// A server id as client.ts sends it (encodeURIComponent of a server id). No leading dot, and the only escape allowed is %3A (the ":" of a `provider:0x<hash>` intent id), so the segment can never become a traversal.
+const ID = "[A-Za-z0-9_-](?:[A-Za-z0-9_.-]|%3[Aa]){0,127}";
 const ROUTES: ReadonlyArray<[string, RegExp]> = [
   ["GET", /^\/v2\/capabilities$/],
   ["GET", /^\/v2\/capabilities\/corridors$/],
@@ -42,6 +42,11 @@ const ROUTES: ReadonlyArray<[string, RegExp]> = [
   ["POST", /^\/v2\/journeys$/],
   ["GET", new RegExp(`^/v2/journeys/${ID}$`)],
   ["POST", new RegExp(`^/v2/journeys/${ID}/(advance|restart-quote|accept-new-terms)$`)],
+  ["POST", /^\/v2\/baskets$/],
+  ["GET", new RegExp(`^/v2/baskets/${ID}$`)],
+  ["POST", new RegExp(`^/v2/baskets/${ID}/(begin|cancel)$`)],
+  ["POST", new RegExp(`^/v2/baskets/${ID}/legs/${ID}/(commit|requote)$`)],
+  ["GET", new RegExp(`^/v2/baskets/${ID}/legs/${ID}/steps$`)],
 ];
 
 /** The upstream path for an allowlisted (method, path), or null. `pathname` is the part after the prefix. */
@@ -75,6 +80,8 @@ const header = (h: InboundRequest["headers"], name: string): string | undefined 
 };
 
 export async function handleCrossV2Proxy(req: InboundRequest, env: ProxyEnv, fetchImpl: typeof fetch = fetch): Promise<ProxyResponse> {
+  // Reject dot segments before URL normalizes them into another allowlisted route.
+  if (/(?:^|\/)(?:\.|%2e){1,2}(?:\/|[?#]|$)/i.test(req.url)) return json(404, "NOT_FOUND", "no such route");
   const url = new URL(req.url, "http://proxy.invalid");
   if (!url.pathname.startsWith(`${PROXY_PREFIX}/`)) return json(404, "NOT_FOUND", "no such route");
   const upstreamPath = matchRoute(req.method, url.pathname.slice(PROXY_PREFIX.length));

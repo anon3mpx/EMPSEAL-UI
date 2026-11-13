@@ -2,8 +2,8 @@
 // routes held back by the economic policy (a warning/unpriced one can be accepted explicitly; a blocked one never), when no route
 // delivers the requested token, routes that deliver another token instead, and rails whose fee only fits a larger amount. Picking one only selects it: the confirm modal still asks.
 import type { ReactNode } from "react";
-import { getV2Chain } from "../../../design-system/data/v2ChainView";
-import { MicroLabel, wk } from "../../../design-system/widgetKit";
+import { v2ChainById } from "./assets";
+import { MicroLabel, railIconUrl, wk } from "../../../design-system/widgetKit";
 import type { BelowMinimum } from "./types";
 import type { CheckedSubstitute, CheckedWithheld, TwoHopInfo } from "./useV2Quote";
 import { formatUnitsShort, planIdOf, railDisplayName, railNameOf, type CheckedOffer } from "./widgetView";
@@ -38,7 +38,7 @@ export function heldBackReason(reason: string | undefined): string | undefined {
   return "The server held this route back.";
 }
 
-const chainName = (caip2: string) => getV2Chain(Number(caip2.split(":")[1]))?.name ?? caip2;
+const chainName = (caip2: string) => v2ChainById(Number(caip2.split(":")[1]))?.name ?? caip2;
 
 export default function V2OffersFooter(props: V2OffersFooterProps) {
   const { withheld, substitutes, twoHop, selectedPlanId, twoHopSelected, onPickTwoHop, ticker, onPick } = props;
@@ -158,34 +158,51 @@ function OfferRow(p: {
 }) {
   const j = p.o.offer.journey;
   const out = j.minimumOutput ?? j.expectedOutput;
+  const name = railNameOf(p.o.offer);
+  const icon = railIconUrl(name);
   return (
     <div
       style={{
-        border: `1px solid ${p.selected ? wk.orange : wk.border}`, borderRadius: 10, padding: "12px 14px",
-        display: "flex", flexDirection: "column", gap: 6,
+        border: `1px solid ${p.selected ? "rgba(var(--widget-primary-rgb, 255, 138, 0), .5)" : wk.border}`, borderRadius: 5, padding: "11px 12px 12px",
+        background: p.selected ? "rgba(var(--widget-primary-rgb, 255, 138, 0), .055)" : "transparent",
+        display: "flex", flexDirection: "column", gap: 8, fontFamily: "Inter, sans-serif",
       }}
     >
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-        <span style={{ fontSize: 12, fontWeight: 600, color: wk.t1 }}>{railNameOf(p.o.offer)}</span>
-        <span style={{ fontSize: 10, color: p.tone, textTransform: "uppercase", letterSpacing: "0.06em" }}>{p.tag}</span>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+        <span style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
+          {icon ? (
+            <span style={{ width: 16, height: 16, borderRadius: 4, overflow: "hidden", background: "rgba(255,255,255,.05)", flexShrink: 0 }}>
+              <img src={icon} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+            </span>
+          ) : (
+            <span aria-hidden style={{ width: 6, height: 6, borderRadius: "50%", background: "#93C5FD", boxShadow: "0 0 6px #93C5FD", flexShrink: 0 }} />
+          )}
+          <span style={{ fontSize: 12, fontWeight: 600, color: wk.t1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{name}</span>
+        </span>
+        <span style={{ fontSize: 9, fontWeight: 700, color: p.tone, textTransform: "uppercase", letterSpacing: "0.14em", flexShrink: 0 }}>{p.tag}</span>
       </div>
-      <span style={{ fontSize: 11, color: wk.t2 }}>
-        {j.minimumOutput ? "At least" : "About"} {formatUnitsShort(out)} {p.ticker(out.asset)}
-      </span>
-      {p.note && <span style={{ fontSize: 10, lineHeight: 1.5, color: wk.t3 }}>{p.note}</span>}
-      {p.action && (
-        <button
-          type="button"
-          disabled={p.selected}
-          onClick={() => p.onPick(planIdOf(p.o.offer))}
-          style={{
-            alignSelf: "flex-start", minHeight: 44, background: "none", border: `1px solid ${p.selected ? wk.orange : wk.borderStrong}`,
-            borderRadius: 8, padding: "0 14px", color: p.selected ? wk.orange : wk.t2, fontSize: 12, cursor: p.selected ? "default" : "pointer",
-          }}
-        >
-          {p.selected ? "Selected" : p.action}
-        </button>
-      )}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 12 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}>
+          <span style={{ fontSize: 10, color: wk.t3 }}>{j.minimumOutput ? "At least" : "About"}</span>
+          <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 17, color: wk.t1, letterSpacing: "-.02em", lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>
+            {formatUnitsShort(out)} <span style={{ fontSize: 11, color: wk.t3 }}>{p.ticker(out.asset)}</span>
+          </span>
+          {p.note && <span style={{ fontSize: 10, lineHeight: 1.5, color: wk.t3 }}>{p.note}</span>}
+        </div>
+        {p.action && (
+          <button
+            type="button"
+            disabled={p.selected}
+            onClick={() => p.onPick(planIdOf(p.o.offer))}
+            style={{
+              flexShrink: 0, minHeight: 44, background: "none", border: `1px solid ${p.selected ? wk.orange : wk.borderStrong}`,
+              borderRadius: 5, padding: "0 12px", color: p.selected ? wk.orange : wk.t2, fontSize: 11, fontWeight: 600, cursor: p.selected ? "default" : "pointer",
+            }}
+          >
+            {p.selected ? "Selected" : p.action}
+          </button>
+        )}
+      </div>
     </div>
   );
 }

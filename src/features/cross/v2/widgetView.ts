@@ -99,18 +99,16 @@ export interface SelectedOfferView {
   bridgeFeeUSD?: number;
   relayerFeeUSD?: number;
   slippageBps?: number;
-  /** Token-unit fee lines, for the confirm modal. */
-  feeLines: Array<{ label: string; value: string }>;
+  /** Itemised fee rows (each charge, total, cap), for the widget and the confirm modal. */
+  feeRows: FeeBreakdownRow[];
 }
-
-const sumLine = (xs: readonly WireAmount[], ticker: (asset: string) => string): string =>
-  xs.length ? xs.map((a) => `${formatUnitsShort(a)} ${ticker(a.asset)}`).join(" + ") : "None";
 
 export function selectedOfferView(
   j: JourneyQuote,
   railName: string,
   ticker: (asset: string) => string,
   priceOf: (asset: string) => number | null | undefined,
+  sponsored?: WireAmount,
 ): SelectedOfferView {
   const minimum = j.minimumOutput
     ? `${formatUnitsShort(j.minimumOutput)} ${ticker(j.minimumOutput.asset)}`
@@ -126,11 +124,7 @@ export function selectedOfferView(
     bridgeFeeUSD: feeUsd(j.fees.providerBridge.amounts, priceOf),
     relayerFeeUSD: feeUsd(j.fees.relayerGas.amounts, priceOf),
     slippageBps: j.slippage?.toleranceBps,
-    feeLines: [
-      { label: "EMPX fee", value: sumLine(j.fees.empx.amounts, ticker) },
-      { label: "Provider & bridge fee", value: sumLine(j.fees.providerBridge.amounts, ticker) },
-      { label: "Relayer & gas", value: sumLine(j.fees.relayerGas.amounts, ticker) },
-    ],
+    feeRows: feeBreakdownRows(j, { ticker, priceOf, sponsored }),
   };
 }
 
@@ -159,4 +153,73 @@ export function routeHopsOf(
     hops.push(point(leg.expectedOutput.asset, leg.toChain));
   }
   return hops;
+}
+
+// ─── Itemised fees: one row per charge the server lists (`journey.fees.items`), labelled by what it pays for, then the all-in total and the cap.
+// Every number is the server's; USD is shown only where the asset has a known price, never estimated.
+
+export interface FeeBreakdownRow {
+  label: string;
+  value: string;
+  muted?: boolean;
+  hint?: string;
+}
+
+export interface FeeBreakdownOptions {
+  ticker: (asset: string) => string;
+  priceOf: (asset: string) => number | null | undefined;
+  /** Relayer cost above the capped fee that EMPX pays (canary tenants); not charged to the user. */
+  sponsored?: WireAmount;
+}
+
+const KINDS: ReadonlyArray<{ kind: string; label: string; hint: string }> = [
+  { kind: "protocol", label: "EMPX fee", hint: "EMPX's own fee for this route." },
+  { kind: "swap", label: "Swap fee", hint: "The DEX or aggregator's cost for a swap on the source or destination chain." },
+  { kind: "provider", label: "Bridge / provider fee", hint: "What the bridge or provider charges to move the funds." },
+  { kind: "relayer", label: "Relayer fee", hint: "Pays the relayer that completes the transfer for you." },
+  { kind: "gas", label: "Network gas", hint: "Gas for transactions sent on your behalf, taken from the transfer." },
+];
+const rank = (kind: string) => {
+  const i = KINDS.findIndex((k) => k.kind === kind);
+  return i < 0 ? KINDS.length : i;
+};
+const pct = (bps: number) => `${(bps / 100).toFixed(2)}%`;
+const usdText = (v: number) => (v < 0.01 ? "<$0.01" : `$${v.toFixed(2)}`);
+const usdOf = (a: WireAmount, priceOf: FeeBreakdownOptions["priceOf"]): number | null => {
+  const p = priceOf(a.asset);
+  return p == null ? null : Number(formatUnits(BigInt(a.amount), a.decimals)) * p;
+};
+
+export function feeBreakdownRows(j: JourneyQuote, o: FeeBreakdownOptions): FeeBreakdownRow[] {
+  const token = (a: WireAmount) => `${formatUnitsShort(a)} ${o.ticker(a.asset)}`;
+  const items = [...j.fees.items].sort((a, b) => a.order - b.order || rank(a.kind) - rank(b.kind));
+  const rows: FeeBreakdownRow[] = items.map((it) => {
+    const known = KINDS.find((k) => k.kind === it.kind);
+    const usd = usdOf(it.amount, o.priceOf);
+    const label = known?.label ?? `${it.kind.charAt(0).toUpperCase()}${it.kind.slice(1)} fee`;
+    return {
+      label: j.mode === "sequential_wallet" ? `Order ${it.order} · ${label}` : label,
+      value: `${token(it.amount)}${it.bpsOfInput === null ? "" : ` (${pct(it.bpsOfInput)})`}${usd === null ? "" : ` · ${usdText(usd)}`}`,
+      ...(known ? { hint: known.hint } : {}),
+    };
+  });
+  if (rows.length === 0) {
+    rows.push({ label: "Provider fees", value: "Included in the quoted amount", hint: "This provider does not list its fees separately." });
+    rows.push({ label: "Fee cap", value: `up to ${pct(j.fees.allIn.ceilingBps)}`, muted: true, hint: "The most this route can charge in total." });
+  } else {
+    let usd = 0;
+    const unpriced: string[] = [];
+    for (const it of items) {
+      const v = usdOf(it.amount, o.priceOf);
+      if (v === null) unpriced.push(token(it.amount));
+      else usd += v;
+    }
+    const priced = unpriced.length < items.length ? [usdText(usd)] : [];
+    const share = j.fees.allIn.bps === null ? "" : ` (${pct(j.fees.allIn.bps)} of input)`;
+    rows.push({ label: "Total fees", value: `${[...priced, ...unpriced].join(" + ")}${share}` });
+    rows.push({ label: "Fee cap", value: `up to ${pct(j.fees.allIn.ceilingBps)}`, muted: true, hint: "The most this route can charge in total; the order refuses anything above it." });
+    rows.push({ label: "You receive", value: "The quoted amount is already net of these fees.", muted: true });
+  }
+  if (o.sponsored) rows.push({ label: "Relayer cost paid by EMPX", value: token(o.sponsored), muted: true, hint: "Not charged to you." });
+  return rows;
 }

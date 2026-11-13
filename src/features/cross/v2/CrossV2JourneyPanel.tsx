@@ -1,7 +1,7 @@
 // Progress of a two-order journey under the widget, in the same visual language as CrossV2ExecutionPanel: both legs, where the funds
 // are right now (the server's word), and the one action the user has to take, if any. Signing is always the user's click.
-import { getV2Chain } from "../../../design-system/data/v2ChainView";
 import { MicroLabel, wk } from "../../../design-system/widgetKit";
+import { v2ChainById } from "./assets";
 import type { JourneyView } from "./types";
 import type { V2JourneyState } from "./useV2Journey";
 import { formatUnitsShort } from "./widgetView";
@@ -16,7 +16,7 @@ export interface CrossV2JourneyPanelProps {
   onDone: () => void;
 }
 
-const chainName = (caip2: string) => getV2Chain(Number(caip2.split(":")[1]))?.name ?? caip2;
+const chainName = (caip2: string) => v2ChainById(Number(caip2.split(":")[1]))?.name ?? caip2;
 
 function fundsText(v: JourneyView, via: string): string {
   switch (v.funds) {

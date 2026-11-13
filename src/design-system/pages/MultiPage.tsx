@@ -83,6 +83,8 @@ import {
 import { V2_AGGREGATOR_CHAINS, getV2Chain } from "../data/v2ChainView";
 import { getTokensForChain } from "../data/v2TokenView";
 import { toMultiPickerToken } from "../data/multiV2Adapters";
+import { useCrossEngine } from "../../features/cross/engine";
+import MultiV2Flow from "../../features/cross/v2/MultiV2Flow";
 
 
 // Gas top-up toggled on from the widget drops this much native gas per leg.
@@ -255,6 +257,11 @@ function _prefetchBasketPrices(pairs: { chainId: number; ticker: string; tokenAd
 }
 
 export default function MultiPage() {
+  const { engine } = useCrossEngine();
+  return engine === "v2" ? <MultiV2Flow /> : <MultiV1Flow />;
+}
+
+function MultiV1Flow() {
   const isMobile = useIsMobile();
   const { walletState, walletOptions, onSelectWallet, disconnect, currentChain } =
     useWalletConnection();

@@ -5,10 +5,13 @@ import { sha256, toHex } from "viem";
 import { isNativeWrap, orderInputToken, registryProblems } from "./registryCheck";
 import { sourceSwapOf } from "./sourceSwapCheck";
 import type { JourneyQuote, WireAmount, WireOffer, WirePlan, WireStep } from "./types";
+import { addressValidFor, chainIdOfCaip2, nativeDecimals } from "./nonEvm";
+import { isNonEvmChain } from "@/lib/wallet/chainKind";
 
 export const PLAN_SCHEMA_VERSION = 1;
-/** EMPX's all-in ceiling for its own order plans. Provider-direct plans carry the provider's fee as quoted (owner decision 2026-11-09). */
-export const MAX_PLAN_FEE_BPS = 150;
+/** EMPX's all-in ceiling for its own order plans: the router's hard cap (EmpxRouterV2 ROUTER_HARD_CAPS). The live caps are set on chain
+ *  behind the timelock and enforced by the router itself, so this is only a sanity bound. Provider-direct plans carry the provider's fee as quoted. */
+export const MAX_PLAN_FEE_BPS = 10_000;
 
 /** A plan's intent kind: an EMPX order (a typed `empx-order` signature) is a contract intent, anything else is provider-direct. */
 export const intentKindOf = (plan: WirePlan): "contract" | "provider-direct" =>
@@ -42,6 +45,7 @@ const eqAddr = (a: unknown, b: unknown): boolean =>
   typeof a === "string" && typeof b === "string" && a.toLowerCase() === b.toLowerCase();
 const inList = (list: unknown, v: unknown): boolean => Array.isArray(list) && list.some((x) => eqAddr(x, v));
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
+const sameRecipient = (asset: string, a: unknown, b: string): boolean => asset.startsWith("eip155:") ? eqAddr(a, b) : a === b;
 
 /** Deterministic JSON with sorted keys, as the server hashes it (bigints are already decimal strings on the wire). */
 export function canonicalJson(value: unknown): string {
@@ -69,6 +73,28 @@ const evmChainId = (caip2: string): number | null => {
   return m ? Number(m[1]) : null;
 };
 
+export interface DepositInstruction {
+  stepId: string;
+  chain: string;
+  chainId: number | undefined;
+  address: string;
+  memo?: string;
+  asset: string;
+  amount: string;
+  decimals: number;
+  expiresAt: number;
+}
+
+export function depositOf(plan: WirePlan): DepositInstruction | null {
+  const steps = plan.steps.filter((s) => s.type === "deposit" && s.readiness === "executable" && s.walletMode !== "server");
+  const s = steps[0];
+  if (steps.length !== 1 || s?.type !== "deposit") return null;
+  const chainId = chainIdOfCaip2(s.chain);
+  return { stepId: s.id, chain: s.chain, chainId, address: s.address, memo: s.memo, asset: s.asset, amount: s.amount,
+    decimals: s.asset.includes("/slip44:") && chainId !== undefined ? nativeDecimals(chainId) ?? plan.journey.from.decimals : plan.journey.from.decimals,
+    expiresAt: Math.min(plan.expiresAt, s.expiresAt) };
+}
+
 /** Checks one plan on its own against what the user asked for: integrity, expiry, amounts, recipient, fees, every wallet step and the
  *  published deployment. Used for a quote's plan (through checkOffer) and for a journey's second order, which has no quote of its own. */
 export function checkPlan(plan: WirePlan | null | undefined, ctx: PlanCheckContext): PlanCheck {
@@ -94,7 +120,7 @@ export function checkPlan(plan: WirePlan | null | undefined, ctx: PlanCheckConte
   if (plan.journey.from?.asset?.toLowerCase() !== ctx.fromAsset.toLowerCase() || plan.journey.from?.amount !== ctx.amount)
     bad("the plan's input is not what was requested");
   if (plan.journey.toAsset !== ctx.toAsset) bad("the plan's destination asset is not what was requested");
-  if (!eqAddr(plan.journey.recipient, ctx.recipient) || !eqAddr(plan.verify.expectedRecipient, ctx.recipient))
+  if (!sameRecipient(ctx.toAsset, plan.journey.recipient, ctx.recipient) || !sameRecipient(ctx.toAsset, plan.verify.expectedRecipient, ctx.recipient))
     bad("the plan's recipient is not the requested recipient");
 
   if (plan.guarantee.output === "firm_minimum") {
@@ -106,15 +132,16 @@ export function checkPlan(plan: WirePlan | null | undefined, ctx: PlanCheckConte
   } else bad("unknown output guarantee");
   if (plan.delivers.isRequested !== (plan.delivers.asset === plan.journey.toAsset)) bad("delivers.isRequested disagrees with the requested asset");
 
-  // fees: EMPX's own orders stay inside its ceiling; a provider's fee is the provider's, shown as quoted (only a sanity bound)
-  const feeCeiling = intentKindOf(plan) === "contract" ? MAX_PLAN_FEE_BPS : 10_000;
+  // fees: a sanity bound only; EMPX's own caps are enforced on chain by the router, and a provider's fee is shown as quoted
+  const feeCeiling = MAX_PLAN_FEE_BPS;
   if (!Number.isInteger(plan.fees.maxTotalBps) || plan.fees.maxTotalBps < 0 || plan.fees.maxTotalBps > feeCeiling)
     bad(`total fees are not within 0..${feeCeiling} bps`);
 
   // steps
   const srcChain = chainOfAsset(plan.journey.from?.asset ?? "");
   const srcId = evmChainId(srcChain);
-  if (srcId === null) bad("the source chain is not an EVM chain");
+  const sourceId = chainIdOfCaip2(srcChain);
+  if (sourceId === undefined) bad("the source chain is not supported");
   const ids = new Set<string>();
   const seen = new Set<string>();
   for (const s of plan.steps as WireStep[]) {
@@ -134,7 +161,9 @@ export function checkPlan(plan: WirePlan | null | undefined, ctx: PlanCheckConte
   for (const s of plan.steps as WireStep[])
     if (s.walletMode !== "server" && s.readiness === "blocked") bad(`step ${s.id} is blocked, so this route cannot be completed right now`);
   const wallet = (plan.steps as WireStep[]).filter((s) => s.walletMode !== "server" && s.readiness === "executable");
-  if (!wallet.some((s) => s.type === "typed_sign" || s.type === "tx")) bad("the plan has no wallet step to execute");
+  if (!wallet.some((s) => s.type === "typed_sign" || s.type === "tx" || s.type === "deposit")) bad("the plan has no wallet step to execute");
+  if (isNonEvmChain(sourceId) && (wallet.length !== 1 || wallet[0]?.type !== "deposit"))
+    bad("a non-EVM deposit must be the plan's only wallet step");
   for (const s of wallet) {
     if (!(s.expiresAt > ctx.now)) bad(`step ${s.id} has expired`);
     if (s.type === "approve") {
@@ -155,6 +184,14 @@ export function checkPlan(plan: WirePlan | null | undefined, ctx: PlanCheckConte
         // An EMPX order plan sends native value only in its one WETH wrap; a provider plan may send it (the input, or the provider's fee).
         if (hasOrder && !(srcId !== null && isNativeWrap(plan, s, srcId))) bad(`transaction ${s.id} sends native value outside the wrap`);
         else if (!hasOrder) nativeOut += BigInt(s.value);
+      }
+    } else if (s.type === "deposit") {
+      if (s.chain !== srcChain || s.asset !== plan.journey.from.asset) bad(`deposit ${s.id} is not for the source asset`);
+      if (sourceId === undefined || !addressValidFor(sourceId, s.address)) bad(`deposit ${s.id} has an invalid address`);
+      if (!INT.test(s.amount) || BigInt(s.amount) <= 0n || (input !== null && BigInt(s.amount) > input)) bad(`deposit ${s.id} has an invalid amount`);
+      if (srcId !== null) {
+        if (s.memo !== undefined) bad("this route needs a deposit memo the wallet cannot send");
+        if (!eqAddr(s.address, plan.verify.expectedRecipient) && !inList(plan.verify.allowedTargets, s.address)) bad(`deposit ${s.id} pays an address the plan does not allow`);
       }
     } else if (s.type === "typed_sign") {
       if (s.purpose !== "empx-order") bad(`signature ${s.id} is a provider signature, which this version does not sign`);
@@ -177,7 +214,7 @@ export function checkPlan(plan: WirePlan | null | undefined, ctx: PlanCheckConte
   }
 
   const extra = nativeIn && input !== null ? (nativeOut > input ? nativeOut - input : 0n) : nativeOut;
-  return problems.length ? { ok: false, problems } : { ok: true, problems: [], plan, sourceChainId: srcId!, ...(extra > 0n ? { extraNative: extra } : {}) };
+  return problems.length ? { ok: false, problems } : { ok: true, problems: [], plan, sourceChainId: sourceId!, ...(extra > 0n ? { extraNative: extra } : {}) };
 }
 
 const amountReader = (bad: (m: string) => void) => (a: WireAmount | null | undefined, what: string): bigint | null => {
@@ -202,7 +239,7 @@ export function checkOffer(offer: WireOffer | null | undefined, ctx: PlanCheckCo
   const amt = amountReader(bad);
 
   if (!(j.expiresAt > ctx.now)) bad("the quote has expired; request a new quote");
-  if (!eqAddr(j.recipient, ctx.recipient) || j.toAsset !== ctx.toAsset || j.input?.amount !== ctx.amount)
+  if (!sameRecipient(ctx.toAsset, j.recipient, ctx.recipient) || j.toAsset !== ctx.toAsset || j.input?.amount !== ctx.amount)
     bad("the quote does not describe the requested transfer");
   if (j.mode !== "direct") bad("a two-order (sequential wallet) journey is checked as a journey, not as one offer");
   if (!Array.isArray(j.hops) || j.hops.length !== 1 || j.hops[0]?.planId !== plan.id || j.hops[0]?.planHash !== plan.hash)

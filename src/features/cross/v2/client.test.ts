@@ -7,6 +7,33 @@ import { makeOffer } from "./v2Fixtures";
 const json = (status: number, body: unknown) => new Response(typeof body === "string" ? body : JSON.stringify(body), { status });
 
 describe("createCrossV2Client", () => {
+  it("basketPlan posts the request unchanged to /v2/baskets", async () => {
+    const f = vi.fn(async (_url: string, _init: RequestInit) => json(200, {}));
+    const r = { sender: "s", recipient: "r", maxTier: 3 as const, legs: [{ from: { asset: "a", amount: "123", decimals: 6 }, toAsset: "b" }] };
+    await createCrossV2Client({ fetchImpl: f as never }).basketPlan(r);
+    const [url, init] = f.mock.calls[0]!;
+    expect(url).toBe("/api/cross-v2/v2/baskets");
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(init.body as string)).toEqual(r);
+    expect((init.headers as Record<string, string>)["Idempotency-Key"]).toMatch(/^basket-/);
+  });
+  it("basketCommitLeg uses a stable idempotency key", async () => {
+    const f = vi.fn(async (_url: string, _init: RequestInit) => json(200, {}));
+    const c = createCrossV2Client({ fetchImpl: f as never });
+    await c.basketCommitLeg("bsk_1", "leg_000");
+    await c.basketCommitLeg("bsk_1", "leg_000");
+    expect(f.mock.calls.map(([, i]) => (i.headers as Record<string, string>)["Idempotency-Key"])).toEqual(["commit-bsk_1-leg_000", "commit-bsk_1-leg_000"]);
+  });
+  it("basketBegin sends expectedVersion and acknowledgeSkipped", async () => {
+    const f = vi.fn(async (_url: string, _init: RequestInit) => json(200, {}));
+    await createCrossV2Client({ fetchImpl: f as never }).basketBegin("bsk_1", 3, ["leg_002"]);
+    expect(JSON.parse(f.mock.calls[0]![1].body as string)).toEqual({ expectedVersion: 3, acknowledgeSkipped: ["leg_002"] });
+  });
+  it("basket ids are URL-encoded", async () => {
+    const f = vi.fn(async (_url: string, _init: RequestInit) => json(200, {}));
+    await createCrossV2Client({ fetchImpl: f as never }).basketStatus("a/b");
+    expect(f.mock.calls[0]![0]).toBe("/api/cross-v2/v2/baskets/a%2Fb");
+  });
   it("posts a quote to the same-origin proxy with the policy ceiling and no key, without inventing slippage", async () => {
     const f = vi.fn(async () => json(200, { plans: [] }));
     const c = createCrossV2Client({ fetchImpl: f as never });

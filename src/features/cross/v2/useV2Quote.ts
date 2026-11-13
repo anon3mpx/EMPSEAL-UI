@@ -3,13 +3,15 @@
 // Uses POST /v2/journeys/quote: `direct` carries the quote, `none` still carries it (with any held-back routes), `two_hop` is shown as
 // information until two-order journeys land (plan section 6). Re-quotes before the first offer expires (at least every 60 s) and backs off after a failure, unless paused.
 import { useCallback, useEffect, useRef, useState } from "react";
-import { isAddress, parseUnits } from "viem";
+import { parseUnits } from "viem";
 import type { CrossRailsState } from "../../../design-system/EmpxCrossWidget";
 import type { CrossV2Client } from "./client";
 import { checkTwoHop, type TwoHopCheck } from "./journeyCheck";
 import { checkOffer } from "./planCheck";
 import type { BelowMinimum, JourneyQuote, TwoHopQuote, WireOffer, WireQuoteResponse, WithheldOffer } from "./types";
 import type { CheckedOffer } from "./widgetView";
+import { addressValidFor, chainIdOfCaip2 } from "./nonEvm";
+import { isNonEvmChain } from "@/lib/wallet/chainKind";
 
 export interface V2QuoteInput {
   fromAsset: string;
@@ -17,6 +19,7 @@ export interface V2QuoteInput {
   toAsset: string;
   amount: string;
   sender?: string;
+  sourceAddress?: string;
   recipient?: string;
   /** Stops the expiry re-quote (confirm modal open, or executing). */
   paused?: boolean;
@@ -84,7 +87,10 @@ export function useV2Quote(client: CrossV2Client, input: V2QuoteInput, describeE
   const hasOffers = useRef(false);
   hasOffers.current = offers.length > 0;
 
-  const { fromAsset, fromDecimals, toAsset, amount, sender, recipient, paused } = input;
+  const { fromAsset, fromDecimals, toAsset, amount, recipient, paused } = input;
+  const fromChainId = chainIdOfCaip2(fromAsset.split("/")[0]);
+  const toChainId = chainIdOfCaip2(toAsset.split("/")[0]);
+  const sender = (isNonEvmChain(fromChainId) ? input.sourceAddress : input.sender)?.trim();
 
   const clear = () => {
     setOffers([]);
@@ -102,8 +108,8 @@ export function useV2Quote(client: CrossV2Client, input: V2QuoteInput, describeE
     } catch {
       base = 0n;
     }
-    const to = recipient || sender;
-    const ready = Boolean(sender && to && isAddress(sender) && isAddress(to) && base > 0n && fromAsset !== toAsset);
+    const to = recipient?.trim() || (isNonEvmChain(toChainId) ? undefined : input.sender?.trim());
+    const ready = Boolean(sender && to && fromChainId !== undefined && toChainId !== undefined && addressValidFor(fromChainId, sender) && addressValidFor(toChainId, to) && base > 0n && fromAsset !== toAsset);
     if (!ready) {
       shownKey.current = null;
       setForNewInput(false);
@@ -174,7 +180,7 @@ export function useV2Quote(client: CrossV2Client, input: V2QuoteInput, describeE
       ctl.abort();
       clearTimeout(timer);
     };
-  }, [client, fromAsset, fromDecimals, toAsset, amount, sender, recipient, nonce, describeError]);
+  }, [client, fromAsset, fromDecimals, toAsset, amount, sender, recipient, input.sender, fromChainId, toChainId, nonce, describeError]);
 
   // Expiry re-quote: never while the user is reviewing or signing (the confirm modal has its own refresh).
   useEffect(() => {

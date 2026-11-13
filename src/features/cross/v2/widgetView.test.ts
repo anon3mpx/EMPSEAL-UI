@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { assetIdOf, defaultToken, tickerForAsset, v2Chains, v2Tokens } from "./assets";
 import { checkOffer } from "./planCheck";
 import { CTX, FROM_ASSET, makeOffer, TO_ASSET } from "./v2Fixtures";
-import { feeUsd, formatEta, railCardNames, railDisplayName, routeHopsOf, selectedOfferView, toRailCards } from "./widgetView";
+import { feeBreakdownRows, feeUsd, formatEta, railCardNames, railDisplayName, routeHopsOf, selectedOfferView, toRailCards } from "./widgetView";
 
 const ticker = (a: string) => (a === FROM_ASSET || a === TO_ASSET ? "USDC" : "?");
 
@@ -67,7 +67,7 @@ describe("selected offer view", () => {
     expect(v.protocolFeeUSD).toBeCloseTo(0.003);
     expect(v.bridgeFeeUSD).toBeCloseTo(0.005);
     expect(v.relayerFeeUSD).toBeCloseTo(0.002);
-    expect(v.feeLines.map((f) => f.value)).toEqual(["0.003 USDC", "0.005 USDC", "0.002 USDC"]);
+    expect(v.feeRows).toEqual(feeBreakdownRows(makeOffer().journey, { ticker, priceOf: (a) => (a === FROM_ASSET ? 1 : null) }));
   });
 
   it("never guesses a USD value it cannot price", () => {

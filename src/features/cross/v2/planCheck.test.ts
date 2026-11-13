@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { checkOffer, planHashOf } from "./planCheck";
+import { checkOffer, checkPlan, depositOf, planHashOf } from "./planCheck";
 import { CTX, makeOffer, RECIPIENT, SENDER } from "./v2Fixtures";
-import type { WireOffer } from "./types";
+import type { WireOffer, WirePlan, WireStep } from "./types";
 
 const problems = (o: WireOffer | null | undefined, ctx = CTX) => {
   const r = checkOffer(o, ctx);
@@ -59,7 +59,7 @@ describe("checkOffer", () => {
   });
 
   it("refuses fees above the ceiling and assessments that are not acceptable", () => {
-    expect(problems(makeOffer({ plan: { fees: { maxTotalBps: 151, breakdown: [] } } }))).toMatch(/fees/);
+    expect(problems(makeOffer({ plan: { fees: { maxTotalBps: 10_001, breakdown: [] } } }))).toMatch(/fees/);
     const w = makeOffer({ journey: { assessment: { status: "warning", label: "Poor value", reason: "", executableByApiKey: false } } });
     expect(problems(w)).toMatch(/Poor value/);
     expect(problems(makeOffer({ journey: { assessment: null } }))).toMatch(/no value assessment/);
@@ -91,5 +91,54 @@ describe("checkOffer", () => {
 
   it("matches addresses case-insensitively", () => {
     expect(checkOffer(makeOffer(), { ...CTX, sender: SENDER.toUpperCase().replace("0X", "0x"), recipient: RECIPIENT }).ok).toBe(true);
+  });
+});
+
+describe("deposit plans", () => {
+  function depositPlan(btc = false, memo?: string): WirePlan {
+    const chain = btc ? "bip122:000000000019d6689c085ae165831e93" : "eip155:1";
+    const asset = `${chain}/slip44:${btc ? 0 : 60}`;
+    const p = makeOffer().execution.plan;
+    p.journey.from = { asset, amount: "12345", decimals: btc ? 8 : 18 };
+    p.steps = [{ id: "deposit", type: "deposit", walletMode: "external-wallet", readiness: "executable",
+      dependsOn: [], expiresAt: p.expiresAt, chain, asset, amount: "12345",
+      address: btc ? "bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq" : RECIPIENT, ...(memo ? { memo } : {}) } as WireStep];
+    p.hash = planHashOf(p);
+    return p;
+  }
+  const check = (p: WirePlan) => checkPlan(p, { ...CTX, fromAsset: p.journey.from.asset, amount: p.journey.from.amount });
+  it("evm native deposit is allowed", () => expect(check(depositPlan()).ok).toBe(true));
+  it("evm deposit with memo is refused", () => {
+    const result = check(depositPlan(false, "=:BTC.BTC:bc1…"));
+    expect(result.ok).toBe(false);
+    expect(result.problems.join(" ")).toMatch(/deposit memo/);
+  });
+  it("btc deposit alone is allowed", () => {
+    const p = depositPlan(true);
+    expect(check(p).ok).toBe(true);
+    expect(depositOf(p)).toMatchObject({ chainId: 0, decimals: 8, amount: "12345" });
+  });
+  it("btc deposit with another wallet step is refused", () => {
+    const p = depositPlan(true);
+    p.steps.push(makeOffer().execution.plan.steps[0]!);
+    p.hash = planHashOf(p);
+    expect(check(p).problems.join(" ")).toMatch(/only wallet step/);
+  });
+});
+
+describe("Solana recipients", () => {
+  it("solana recipient must match exactly", () => {
+    const recipient = "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM";
+    const toAsset = "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp/token:EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
+    const p = makeOffer().execution.plan;
+    p.journey = { ...p.journey, toAsset, recipient };
+    p.delivers = { ...p.delivers, asset: toAsset };
+    p.verify = { ...p.verify, expectedRecipient: recipient };
+    p.steps = [{ id: "burn", type: "tx", chain: "eip155:8453", to: p.verify.allowedTargets[0]!, data: "0x",
+      value: "0", walletMode: "evm-signer", dependsOn: [], readiness: "executable", expiresAt: p.expiresAt }];
+    p.hash = planHashOf(p);
+    const ctx = { ...CTX, toAsset, recipient };
+    expect(checkPlan(p, ctx).ok).toBe(true);
+    expect(checkPlan(p, { ...ctx, recipient: recipient.replace("W", "w") }).ok).toBe(false);
   });
 });
