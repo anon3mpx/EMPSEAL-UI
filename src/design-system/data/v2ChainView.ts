@@ -49,6 +49,7 @@ const NATIVE_TICKERS: Record<number, string> = {
   0: "BTC", 98: "DOGE", 99: "SOL", 100: "LTC", 101: "BCH",
   102: "ATOM", 103: "DOT", 104: "KUJI", 105: "DASH", 106: "ZEC",
   130: "ETH", 480: "ETH", 57073: "ETH", 59144: "ETH", 98866: "PLUME",
+  [NON_EVM_CHAIN_IDS.TRON]: "TRX", [NON_EVM_CHAIN_IDS.XMR]: "XMR", [NON_EVM_CHAIN_IDS.XRP]: "XRP",
 };
 
 const CHAIN_KINDS: Record<number, "EVM" | "BTC" | "SOL" | "OTHER"> = {
@@ -130,6 +131,9 @@ export const V2_ALL_CHAINS: V2ChainConfig[] = [
   buildNonEvm(NON_EVM_CHAIN_IDS.KUJIRA, "Kujira"),
   buildNonEvm(NON_EVM_CHAIN_IDS.DASH, "Dash"),
   buildNonEvm(NON_EVM_CHAIN_IDS.ZCASH, "Zcash"),
+  buildNonEvm(NON_EVM_CHAIN_IDS.TRON, "Tron"),
+  buildNonEvm(NON_EVM_CHAIN_IDS.XMR, "Monero"),
+  buildNonEvm(NON_EVM_CHAIN_IDS.XRP, "XRP Ledger"),
 ];
 
 /** Lookup by chain ID */

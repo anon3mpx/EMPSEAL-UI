@@ -66,7 +66,7 @@ export interface MultiInputLeg {
   chain: MultiChain;
   token: MultiToken;
   amount: string;
-  usdValue: number;
+  usdValue?: number;
 }
 
 export interface MultiOutputLeg {
@@ -96,6 +96,7 @@ export interface MultiScanRow {
 export interface EmpxMultiWidgetProps {
   mode: MultiMode;
   onModeChange: (m: MultiMode) => void;
+  modeOptions?: { value: MultiMode; label: string }[];
   /** One-line shape hint under the tabs, e.g. "N tokens → 1 target". */
   modeSubtitle: string;
   /** Full explanation + worked example, shown only inside the disclosure. */
@@ -120,14 +121,14 @@ export interface EmpxMultiWidgetProps {
   onRemoveOutput: (id: string) => void;
   onAddOutput: () => void;
   canAddOutput: boolean;
-  onToggleGasTopUp: (id: string) => void;
+  onToggleGasTopUp?: (id: string) => void;
   /** When set, each output gets a recipient field. */
   onOutputRecipientChange?: (id: string, v: string) => void;
 
   /** Liquidator only — replaces the inputs section entirely. */
   scanRows: MultiScanRow[];
-  onToggleScanRow: (id: string) => void;
-  onRescan: () => void;
+  onToggleScanRow?: (id: string) => void;
+  onRescan?: () => void;
   scanning?: boolean;
 
   totalFeeUSD?: number;
@@ -150,7 +151,7 @@ const MODE_TABS: { value: MultiMode; label: string }[] = [
 ];
 
 export default function EmpxMultiWidget({
-  mode, onModeChange, modeSubtitle, modeBlurb, modeExample,
+  mode, onModeChange, modeOptions = MODE_TABS, modeSubtitle, modeBlurb, modeExample,
   legCount, maxLegs,
   inputs, onInputAmountChange, onSelectInputChain, onSelectInputToken, onRemoveInput, onAddInput, canAddInput,
   outputs, onOutputAllocationChange, onSelectOutputChain, onSelectOutputToken, onRemoveOutput, onAddOutput, canAddOutput, onToggleGasTopUp,
@@ -190,7 +191,7 @@ export default function EmpxMultiWidget({
         </span>
       </div>
 
-      <WidgetTabs options={MODE_TABS} active={mode} onChange={onModeChange} dense />
+      <WidgetTabs options={modeOptions} active={mode} onChange={onModeChange} dense />
       <p style={{ margin: "12px 0 0", fontSize: 10.5, color: wk.t3 }}>{modeSubtitle}</p>
 
       <Disclosure label="How this works">
@@ -209,13 +210,13 @@ export default function EmpxMultiWidget({
         <>
           <SectionHead
             label={`Wallet scan · ${scanRows.length} found`}
-            action={<QuietButton onClick={onRescan} disabled={scanning}>{scanning ? "Scanning…" : "Re-scan"}</QuietButton>}
+            action={<QuietButton onClick={() => onRescan?.()} disabled={scanning}>{scanning ? "Scanning…" : "Re-scan"}</QuietButton>}
           />
           <p style={{ margin: "2px 0 10px", fontSize: 10, color: wk.t3, lineHeight: 1.6 }}>
             Tap to include or preserve. Only included tokens get swept — anything you leave out stays in your wallet.
           </p>
           {scanRows.map((r) => (
-            <ScanRow key={r.id} row={r} onToggle={() => onToggleScanRow(r.id)} />
+            <ScanRow key={r.id} row={r} onToggle={() => onToggleScanRow?.(r.id)} />
           ))}
         </>
       ) : (
@@ -252,9 +253,9 @@ export default function EmpxMultiWidget({
                   }}
                 />
               </div>
-              <div style={{ fontSize: 10, color: wk.t3, textAlign: "right", marginTop: 6, fontVariantNumeric: "tabular-nums" }}>
+              {leg.usdValue != null && <div style={{ fontSize: 10, color: wk.t3, textAlign: "right", marginTop: 6, fontVariantNumeric: "tabular-nums" }}>
                 ≈ ${leg.usdValue.toLocaleString(undefined, { maximumFractionDigits: 2 })}
-              </div>
+              </div>}
             </div>
           ))}
         </>
@@ -312,12 +313,12 @@ export default function EmpxMultiWidget({
                 ? `≈ $${leg.convergedUsd.toLocaleString(undefined, { maximumFractionDigits: 2 })} · converged`
                 : " "}
           </div>
-          <ToggleRow
+          {onToggleGasTopUp && <ToggleRow
             title="Gas top-up on arrival"
             hint={`Deliver a little native ${leg.chain.name} gas alongside the swap, via the Gas.zip side-leg.`}
             enabled={!!leg.gasTopUpEnabled}
             onToggle={() => onToggleGasTopUp(leg.id)}
-          />
+          />}
           {onOutputRecipientChange && (
             <input
               value={leg.recipient ?? ""}

@@ -40,7 +40,12 @@
     "src/widget/widgetRuntime.test.ts",
     "src/config/**/*",
     "src/features/basket/**/*.ts",
-    "src/features/ramp/**/*.ts"
+    "src/features/ramp/**/*.ts",
+    "src/features/cross/v2/**/*",
+    "src/features/cross/engine.ts",
+    "src/features/cross/engine.test.ts",
+    "src/features/cross/CrossEngineToggle.tsx",
+    "api/**/*.ts"
   ],
   "exclude": [
     "node_modules",
