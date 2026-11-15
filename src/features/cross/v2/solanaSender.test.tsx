@@ -1,0 +1,43 @@
+import { act, cleanup, renderHook } from "@testing-library/react";
+import { afterEach, expect, it, vi } from "vitest";
+import { useSolanaSender } from "./useSolanaSender";
+import { createSolanaWallet } from "./solanaWallet";
+import { NON_EVM_CHAIN_IDS } from "@/lib/wallet/chainKind";
+afterEach(cleanup);
+it("Solana sender uses Phantom, not the EVM account; switching back preserves EVM sender", async () => {
+  const address = "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi";
+  const provider = {
+    publicKey: null as { toString(): string } | null,
+    connect: async () => {
+      provider.publicKey = { toString: () => address };
+    },
+    signTransaction: vi.fn(),
+  };
+  const wallet = createSolanaWallet(() => provider);
+  const hook = renderHook(({ id }: { id: number }) => useSolanaSender(id, "0x1111111111111111111111111111111111111111", wallet), {
+    initialProps: { id: NON_EVM_CHAIN_IDS.SOL },
+  });
+  expect(hook.result.current.sender).toBeUndefined();
+  await act(async () => hook.result.current.connect());
+  expect(hook.result.current.sender).toBe(address);
+  hook.rerender({ id: 8453 });
+  expect(hook.result.current.sender).toBe("0x1111111111111111111111111111111111111111");
+});
+it("a wallet provider whose event methods throw on access does not crash the Solana sender", async () => {
+  const address = "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi";
+  const provider = {
+    publicKey: null as { toString(): string } | null,
+    connect: async () => {
+      provider.publicKey = { toString: () => address };
+    },
+    signTransaction: vi.fn(),
+  };
+  // Some injected providers are Proxies that throw a TypeError when `on` or `removeListener` is read.
+  for (const k of ["on", "removeListener"])
+    Object.defineProperty(provider, k, { get: () => { throw new TypeError(`'get' on proxy: property '${k}' is a read-only and non-configurable data property`); } });
+  const wallet = createSolanaWallet(() => provider);
+  const hook = renderHook(() => useSolanaSender(NON_EVM_CHAIN_IDS.SOL, undefined, wallet));
+  await act(async () => hook.result.current.connect());
+  expect(hook.result.current.sender).toBe(address);
+  hook.unmount();
+});

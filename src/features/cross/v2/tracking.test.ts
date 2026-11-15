@@ -1,3 +1,7 @@
+import { createElement } from "react";
+import { act, render, renderHook, screen, waitFor } from "@testing-library/react";
+import type { CrossV2Client } from "./client";
+import CrossV2ExecutionPanel from "./CrossV2ExecutionPanel";
 import { decodeFunctionData, parseAbi } from "viem";
 import { describe, expect, it, vi } from "vitest";
 import { CrossV2ApiError } from "./client";
@@ -6,8 +10,8 @@ import { EMPX_DEPLOYMENTS } from "./deployments";
 import { describeV2Error } from "./errors";
 import { AmbiguousSubmission } from "./execute";
 import { forgetIntent, openIntents, rememberIntent } from "./journeyStore";
-import type { IntentStatus } from "./types";
-import { claimTx } from "./useV2Intent";
+import type { CompositionStatus, IntentStatus } from "./types";
+import { claimTx, useV2Intent } from "./useV2Intent";
 import { RECIPIENT, SENDER } from "./v2Fixtures";
 
 const SETTLER = EMPX_DEPLOYMENTS[8453]!.rails.cctp.settler;
@@ -97,5 +101,35 @@ describe("txLabel / railLink", () => {
     expect(railLink("layerzero", sent)?.url).toBe("https://layerzeroscan.com/tx/0xbridge");
     expect(railLink("ccip", sent)).toBeNull();
     expect(railLink(undefined, sent)).toBeNull();
+  });
+});
+
+describe("composition tracking", () => {
+  it("shows delivered without gas without mislabeling the primary as failed", () => {
+    const primary = parked({}, "delivered");
+    render(createElement(CrossV2ExecutionPanel, {
+      stepNote: null, intentId: "primary", status: primary, delivered: null, error: null, onDone: vi.fn(),
+      composition: { compositionId: "c-1", state: "delivered_without_gas", primary, gas: { error: "Gas quote expired" } },
+    }));
+    expect(screen.getByText("Delivered, gas top-up failed")).toBeTruthy();
+    expect(screen.getByText("Gas quote expired")).toBeTruthy();
+    expect(screen.queryByText("Transfer failed")).toBeNull();
+  });
+  it("resumes and keeps polling the composition when the primary has delivered", async () => {
+    const mem = new Map<string, string>();
+    vi.stubGlobal("localStorage", { getItem: (key: string) => mem.get(key) ?? null, setItem: (key: string, value: string) => void mem.set(key, value) });
+    const primary = parked({}, "delivered");
+    const view: CompositionStatus = { compositionId: "resume-gas", state: "in_progress", primary, gas: { ...primary, status: "submitted" } };
+    const client = { compositionStatus: vi.fn(async () => view), status: vi.fn() } as unknown as CrossV2Client;
+    const stored = { intentId: "resume-primary", compositionId: "resume-gas", createdAt: 1, fromChain: "eip155:8453", toChain: "eip155:10", toAsset: "x", sourceTxs: [] };
+    rememberIntent(SENDER, stored);
+    const { result, unmount } = renderHook(() => useV2Intent(client, SENDER, null, String));
+    await waitFor(() => expect(result.current.composition?.state).toBe("in_progress"));
+    expect(openIntents(SENDER).some(i => i.intentId === stored.intentId)).toBe(true);
+    expect(client.status).not.toHaveBeenCalled();
+    act(() => result.current.clear());
+    expect(openIntents(SENDER).some(i => i.intentId === stored.intentId)).toBe(false);
+    unmount();
+    vi.unstubAllGlobals();
   });
 });

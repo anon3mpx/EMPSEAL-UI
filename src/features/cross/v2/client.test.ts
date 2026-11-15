@@ -7,6 +7,36 @@ import { makeOffer } from "./v2Fixtures";
 const json = (status: number, body: unknown) => new Response(typeof body === "string" ? body : JSON.stringify(body), { status });
 
 describe("createCrossV2Client", () => {
+  it("submits only signed Solana bytes to the encoded intent", async () => {
+    const f = vi.fn(async (_url: string, _init: RequestInit) => json(200, { signature: "sig", replayed: false }));
+    const r = await createCrossV2Client({ fetchImpl: f as never }).submitSolana("provider:abc", "AQ==");
+    expect(r).toEqual({ signature: "sig", replayed: false });
+    expect(f.mock.calls[0]?.[0]).toBe("/api/cross-v2/v2/intents/provider%3Aabc/solana");
+    expect(JSON.parse(String(f.mock.calls[0]?.[1].body))).toEqual({ signedTransaction: "AQ==" });
+  });
+  it("retries a composition with the same key after an uncertain HTTP result and reads combined status", async () => {
+    const f = vi.fn(async (_url: string, _init: RequestInit) => json(503, { error: { code: "PROVIDER_UNAVAILABLE", message: "unavailable", retryable: true } }));
+    const c = createCrossV2Client({ fetchImpl: f as never });
+    const offer = makeOffer();
+    const input = { sender: "wallet", primary: { plan: offer.execution.plan, journey: offer.journey }, gasTopUp: { plan: offer.execution.plan, journey: offer.journey } };
+    await expect(c.commitComposition(input, "stable-composition")).rejects.toMatchObject({ code: "PROVIDER_UNAVAILABLE" });
+    f.mockImplementation(async () => json(200, { compositionId: "c-1", replayed: true }));
+    expect((await c.commitComposition(input, "stable-composition")).replayed).toBe(true);
+    expect(f.mock.calls.slice(0, 2).map(([, init]) => new Headers(init.headers).get("Idempotency-Key"))).toEqual(["stable-composition", "stable-composition"]);
+    f.mockImplementation(async () => json(200, { compositionId: "c-1", state: "delivered_without_gas" }));
+    expect((await c.compositionStatus("c-1")).state).toBe("delivered_without_gas");
+  });
+  it("scans and liquidates only the selected assets with the exact target", async () => {
+    const f = vi.fn(async (_url: string, _init: RequestInit) => json(200, {}));
+    const c = createCrossV2Client({ fetchImpl: f as never });
+    const scan = { wallet: "0x1111111111111111111111111111111111111111", tokensByChain: {8453: ["0x2222222222222222222222222222222222222222"]}, includeNative: true };
+    await c.scanWallet(scan);
+    const liquidate = {...scan, target: "eip155:1/slip44:60", include: ["eip155:8453/erc20:0x2222222222222222222222222222222222222222"], maxTier: 3 as const, slippageBps: 50};
+    await c.liquidateQuote(liquidate);
+    expect(f.mock.calls.map(([url]) => url)).toEqual(["/api/cross-v2/v2/wallet/scan", "/api/cross-v2/v2/wallet/liquidate/quote"]);
+    expect(f.mock.calls.map(([, init]) => JSON.parse(init.body as string))).toEqual([scan, liquidate]);
+    expect((f.mock.calls[1]![1].headers as Record<string, string>)["Idempotency-Key"]).toMatch(/^liquidate-/);
+  });
   it("basketPlan posts the request unchanged to /v2/baskets", async () => {
     const f = vi.fn(async (_url: string, _init: RequestInit) => json(200, {}));
     const r = { sender: "s", recipient: "r", maxTier: 3 as const, legs: [{ from: { asset: "a", amount: "123", decimals: 6 }, toAsset: "b" }] };

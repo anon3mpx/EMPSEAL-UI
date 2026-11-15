@@ -1,6 +1,4 @@
-// ─── RampPage — public /api/v1/ramp/* composition ─────────────────────────
-// Hosted KYC, bank-link, and funding instructions are handoffs. Creating a
-// transfer does not move funds. A returned basketId is a funding reference only.
+// Bridge fiat settles to/from the user's wallet; crypto routing uses ordinary V2 orders.
 
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -27,7 +25,6 @@ import EmpxRampWidget, { type RampFeeLine } from "../EmpxRampWidget";
 import { WidgetKitKeyframes, type RailCardData } from "../widgetKit";
 import { tokenLogoUrl } from "../data/logoRegistry";
 import { useWalletConnection } from "../hooks/useWalletConnection";
-import { useV2Balances } from "../hooks/useV2Balances";
 import { useAccountSnapshot } from "../hooks/useAccountSnapshot";
 import { getExplorerAddressUrl } from "../data/explorers";
 import { getTokensForChain } from "../data/v2TokenView";
@@ -44,28 +41,23 @@ import {
   rampApi,
   railsForDirection,
   rampRouteSnapshot,
-  RAMP_CHAIN_IDS,
   RAMP_TOKEN_TICKER,
   useRampSession,
   type RampFiatRail,
 } from "../../features/ramp";
 
 const DEST_CHAINS: { id: number; name: string; color: string; ticker: string }[] = [
-  { id: 1,    name: "Ethereum", color: "#627EEA", ticker: "ETH" },
-  { id: 137,  name: "Polygon",  color: "#7B3FE4", ticker: "POL" },
-  { id: 8453, name: "Base",     color: "#0052FF", ticker: "ETH" },
+  { id: 8453, name: "Base", color: "#0052FF", ticker: "ETH" },
+  { id: 42161, name: "Arbitrum", color: "#28A0F0", ticker: "ETH" },
+  { id: 10, name: "Optimism", color: "#FF0420", ticker: "ETH" },
 ];
 
 const FIAT_CURRENCIES: PickerToken[] = [
   { ticker: "USD", name: "US Dollar" },
 ];
-
-const FIAT_FLAGS: Record<string, string> = { USD: "🇺🇸" };
-
 export default function RampPage() {
   const isMobile = useIsMobile();
   const { walletState, walletOptions, onSelectWallet, disconnect } = useWalletConnection();
-  const connectedBalance = useV2Balances();
   const accountSnapshot = useAccountSnapshot(walletState.status === "connected" ? walletState.address : null);
   const connectedChainId = useChainId();
   const { switchChainAsync } = useSwitchChain();
@@ -88,7 +80,6 @@ export default function RampPage() {
   const [publicToken, setPublicToken] = useState("");
   const [showTokenFallback, setShowTokenFallback] = useState(false);
   const [bankSession, setBankSession] = useState<{ sessionId: string; linkToken: string; expiresAt: string } | null>(null);
-  const [partnerId, setPartnerId] = useState("");
   const [externalAccountId, setExternalAccountId] = useState("");
   const [previewSnapshot, setPreviewSnapshot] = useState<string | null>(null);
 
@@ -156,14 +147,13 @@ export default function RampPage() {
         { label: "Rail", value: coerceFiatRail(direction, fiatRail) },
         { label: "Figures", value: "Live preview — creating a transfer does not move funds" },
       ]
-    : [{ label: "Figures", value: disabledReason ?? "Preview required from /api/v1/ramp/preview" }];
+    : [{ label: "Figures", value: disabledReason ?? "Preview required from Bridge via V2" }];
 
   const providerCards: RailCardData[] = ramp.preview
     ? [{ name: "Bridge", mode: "B", outAmount: ramp.preview.destinationAmount, eta: `~${Math.round(ramp.preview.etaSeconds / 60)}m`, tag: "LIVE", isActive: true }]
     : [];
 
   const chainPickerList: PickerChain[] = DEST_CHAINS
-    .filter((c) => (RAMP_CHAIN_IDS as readonly number[]).includes(c.id))
     .filter((c) => !capabilities || capabilities.supportedChainIds.includes(c.id))
     .map((c) => ({ id: c.id, name: c.name, ticker: c.ticker, color: c.color }));
 
@@ -187,7 +177,7 @@ export default function RampPage() {
 
   const transferPayload = () => {
     if (!connectedAddress) throw new Error("Wallet not connected.");
-    if (!token?.address) throw new Error("Select USDC on Ethereum, Polygon, or Base.");
+    if (!token?.address) throw new Error("Select USDC on a configured settlement chain.");
     if (!/^(0|[1-9]\d*)(\.\d+)?$/.test(amount) || amount === "0") {
       throw new Error("Amount must be a positive decimal string.");
     }
@@ -292,19 +282,17 @@ export default function RampPage() {
           fiatCurrency={fiatCurrency}
           fiatCurrencyName={FIAT_CURRENCIES.find((f) => f.ticker === fiatCurrency)?.name}
           fiatRailsLabel={railsForDirection(direction).join(" · ")}
-          fiatFlag={FIAT_FLAGS[fiatCurrency]}
-          fiatAmount={fiatAmount}
+          fiatAmount={direction === "SELL" ? ramp.preview?.destinationAmount ?? "" : fiatAmount}
           onFiatAmountChange={setFiatAmount}
           onSelectCurrency={() => setCurrencyPickerOpen(true)}
           chain={chain}
           tokenTicker={ticker}
           tokenName={ticker}
           tokenLogoUrl={tokenLogoUrl(chainId, ticker) ?? undefined}
-          cryptoAmount={cryptoAmountInput}
+          cryptoAmount={direction === "BUY" ? ramp.preview?.destinationAmount ?? "" : cryptoAmountInput}
           onCryptoAmountChange={setCryptoAmountInput}
           onSelectToken={() => setTokenPickerOpen(true)}
           onSelectChain={() => setChainPickerOpen(true)}
-          balance={direction === "SELL" && walletState.status === "connected" ? connectedBalance.nativeBalance : undefined}
           providerName="Bridge"
           providerCount={providerCards.length}
           providers={providerCards}
@@ -314,7 +302,7 @@ export default function RampPage() {
           etaNote="Live preview when available"
           feeRows={feeRows}
           noProvider={!capabilities?.enabled}
-          kycRequired={Boolean(ramp.profile && !ramp.profile.ready)}
+          totalCostUSD={ramp.preview?.feeCurrency === "USD" ? Number(ramp.preview.feeAmount) : undefined} totalCostNote="Fiat leg only; crypto order quoted separately"
           walletConnected={walletState.status === "connected"}
           onConnect={() => setShowWalletModal(true)}
           onSubmit={onPreview}
@@ -322,9 +310,7 @@ export default function RampPage() {
           blockedReason={disabledReason ?? undefined}
         />
 
-        {/* Bridge ramp operations (fiat rail / account / KYC fields + onboarding,
-            transfer and delegation panels) — hidden for now, pending a styled
-            pass. Wiring is intact: remove this comment wrapper to restore.
+        <p>Bridge handles fiat, KYC and bank accounts. EMPX moves crypto only after you review and sign an ordinary V2 order. Creating instructions does not move funds.</p>
         <label style={{ width: "100%", maxWidth: 480, fontSize: 11.5, color: "rgba(255,255,255,0.70)" }}>
           Fiat rail
           <select value={coerceFiatRail(direction, fiatRail)} onChange={(e) => setFiatRail(e.target.value as RampFiatRail)} style={{ marginLeft: 8 }}>
@@ -358,10 +344,6 @@ export default function RampPage() {
             <input value={publicToken} onChange={(e) => setPublicToken(e.target.value)} style={{ marginLeft: 8, width: "60%" }} />
           </label>
         )}
-        <label style={{ width: "100%", maxWidth: 480, fontSize: 11.5, color: "rgba(255,255,255,0.70)" }}>
-          Partner id
-          <input value={partnerId} onChange={(e) => setPartnerId(e.target.value)} style={{ marginLeft: 8, width: "70%" }} />
-        </label>
 
         <RampOnboardingPanel
           profile={ramp.profile}
@@ -431,6 +413,7 @@ export default function RampPage() {
           disabledReason={disabledReason}
           busy={ramp.busy}
           canCreate={previewMatches}
+          signer={rampSigner}
           onPreview={onPreview}
           onCreate={onCreate}
           onStatus={() => {
@@ -443,30 +426,9 @@ export default function RampPage() {
           }}
         />
 
-        <RampDelegationPanel
-          delegation={ramp.delegation}
+        <RampDelegationPanel signer={rampSigner} chainId={chainId}
           disabledReason={capabilityBlockReason(capabilities, capabilities?.features.delegatedActions)}
-          busy={ramp.busy}
-          onCreate={() => {
-            if (!requireWallet() || !connectedAddress) return;
-            void ramp.createDelegation({
-              wallet: connectedAddress,
-              chainId,
-              partner: partnerId,
-              delegateType: "PARTNER",
-              operations: ["READ", "PREVIEW"],
-              directions: [direction === "BUY" ? "ON_RAMP" : "OFF_RAMP"],
-              chainIds: [chainId],
-              externalAccountIds: ramp.accounts.map((account) => account.id),
-              expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-            }).then(() => toast.success("Delegation created")).catch(() => toast.error(ramp.errorMessage ?? "Delegation failed"));
-          }}
-          onRevoke={() => {
-            if (!ramp.delegation || !connectedAddress) return;
-            void ramp.revokeDelegation(ramp.delegation.id, connectedAddress, chainId).then(() => toast.info("Delegation revoked")).catch(() => toast.error(ramp.errorMessage ?? "Revoke failed"));
-          }}
-        />
-        */}
+          externalAccountIds={activeAccounts.map(account=>account.id)} />
       </main>
 
       <DappFooter />

@@ -3,8 +3,10 @@
 import { encodeFunctionData, parseAbi } from "viem";
 import type { CrossV2Client } from "./client";
 import { providerReference, referenceKind, type ReceiptLog } from "./providerReference";
-import type { WirePlan, WireStep } from "./types";
+import type { CompositionCommit, WireOffer, WirePlan, WireStep } from "./types";
 import { depositOf, type DepositInstruction } from "./planCheck";
+import type { SolanaWalletPort } from "./solanaWallet";
+import { performSolanaSteps } from "./executeSolana";
 
 export interface WalletPort {
   readonly address: string;
@@ -51,6 +53,9 @@ export interface ExecuteOptions {
   humanAcceptance?: Parameters<CrossV2Client["commit"]>[5];
   /** Non-EVM quote sender (the refund address); no EVM wallet is needed for a manual deposit. */
   sender?: string;
+  solanaWallet?: SolanaWalletPort;
+  gasTopUp?: { offer: WireOffer; sourceChainId: number };
+  onComposition?: (compositionId: string) => void;
 }
 export interface ExecuteResult {
   intentId: string;
@@ -62,6 +67,7 @@ export interface ExecuteResult {
   /** Transactions the wallet sent and the API accepted, in order. */
   txs: Array<{ stepId: string; chainId: number; hash: string }>;
   deposit?: DepositInstruction;
+  gasError?: string;
 }
 
 const ERC20_ABI = parseAbi(["function approve(address spender, uint256 amount)", "function transfer(address to, uint256 amount)"]);
@@ -77,9 +83,35 @@ export async function executeCheckedPlan(
   const { plan, journey } = offer;
   const sender = o.sender ?? wallet?.address;
   if (!sender) throw new Error("The quote's source address is required");
-  const { intentId, kind } = await client.commit(plan, journey, sender, o.commitKey, o.signal, o.humanAcceptance);
+  let committed: CompositionCommit | undefined;
+  if (o.gasTopUp) {
+    const gas = o.gasTopUp.offer;
+    const assessment = gas.journey.assessment;
+    committed = await client.commitComposition({
+      sender, primary: { plan, journey, humanAcceptance: o.humanAcceptance },
+      gasTopUp: { plan: gas.execution.plan, journey: gas.journey,
+        ...((assessment?.status === "warning" || assessment?.status === "unpriced") && assessment.policyVersion
+          ? { humanAcceptance: { status: assessment.status, policyVersion: assessment.policyVersion } } : {}),
+      },
+    }, o.commitKey, o.signal);
+    o.onComposition?.(committed.compositionId);
+  }
+  const { intentId, kind } = committed?.primary ?? await client.commit(plan, journey, sender, o.commitKey, o.signal, o.humanAcceptance);
   o.onCommitted?.(intentId);
-  return performSteps(client, intentId, kind, plan, sourceChainId, wallet, o);
+  const result = await performSteps(client, intentId, kind, plan, sourceChainId, wallet, o);
+  if (committed?.gas && o.gasTopUp) {
+    try {
+      const gas = await performSteps(client, committed.gas.intentId, committed.gas.kind, o.gasTopUp.offer.execution.plan, o.gasTopUp.sourceChainId, wallet, {
+        ...o, onStep: (id, phase) => o.onStep?.(`Gas top-up: ${id}`, phase),
+      });
+      result.txs.push(...gas.txs);
+      if (gas.waiting.length) result.gasError = `Gas top-up steps still waiting: ${gas.waiting.join(", ")}`;
+    } catch (e) {
+      result.gasError = e instanceof Error ? e.message : "Gas top-up execution stopped";
+    }
+  }
+  if (committed?.gasError) result.gasError = committed.gasError;
+  return result;
 }
 
 export { intentKindOf } from "./planCheck";
@@ -94,6 +126,7 @@ export async function performSteps(
   wallet: WalletPort | null,
   o: ExecuteOptions = {},
 ): Promise<ExecuteResult> {
+  if (plan.steps.some(s => s.walletMode === "solana-signer")) return performSolanaSteps(client, intentId, plan, sourceChainId, o);
   const deposit = depositOf(plan);
   if (deposit && !deposit.chain.startsWith("eip155:")) {
     return { intentId, done: [], waiting: [], tracking: "not-needed", txs: [], deposit };

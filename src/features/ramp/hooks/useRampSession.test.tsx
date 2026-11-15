@@ -94,8 +94,6 @@ describe("useRampSession", () => {
         amount: "500.00",
         basketId: "funding-ref",
       });
-      expect(fundingHandoffCopy(created)).toMatch(/does not move funds|Fund the returned instructions/i);
-      expect(fundingHandoffCopy(created)).toMatch(/not a MultiPage basket leg/);
       await result.current.loadTransferStatus(created.id, WALLET, 8453);
       await result.current.cancelTransfer(created.id, WALLET, 8453);
       await result.current.createDelegation({

@@ -1,15 +1,14 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import MultiV2Flow from "./MultiV2Flow";
-import { MODE_LABEL } from "../../basket/model/modes";
-import { CTX, SENDER } from "./v2Fixtures";
+import { CTX, makeOffer, SENDER, TO_ASSET } from "./v2Fixtures";
 import type { BasketView } from "./basketTypes";
 import type * as ClientModule from "./client";
 import type * as ComponentsModule from "../../../design-system/components";
-const mocks = vi.hoisted(() => ({ view: null as unknown, plan: vi.fn(), status: vi.fn(), requote: vi.fn() }));
+const mocks = vi.hoisted(() => ({ view: null as unknown, plan: vi.fn(), status: vi.fn(), requote: vi.fn(), scan: vi.fn(), liquidate: vi.fn(), quote: vi.fn() }));
 vi.mock("./client", async (original) => ({
   ...(await original<typeof ClientModule>()),
-  createCrossV2Client: () => ({ basketPlan: mocks.plan, basketStatus: mocks.status, basketRequoteLeg: mocks.requote }),
+  createCrossV2Client: () => ({ basketPlan: mocks.plan, basketStatus: mocks.status, basketRequoteLeg: mocks.requote, scanWallet: mocks.scan, liquidateQuote: mocks.liquidate, quote: mocks.quote }),
 }));
 vi.mock("./useV2WalletPort", () => ({ useV2WalletPort: () => ({ address: SENDER }) }));
 vi.mock("../../../design-system/hooks/useWalletConnection", () => ({
@@ -74,6 +73,7 @@ beforeEach(() => {
   mocks.plan.mockResolvedValue(view);
   mocks.status.mockResolvedValue(view);
   mocks.requote.mockResolvedValue(view);
+  mocks.quote.mockResolvedValue({ plans: [] });
 });
 async function review() {
   fireEvent.change(screen.getByLabelText("Input 1 amount"), { target: { value: "1" } });
@@ -81,10 +81,29 @@ async function review() {
   await screen.findByText("No route for this token");
 }
 describe("MultiV2Flow", () => {
-  it("hides liquidator under V2", () => {
+  it("sweeps only explicitly selected unpriced balances into the chosen target and resumes the returned basket", async () => {
+    const asset = "eip155:8453/erc20:0x2222222222222222222222222222222222222222";
+    const scan = {wallet: SENDER, chains: [
+      {chainId: 8453, balances: [{asset, token: "0x2222222222222222222222222222222222222222", symbol: "UNKNOWN", decimals: 6, amount: "2500000", usd: null, dust: false}]},
+      {chainId: 10, error: "rpc-unavailable", balances: []},
+    ]};
+    mocks.scan.mockResolvedValue(scan);
+    mocks.liquidate.mockResolvedValue({scan, basket: mocks.view, skipped: [{asset: "eip155:8453/slip44:60", reason: "below-gas-reserve"}]});
     render(<MultiV2Flow />);
-    expect(screen.queryByRole("button", { name: MODE_LABEL["wallet-liquidator"] })).toBeNull();
-    expect(screen.queryByRole("tab", { name: MODE_LABEL["wallet-liquidator"] })).toBeNull();
+    fireEvent.click(screen.getByRole("button", {name: "Sweep wallet"}));
+    // Entering Sweep wallet with a wallet connected scans once on its own.
+    const row = await screen.findByRole("button", {name: /UNKNOWN.*Unpriced/});
+    expect(row.getAttribute("aria-pressed")).toBe("false");
+    expect(screen.getByText("Chain 10: rpc-unavailable")).toBeTruthy();
+    fireEvent.click(row);
+    fireEvent.click(screen.getByRole("button", {name: "USDC logo USDC ▾"}));
+    fireEvent.click(screen.getAllByRole("button", {name: /^ETH/})[0]!);
+    fireEvent.click(screen.getByRole("button", {name: /Review basket/}));
+    await screen.findByText("No route for this token");
+    expect(mocks.liquidate).toHaveBeenCalledWith(expect.objectContaining({wallet: SENDER, target: "eip155:42161/slip44:60", include: [asset], maxTier: 3}), expect.any(AbortSignal));
+    expect(mocks.status).toHaveBeenCalledWith("bsk_1");
+    expect(screen.getByText(/below-gas-reserve/)).toBeTruthy();
+    expect(mocks.plan).not.toHaveBeenCalled();
   });
   it("shows skipped legs before begin", async () => {
     render(<MultiV2Flow />);
@@ -92,8 +111,19 @@ describe("MultiV2Flow", () => {
     expect(screen.getByText("Legs settle independently. Some may finish while others fail.")).toBeTruthy();
     const rows = screen.getAllByTestId("basket-review-leg");
     expect(rows[0]!.textContent).toContain("No route for this token");
-    expect(rows[1]!.textContent).toContain("985000");
+    expect(rows[1]!.textContent).toContain("0.99 USDC");
+    expect(rows[1]!.textContent).toContain("Min 0.985 USDC");
     expect(screen.getByRole("button", { name: /Begin/ })).toBeTruthy();
+  });
+  it("quotes each leg live and shows the converged output and slowest ETA before review", async () => {
+    mocks.quote.mockResolvedValue({ plans: [makeOffer({ journey: { expectedOutput: { asset: TO_ASSET, amount: "2462500000", decimals: 6 }, etaSec: 240 } })] });
+    render(<MultiV2Flow />);
+    fireEvent.change(screen.getByLabelText("Input 1 amount"), { target: { value: "1" } });
+    await screen.findByText("2,462.5", undefined, { timeout: 3000 });
+    expect(screen.getByText("~4 min")).toBeTruthy();
+    expect(screen.getByText("Slowest leg governs")).toBeTruthy();
+    expect(mocks.quote).toHaveBeenCalledWith(expect.objectContaining({ amount: "1000000000000000000", toAsset: TO_ASSET, maxTier: 3 }), expect.any(AbortSignal));
+    expect(mocks.plan).not.toHaveBeenCalled();
   });
   it("requote button calls requote", async () => {
     render(<MultiV2Flow />);

@@ -7,7 +7,7 @@ vi.mock("../../../design-system/data/v2TokenView", () => ({
   ],
 }));
 
-import { mapWalletScanBalances } from "./walletScan";
+import { mapWalletScanBalances, mapV2WalletScan } from "./walletScan";
 
 const WALLET = "0x1111111111111111111111111111111111111111";
 
@@ -78,5 +78,19 @@ describe("mapWalletScanBalances", () => {
     expect(mapped[1]?.usd).toBeNull();
     expect(usdPrice).toHaveBeenCalledWith("PRICED", 369, pricedToken);
     expect(usdPrice).toHaveBeenCalledWith("UNKNOWN", 369, unpricedToken);
+  });
+
+  it("maps V2 CAIP identities without inventing prices, and preserves chain errors", () => {
+    const asset = "eip155:8453/erc20:0x2222222222222222222222222222222222222222";
+    const result = mapV2WalletScan({wallet: WALLET, chains: [
+      {chainId: 8453, balances: [
+        {asset, token: "0x2222222222222222222222222222222222222222", decimals: 6, amount: "2000000", usd: null, dust: false},
+        {asset: "eip155:8453/erc20:0x3333333333333333333333333333333333333333", token: "0x3333333333333333333333333333333333333333", decimals: 18, amount: "0", usd: null, dust: false, error: "unreadable"},
+      ]},
+      {chainId: 1, balances: [], error: "rpc-unavailable"},
+    ]});
+    expect(result.assets).toEqual([expect.objectContaining({asset, amount: "2", amountBase: "2000000", usd: null})]);
+    expect(result.errors).toEqual([{chainId: 1, error: "rpc-unavailable"}]);
+    expect(result.unreadable).toEqual(["eip155:8453/erc20:0x3333333333333333333333333333333333333333"]);
   });
 });

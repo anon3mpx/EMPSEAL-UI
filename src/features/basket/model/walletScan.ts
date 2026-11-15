@@ -1,4 +1,4 @@
-import type { WalletScanBalance, WalletScanResult } from "../api/contracts";
+import type { WalletScanBalance, WalletScanResult, V2WalletScanResult } from "../api/contracts";
 import {
   canonicalNativeTokenAddress,
   fromBaseUnitAmount,
@@ -7,6 +7,8 @@ import {
 
 export interface MappedWalletScanAsset {
   id: string;
+  asset?: string;
+  dust?: boolean;
   chainId: number;
   ticker: string;
   token: string;
@@ -72,4 +74,25 @@ function mapOneBalance(
     amountBase: balance.balance.trim(),
     usd: usd != null && Number.isFinite(usd) ? usd : null,
   };
+}
+
+/** V2 prices are authoritative: null never falls back to a symbol-derived price. */
+export function mapV2WalletScan(result: V2WalletScanResult): {
+  assets: MappedWalletScanAsset[];
+  errors: Array<{chainId: number; error: "rpc-unavailable"}>;
+  unreadable: string[];
+} {
+  const assets: MappedWalletScanAsset[] = [];
+  const errors: Array<{chainId: number; error: "rpc-unavailable"}> = [];
+  const unreadable: string[] = [];
+  for (const chain of result.chains) {
+    if (chain.error) errors.push({chainId: chain.chainId, error: chain.error});
+    for (const b of chain.balances) {
+      if (b.error) { unreadable.push(b.asset); continue; }
+      if (!/^[0-9]+$/.test(b.amount) || BigInt(b.amount) === 0n) continue;
+      const mapped = mapOneBalance({chainId: chain.chainId, token: b.token, symbol: b.symbol, decimals: b.decimals, balance: b.amount}, 0);
+      if (mapped) assets.push({...mapped, id: b.asset, asset: b.asset, decimals: b.decimals, usd: b.usd, dust: b.dust});
+    }
+  }
+  return {assets, errors, unreadable};
 }

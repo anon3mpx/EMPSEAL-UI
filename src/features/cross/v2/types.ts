@@ -10,7 +10,7 @@ export interface WireAmount {
 export type WireStep = {
   id: string;
   dependsOn: string[];
-  walletMode: "evm-signer" | "external-wallet" | "server";
+  walletMode: "evm-signer" | "external-wallet" | "solana-signer" | "server";
   expiresAt: number;
   readiness: "executable" | "blocked" | "informational";
 } & (
@@ -25,7 +25,8 @@ export type WireStep = {
     }
   | { type: "tx"; chain: string; to: string; data: string; value: string }
   | { type: "deposit"; chain: string; address: string; memo?: string; asset: string; amount: string }
-  | { type: "native_tx" | "submit" | "wait" | "relay" | "recovery"; [k: string]: unknown }
+  | { type: "native_tx"; chain: string; format: "solana-versioned-tx"; payload: string; submitVia: { kind: "rpc" } | { kind: "jupiter-execute"; requestId: string } }
+  | { type: "submit" | "wait" | "relay" | "recovery"; [k: string]: unknown }
 );
 
 export interface WirePlan {
@@ -34,7 +35,7 @@ export interface WirePlan {
   id: string;
   hash: string;
   expiresAt: number;
-  journey: { from: WireAmount; toAsset: string; recipient: string };
+  journey: { from: WireAmount; toAsset: string; sender?: string; recipient: string };
   /** `trackingRef`: the provider's own tracking id (deBridge order id, LayerZero VT quote id), recorded by the server at commit. */
   compiled: { rail: string; shape: string; carrier?: string; trackingRef?: string };
   amounts: { quoted: WireAmount; minimum: WireAmount | null; actual?: WireAmount };
@@ -127,6 +128,7 @@ export type WithheldOffer = WireOffer & { executableByApiKey?: boolean; label?: 
 
 export interface WireQuoteResponse {
   plans: WireOffer[];
+  gasTopUp?: { reason: string; plan: WireOffer };
   withheld?: WithheldOffer[];
   degraded?: boolean;
   /** Present only with `substitutes`. */
@@ -227,10 +229,29 @@ export interface IntentStatus {
   anomalies: string[];
   conflicts: string[];
   guarantee: unknown;
+  reason?: string;
   expiresAt: number;
   /** A parked delivery the recipient can claim on the destination settler (`SettlerBase.claim(key, to)`); null or absent otherwise. */
   claim?: { chain: string; settler: string; key: string; recipient: string; token: string; amount: string } | null;
   /** Source and destination transactions the server has seen, in order. */
   transactions?: Array<{ kind: "source" | "destination"; chain: string; txHash: string }>;
+}
+export interface CompositionLeg {
+  plan: WirePlan;
+  journey: JourneyQuote;
+  humanAcceptance?: HumanAcceptance;
+}
+export interface CompositionCommit {
+  compositionId: string;
+  replayed: boolean;
+  primary: { intentId: string; kind: "contract" | "provider-direct"; replayed: boolean };
+  gas?: { intentId: string; kind: "contract" | "provider-direct"; replayed: boolean };
+  gasError?: string;
+}
+export interface CompositionStatus {
+  compositionId: string;
+  state: "in_progress" | "delivered" | "delivered_without_gas" | "failed";
+  primary: IntentStatus;
+  gas?: IntentStatus | { error: string } | "requote-required";
 }
 export const TERMINAL_STATUSES: ReadonlySet<string> = new Set(["delivered", "claimed", "refunded", "failed"]);

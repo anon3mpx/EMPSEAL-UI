@@ -1,6 +1,8 @@
 // REST client for the EMPX V2 API, through the same-origin proxy (never the V1 origin, never a key in the browser). Money-moving calls carry an Idempotency-Key.
 import { CROSS_V2_PROXY_BASE } from "./config";
 import type { BasketLegSteps, BasketPlanRequest, BasketView } from "./basketTypes";
+import type { V2WalletScanRequest, V2WalletScanResult, V2LiquidateRequest, V2LiquidateQuote } from "../../basket/api/contracts";
+import type { CompositionCommit, CompositionStatus, CompositionLeg } from "./types";
 import type {
   CapabilitiesResponse, CorridorsResponse, HumanAcceptance, IntentStatus, JourneyAdvance, JourneyDetail, JourneyPlanResponse, JourneyQuote, QuoteInput, TwoHopQuote,
   WireOffer, WirePlan, WireQuoteResponse,
@@ -106,6 +108,17 @@ export function createCrossV2Client(o: CrossV2ClientOptions = {}) {
   });
 
   return {
+    submitSolana(intentId: string, signedTransaction: string, signal?: AbortSignal) {
+      return request<{ signature: string; replayed: boolean }>("POST", `/v2/intents/${encodeURIComponent(intentId)}/solana`, {
+        body: { signedTransaction }, idempotencyKey: `solana-${intentId}`, signal,
+      });
+    },
+    scanWallet(r: V2WalletScanRequest, signal?: AbortSignal) {
+      return request<V2WalletScanResult>("POST", "/v2/wallet/scan", {signal, body: r});
+    },
+    liquidateQuote(r: V2LiquidateRequest, signal?: AbortSignal) {
+      return request<V2LiquidateQuote>("POST", "/v2/wallet/liquidate/quote", {signal, body: r, idempotencyKey: newKey("liquidate")});
+    },
     basketPlan(r: BasketPlanRequest, signal?: AbortSignal) {
       return request<BasketView>("POST", "/v2/baskets", { signal, body: r, idempotencyKey: newKey("basket") });
     },
@@ -155,6 +168,12 @@ export function createCrossV2Client(o: CrossV2ClientOptions = {}) {
         idempotencyKey,
         body: { plan, journey, sender, ...(humanAcceptance ? { humanAcceptance } : {}) },
       });
+    },
+    commitComposition(input: { sender: string; primary: CompositionLeg; gasTopUp: CompositionLeg }, idempotencyKey: string = newKey("composition"), signal?: AbortSignal) {
+      return request<CompositionCommit>("POST", "/v2/compositions", { body: input, idempotencyKey, signal });
+    },
+    compositionStatus(id: string, signal?: AbortSignal) {
+      return request<CompositionStatus>("GET", `/v2/compositions/${encodeURIComponent(id)}`, { signal });
     },
     submitOrder(intentId: string, signature: string, signal?: AbortSignal) {
       return request<{ state: "accepted" | "in_progress"; intentId?: string; replayed?: boolean }>(

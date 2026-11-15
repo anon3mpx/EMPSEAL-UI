@@ -13,6 +13,8 @@ export interface CheckedOffer {
 
 const RAIL_NAMES: Record<string, string> = {
   cctp: "CCTP",
+  "cctp-from-solana": "CCTP from Solana",
+  jupiter: "Swap on Solana via Jupiter",
   ccip: "CCIP",
   layerzero: "LayerZero",
   "layerzero-vt": "LayerZero VT",

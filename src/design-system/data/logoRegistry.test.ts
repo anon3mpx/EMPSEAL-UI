@@ -9,6 +9,12 @@ import {
 } from "./logoRegistry";
 
 describe("chainLogoCandidates", () => {
+  it("covers V2 catalogue chains by chain ID, URL-encoding multi-word slugs", () => {
+    expect(chainLogoCandidates(5000, "MNT")).toEqual(["https://icons.llamao.fi/icons/chains/rsz_mantle.jpg"]);
+    expect(chainLogoCandidates(480, "ETH")).toEqual(["https://icons.llamao.fi/icons/chains/rsz_world%20chain.jpg"]);
+    expect(chainLogoCandidates(324, "ETH")).toEqual(["https://icons.llamao.fi/icons/chains/rsz_zksync%20era.jpg"]);
+  });
+
   it("keeps ETH-native chains visually distinct", () => {
     expect(chainLogoCandidates(1, "ETH")[0]).toBe("/icons/eth.svg");
     expect(chainLogoCandidates(42161, "ETH")[0]).toBe("/icons/arbitrum.svg");
@@ -84,6 +90,23 @@ describe("tokenLogoCandidates", () => {
       .toEqual(["https://icons.llamao.fi/icons/chains/rsz_solana.jpg"]);
     // Non-native tokens never borrow a chain icon.
     expect(tokenLogoCandidates({ chainId: 1, ticker: "BTC" })).toEqual([]);
+  });
+
+  it("falls back to chain-ID-keyed token CDNs for any EVM chain", () => {
+    const candidates = tokenLogoCandidates({
+      chainId: 5000,
+      ticker: "METH",
+      address: "0xcDA86A272531e8640cD7F1a92c01839911B90bb0",
+    });
+    expect(candidates).toEqual([
+      "https://token-icons.llamao.fi/icons/tokens/5000/0xcda86a272531e8640cd7f1a92c01839911b90bb0?h=64&w=64",
+      "https://assets.smold.app/api/token/5000/0xcda86a272531e8640cd7f1a92c01839911b90bb0/logo-128.png",
+    ]);
+  });
+
+  it("falls back to the chain icon for a native coin with no other artwork", () => {
+    expect(tokenLogoCandidates({ chainId: 5000, ticker: "MNT", isNative: true }))
+      .toEqual(["https://icons.llamao.fi/icons/chains/rsz_mantle.jpg"]);
   });
 
   it("deduplicates candidates and omits unusable addresses", () => {

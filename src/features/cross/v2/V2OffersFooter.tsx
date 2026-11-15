@@ -4,12 +4,13 @@
 import type { ReactNode } from "react";
 import { v2ChainById } from "./assets";
 import { MicroLabel, railIconUrl, wk } from "../../../design-system/widgetKit";
-import type { BelowMinimum } from "./types";
+import type { BelowMinimum, WireOffer } from "./types";
 import type { CheckedSubstitute, CheckedWithheld, TwoHopInfo } from "./useV2Quote";
 import { formatUnitsShort, planIdOf, railDisplayName, railNameOf, type CheckedOffer } from "./widgetView";
 
 export interface V2OffersFooterProps {
   withheld: CheckedWithheld[];
+  gasTopUp?: { offer: WireOffer; reason: string; enabled: boolean; chain: string; onToggle: () => void };
   substitutes: CheckedSubstitute[];
   twoHop: TwoHopInfo | null;
   selectedPlanId: string | null;
@@ -44,9 +45,21 @@ export default function V2OffersFooter(props: V2OffersFooterProps) {
   const { withheld, substitutes, twoHop, selectedPlanId, twoHopSelected, onPickTwoHop, ticker, onPick } = props;
   const below = props.belowMinimum ?? [];
   const subs = substitutes.filter((s) => s.offers.length > 0);
-  if (!twoHop && withheld.length === 0 && subs.length === 0 && below.length === 0) return null;
+  if (!props.gasTopUp && !twoHop && withheld.length === 0 && subs.length === 0 && below.length === 0) return null;
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 8 }}>
+      {props.gasTopUp && (
+        <Group label="Destination gas">
+          <label style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 12, color: wk.t1 }}>
+            <input type="checkbox" checked={props.gasTopUp.enabled} onChange={props.gasTopUp.onToggle} />
+            Add ~{formatUnitsShort(props.gasTopUp.offer.journey.expectedOutput)} native gas on {props.gasTopUp.chain} for {formatUnitsShort(props.gasTopUp.offer.journey.input)} {ticker(props.gasTopUp.offer.journey.input.asset)}
+          </label>
+          <p style={{ margin: 0, fontSize: 11, color: wk.t2 }}>{props.gasTopUp.reason} · Independent Gas.zip transfer; estimated delivery, not a guarantee.</p>
+          {props.gasTopUp.offer.journey.assessment && props.gasTopUp.offer.journey.assessment.status !== "acceptable" && (
+            <p style={{ margin: 0, fontSize: 11, color: wk.warn }}>{props.gasTopUp.offer.journey.assessment.label}: {props.gasTopUp.offer.journey.assessment.reason}. Continuing with gas enabled accepts this displayed assessment.</p>
+          )}
+        </Group>
+      )}
       {twoHop && (
         <Group label="Two-step route">
           <p style={{ margin: 0, fontSize: 11, lineHeight: 1.55, color: wk.t2 }}>

@@ -30,6 +30,8 @@ import CrossEnginePage from "../features/cross/CrossEnginePage";
 import MultiPageV2 from "../design-system/pages/MultiPage";
 import GasPageV2 from "../design-system/pages/GasPage";
 import WidgetPageV2 from "../design-system/pages/WidgetPage";
+import RampPageV2 from "../design-system/pages/RampPage";
+import { RAMP_V2_ENABLED } from "../design-system/data/navGroups";
 import ErrorBoundary from "../components/ErrorBoundary";
 // When a user connects an unsupported chain, ChainSwitcher prompts via
 // a toast with an explicit "Switch to PulseChain" action — NOT a silent
@@ -218,8 +220,7 @@ function MyRoutes() {
             <Route path="/multi-v2"  element={<V2Wrapper><MultiPageV2 /></V2Wrapper>} />
             <Route path="/gas-v2"    element={<V2Wrapper><GasPageV2 /></V2Wrapper>} />
             <Route path="/widget-v2" element={<V2Wrapper><WidgetPageV2 /></V2Wrapper>} />
-            {/* <Route path="/ramp-v2" element={<V2Wrapper><RampPageV2 /></V2Wrapper>} /> */}
-            <Route path="/ramp-v2" element={<Navigate to="/swap-v2" replace />} />
+            <Route path="/ramp-v2" element={RAMP_V2_ENABLED ? <V2Wrapper><RampPageV2 /></V2Wrapper> : <Navigate to="/swap-v2" replace />} />
             {/* /landing kept for backwards-compat links; redirects to /. */}
             <Route path="/landing" element={<Navigate to="/" replace />} />
             {/* Embeddable swap widget loaded in partner iframes (vercel.json

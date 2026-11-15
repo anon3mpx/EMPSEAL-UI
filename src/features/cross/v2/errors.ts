@@ -10,6 +10,7 @@ export interface V2ErrorView {
   requestId?: string;
   /** Seconds to wait before retrying, when the API said so. */
   retryAfterSec?: number;
+  requote?: boolean;
 }
 
 const POLICY_DETAIL: Record<string, string> = {
@@ -21,6 +22,8 @@ const CODE_TEXT: Record<string, string> = {
   REQUOTE_REQUIRED: "Prices moved since this quote. Refresh the quote and review it again.",
   QUOTE_MISMATCH: "This quote no longer matches its route. Refresh the quote.",
   INVALID_PLAN: "This route failed the server's checks. Refresh the quote or pick another route.",
+  SOLANA_TX_MODIFIED: "Your wallet changed the transaction, so it was not sent. Try again, or disable transaction add-ons in the wallet.",
+  SOLANA_SUBMIT_FAILED: "The Solana submission could not be confirmed. Check this transfer's status before signing another transaction.",
   NO_ROUTE: "No route is available for this transfer right now.",
   KILL_SWITCH_OFF: "Cross-chain transfers are paused right now. Your funds have not moved; try again later.",
   UNSUPPORTED: "This route isn't supported for this transfer.",
@@ -69,6 +72,10 @@ export function describeV2Error(e: unknown): V2ErrorView {
   if (isWalletRejection(e)) return { text: "You rejected the request in your wallet. Nothing was sent." };
   if (e instanceof CrossV2ApiError) {
     const meta = { requestId: e.requestId, retryAfterSec: e.retryAfterSec };
+    if (e.code === "SOLANA_INSUFFICIENT_BALANCE") return { ...meta, text: e.details?.need === "usdc" ? "Not enough USDC on Solana" : "Not enough SOL for fees" };
+    if (e.code === "REQUOTE_REQUIRED") return { ...meta, text: CODE_TEXT.REQUOTE_REQUIRED, requote: true };
+    if (e.code === "SOLANA_SUBMIT_FAILED" && typeof e.details?.signature === "string")
+      return { ...meta, text: `${CODE_TEXT.SOLANA_SUBMIT_FAILED} Signature: ${e.details.signature}` };
     if (e.code === "RATE_LIMITED")
       return { ...meta, text: e.retryAfterSec !== undefined ? `Too many requests. Try again in ${Math.ceil(e.retryAfterSec)} s.` : "Too many requests. Try again shortly." };
     if (e.code === "POLICY_DENIED") {

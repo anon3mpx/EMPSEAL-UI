@@ -80,6 +80,29 @@ describe("executeCheckedPlan", () => {
   });
 });
 
+describe("composition execution", () => {
+  it("toggle off uses the normal intent commit", async () => {
+    const { client, wallet } = setup();
+    const offer = makeOffer();
+    await executeCheckedPlan(client, { plan: offer.execution.plan, journey: offer.journey }, 8453, wallet);
+    expect(client.commit).toHaveBeenCalledTimes(1);
+  });
+  it("commits once then signs and submits both independent intents without recommitting", async () => {
+    const { client, wallet } = setup();
+    client.commitComposition = vi.fn(async () => ({ compositionId: "c-1", replayed: false, primary: { intentId: "primary", kind: "contract" as const, replayed: false }, gas: { intentId: "gas", kind: "contract" as const, replayed: false } }));
+    const offer = makeOffer(), onComposition = vi.fn();
+    const r = await executeCheckedPlan(client, { plan: offer.execution.plan, journey: offer.journey }, 8453, wallet, {
+      gasTopUp: { offer, sourceChainId: 8453 }, onComposition,
+    });
+    expect(client.commitComposition).toHaveBeenCalledTimes(1);
+    expect(client.commit).not.toHaveBeenCalled();
+    expect(client.submitOrder).toHaveBeenNthCalledWith(1, "primary", "0xsig", undefined);
+    expect(client.submitOrder).toHaveBeenNthCalledWith(2, "gas", "0xsig", undefined);
+    expect(onComposition).toHaveBeenCalledWith("c-1");
+    expect(r.intentId).toBe("primary");
+  });
+});
+
 describe("deposits", () => {
   it("evm erc20 deposit sends transfer", async () => {
     const { client, wallet } = setup();

@@ -68,9 +68,13 @@ const CHAIN_ID_DEFILLAMA_SLUGS: Record<number, string> = {
   0: "bitcoin",
   1: "ethereum",
   10: "optimism",
+  14: "flare",
+  25: "cronos",
   30: "rootstock",
+  40: "telos",
+  50: "xdc",
   56: "binance",
-  98: "dogecoin",
+  98: "doge",
   99: "solana",
   100: "litecoin",
   101: "bitcoin-cash",
@@ -79,22 +83,70 @@ const CHAIN_ID_DEFILLAMA_SLUGS: Record<number, string> = {
   104: "kujira",
   105: "dash",
   106: "zcash",
+  122: "fuse",
   130: "unichain",
   137: "polygon",
   143: "monad",
   146: "sonic",
+  151: "redbelly",
+  169: "manta pacific",
+  196: "x layer",
+  200: "tron",
+  239: "tac",
+  250: "xrpl",
+  252: "fraxtal",
+  291: "orderly",
+  295: "hedera",
+  324: "zksync era",
   369: "pulsechain",
-  480: "wc",
+  480: "world chain",
+  592: "astar",
+  747: "flow",
+  964: "bittensor",
+  988: "stable",
   999: "hyperliquid",
+  1030: "conflux",
+  1116: "core",
   1329: "sei",
+  1480: "vana",
+  1514: "story",
+  1776: "injective",
+  1868: "soneium",
+  2222: "kava",
+  2741: "abstract",
+  2818: "morph",
+  3338: "peaq",
+  4114: "citrea",
+  4217: "tempo",
+  4326: "megaeth",
+  4337: "beam",
+  4663: "robinhood chain",
+  5000: "mantle",
+  5042: "arc",
+  6900: "nibiru",
+  8217: "kaia",
   8453: "base",
+  8822: "iota evm",
+  9745: "plasma",
   10001: "ethereumpow",
+  16661: "0g",
+  33139: "apechain",
+  34443: "mode",
   42161: "arbitrum",
+  42220: "celo",
+  42793: "etherlink",
+  43111: "hemi",
   43114: "avalanche",
+  48900: "zircuit",
   57073: "ink",
   59144: "linea",
+  60808: "bob",
   80094: "berachain",
+  81224: "codex",
+  88888: "chiliz",
   98866: "plume",
+  534352: "scroll",
+  747474: "katana",
 };
 
 // ─── Legacy ticker → DefiLlama slug map (Ramp / existing consumers) ───────
@@ -119,13 +171,13 @@ export const CHAIN_SLUGS: Record<string, string> = {
   ETHW:  "ethereumpow",
   BTC:   "bitcoin",
   SOL:   "solana",
-  DOGE:  "dogecoin",
+  DOGE:  "doge",
   LTC:   "litecoin",
   BCH:   "bitcoin-cash",
   TRX:   "tron",
   ATOM:  "cosmos",
   ADA:   "cardano",
-  XRP:   "xrp",
+  XRP:   "xrpl",
   TON:   "ton",
   APT:   "aptos",
   SUI:   "sui",
@@ -216,7 +268,7 @@ export function tokenLogoUrl(chainId: number, ticker: string): string | null {
 }
 
 function defillamaChainUrl(slug: string): string {
-  return `https://icons.llamao.fi/icons/chains/rsz_${slug}.jpg`;
+  return `https://icons.llamao.fi/icons/chains/rsz_${encodeURIComponent(slug)}.jpg`;
 }
 
 function dedupe(values: string[]): string[] {
@@ -274,18 +326,32 @@ function trustWalletTokenUrl(chainId: number | undefined, address: string | unde
   return tokenLogoUrlByAddress(slug, checksum);
 }
 
+// Address-keyed CDNs indexed by EVM chain ID, so they cover chains Trust Wallet
+// does not. DefiLlama mirrors CoinGecko artwork; SmolDapp covers some it lacks.
+function evmTokenCdnUrls(chainId: number | undefined, address: string | undefined): string[] {
+  if (chainId == null || !address || !isAddress(address)) return [];
+  const addr = address.toLowerCase();
+  if (addr === zeroAddress || /^0xe{40}$/.test(addr)) return [];
+  return [
+    `https://token-icons.llamao.fi/icons/tokens/${chainId}/${addr}?h=64&w=64`,
+    `https://assets.smold.app/api/token/${chainId}/${addr}/logo-128.png`,
+  ];
+}
+
 export function tokenLogoCandidates(identity: TokenLogoIdentity): string[] {
   const ticker = identity.ticker.trim().toUpperCase();
   const local = LOCAL_TOKEN_LOGOS[ticker];
   const configured = normalizeLogoUrl(identity.configuredUrl);
   const fromAddress = trustWalletTokenUrl(identity.chainId, identity.address);
+  const fromCdns = evmTokenCdnUrls(identity.chainId, identity.address);
 
   // A native coin's artwork is its home chain's icon (BTC → bitcoin), which
   // covers BTC, SOL, DOGE, etc. that have no local file or contract address.
+  // Failing that, the chain's own icon (MNT → Mantle) by chain ID.
   const nativeCoin = identity.isNative ? chainLogoUrl(ticker) : null;
   const candidates = identity.isNative
-    ? [local, configured, fromAddress, nativeCoin]
-    : [configured, fromAddress, local];
+    ? [local, configured, fromAddress, nativeCoin, ...chainLogoCandidates(identity.chainId)]
+    : [configured, fromAddress, ...fromCdns, local];
 
   return dedupe(candidates.filter((candidate): candidate is string => Boolean(candidate)));
 }
