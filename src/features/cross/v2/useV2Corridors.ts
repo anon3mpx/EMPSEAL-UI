@@ -11,6 +11,7 @@ import { registerCatalog } from "./catalog";
 import type { CrossV2Client } from "./client";
 import type { CorridorRow } from "./types";
 import { chainIdOfCaip2 } from "./nonEvm";
+import { allowSameChain } from "./solanaSwap";
 
 /** source chain id -> destination chain ids it can reach. */
 export type CorridorMap = ReadonlyMap<number, ReadonlySet<number>>;
@@ -21,7 +22,7 @@ export function corridorMap(rows: readonly CorridorRow[]): CorridorMap {
   for (const r of rows) {
     const from = chainIdOfCaip2(r.from);
     const to = chainIdOfCaip2(r.to);
-    if (from === undefined || to === undefined || from === to || !(r.executableAutomatic > 0)) continue;
+    if (from === undefined || to === undefined || (from === to && !allowSameChain(from, to)) || !(r.executableAutomatic > 0)) continue;
     (map.get(from) ?? map.set(from, new Set()).get(from)!).add(to);
   }
   return map;

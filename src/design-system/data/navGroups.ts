@@ -13,6 +13,7 @@ export interface NavGroup {
   href?: string;
   sub?: string;
 }
+export const RAMP_V2_ENABLED = import.meta.env.VITE_RAMP_V2_ENABLED === "true";
 
 export const NAV_GROUPS: NavGroup[] = [
   {
@@ -20,7 +21,6 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: "Swap", href: "/swap-v2", sub: "Same-chain, best execution" },
       { label: "Cross", href: "/cross-v2", sub: "Any chain to any chain" },
-      // Bridge + Ramp: disabled in the nav for now (routes still exist).
       { label: "Bridge", href: "/bridge-v2", sub: "Move one asset, one hop", badge: "Preview", disabled: true },
       { label: "Multi", href: "/multi-v2", sub: "One basket, many recipients" },
     ],
@@ -28,7 +28,7 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     label: "Fund",
     items: [
-      { label: "Ramp", href: "/ramp-v2", sub: "Card and bank to on-chain", badge: "Demo", disabled: true },
+      { label: "Ramp", href: "/ramp-v2", sub: "Bank ↔ wallet USDC", disabled: !RAMP_V2_ENABLED },
       { label: "Gas", href: "/gas-v2", sub: "Top up native gas anywhere" },
     ],
   },

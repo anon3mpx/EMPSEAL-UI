@@ -65,11 +65,13 @@ export interface RampCreateDelegationCommand extends RampSignedCommand {
   partner: string;
   delegateType: RampDelegateType;
   delegateId?: string;
+  agentId?: string;
   operations: RampGrantOperation[];
   directions: RampDirection[];
   chainIds: number[];
   externalAccountIds: string[];
   expiresAt: string;
+  maxTransferUsd?: string;
 }
 
 export interface RampProfile {
@@ -110,6 +112,8 @@ export interface RampDepositInstructions {
   amount?: string;
   currency?: string;
   depositAddress?: string;
+  chainId?: number;
+  tokenAddress?: string;
   bankName?: string;
   accountNumberLastFour?: string;
   routingNumberLastFour?: string;
@@ -146,6 +150,12 @@ export interface RampTransfer {
   basketFundingState?: string;
   preliminaryTransactionHash?: string;
   finalTransactionHash?: string;
+  settledAmount?: string;
+  leg2?: {
+    state: "not_started" | "in_flight" | "delivered" | "failed";
+    intentId?: string;
+    suggestedQuote?: {from:{asset:string;amount:string;decimals:number};recipient:string};
+  };
 }
 
 export interface RampDelegation {
@@ -158,6 +168,7 @@ export interface RampDelegation {
   chainIds: number[];
   expiresAt: string;
   revokedAt?: string;
+  maxTransferUsd?: string;
 }
 
 export interface RampSessionSnapshot {
@@ -182,4 +193,8 @@ export const RAMP_ACTIONS = {
   cancelTransfer: "CANCEL_RAMP_TRANSFER",
   createDelegation: "CREATE_RAMP_DELEGATION",
   revokeDelegation: "REVOKE_RAMP_DELEGATION",
+  listDelegations: "LIST_RAMP_DELEGATIONS",
+  createAgentGrant: "CREATE_RAMP_GRANT",
+  revokeAgentGrant: "REVOKE_RAMP_GRANT",
+  reportLeg2: "REPORT_RAMP_LEG2",
 } as const;

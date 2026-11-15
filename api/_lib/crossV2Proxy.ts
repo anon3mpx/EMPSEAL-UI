@@ -34,8 +34,11 @@ const ROUTES: ReadonlyArray<[string, RegExp]> = [
   ["GET", /^\/v2\/capabilities\/corridors$/],
   ["POST", /^\/v2\/quote$/],
   ["POST", /^\/v2\/intents$/],
+  ["POST", /^\/v2\/compositions$/],
+  ["GET", new RegExp(`^/v2/compositions/${ID}$`)],
   ["GET", new RegExp(`^/v2/intents/${ID}$`)],
   ["POST", new RegExp(`^/v2/intents/${ID}/orders$`)],
+  ["POST", new RegExp(`^/v2/intents/${ID}/solana$`)],
   ["POST", new RegExp(`^/v2/intents/${ID}/steps$`)],
   ["POST", new RegExp(`^/v2/intents/${ID}/reference$`)],
   ["POST", /^\/v2\/journeys\/quote$/],
@@ -47,6 +50,12 @@ const ROUTES: ReadonlyArray<[string, RegExp]> = [
   ["POST", new RegExp(`^/v2/baskets/${ID}/(begin|cancel)$`)],
   ["POST", new RegExp(`^/v2/baskets/${ID}/legs/${ID}/(commit|requote)$`)],
   ["GET", new RegExp(`^/v2/baskets/${ID}/legs/${ID}/steps$`)],
+  ["POST", /^\/v2\/wallet\/scan$/],
+  ["POST", /^\/v2\/wallet\/liquidate\/quote$/],
+  ["GET", /^\/v2\/ramp\/(capabilities|delegations|agent-grants)$/],
+  ["POST", /^\/v2\/ramp\/(wallets\/register|profile|kyc-link|kyc\/refresh|bank-link|bank-link\/exchange|external-accounts|preview|transfers|delegations|agent-grants)$/],
+  ["POST", new RegExp(`^/v2/ramp/transfers/${ID}/(status|cancel|leg2)$`)],
+  ["POST", new RegExp(`^/v2/ramp/(delegations|agent-grants)/${ID}/revoke$`)],
 ];
 
 /** The upstream path for an allowlisted (method, path), or null. `pathname` is the part after the prefix. */
@@ -104,8 +113,10 @@ export async function handleCrossV2Proxy(req: InboundRequest, env: ProxyEnv, fet
 
   let res: Response;
   try {
-    // The query string is never forwarded: no allowlisted route takes one.
-    res = await fetchImpl(`${base}${upstreamPath}`, {
+    // Only signed list requests use a query; never forward unrelated browser query parameters.
+    const query = req.method === "GET" && /^\/v2\/ramp\/(delegations|agent-grants)$/.test(upstreamPath)
+      && url.searchParams.has("payload") ? `?${new URLSearchParams({payload:url.searchParams.get("payload")!})}` : "";
+    res = await fetchImpl(`${base}${upstreamPath}${query}`, {
       method: req.method,
       headers: out,
       body: hasBody ? Buffer.from(req.body!) : undefined,

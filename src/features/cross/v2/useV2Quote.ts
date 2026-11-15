@@ -42,6 +42,7 @@ export interface TwoHopInfo {
 export interface V2QuoteState {
   state: CrossRailsState;
   offers: CheckedOffer[];
+  gasTopUp: { reason: string; offer: CheckedOffer } | null;
   /** Routes economic eligibility held back from automatic selection. */
   withheld: CheckedWithheld[];
   /** Present only when no route delivers the requested asset. */
@@ -71,6 +72,7 @@ const retryDelayMs = (failures: number) => Math.min(60_000, 10_000 * 2 ** Math.m
 export function useV2Quote(client: CrossV2Client, input: V2QuoteInput, describeError: (e: unknown) => string): V2QuoteState {
   const [state, setState] = useState<CrossRailsState>("idle");
   const [offers, setOffers] = useState<CheckedOffer[]>([]);
+  const [gasTopUp, setGasTopUp] = useState<V2QuoteState["gasTopUp"]>(null);
   const [withheld, setWithheld] = useState<CheckedWithheld[]>([]);
   const [substitutes, setSubstitutes] = useState<CheckedSubstitute[]>([]);
   const [belowMinimum, setBelowMinimum] = useState<BelowMinimum[]>([]);
@@ -94,6 +96,7 @@ export function useV2Quote(client: CrossV2Client, input: V2QuoteInput, describeE
 
   const clear = () => {
     setOffers([]);
+    setGasTopUp(null);
     setWithheld([]);
     setSubstitutes([]);
     setBelowMinimum([]);
@@ -146,6 +149,11 @@ export function useV2Quote(client: CrossV2Client, input: V2QuoteInput, describeE
         if (res.kind === "two_hop") expiries.push(res.journey.expiresAt);
         const firstExpiry = Math.min(...expiries);
         setOffers(checked);
+        const gas = q.gasTopUp?.plan;
+        setGasTopUp(gas ? { reason: q.gasTopUp!.reason, offer: {
+          offer: gas,
+          check: checkOffer(gas, { fromAsset: gas.journey.input.asset, amount: gas.journey.input.amount, toAsset: gas.journey.toAsset, sender: sender!, recipient: to!, now, allowHeldBack: true }),
+        } } : null);
         setWithheld(held);
         setSubstitutes(subs);
         // Only rails that need more of what the user is sending: anything else could not be acted on here.
@@ -198,5 +206,5 @@ export function useV2Quote(client: CrossV2Client, input: V2QuoteInput, describeE
   }, [paused, state, failures]);
 
   const refresh = useCallback(() => setNonce((n) => n + 1), []);
-  return { state, offers, withheld, substitutes, belowMinimum, noneReason, twoHop, degraded, issuedAt, validMs, error, forNewInput, refresh };
+  return { state, offers, gasTopUp, withheld, substitutes, belowMinimum, noneReason, twoHop, degraded, issuedAt, validMs, error, forNewInput, refresh };
 }

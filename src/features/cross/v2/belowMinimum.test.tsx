@@ -52,3 +52,20 @@ describe("held-back routes", () => {
     expect(screen.queryByRole("button", { name: "Accept route" })).toBeNull();
   });
 });
+
+describe("destination gas offer", () => {
+  it("is absent without a quote offer and defaults on when present", () => {
+    const onToggle = vi.fn();
+    const props = { withheld: [], substitutes: [], twoHop: null, selectedPlanId: null, twoHopSelected: false, onPickTwoHop: vi.fn(), ticker: () => "ETH", onPick: vi.fn() };
+    const { rerender } = render(<V2OffersFooter {...props} />);
+    expect(screen.queryByRole("checkbox", { name: /Add ~/ })).toBeNull();
+    rerender(<V2OffersFooter {...props} gasTopUp={{ offer: makeOffer(), reason: "Low native balance", enabled: true, chain: "Arbitrum", onToggle }} />);
+    const toggle = screen.getByRole("checkbox", { name: /Add ~.*native gas on Arbitrum for/ });
+    expect(toggle instanceof HTMLInputElement && toggle.checked).toBe(true);
+    fireEvent.click(toggle);
+    expect(onToggle).toHaveBeenCalledTimes(1);
+    rerender(<V2OffersFooter {...props} gasTopUp={{ offer: makeOffer(), reason: "Low native balance", enabled: false, chain: "Arbitrum", onToggle }} />);
+    const unchecked = screen.getByRole("checkbox", { name: /Add ~/ });
+    expect(unchecked instanceof HTMLInputElement && unchecked.checked).toBe(false);
+  });
+});

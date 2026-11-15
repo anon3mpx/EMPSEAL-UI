@@ -89,12 +89,13 @@ export interface MultiScanRow {
   token: MultiToken;
   chainName: string;
   amount: string;
-  usdValue: number;
+  usdValue: number | null;
   selected: boolean;
 }
 
 export interface EmpxMultiWidgetProps {
   mode: MultiMode;
+  engine?: "v1" | "v2";
   onModeChange: (m: MultiMode) => void;
   modeOptions?: { value: MultiMode; label: string }[];
   /** One-line shape hint under the tabs, e.g. "N tokens → 1 target". */
@@ -151,7 +152,7 @@ const MODE_TABS: { value: MultiMode; label: string }[] = [
 ];
 
 export default function EmpxMultiWidget({
-  mode, onModeChange, modeOptions = MODE_TABS, modeSubtitle, modeBlurb, modeExample,
+  mode, engine = "v1", onModeChange, modeOptions = MODE_TABS, modeSubtitle, modeBlurb, modeExample,
   legCount, maxLegs,
   inputs, onInputAmountChange, onSelectInputChain, onSelectInputToken, onRemoveInput, onAddInput, canAddInput,
   outputs, onOutputAllocationChange, onSelectOutputChain, onSelectOutputToken, onRemoveOutput, onAddOutput, canAddOutput, onToggleGasTopUp,
@@ -308,12 +309,12 @@ export default function EmpxMultiWidget({
           </div>
           <div style={{ fontSize: 10, color: wk.t3, textAlign: "right", marginTop: 6, fontVariantNumeric: "tabular-nums" }}>
             {usesAllocation
-              ? `${((leg.allocationBps ?? 0) / 100).toFixed(2)}% allocation`
+              ? `${leg.convergedAmount ? `≈ ${leg.convergedAmount} ${leg.token.ticker} · ` : ""}${((leg.allocationBps ?? 0) / 100).toFixed(2)}% allocation`
               : leg.convergedUsd != null
                 ? `≈ $${leg.convergedUsd.toLocaleString(undefined, { maximumFractionDigits: 2 })} · converged`
                 : " "}
           </div>
-          {onToggleGasTopUp && <ToggleRow
+          {engine !== "v2" && onToggleGasTopUp && <ToggleRow
             title="Gas top-up on arrival"
             hint={`Deliver a little native ${leg.chain.name} gas alongside the swap, via the Gas.zip side-leg.`}
             enabled={!!leg.gasTopUpEnabled}
@@ -449,6 +450,7 @@ function ScanRow({ row, onToggle }: { row: MultiScanRow; onToggle: () => void })
   return (
     <button
       type="button"
+      aria-pressed={row.selected}
       onClick={onToggle}
       style={{
         display: "flex", alignItems: "center", gap: 11, width: "calc(100% + 16px)",
@@ -474,7 +476,7 @@ function ScanRow({ row, onToggle }: { row: MultiScanRow; onToggle: () => void })
           {row.amount}
         </span>
         <span style={{ display: "block", fontSize: 9.5, color: wk.t3, marginTop: 2 }}>
-          ${row.usdValue.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+          {row.usdValue === null ? "Unpriced" : `$${row.usdValue.toLocaleString(undefined, { maximumFractionDigits: 2 })}`}
         </span>
       </span>
       <span style={{ width: 14, flexShrink: 0, fontSize: 11, color: wk.orange, textAlign: "center" }}>

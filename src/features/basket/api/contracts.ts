@@ -1,3 +1,5 @@
+import type { BasketView } from "../../cross/v2/basketTypes";
+
 export type BasketMode =
   | "multi-to-one"
   | "one-to-many"
@@ -100,6 +102,37 @@ export interface WalletScanResult {
   scannedAt: number;
   balances: WalletScanBalance[];
   skipped: Array<{ chainId: number; reason: string }>;
+}
+
+export interface V2WalletScanRequest {
+  wallet: string;
+  tokensByChain: Record<number, string[]>;
+  includeNative?: boolean;
+  minUsd?: number;
+}
+export interface V2WalletScanResult {
+  wallet: string;
+  chains: Array<{
+    chainId: number;
+    error?: "rpc-unavailable";
+    balances: Array<{
+      asset: string; token: string; symbol?: string; decimals: number;
+      amount: string; usd: number | null; dust: boolean; error?: "unreadable";
+    }>;
+  }>;
+}
+export interface V2LiquidateRequest extends V2WalletScanRequest {
+  target: string;
+  recipient?: string;
+  include?: string[];
+  exclude?: string[];
+  slippageBps?: number;
+  maxTier: 1 | 2 | 3;
+}
+export interface V2LiquidateQuote {
+  scan: V2WalletScanResult;
+  basket: BasketView | null;
+  skipped: Array<{asset: string; reason: "dust" | "unpriced" | "already-target" | "basket-leg-limit" | "excluded" | "unreadable" | "below-gas-reserve"}>;
 }
 
 export interface BasketQuoteCapabilities {

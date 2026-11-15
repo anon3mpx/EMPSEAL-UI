@@ -6,7 +6,7 @@ import type { CrossV2Client } from "./client";
 import { EMPX_DEPLOYMENTS } from "./deployments";
 import type { WalletPort } from "./execute";
 import { forgetIntent, openIntents, rememberIntent, type StoredIntent } from "./journeyStore";
-import { TERMINAL_STATUSES, type IntentStatus } from "./types";
+import { TERMINAL_STATUSES, type CompositionStatus, type IntentStatus } from "./types";
 
 const POLL_START_MS = 2_000;
 const POLL_MAX_MS = 15_000;
@@ -32,6 +32,7 @@ export interface V2IntentState {
   intentId: string | null;
   stored: StoredIntent | null;
   status: IntentStatus | null;
+  composition: CompositionStatus | null;
   pollError: string | null;
   claiming: boolean;
   /** Starts tracking a transfer the page just committed. */
@@ -43,6 +44,7 @@ export interface V2IntentState {
 export function useV2Intent(client: CrossV2Client, sender: string | undefined, wallet: WalletPort | null, describeError: (e: unknown) => string): V2IntentState {
   const [stored, setStored] = useState<StoredIntent | null>(null);
   const [status, setStatus] = useState<IntentStatus | null>(null);
+  const [composition, setComposition] = useState<CompositionStatus | null>(null);
   const [pollError, setPollError] = useState<string | null>(null);
   const [claiming, setClaiming] = useState(false);
   const [nonce, setNonce] = useState(0);
@@ -52,6 +54,7 @@ export function useV2Intent(client: CrossV2Client, sender: string | undefined, w
   useEffect(() => {
     setStored(sender ? openIntents(sender)[0] ?? null : null);
     setStatus(null);
+    setComposition(null);
   }, [sender]);
 
   useEffect(() => {
@@ -61,11 +64,13 @@ export function useV2Intent(client: CrossV2Client, sender: string | undefined, w
     let timer: ReturnType<typeof setTimeout>;
     const tick = async () => {
       try {
-        const s = await client.status(intentId, ctl.signal);
+        const combined = stored?.compositionId ? await client.compositionStatus(stored.compositionId, ctl.signal) : null;
+        const s = combined?.primary ?? await client.status(intentId, ctl.signal);
         if (ctl.signal.aborted) return;
         setStatus(s);
+        setComposition(combined);
         setPollError(null);
-        if (TERMINAL_STATUSES.has(s.status)) {
+        if (combined ? combined.state !== "in_progress" : TERMINAL_STATUSES.has(s.status)) {
           if (sender) forgetIntent(sender, intentId);
           return;
         }
@@ -81,13 +86,14 @@ export function useV2Intent(client: CrossV2Client, sender: string | undefined, w
       ctl.abort();
       clearTimeout(timer);
     };
-  }, [client, intentId, sender, nonce, describeError]);
+  }, [client, intentId, stored?.compositionId, sender, nonce, describeError]);
 
   const track = useCallback(
     (i: StoredIntent) => {
       if (sender) rememberIntent(sender, i);
       // Re-tracking the same transfer (a new transaction was sent) keeps its status; a new one starts empty.
       if (stored?.intentId !== i.intentId) setStatus(null);
+      if (stored?.intentId !== i.intentId) setComposition(null);
       setStored(i);
     },
     [sender, stored?.intentId],
@@ -113,8 +119,9 @@ export function useV2Intent(client: CrossV2Client, sender: string | undefined, w
     if (sender && intentId) forgetIntent(sender, intentId);
     setStored(null);
     setStatus(null);
+    setComposition(null);
     setPollError(null);
   }, [sender, intentId]);
 
-  return { intentId, stored, status, pollError, claiming, track, claim, clear };
+  return { intentId, stored, status, composition, pollError, claiming, track, claim, clear };
 }

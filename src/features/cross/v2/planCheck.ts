@@ -7,6 +7,7 @@ import { sourceSwapOf } from "./sourceSwapCheck";
 import type { JourneyQuote, WireAmount, WireOffer, WirePlan, WireStep } from "./types";
 import { addressValidFor, chainIdOfCaip2, nativeDecimals } from "./nonEvm";
 import { isNonEvmChain } from "@/lib/wallet/chainKind";
+import { solanaSubmissionMatches } from "./solanaSwap";
 
 export const PLAN_SCHEMA_VERSION = 1;
 /** EMPX's all-in ceiling for its own order plans: the router's hard cap (EmpxRouterV2 ROUTER_HARD_CAPS). The live caps are set on chain
@@ -161,8 +162,9 @@ export function checkPlan(plan: WirePlan | null | undefined, ctx: PlanCheckConte
   for (const s of plan.steps as WireStep[])
     if (s.walletMode !== "server" && s.readiness === "blocked") bad(`step ${s.id} is blocked, so this route cannot be completed right now`);
   const wallet = (plan.steps as WireStep[]).filter((s) => s.walletMode !== "server" && s.readiness === "executable");
-  if (!wallet.some((s) => s.type === "typed_sign" || s.type === "tx" || s.type === "deposit")) bad("the plan has no wallet step to execute");
-  if (isNonEvmChain(sourceId) && (wallet.length !== 1 || wallet[0]?.type !== "deposit"))
+  const solanaNative = ["cctp-from-solana", "jupiter"].includes(plan.compiled.rail) && srcChain === "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp" && wallet.length === 1 && wallet[0]?.type === "native_tx";
+  if (!wallet.some((s) => s.type === "typed_sign" || s.type === "tx" || s.type === "deposit" || solanaNative)) bad("the plan has no wallet step to execute");
+  if (isNonEvmChain(sourceId) && !solanaNative && (wallet.length !== 1 || wallet[0]?.type !== "deposit"))
     bad("a non-EVM deposit must be the plan's only wallet step");
   for (const s of wallet) {
     if (!(s.expiresAt > ctx.now)) bad(`step ${s.id} has expired`);
@@ -193,6 +195,9 @@ export function checkPlan(plan: WirePlan | null | undefined, ctx: PlanCheckConte
         if (s.memo !== undefined) bad("this route needs a deposit memo the wallet cannot send");
         if (!eqAddr(s.address, plan.verify.expectedRecipient) && !inList(plan.verify.allowedTargets, s.address)) bad(`deposit ${s.id} pays an address the plan does not allow`);
       }
+    } else if (s.type === "native_tx") {
+      if (!solanaNative || s.walletMode !== "solana-signer" || s.chain !== srcChain || s.format !== "solana-versioned-tx" || !solanaSubmissionMatches(plan.compiled.rail, s.submitVia) || plan.journey.sender !== ctx.sender || (plan.compiled.rail === "jupiter" && ctx.recipient !== ctx.sender)) bad(`native transaction ${s.id} is not a supported Solana source transaction for this wallet`);
+      if (typeof s.payload !== "string" || !/^[A-Za-z0-9+/]+={0,2}$/.test(s.payload) || s.payload.length > 1644 || s.payload.length % 4 !== 0) bad(`native transaction ${s.id} has malformed bytes`);
     } else if (s.type === "typed_sign") {
       if (s.purpose !== "empx-order") bad(`signature ${s.id} is a provider signature, which this version does not sign`);
       else {

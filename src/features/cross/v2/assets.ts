@@ -76,3 +76,12 @@ export function tickerForAsset(assetId: string): string | undefined {
   const id = assetId.startsWith("eip155:") ? assetId.toLowerCase() : assetId;
   return v2Tokens(chainId).find((t) => assetIdOf(t) === id)?.ticker;
 }
+
+/** Ticker, decimals and chain for a CAIP-19 asset the pickers know, for formatting server base-unit amounts. */
+export function assetInfo(assetId: string): { chainId: number; ticker: string; decimals: number; address?: string; isNative?: boolean } | undefined {
+  const chainId = chainIdOfCaip2(assetId.split("/")[0]);
+  if (chainId === undefined) return undefined;
+  const id = assetId.startsWith("eip155:") ? assetId.toLowerCase() : assetId;
+  const t = v2Tokens(chainId).find((token) => assetIdOf(token) === id);
+  return t && { chainId, ticker: t.ticker, decimals: t.decimals, address: t.address, isNative: isNativeToken(t) };
+}

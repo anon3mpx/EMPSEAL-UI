@@ -1,25 +1,4 @@
-// ─── EmpxRampWidget — fiat on/off-ramp, multi-vendor ──────────────────────
-//
-// Ported from public/ramp-drafts.html (owner-approved 2026-08-23) into the
-// locked widgetKit language. Purely presentational — RampPage.tsx keeps the
-// real multi-vendor logic (providersFor / demoQuoteFor / the
-// pickSettlementChainId rule from SPEC-003 §3) untouched.
-//
-// The two-leg shape is the whole product, so the widget draws it:
-//   fiat --[provider]--> settlement asset --[EmpX]--> what you actually wanted
-// The provider owns fiat rails, KYC and licensing; EmpX owns everything
-// on-chain after settlement. Naming both venues on the route is the honest
-// version of that split — EmpX is additive past the provider's own chain and
-// asset list, not a replacement for it.
-//
-// Shape, and why:
-//   - Direction is WidgetTabs (underline), never a filled segmented control.
-//   - BOTH sides use the locked two-line TokenIdentityRow; the fiat flag sits
-//     inside a square 4px frame like every other logo container (rule 3).
-//   - ONE "Total cost" stat in orange, not competing per-venue fee stats —
-//     the split lives in the fee-breakdown disclosure.
-//   - The orange OUTCOME numeral follows the direction: on SELL the fiat
-//     figure is the outcome, on BUY the crypto figure is.
+// Fiat amounts and fees come from Bridge preview; crypto legs are separately reviewed V2 orders.
 
 import { ReactNode } from "react";
 import TouchTooltip from "../components/TouchTooltip";
@@ -304,25 +283,14 @@ export default function EmpxRampWidget({
         <>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
             <MicroLabel>Route</MicroLabel>
-            <span style={{ fontSize: 9, color: wk.t3 }}>2 legs · 2 providers</span>
+            <span style={{ fontSize: 9, color: wk.t3 }}>Fiat leg · Bridge</span>
           </div>
           <div style={{ display: "flex", alignItems: "flex-start", marginBottom: 4 }}>
-            {(isBuy
-              ? [
-                  { logo: undefined, flag: fiatFlag, t: fiatCurrency, s: "Your bank" },
-                  { via: providerName ?? "Provider" },
-                  { logo: settlementLogoUrl, t: settlementTicker, s: settlementChainName ?? "" },
-                  { via: "EmpX" },
-                  { logo: tokenLogoUrl, t: tokenTicker, s: chain.name },
-                ]
-              : [
-                  { logo: tokenLogoUrl, t: tokenTicker, s: chain.name },
-                  { via: "EmpX" },
-                  { logo: settlementLogoUrl, t: settlementTicker, s: settlementChainName ?? "" },
-                  { via: providerName ?? "Provider" },
-                  { logo: undefined, flag: fiatFlag, t: fiatCurrency, s: "Your bank" },
-                ]
-            ).map((n, i) =>
+            {[
+              isBuy ? {flag:fiatFlag,t:fiatCurrency,s:"Your bank"} : {logo:tokenLogoUrl,t:tokenTicker,s:`Your wallet · ${chain.name}`},
+              {via:providerName??"Provider"},
+              isBuy ? {logo:settlementLogoUrl,t:settlementTicker,s:`Your wallet · ${settlementChainName??chain.name}`} : {flag:fiatFlag,t:fiatCurrency,s:"Your bank"},
+            ].map((n, i) =>
               "via" in n ? (
                 <span key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", padding: "0 4px", marginTop: 11 }}>
                   <span style={{ width: "100%", height: 1, background: "rgba(255,255,255,.13)" }} />

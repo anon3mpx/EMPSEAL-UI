@@ -4,14 +4,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import CrossV2Flow from "./CrossV2Flow";
 import { getV2Chain } from "../../../design-system/data/v2ChainView";
 import type { PickerChain } from "../../../design-system/components";
+import { CrossV2ApiError } from "./client";
 
 const mocks = vi.hoisted(() => ({ quote: vi.fn() }));
 const wallet = "0x1111111111111111111111111111111111111111";
 const btc = "bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq";
-vi.mock("./client", () => ({ createCrossV2Client: () => ({ journeyQuote: mocks.quote }) }));
+vi.mock("./client", async () => ({
+  ...(await vi.importActual<Record<string, unknown>>("./client")),
+  createCrossV2Client: () => ({ journeyQuote: mocks.quote }),
+}));
 vi.mock("./useV2Corridors", () => ({
   useV2Corridors: () => ({
-    sources: [getV2Chain(8453), getV2Chain(0)],
+    sources: [getV2Chain(8453), getV2Chain(0), getV2Chain(99)],
     destinationsFor: () => [getV2Chain(42161), getV2Chain(8453), getV2Chain(0)],
   }),
 }));
@@ -36,13 +40,20 @@ vi.mock("../../../design-system/widgetKit", () => ({
   Disclosure: ({ children }: { children: ReactNode }) => children,
 }));
 vi.mock("../../../design-system/EmpxCrossWidget", () => ({
-  default: (p: { destinationSlot: ReactNode; onSelectFromChain: () => void; onSelectToChain: () => void; swapDisabled: boolean }) =>
+  default: (p: {
+    destinationSlot: ReactNode;
+    railsMessage?: string;
+    onSelectFromChain: () => void;
+    onSelectToChain: () => void;
+    swapDisabled: boolean;
+  }) =>
     createElement(
       "div",
       null,
       createElement("button", { onClick: p.onSelectFromChain }, "Source chain"),
       createElement("button", { onClick: p.onSelectToChain }, "Destination chain"),
       p.destinationSlot,
+      createElement("p", null, p.railsMessage),
       createElement("button", { disabled: p.swapDisabled }, "Review route"),
     ),
 }));
@@ -72,6 +83,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   cleanup();
+  vi.unstubAllGlobals();
   vi.useRealTimers();
 });
 async function settle() {
@@ -80,6 +92,38 @@ async function settle() {
   });
 }
 describe("non-EVM quotes", () => {
+  it.each([
+    ["SOLANA_INSUFFICIENT_BALANCE", { need: "sol" }, "Not enough SOL for fees"],
+    ["SOLANA_INSUFFICIENT_BALANCE", { need: "usdc" }, "Not enough USDC on Solana"],
+    [
+      "SOLANA_TX_MODIFIED",
+      {},
+      "Your wallet changed the transaction, so it was not sent. Try again, or disable transaction add-ons in the wallet.",
+    ],
+  ] as const)("renders %s refusal copy", async (code, details, text) => {
+    mocks.quote.mockRejectedValue(new CrossV2ApiError(422, code, "", false, { details }));
+    const solana = "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi";
+    vi.stubGlobal("phantom", { solana: { publicKey: { toString: () => solana }, connect: vi.fn(), signTransaction: vi.fn() } });
+    render(createElement(CrossV2Flow));
+    fireEvent.click(screen.getByText("Source chain"));
+    fireEvent.click(screen.getByText("Solana"));
+    fireEvent.click(screen.getByText("Destination chain"));
+    fireEvent.click(screen.getByText("Base"));
+    await settle();
+    expect(screen.getByText(text)).toBeTruthy();
+  });
+  it("Solana source quotes with Phantom's account, never the EVM account", async () => {
+    const solana = "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi";
+    vi.stubGlobal("phantom", { solana: { publicKey: { toString: () => solana }, connect: vi.fn(), signTransaction: vi.fn() } });
+    render(createElement(CrossV2Flow));
+    fireEvent.click(screen.getByText("Source chain"));
+    fireEvent.click(screen.getByText("Solana"));
+    fireEvent.click(screen.getByText("Destination chain"));
+    fireEvent.click(screen.getByText("Base"));
+    await settle();
+    expect(mocks.quote.mock.calls.at(-1)?.[0]).toMatchObject({ sender: solana, recipient: wallet });
+    expect(document.getElementById("cross-v2-source-address")).toBeNull();
+  });
   it("btc source uses the typed source address as sender", async () => {
     render(createElement(CrossV2Flow));
     fireEvent.click(screen.getByText("Source chain"));

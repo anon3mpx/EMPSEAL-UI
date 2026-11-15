@@ -4,7 +4,7 @@
 import { getExplorerTxUrl } from "../../../design-system/data/explorers";
 import { MicroLabel, wk } from "../../../design-system/widgetKit";
 import { statusLabel } from "./offerView";
-import type { IntentStatus } from "./types";
+import type { CompositionStatus, IntentStatus } from "./types";
 import DepositInstructions from "./DepositInstructions";
 import type { CrossV2Client } from "./client";
 import type { DepositInstruction } from "./planCheck";
@@ -13,6 +13,7 @@ export interface CrossV2ExecutionPanelProps {
   stepNote: string | null;
   intentId: string | null;
   status: IntentStatus | null;
+  composition?: CompositionStatus | null;
   delivered: string | null;
   error: string | null;
   /** `x-request-id` of the failed call, for support. */
@@ -91,7 +92,7 @@ export function railLink(rail: string | undefined, sent: Array<{ hash: string; s
 
 export default function CrossV2ExecutionPanel(p: CrossV2ExecutionPanelProps) {
   const { stepNote, intentId, status, delivered, error, onDone } = p;
-  const finished = status ? ["delivered", "claimed", "refunded", "failed"].includes(status.status) : false;
+  const finished = p.composition ? p.composition.state !== "in_progress" : status ? ["delivered", "claimed", "refunded", "failed"].includes(status.status) : false;
   const sent = p.sentTxs ?? [];
   return (
     <section aria-label="Execution" data-testid="cross-v2-status" style={{ width: "100%", maxWidth: wk.columnWidth, marginTop: 28 }}>
@@ -111,6 +112,10 @@ export default function CrossV2ExecutionPanel(p: CrossV2ExecutionPanelProps) {
             </div>
           ))}
         {status && <Row label="Status" value={statusLabel(status.status)} />}
+        {p.composition && <Row label="Combined status" value={p.composition.state === "delivered_without_gas" ? "Delivered, gas top-up failed" : p.composition.state === "delivered" ? "Delivered with gas" : p.composition.state === "failed" ? "Transfer failed" : "Transfer and gas in progress"} />}
+        {p.composition?.gas && <Row label="Gas top-up" value={typeof p.composition.gas === "string" ? "Requote required — review a fresh gas offer" : "error" in p.composition.gas ? p.composition.gas.error : statusLabel(p.composition.gas.status)} />}
+        {p.composition?.gas && typeof p.composition.gas === "object" && "intentId" in p.composition.gas && <Row label="Gas transfer" value={p.composition.gas.intentId} mono />}
+        {p.composition?.gas && typeof p.composition.gas === "object" && "status" in p.composition.gas && p.composition.gas.reason && <Row label="Gas reason" value={p.composition.gas.reason} tone={wk.warn} />}
         {intentId && <Row label="Transfer" value={intentId} mono />}
         {delivered && <Row label="Delivered" value={delivered} />}
         {txLinks(sent, status).map((t) => {

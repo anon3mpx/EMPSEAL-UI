@@ -29,4 +29,9 @@ describe("RampTransferPanel", () => {
     expect(onPreview).toHaveBeenCalledTimes(1);
     expect(onCreate).not.toHaveBeenCalled();
   });
+  it.each(["not_started","failed"] as const)("offers %s leg2 without repeating the fiat transfer", state=>{
+    render(<RampTransferPanel preview={null} transfer={{id:"tr-1",direction:"ON_RAMP",chainId:8453,tokenAddress:"0x1111111111111111111111111111111111111111",fiatCurrency:"USD",fiatRail:"ACH_PUSH",amount:"10",state:"COMPLETED",leg2:{state,suggestedQuote:{from:{asset:"eip155:8453/erc20:0x1111111111111111111111111111111111111111",amount:"9800000",decimals:6},recipient:"0x1111111111111111111111111111111111111111"}}}} busy={false} disabledReason={null} onCreate={vi.fn()} onPreview={vi.fn()} onStatus={vi.fn()} onCancel={vi.fn()}/>);
+    expect(screen.getByRole("button",{name:state==="failed"?"Retry Move funds":"Move funds"})).toBeTruthy();
+    expect(screen.getByText(/Fiat is complete/)).toBeTruthy();
+  });
 });

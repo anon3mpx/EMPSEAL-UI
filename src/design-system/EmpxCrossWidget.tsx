@@ -145,8 +145,8 @@ export interface EmpxCrossWidgetProps {
   quote?: CrossQuoteTiming;
   /** One status line under the quote row. */
   notice?: CrossNotice;
-
   walletConnected?: boolean;
+  connectLabel?: string;
   onConnect?: () => void;
 }
 
@@ -202,6 +202,7 @@ export default function EmpxCrossWidget({
   quote,
   notice,
   walletConnected = true,
+  connectLabel = "Connect wallet",
   onConnect,
 }: EmpxCrossWidgetProps) {
   const lifecycle = useQuoteLifecycle({
@@ -209,7 +210,6 @@ export default function EmpxCrossWidget({
     validMs: quote?.validMs,
     onRefresh: quote?.onRefresh,
   });
-
   const amountEntered = Number((fromAmount || "0").replace(/,/g, "")) > 0;
   const ctaState: CtaState = !walletConnected
     ? "connect"
@@ -220,7 +220,7 @@ export default function EmpxCrossWidget({
         : "ready";
   const ctaLabel =
     ctaState === "connect"
-      ? "Connect wallet"
+      ? connectLabel
       : ctaState === "working" || ctaState === "ready" || (ctaState === "idle" && amountEntered)
         ? swapLabel
         : "Enter an amount";

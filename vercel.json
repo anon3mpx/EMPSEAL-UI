@@ -48,5 +48,8 @@
     }
   ],
   "functions": { "api/cross-v2/[...path].ts": { "maxDuration": 60 } },
-  "rewrites": [{ "source": "/((?!api/).*)", "destination": "/" }]
+  "rewrites": [
+    { "source": "/api/cross-v2/:path*", "destination": "/api/cross-v2/proxy" },
+    { "source": "/((?!api/).*)", "destination": "/" }
+  ]
 }

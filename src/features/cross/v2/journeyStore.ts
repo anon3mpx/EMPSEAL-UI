@@ -56,6 +56,7 @@ export const forgetJourney = (wallet: string, journeyId: string) => journeys.for
 /** A single-order transfer the wallet started, with the source transactions it sent (for explorer links before the server lists them). */
 export interface StoredIntent {
   intentId: string;
+  compositionId?: string;
   createdAt: number;
   fromChain: string;
   toChain: string;

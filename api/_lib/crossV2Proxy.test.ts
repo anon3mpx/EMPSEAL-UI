@@ -22,8 +22,11 @@ describe("allowlist", () => {
     ["GET", "/api/cross-v2/v2/capabilities/corridors"],
     ["POST", "/api/cross-v2/v2/quote"],
     ["POST", "/api/cross-v2/v2/intents"],
+    ["POST", "/api/cross-v2/v2/compositions"],
+    ["GET", "/api/cross-v2/v2/compositions/composition-1"],
     ["GET", "/api/cross-v2/v2/intents/int_123"],
     ["POST", "/api/cross-v2/v2/intents/int_123/orders"],
+    ["POST", "/api/cross-v2/v2/intents/int_123/solana"],
     ["POST", "/api/cross-v2/v2/intents/int_123/steps"],
     ["POST", "/api/cross-v2/v2/intents/int_123/reference"],
     // provider-direct intent ids are `provider:0x<plan hash>`, sent URL-encoded
@@ -43,6 +46,10 @@ describe("allowlist", () => {
     ["POST", "/api/cross-v2/v2/baskets/bsk_1/legs/leg_000/commit"],
     ["GET", "/api/cross-v2/v2/baskets/bsk_1/legs/leg_000/steps"],
     ["POST", "/api/cross-v2/v2/baskets/bsk_1/legs/leg_000/requote"],
+    ["POST", "/api/cross-v2/v2/wallet/scan"],
+    ["POST", "/api/cross-v2/v2/wallet/liquidate/quote"],
+    ...["capabilities","delegations","agent-grants"].map(path=>["GET",`/api/cross-v2/v2/ramp/${path}`] as [string,string]),
+    ...["wallets/register","profile","kyc-link","kyc/refresh","bank-link","bank-link/exchange","external-accounts","preview","transfers","delegations","agent-grants","transfers/tr_1/status","transfers/tr_1/cancel","transfers/tr_1/leg2","delegations/gr_1/revoke","agent-grants/gr_1/revoke"].map(path=>["POST",`/api/cross-v2/v2/ramp/${path}`] as [string,string]),
   ];
   it.each(allowed)("forwards %s %s to the configured host only", async (method, url) => {
     const f = upstream();
@@ -52,6 +59,11 @@ describe("allowlist", () => {
   });
 
   const refused: Array<[string, string]> = [
+    ["POST", "/api/cross-v2/v2/ramp/webhooks/bridge"],
+    ["GET", "/api/cross-v2/v2/compositions"],
+    ["POST", "/api/cross-v2/v2/compositions/composition-1"],
+    ["GET", "/api/cross-v2/v2/compositions/%2e%2e"],
+    ["GET", "/api/cross-v2/v2/ramp/webhooks/bridge"],
     ["GET", "/api/cross-v2/v2/quote"],
     ["DELETE", "/api/cross-v2/v2/intents/int_123"],
     ["GET", "/api/cross-v2/v2/capabilities/mesh"],
