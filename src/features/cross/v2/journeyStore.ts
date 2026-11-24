@@ -1,8 +1,10 @@
-// Open journeys and transfers per wallet, so a reload or a closed tab can pick one up again (plan 6.3, 7.3). Browser storage only: it is a
-// convenience, never the record — the server's status is the truth, and a missing or cleared store loses nothing on-chain.
+// Journeys and transfers per wallet, so a reload or a closed tab can pick one up again (plan 6.3, 7.3); single transfers are also the
+// wallet's history (kept after they finish, with their last status). Browser storage only: it is a convenience, never the record —
+// the server's status is the truth, and a missing or cleared store loses nothing on-chain.
 const MAX_PER_WALLET = 10;
+const MAX_HISTORY = 30;
 
-function walletList<T extends { id: string }>(key: string) {
+function walletList<T extends { id: string }>(key: string, max = MAX_PER_WALLET) {
   const readAll = (): Record<string, T[]> => {
     try {
       const v = JSON.parse(localStorage.getItem(key) ?? "{}");
@@ -26,7 +28,15 @@ function walletList<T extends { id: string }>(key: string) {
     remember(wallet: string, item: T) {
       const all = readAll();
       const w = wallet.toLowerCase();
-      all[w] = [item, ...(all[w] ?? []).filter((x) => x.id !== item.id)].slice(0, MAX_PER_WALLET);
+      all[w] = [item, ...(all[w] ?? []).filter((x) => x.id !== item.id)].slice(0, max);
+      writeAll(all);
+    },
+    /** Changes a kept item in place (its position is unchanged); an unknown id is ignored. */
+    update(wallet: string, id: string, patch: Partial<T>) {
+      const all = readAll();
+      const w = wallet.toLowerCase();
+      if (!(all[w] ?? []).some((x) => x.id === id)) return;
+      all[w] = all[w]!.map((x) => (x.id === id ? { ...x, ...patch } : x));
       writeAll(all);
     },
     forget(wallet: string, id: string) {
@@ -65,11 +75,14 @@ export interface StoredIntent {
   rail?: string;
   /** `stepId` says what each transaction was (fee, approval, transfer). Absent on transfers stored before it was recorded. */
   sourceTxs: Array<{ chainId: number; hash: string; stepId?: string }>;
+  /** The last status the page saw (the intent's, or the combined state with a gas top-up), for the history list. */
+  lastStatus?: string;
 }
-const intents = walletList<StoredIntent & { id: string }>("empx.v2.intents");
+const intents = walletList<StoredIntent & { id: string }>("empx.v2.intents", MAX_HISTORY);
 export const openIntents = (wallet: string): StoredIntent[] => intents.list(wallet);
 export const rememberIntent = (wallet: string, i: StoredIntent) => intents.remember(wallet, { ...i, id: i.intentId });
 export const forgetIntent = (wallet: string, intentId: string) => intents.forget(wallet, intentId);
+export const noteIntentStatus = (wallet: string, intentId: string, lastStatus: string) => intents.update(wallet, intentId, { lastStatus });
 
 export interface StoredBasket {
   basketId: string;

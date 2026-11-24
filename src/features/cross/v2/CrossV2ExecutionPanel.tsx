@@ -26,6 +26,8 @@ export interface CrossV2ExecutionPanelProps {
   claiming?: boolean;
   onClaim?: () => void;
   onDone: () => void;
+  /** Closes the panel on an unfinished transfer (it stays in the history). Absent while the page is signing its steps. */
+  onHide?: () => void;
   deposit?: { instruction: DepositInstruction; rail: string; sourceAddress: string; client: CrossV2Client };
 }
 
@@ -160,6 +162,7 @@ export default function CrossV2ExecutionPanel(p: CrossV2ExecutionPanelProps) {
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
           {p.canClaim && <Button primary label={p.claiming ? "Claiming…" : "Claim to recipient"} disabled={Boolean(p.claiming)} onClick={() => p.onClaim?.()} />}
           {(finished || error) &&<Button label="New transfer" onClick={onDone} />}
+          {!finished && !error && intentId && p.onHide && <Button label="Hide" onClick={p.onHide} />}
         </div>
       </div>
     </section>

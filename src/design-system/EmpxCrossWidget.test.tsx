@@ -34,6 +34,31 @@ describe("EmpxCrossWidget", () => {
     expect(onSelectRail).toHaveBeenCalledWith("Across");
   });
 
+  it("lists each step of the route separately: what it does, what it delivers and its value check", () => {
+    renderWidget({
+      steps: [
+        { step: "Bridge", detail: "Base → Arbitrum via CCTP", out: "9.97 USDC", valueText: "-0.3%" },
+        { step: "Destination swap", detail: "on Arbitrum", out: "1.11 LINK", valueText: "not price-checked" },
+      ],
+    });
+    const list = screen.getByRole("list", { name: "Steps" });
+    expect(list.textContent).toContain("Step 1 · Bridge");
+    expect(list.textContent).toContain("Base → Arbitrum via CCTP");
+    expect(list.textContent).toContain("Step 2 · Destination swap");
+    expect(list.textContent).toContain("not price-checked");
+  });
+
+  it("shows a rail card's value note", () => {
+    renderWidget({ rails: [{ ...rails[0]!, note: "High cost: ≈ $0.50 for $10.00 (-5.0%)", tone: "warn" }], onSelectRail: vi.fn(), railsState: "ready" });
+    expect(screen.getByText("High cost: ≈ $0.50 for $10.00 (-5.0%)")).toBeInTheDocument();
+  });
+
+  it("says more routes are still being found while the quote streams, and stops saying it when it is complete", () => {
+    const { rerender } = renderWidget({ rails, onSelectRail: vi.fn(), railsState: "ready", railsPending: true });
+    expect(screen.getByText(/available · finding more…/)).toBeTruthy();
+    rerender(<EmpxCrossWidget {...({ fromChain: { id: 42161, name: "Arbitrum" }, fromToken: { ticker: "USDC" }, fromAmount: "100", onFromAmountChange: vi.fn(), onSelectFromToken: vi.fn(), onSelectFromChain: vi.fn(), toChain: { id: 8453, name: "Base" }, toToken: { ticker: "USDC" }, toAmount: "99.8", onSelectToToken: vi.fn(), onSelectToChain: vi.fn(), onSwap: vi.fn() } as EmpxCrossWidgetProps)} rails={rails} onSelectRail={vi.fn()} railsState="ready" />);
+    expect(screen.queryByText(/finding more/)).toBeNull();
+  });
   it("keeps the previous rails visible while re-quoting", () => {
     renderWidget({ rails, onSelectRail: vi.fn(), railsState: "refreshing" });
     expect(screen.getByText("CCTP")).toBeInTheDocument();

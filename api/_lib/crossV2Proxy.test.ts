@@ -121,6 +121,13 @@ describe("the key", () => {
     expect(f.mock.calls[0]![1].redirect).toBe("error");
   });
 
+  it("asks upstream for an event stream only for a journey quote the browser asked to stream", async () => {
+    const f = upstream();
+    await handleCrossV2Proxy(req("POST", "/api/cross-v2/v2/journeys/quote", { accept: "text/event-stream", "content-type": "application/json" }, "{}"), env, f as never);
+    await handleCrossV2Proxy(req("POST", "/api/cross-v2/v2/intents", { accept: "text/event-stream", "content-type": "application/json" }, "{}"), env, f as never);
+    expect([(f.mock.calls[0]![1].headers as Record<string, string>).accept, (f.mock.calls[1]![1].headers as Record<string, string>).accept]).toEqual(["text/event-stream", "application/json"]);
+  });
+
   it("is a 503 without a server key or a valid upstream, and never calls out", async () => {
     const f = upstream();
     expect((await handleCrossV2Proxy(req("GET", "/api/cross-v2/v2/intents/i1"), { baseUrl: env.baseUrl }, f as never)).status).toBe(503);
@@ -151,6 +158,19 @@ describe("the key", () => {
     const r = await handleCrossV2Proxy(req("POST", "/api/cross-v2/v2/journeys/quote", {}, "{}"), env, f as never);
     expect(r.status).toBe(504);
     expect(JSON.parse(r.body).error.code).toBe("UPSTREAM_TIMEOUT");
+  });
+
+  it("aborts the upstream call when the caller's signal aborts", async () => {
+    let seen: AbortSignal | undefined;
+    const f = vi.fn(async (_url: string, init: RequestInit) => {
+      seen = init.signal ?? undefined;
+      return new Response("{}", { status: 200 });
+    });
+    const caller = new AbortController();
+    await handleCrossV2Proxy(req("POST", "/api/cross-v2/v2/journeys/quote", {}, "{}"), env, f as never, caller.signal);
+    expect(seen?.aborted).toBe(false);
+    caller.abort();
+    expect(seen?.aborted).toBe(true);
   });
 
   it("passes an upstream error body through unchanged", async () => {
@@ -194,4 +214,59 @@ describe("Node handler (the Vercel function and dev middleware)", () => {
     expect(big.status).toBe(413);
     expect(f).toHaveBeenCalledTimes(1);
   });
+
+  it("passes a streamed quote through event by event, without waiting for the end", async () => {
+    const enc = new TextEncoder();
+    let release!: () => void;
+    const later = new Promise<void>((ok) => (release = ok));
+    const f = vi.fn(async () =>
+      new Response(
+        new ReadableStream<Uint8Array>({
+          async start(c) {
+            c.enqueue(enc.encode('data: {"type":"partial","n":1}\n\n'));
+            await later;
+            c.enqueue(enc.encode('data: {"type":"result","kind":"direct"}\n\n'));
+            c.close();
+          },
+        }),
+        { status: 200, headers: { "content-type": "text/event-stream; charset=utf-8", "x-request-id": "rid-s" } },
+      ),
+    );
+    server = createServer(crossV2NodeHandler(() => env, f as never));
+    await new Promise<void>((ok) => server!.listen(0, "127.0.0.1", ok));
+    const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+    const r = await fetch(`${base}/api/cross-v2/v2/journeys/quote`, { method: "POST", headers: { accept: "text/event-stream" }, body: "{}" });
+    expect(r.headers.get("content-type")).toMatch(/^text\/event-stream/);
+    const reader = r.body!.getReader();
+    const first = new TextDecoder().decode((await reader.read()).value);
+    expect(first).toBe('data: {"type":"partial","n":1}\n\n');
+    release();
+    let rest = "";
+    for (let c = await reader.read(); !c.done; c = await reader.read()) rest += new TextDecoder().decode(c.value);
+    expect(rest).toBe('data: {"type":"result","kind":"direct"}\n\n');
+    expect(first + rest).not.toContain(SERVER_KEY);
+  }, 5_000);
+
+  it("a browser that goes away cancels the upstream quote", async () => {
+    let upstreamAborted!: () => void;
+    const aborted = new Promise<void>((ok) => (upstreamAborted = ok));
+    const f = vi.fn(
+      (_url: string, init: RequestInit) =>
+        new Promise<Response>((_ok, fail) => {
+          init.signal?.addEventListener("abort", () => {
+            upstreamAborted();
+            fail(Object.assign(new Error("aborted"), { name: "AbortError" }));
+          });
+        }),
+    );
+    server = createServer(crossV2NodeHandler(() => env, f as never));
+    await new Promise<void>((ok) => server!.listen(0, "127.0.0.1", ok));
+    const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+    const browser = new AbortController();
+    const pending = fetch(`${base}/api/cross-v2/v2/journeys/quote`, { method: "POST", body: "{}", signal: browser.signal }).catch(() => undefined);
+    await vi.waitFor(() => expect(f).toHaveBeenCalledTimes(1));
+    browser.abort();
+    await aborted;
+    await pending;
+  }, 5_000);
 });

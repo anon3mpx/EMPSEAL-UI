@@ -1,9 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { checkOffer } from "./planCheck";
-import type { CheckedWithheld } from "./useV2Quote";
 import V2OffersFooter from "./V2OffersFooter";
-import { CTX, makeOffer } from "./v2Fixtures";
+import { makeOffer } from "./v2Fixtures";
 
 const USDC = "eip155:8453/erc20:0x833589fcd6edb6e08f4c7c32d4f71b54bda02913";
 const ETH = "eip155:8453/slip44:60";
@@ -13,7 +11,6 @@ describe("rails that need a larger amount", () => {
     const onUseAmount = vi.fn();
     render(
       <V2OffersFooter
-        withheld={[]}
         substitutes={[]}
         twoHop={null}
         selectedPlanId={null}
@@ -38,34 +35,27 @@ describe("rails that need a larger amount", () => {
   });
 });
 
-describe("held-back routes", () => {
-  it("renders a held-back route the server sent without its plan, as information only", () => {
-    const { execution: _omit, ...planless } = makeOffer({
-      journey: { assessment: { status: "unpriced", label: "unpriced: value could not be verified", reason: "input_unpriced:no-evidence" } as never },
-    });
-    const held = { offer: { ...planless, executableByApiKey: false }, check: checkOffer(planless as never, CTX) } as unknown as CheckedWithheld;
-    render(
-      <V2OffersFooter withheld={[held]} substitutes={[]} twoHop={null} selectedPlanId={null} twoHopSelected={false}
-        onPickTwoHop={() => undefined} ticker={() => "USDC"} onPick={() => undefined} />,
-    );
-    expect(screen.getByText(/can't price this token yet/)).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "Accept route" })).toBeNull();
-  });
-});
-
 describe("destination gas offer", () => {
   it("is absent without a quote offer and defaults on when present", () => {
     const onToggle = vi.fn();
-    const props = { withheld: [], substitutes: [], twoHop: null, selectedPlanId: null, twoHopSelected: false, onPickTwoHop: vi.fn(), ticker: () => "ETH", onPick: vi.fn() };
+    const props = { substitutes: [], twoHop: null, selectedPlanId: null, twoHopSelected: false, onPickTwoHop: vi.fn(), ticker: () => "ETH", onPick: vi.fn() };
     const { rerender } = render(<V2OffersFooter {...props} />);
     expect(screen.queryByRole("checkbox", { name: /Add ~/ })).toBeNull();
     rerender(<V2OffersFooter {...props} gasTopUp={{ offer: makeOffer(), reason: "Low native balance", enabled: true, chain: "Arbitrum", onToggle }} />);
-    const toggle = screen.getByRole("checkbox", { name: /Add ~.*native gas on Arbitrum for/ });
+    const toggle = screen.getByRole("checkbox", { name: /Add ~.*gas on Arbitrum for/ });
     expect(toggle instanceof HTMLInputElement && toggle.checked).toBe(true);
     fireEvent.click(toggle);
     expect(onToggle).toHaveBeenCalledTimes(1);
     rerender(<V2OffersFooter {...props} gasTopUp={{ offer: makeOffer(), reason: "Low native balance", enabled: false, chain: "Arbitrum", onToggle }} />);
     const unchecked = screen.getByRole("checkbox", { name: /Add ~/ });
     expect(unchecked instanceof HTMLInputElement && unchecked.checked).toBe(false);
+  });
+  it("says it in one short line and one short note, never the server's technical reason", () => {
+    const props = { substitutes: [], twoHop: null, selectedPlanId: null, twoHopSelected: false, onPickTwoHop: vi.fn(), ticker: () => "ETH", onPick: vi.fn() };
+    const reason = "destination native balance below chain minimum; separate offer of at least 100000000000000 atomic native (estimate only)";
+    render(<V2OffersFooter {...props} gasTopUp={{ offer: makeOffer(), reason, enabled: true, chain: "Base", onToggle: vi.fn() }} />);
+    expect(screen.getByRole("checkbox", { name: /^Add ~\S+ ETH gas on Base for \S+ ETH$/ })).toBeTruthy();
+    expect(screen.getByText("Your wallet has almost no gas on Base. Sent separately via Gas.zip; arrival is estimated.")).toBeTruthy();
+    expect(screen.queryByText(/atomic native|below chain minimum/)).toBeNull();
   });
 });

@@ -129,3 +129,40 @@ describe("presentation and signing helpers", () => {
     expect(() => reviveTypedMessage(types, "Order", { n: "1.5", a: "0x", w: { x: [] } })).toThrow();
   });
 });
+
+describe("journeyQuote streaming", () => {
+  const input = { fromAsset: "a", amount: "1", decimals: 6, toAsset: "b", sender: "s", recipient: "r", maxTier: 3 as const };
+  const sse = (chunks: string[]) =>
+    new Response(
+      new ReadableStream<Uint8Array>({
+        start(c) {
+          for (const x of chunks) c.enqueue(new TextEncoder().encode(x));
+          c.close();
+        },
+      }),
+      { status: 200, headers: { "content-type": "text/event-stream" } },
+    );
+  it("asks for an event stream, hands each snapshot over as it arrives (even split across chunks) and resolves with the final body", async () => {
+    const f = vi.fn(async (_url: string, _init: RequestInit) =>
+      sse(['data: {"type":"partial","quote":{"plans":[1]}}\n', '\ndata: {"type":"partial","quote":{"plans":[1,2]}}\n\ndata: {"type":"res', 'ult","kind":"direct","quote":{"plans":[1,2]}}\n\n']),
+    );
+    const seen: unknown[] = [];
+    const r = await createCrossV2Client({ fetchImpl: f as never }).journeyQuote(input, undefined, (q) => seen.push(q.plans));
+    expect(new Headers(f.mock.calls[0]![1].headers).get("Accept")).toBe("text/event-stream");
+    expect(seen).toEqual([[1], [1, 2]]);
+    expect(r).toEqual({ kind: "direct", quote: { plans: [1, 2] } });
+  });
+  it("an error event is thrown like an error reply; a stream that ends without a result is refused", async () => {
+    const err = vi.fn(async () => sse(['data: {"type":"error","status":404,"error":{"code":"NO_ROUTE","message":"none","retryable":false}}\n\n']));
+    await expect(createCrossV2Client({ fetchImpl: err as never }).journeyQuote(input, undefined, () => undefined)).rejects.toMatchObject({ status: 404, code: "NO_ROUTE" });
+    const cut = vi.fn(async () => sse(['data: {"type":"partial","quote":{"plans":[]}}\n\n']));
+    await expect(createCrossV2Client({ fetchImpl: cut as never }).journeyQuote(input, undefined, () => undefined)).rejects.toMatchObject({ code: "BAD_RESPONSE" });
+  });
+  it("a server that answers plain JSON (no streaming) still works, and without a listener nothing is streamed", async () => {
+    const f = vi.fn(async (_url: string, _init: RequestInit) => json(200, { kind: "direct", quote: { plans: [] } }));
+    const c = createCrossV2Client({ fetchImpl: f as never });
+    expect(await c.journeyQuote(input, undefined, () => undefined)).toEqual({ kind: "direct", quote: { plans: [] } });
+    await c.journeyQuote(input);
+    expect(new Headers(f.mock.calls[1]![1].headers).get("Accept")).toBeNull();
+  });
+});

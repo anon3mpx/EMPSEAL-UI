@@ -617,6 +617,9 @@ export interface RailCardData {
   eta: string;
   tag?: string;
   isActive: boolean;
+  /** One short line on what the route is worth (e.g. "High cost: ≈ $0.50 for $10.00"), coloured by `tone`. */
+  note?: string;
+  tone?: "ok" | "warn" | "bad";
 }
 
 const RAIL_ICON_SLUGS: Record<string, string> = {
@@ -687,6 +690,17 @@ function RailCard({ rail, onClick }: { rail: RailCardData; onClick: () => void }
       <div style={{ fontSize: 9.5, color: wk.t3, marginTop: 6, fontFamily: "'Space Grotesk', sans-serif", fontVariantNumeric: "tabular-nums" }}>
         {rail.eta}
       </div>
+      {rail.note && (
+        <div
+          title={rail.note}
+          style={{
+            fontSize: 9, marginTop: 5, maxWidth: 160, lineHeight: 1.3, whiteSpace: "normal",
+            color: rail.tone === "bad" ? "#F87171" : rail.tone === "warn" ? "#FBBF24" : wk.t3,
+          }}
+        >
+          {rail.note}
+        </div>
+      )}
     </button>
   );
 }
@@ -696,8 +710,8 @@ const LINE_PX = 16;
 const WHEEL_DAMPEN = 0.55;
 
 export function RailCardStrip({
-  rails, onSelect, count, label = "Rail",
-}: { rails: RailCardData[]; onSelect: (name: string) => void; count?: number; label?: string }) {
+  rails, onSelect, count, label = "Rail", pending,
+}: { rails: RailCardData[]; onSelect: (name: string) => void; count?: number; label?: string; pending?: boolean }) {
   const stripRef = useRef<HTMLDivElement>(null);
   const [atStart, setAtStart] = useState(true);
   const [atEnd, setAtEnd] = useState(true);
@@ -721,7 +735,7 @@ export function RailCardStrip({
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", margin: "16px 0 8px" }}>
         <MicroLabel>{label}</MicroLabel>
         <span style={{ display: "flex", alignItems: "center" }}>
-          <span style={{ fontSize: 9, color: wk.t3 }}>{count ?? rails.length} available</span>
+          <span style={{ fontSize: 9, color: wk.t3 }}>{count ?? rails.length} available{pending ? " · finding more…" : ""}</span>
           <span style={{ display: "flex", gap: 4, marginLeft: 8 }}>
             <RailNavButton
               disabled={atStart}
