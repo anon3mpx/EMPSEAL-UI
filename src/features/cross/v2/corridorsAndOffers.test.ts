@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { assetIdOf } from "./assets";
 import { corridorMap } from "./useV2Corridors";
-import { acceptableWithheld } from "./V2OffersFooter";
+import { selectableHeld } from "./routeCards";
 import type { CheckedWithheld } from "./useV2Quote";
 
 describe("corridorMap", () => {
@@ -28,19 +28,19 @@ describe("assetIdOf native coin types", () => {
   });
 });
 
-describe("acceptableWithheld", () => {
+describe("selectableHeld", () => {
   const offer = (status: string, policyVersion: string | undefined, ok = true) =>
     ({ offer: { journey: { assessment: { status, policyVersion } } }, check: { ok } }) as unknown as CheckedWithheld;
-  it("allows warning and unpriced routes that carry a policy version and pass the check", () => {
-    expect(acceptableWithheld(offer("warning", "p1"))).toBe(true);
-    expect(acceptableWithheld(offer("unpriced", "p1"))).toBe(true);
+  it("allows warning, unpriced and blocked routes that carry a policy version and pass the check (the user chooses)", () => {
+    expect(selectableHeld(offer("warning", "p1"))).toBe(true);
+    expect(selectableHeld(offer("unpriced", "p1"))).toBe(true);
+    expect(selectableHeld(offer("blocked", "p1"))).toBe(true);
   });
-  it("never allows a blocked route, one without a policy version, or one failing the check", () => {
-    expect(acceptableWithheld(offer("blocked", "p1"))).toBe(false);
-    expect(acceptableWithheld(offer("warning", undefined))).toBe(false);
-    expect(acceptableWithheld(offer("warning", "p1", false))).toBe(false);
+  it("never allows one without a policy version, one failing the check, or one this app's key may not commit", () => {
+    expect(selectableHeld(offer("warning", undefined))).toBe(false);
+    expect(selectableHeld(offer("warning", "p1", false))).toBe(false);
     const refused = offer("unpriced", "p1");
     (refused.offer as { executableByApiKey?: boolean }).executableByApiKey = false;
-    expect(acceptableWithheld(refused)).toBe(false);
+    expect(selectableHeld(refused)).toBe(false);
   });
 });

@@ -85,3 +85,14 @@ export function assetInfo(assetId: string): { chainId: number; ticker: string; d
   const t = v2Tokens(chainId).find((token) => assetIdOf(token) === id);
   return t && { chainId, ticker: t.ticker, decimals: t.decimals, address: t.address, isNative: isNativeToken(t) };
 }
+
+/** The token the output field shows: the requested one, or, once a route that delivers another asset is chosen, that asset (a token the app does not know is named by its address). */
+export function outputTokenOf(chainId: number, requested: V2TokenConfig | undefined, chosenAsset: string | undefined): V2TokenConfig | undefined {
+  if (!chosenAsset || (requested && assetIdOf(requested) === (chosenAsset.startsWith("eip155:") ? chosenAsset.toLowerCase() : chosenAsset))) return requested;
+  const id = chosenAsset.startsWith("eip155:") ? chosenAsset.toLowerCase() : chosenAsset;
+  const known = v2Tokens(chainId).find((t) => assetIdOf(t) === id);
+  if (known) return known;
+  const address = chosenAsset.split(/\/(?:erc20|token):/)[1];
+  const name = address ? `${address.slice(0, 6)}…${address.slice(-4)}` : chosenAsset;
+  return { chainId, ticker: name, name, decimals: 18, ...(address ? { address } : { isNative: true }) };
+}

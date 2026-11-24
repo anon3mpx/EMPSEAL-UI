@@ -2,6 +2,7 @@
 // screen while refreshing, and checks every offer locally before it can be selected. A quote is never reused for a different transfer.
 // Uses POST /v2/journeys/quote: `direct` carries the quote, `none` still carries it (with any held-back routes), `two_hop` is shown as
 // information until two-order journeys land (plan section 6). Re-quotes before the first offer expires (at least every 60 s) and backs off after a failure, unless paused.
+// The quote is streamed: routes are shown (and can be picked) as the server finds them; the final result then replaces them and adds everything else.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { parseUnits } from "viem";
 import type { CrossRailsState } from "../../../design-system/EmpxCrossWidget";
@@ -58,6 +59,8 @@ export interface V2QuoteState {
   error: string | null;
   /** A quote for a changed input (amount, tokens, recipient) is in flight: what is on screen is for the previous input. */
   forNewInput: boolean;
+  /** Routes on screen came from the stream and more may still arrive (the final result is not in yet). */
+  streaming: boolean;
   refresh: () => void;
 }
 
@@ -84,6 +87,7 @@ export function useV2Quote(client: CrossV2Client, input: V2QuoteInput, describeE
   const [error, setError] = useState<string | null>(null);
   const [failures, setFailures] = useState(0);
   const [forNewInput, setForNewInput] = useState(false);
+  const [streaming, setStreaming] = useState(false);
   const shownKey = useRef<string | null>(null);
   const [nonce, setNonce] = useState(0);
   const hasOffers = useRef(false);
@@ -114,6 +118,7 @@ export function useV2Quote(client: CrossV2Client, input: V2QuoteInput, describeE
     const to = recipient?.trim() || (isNonEvmChain(toChainId) ? undefined : input.sender?.trim());
     const ready = Boolean(sender && to && fromChainId !== undefined && toChainId !== undefined && addressValidFor(fromChainId, sender) && addressValidFor(toChainId, to) && base > 0n && fromAsset !== toAsset);
     if (!ready) {
+      setStreaming(false);
       shownKey.current = null;
       setForNewInput(false);
       clear();
@@ -129,17 +134,33 @@ export function useV2Quote(client: CrossV2Client, input: V2QuoteInput, describeE
     setState(hasOffers.current ? "refreshing" : "loading");
     const timer = setTimeout(async () => {
       setError(null);
+      const check = <T extends WireOffer>(offer: T, asset: string, allowHeldBack = false) => ({
+        offer,
+        check: checkOffer(offer, { fromAsset, amount: base.toString(), toAsset: asset, sender: sender!, recipient: to!, now: Math.floor(Date.now() / 1000), allowHeldBack }),
+      });
+      // The routes found so far: shown at once and selectable (each is a bound, assessed and locally checked plan); the rest of the quote waits for the result.
+      let streamed = false;
+      const onPartial = (p: WireQuoteResponse) => {
+        if (ctl.signal.aborted) return;
+        const plans = (Array.isArray(p.plans) ? p.plans : []).map((o) => check(o, toAsset));
+        const held = (p.withheld ?? []).map((o) => check(o, toAsset, true));
+        if (plans.length + held.length === 0) return;
+        streamed = true;
+        setOffers(plans);
+        setWithheld(held);
+        setStreaming(true);
+        shownKey.current = key;
+        setForNewInput(false);
+        setState("ready");
+      };
       try {
         const res = await client.journeyQuote(
           { fromAsset, amount: base.toString(), decimals: fromDecimals, toAsset, sender: sender!, recipient: to!, maxTier: 3 },
           ctl.signal,
+          onPartial,
         );
         if (ctl.signal.aborted) return;
         const now = Math.floor(Date.now() / 1000);
-        const check = <T extends WireOffer>(offer: T, asset: string, allowHeldBack = false) => ({
-          offer,
-          check: checkOffer(offer, { fromAsset, amount: base.toString(), toAsset: asset, sender: sender!, recipient: to!, now, allowHeldBack }),
-        });
         const q: WireQuoteResponse = res.kind === "two_hop" ? { plans: [] } : res.quote ?? { plans: [] };
         const plans = Array.isArray(q.plans) ? q.plans : [];
         const checked = plans.map((o) => check(o, toAsset));
@@ -170,9 +191,17 @@ export function useV2Quote(client: CrossV2Client, input: V2QuoteInput, describeE
         setFailures(0);
         shownKey.current = key;
         setForNewInput(false);
+        setStreaming(false);
         setState(checked.length ? "ready" : "empty");
       } catch (e) {
         if (ctl.signal.aborted) return;
+        setStreaming(false);
+        // the routes already streamed are real plans for this input: keep them rather than blank the page (the expiry re-quote still runs)
+        if (streamed) {
+          setIssuedAt(Date.now());
+          setValidMs(REFRESH_MAX_MS);
+          return;
+        }
         clear();
         // No quote is on screen, so no age or countdown either.
         setIssuedAt(null);
@@ -206,5 +235,5 @@ export function useV2Quote(client: CrossV2Client, input: V2QuoteInput, describeE
   }, [paused, state, failures]);
 
   const refresh = useCallback(() => setNonce((n) => n + 1), []);
-  return { state, offers, gasTopUp, withheld, substitutes, belowMinimum, noneReason, twoHop, degraded, issuedAt, validMs, error, forNewInput, refresh };
+  return { state, offers, gasTopUp, withheld, substitutes, belowMinimum, noneReason, twoHop, degraded, issuedAt, validMs, error, forNewInput, streaming, refresh };
 }

@@ -116,10 +116,29 @@ export interface JourneyQuote {
   ranking: { rank: number; basis: string; reasons: string[] } | null;
 }
 
+/** The server's full value assessment of an offer (USD amounts are 1e18-scaled decimal strings). */
+export interface WireAssessment {
+  status: "acceptable" | "warning" | "blocked" | "unpriced";
+  reason?: string;
+  reasons: string[];
+  policyVersion?: string;
+  journey: {
+    inputUsd?: string;
+    outputUsd?: string;
+    /** Native gas sent on top of the input, already inside inputUsd. */
+    onTopUsd?: string;
+    lossBps?: number;
+    feeUsd?: string;
+    unpricedFees: string[];
+  };
+  legs: Array<{ leg: string; status: WireAssessment["status"]; lossBps?: number; inputUsd?: string; outputUsd?: string; reasons: string[] }>;
+}
+
 export interface WireOffer {
   rank: number;
   journey: JourneyQuote;
   execution: { plan: WirePlan };
+  assessment?: WireAssessment;
   /** Canary tenants: the relayer cost EMPX pays above the capped fee; not charged to the user (empx-core apps/api/src/quoteRoute.ts). */
   sponsoredRelayerFee?: WireAmount;
 }
@@ -155,7 +174,7 @@ export type JourneyPlanResponse =
   | { kind: "none"; code: "two_hop_second_signature_pending_d11" | "no_eligible_route" | string; reason: string; quote: WireQuoteResponse };
 
 export interface HumanAcceptance {
-  status: "warning" | "unpriced";
+  status: "warning" | "unpriced" | "blocked";
   policyVersion: string;
 }
 

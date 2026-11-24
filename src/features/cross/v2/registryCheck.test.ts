@@ -85,9 +85,10 @@ describe("held-back routes", () => {
     expect(problems(warning())).toMatch(/not executable here/);
     expect(checkOffer(warning(), { ...CTX, allowHeldBack: true }).ok).toBe(true);
   });
-  it("never pass when blocked", () => {
-    const blocked = edited((o) => { o.journey.assessment = { status: "blocked", label: "Blocked", reason: "x", executableByApiKey: false }; });
-    expect(checkOffer(blocked, { ...CTX, allowHeldBack: true }).ok).toBe(false);
+  it("a blocked route passes as a held-back route too (owner decision 2026-11-24: the user chooses), never as an automatic one", () => {
+    const blocked = edited((o) => { o.journey.assessment = { status: "blocked", label: "Blocked", reason: "x", policyVersion: "p1", executableByApiKey: false }; });
+    expect(checkOffer(blocked, { ...CTX, allowHeldBack: true }).ok).toBe(true);
+    expect(problems(blocked)).toMatch(/not executable here/);
   });
 });
 

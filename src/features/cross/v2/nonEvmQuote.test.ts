@@ -20,11 +20,11 @@ vi.mock("./useV2Corridors", () => ({
   }),
 }));
 vi.mock("./useV2WalletPort", () => ({ useV2WalletPort: () => null }));
-vi.mock("./useV2Intent", () => ({ useV2Intent: () => ({}), claimTx: () => null }));
+vi.mock("./useV2Intent", () => ({ useV2Intent: () => ({ history: [] }), claimTx: () => null }));
 vi.mock("./useV2TwoHopFlow", () => ({ useV2TwoHopFlow: () => ({}) }));
 vi.mock("./CrossV2ExecutionPanel", () => ({ default: () => null }));
 vi.mock("./CrossV2JourneyPanel", () => ({ default: () => null }));
-vi.mock("./V2OffersFooter", () => ({ default: () => null, acceptableWithheld: () => false }));
+vi.mock("./V2OffersFooter", () => ({ default: () => null }));
 vi.mock("wagmi", () => ({ useBalance: () => ({}) }));
 vi.mock("../../../design-system/hooks/useWalletConnection", () => ({
   useWalletConnection: () => ({

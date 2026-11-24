@@ -90,7 +90,7 @@ export async function executeCheckedPlan(
     committed = await client.commitComposition({
       sender, primary: { plan, journey, humanAcceptance: o.humanAcceptance },
       gasTopUp: { plan: gas.execution.plan, journey: gas.journey,
-        ...((assessment?.status === "warning" || assessment?.status === "unpriced") && assessment.policyVersion
+        ...(assessment && assessment.status !== "acceptable" && assessment.policyVersion
           ? { humanAcceptance: { status: assessment.status, policyVersion: assessment.policyVersion } } : {}),
       },
     }, o.commitKey, o.signal);

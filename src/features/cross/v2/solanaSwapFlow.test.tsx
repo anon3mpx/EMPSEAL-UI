@@ -15,7 +15,7 @@ vi.mock("../../../design-system/hooks/useAccountSnapshot", () => ({ useAccountSn
 vi.mock("../../../design-system/hooks/useV2Balances", () => ({ useV2Balances: () => ({}) }));
 vi.mock("../../../design-system/hooks/useUnifiedPrice", () => ({ useUnifiedPrice: () => null }));
 vi.mock("./useV2WalletPort", () => ({ useV2WalletPort: () => null }));
-vi.mock("./useV2Intent", () => ({ useV2Intent: () => ({ clear: vi.fn(), track: vi.fn() }), claimTx: () => null }));
+vi.mock("./useV2Intent", () => ({ useV2Intent: () => ({ clear: vi.fn(), track: vi.fn(), history: [] }), claimTx: () => null }));
 vi.mock("./useV2TwoHopFlow", () => ({ useV2TwoHopFlow: () => ({}) }));
 vi.mock("./useSolanaSender", () => ({ useSolanaSender: () => ({ isSolana: true, sender: mocks.sender, wallet: { publicKey: () => mocks.sender, signTransaction: mocks.sign }, connect: vi.fn() }) }));
 vi.mock("./useV2Corridors", () => ({ useV2Corridors: () => ({ sources: [{ id: NON_EVM_CHAIN_IDS.SOL, name: "Solana", ticker: "SOL", kind: "solana", color: "#999" }], destinationsFor: () => [{ id: NON_EVM_CHAIN_IDS.SOL, name: "Solana", ticker: "SOL", kind: "solana", color: "#999" }] }) }));
@@ -38,7 +38,7 @@ it("renders a Solana same-chain offer with its plan minimum and executes once th
   } });
   o.execution.plan.hash = planHashOf(o.execution.plan);
   Object.assign(o.journey, { input: from, toAsset: out.asset, recipient: mocks.sender, expectedOutput: out, minimumOutput: min, hops: [{ order: 1, planId: o.execution.plan.id, planHash: o.execution.plan.hash, rail: "jupiter", expiresAt: NOW + 60 }] });
-  mocks.quote = { state: "ready", offers: [{ offer: o, check: { ok: true, plan: o.execution.plan, sourceChainId: NON_EVM_CHAIN_IDS.SOL, problems: [] } }], gasTopUp: null, withheld: [], substitutes: [], belowMinimum: [], noneReason: null, twoHop: null, degraded: false, issuedAt: null, validMs: null, error: null, forNewInput: false, refresh: vi.fn() };
+  mocks.quote = { state: "ready", offers: [{ offer: o, check: { ok: true, plan: o.execution.plan, sourceChainId: NON_EVM_CHAIN_IDS.SOL, problems: [] } }], gasTopUp: null, withheld: [], substitutes: [], belowMinimum: [], noneReason: null, twoHop: null, degraded: false, issuedAt: null, validMs: null, error: null, forNewInput: false, streaming: false, refresh: vi.fn() };
   mocks.commit.mockResolvedValue({ intentId: "jup-intent", kind: "provider-direct" });
   mocks.sign.mockResolvedValue("signed"); mocks.submit.mockResolvedValue({ signature: "jup-signature", replayed: false });
   render(<CrossV2Flow />);

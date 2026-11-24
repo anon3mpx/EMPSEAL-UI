@@ -9,7 +9,7 @@ import { railLink, stagesOf, txLabel, txLinks } from "./CrossV2ExecutionPanel";
 import { EMPX_DEPLOYMENTS } from "./deployments";
 import { describeV2Error } from "./errors";
 import { AmbiguousSubmission } from "./execute";
-import { forgetIntent, openIntents, rememberIntent } from "./journeyStore";
+import { forgetIntent, noteIntentStatus, openIntents, rememberIntent } from "./journeyStore";
 import type { CompositionStatus, IntentStatus } from "./types";
 import { claimTx, useV2Intent } from "./useV2Intent";
 import { RECIPIENT, SENDER } from "./v2Fixtures";
@@ -72,7 +72,7 @@ describe("stagesOf / txLinks", () => {
 });
 
 describe("intent store", () => {
-  it("keeps open transfers per wallet and forgets one", () => {
+  it("keeps transfers per wallet and forgets one", () => {
     const mem = new Map<string, string>();
     vi.stubGlobal("localStorage", { getItem: (k: string) => mem.get(k) ?? null, setItem: (k: string, v: string) => void mem.set(k, v) });
     const i = (id: string) => ({ intentId: id, createdAt: 1, fromChain: "eip155:8453", toChain: "eip155:10", toAsset: "x", sourceTxs: [] });
@@ -81,6 +81,19 @@ describe("intent store", () => {
     expect(openIntents(SENDER.toLowerCase()).map((x) => x.intentId)).toEqual(["b", "a"]);
     forgetIntent(SENDER, "b");
     expect(openIntents(SENDER).map((x) => x.intentId)).toEqual(["a"]);
+    vi.unstubAllGlobals();
+  });
+  it("is the wallet's history: a status is recorded in place without reordering, and up to 30 transfers are kept", () => {
+    const mem = new Map<string, string>();
+    vi.stubGlobal("localStorage", { getItem: (k: string) => mem.get(k) ?? null, setItem: (k: string, v: string) => void mem.set(k, v) });
+    const i = (id: string) => ({ intentId: id, createdAt: 1, fromChain: "eip155:8453", toChain: "eip155:10", toAsset: "x", sourceTxs: [] });
+    for (let n = 0; n < 32; n++) rememberIntent(SENDER, i(`t${n}`));
+    noteIntentStatus(SENDER, "t20", "delivered");
+    const h = openIntents(SENDER);
+    expect(h).toHaveLength(30);
+    expect(h[0]!.intentId).toBe("t31");
+    expect(h.find((x) => x.intentId === "t20")?.lastStatus).toBe("delivered");
+    expect(h.findIndex((x) => x.intentId === "t20")).toBe(11);
     vi.unstubAllGlobals();
   });
 });
@@ -115,7 +128,7 @@ describe("composition tracking", () => {
     expect(screen.getByText("Gas quote expired")).toBeTruthy();
     expect(screen.queryByText("Transfer failed")).toBeNull();
   });
-  it("resumes and keeps polling the composition when the primary has delivered", async () => {
+  it("never opens an old transfer by itself: it is listed in history, and Track opens it and polls the composition", async () => {
     const mem = new Map<string, string>();
     vi.stubGlobal("localStorage", { getItem: (key: string) => mem.get(key) ?? null, setItem: (key: string, value: string) => void mem.set(key, value) });
     const primary = parked({}, "delivered");
@@ -124,12 +137,43 @@ describe("composition tracking", () => {
     const stored = { intentId: "resume-primary", compositionId: "resume-gas", createdAt: 1, fromChain: "eip155:8453", toChain: "eip155:10", toAsset: "x", sourceTxs: [] };
     rememberIntent(SENDER, stored);
     const { result, unmount } = renderHook(() => useV2Intent(client, SENDER, null, String));
+    expect(result.current.intentId).toBeNull();
+    expect(result.current.history.map((h) => h.intentId)).toEqual(["resume-primary"]);
+    expect(client.compositionStatus).not.toHaveBeenCalled();
+    act(() => result.current.track(stored));
     await waitFor(() => expect(result.current.composition?.state).toBe("in_progress"));
-    expect(openIntents(SENDER).some(i => i.intentId === stored.intentId)).toBe(true);
     expect(client.status).not.toHaveBeenCalled();
+    await waitFor(() => expect(result.current.history[0]?.lastStatus).toBe("in_progress"));
     act(() => result.current.clear());
-    expect(openIntents(SENDER).some(i => i.intentId === stored.intentId)).toBe(false);
+    expect(result.current.intentId).toBeNull();
+    expect(openIntents(SENDER).some((i) => i.intentId === stored.intentId)).toBe(true);
     unmount();
     vi.unstubAllGlobals();
+  });
+  it("a finished transfer stays in history with its final status", async () => {
+    const mem = new Map<string, string>();
+    vi.stubGlobal("localStorage", { getItem: (key: string) => mem.get(key) ?? null, setItem: (key: string, value: string) => void mem.set(key, value) });
+    const client = { status: vi.fn(async () => parked({}, "delivered")) } as unknown as CrossV2Client;
+    const stored = { intentId: "done-1", createdAt: 1, fromChain: "eip155:8453", toChain: "eip155:10", toAsset: "x", sourceTxs: [] };
+    const { result, unmount } = renderHook(() => useV2Intent(client, SENDER, null, String));
+    act(() => result.current.track(stored));
+    await waitFor(() => expect(result.current.status?.status).toBe("delivered"));
+    await waitFor(() => expect(openIntents(SENDER).find((i) => i.intentId === "done-1")?.lastStatus).toBe("delivered"));
+    unmount();
+    vi.unstubAllGlobals();
+  });
+});
+
+describe("execution panel close", () => {
+  it("an unfinished transfer can be hidden (it stays in the history); without onHide, as while signing, it cannot", () => {
+    const onHide = vi.fn();
+    const status = parked({}, "delivery_observed");
+    const base = { stepNote: null, intentId: "i1", status, delivered: null, error: null, onDone: vi.fn() };
+    const { rerender } = render(createElement(CrossV2ExecutionPanel, { ...base, onHide }));
+    expect(screen.queryByRole("button", { name: "New transfer" })).toBeNull();
+    screen.getByRole("button", { name: "Hide" }).click();
+    expect(onHide).toHaveBeenCalledTimes(1);
+    rerender(createElement(CrossV2ExecutionPanel, base));
+    expect(screen.queryByRole("button", { name: "Hide" })).toBeNull();
   });
 });

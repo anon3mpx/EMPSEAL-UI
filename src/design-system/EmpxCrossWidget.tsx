@@ -18,7 +18,8 @@
 
 import { ReactNode } from "react";
 import TouchTooltip from "../components/TouchTooltip";
-import { RouteVisualization, type RouteHop } from "./components";
+import { type RouteHop } from "./components";
+import WidgetRoute, { type RouteStep } from "./WidgetRoute";
 import { useQuoteLifecycle } from "./hooks/useQuoteLifecycle";
 import {
   ChainPill,
@@ -122,6 +123,8 @@ export interface EmpxCrossWidgetProps {
   slippageBps?: number;
   priceImpactBps?: number;
   routeHops?: RouteHop[];
+  /** The route's steps kept apart (source swap, bridge, destination swap). */
+  steps?: RouteStep[];
 
   rails?: RailCardData[];
   onSelectRail?: (name: string) => void;
@@ -129,6 +132,8 @@ export interface EmpxCrossWidgetProps {
   railsState?: CrossRailsState;
   /** Line shown for idle / error / empty rail states. */
   railsMessage?: string;
+  /** More rails may still arrive (a streamed quote): the strip says so. */
+  railsPending?: boolean;
   /** Rendered under the rail cards — e.g. the full offers list. */
   railsFooter?: ReactNode;
 
@@ -188,10 +193,12 @@ export default function EmpxCrossWidget({
   slippageBps,
   priceImpactBps,
   routeHops,
+  steps,
   rails,
   onSelectRail,
   railsState,
   railsMessage,
+  railsPending,
   railsFooter,
   gasDrop,
   swapDisabled,
@@ -373,7 +380,7 @@ export default function EmpxCrossWidget({
           <RailCardStrip rails={rails!} onSelect={onSelectRail!} />
         </div>
       ) : effectiveRailsState === "ready" && hasRails ? (
-        <RailCardStrip rails={rails!} onSelect={onSelectRail!} />
+        <RailCardStrip rails={rails!} onSelect={onSelectRail!} pending={railsPending} />
       ) : railsMessage ? (
         <p
           role={effectiveRailsState === "error" ? "alert" : undefined}
@@ -392,17 +399,7 @@ export default function EmpxCrossWidget({
       <div style={rule} />
 
       {/* ── Route ── */}
-      {routeHops && routeHops.length > 1 && (
-        <>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 13 }}>
-            <MicroLabel>Route</MicroLabel>
-            {railName && <span style={{ fontSize: 9, color: wk.t3 }}>via {railName}</span>}
-          </div>
-          <div style={{ marginBottom: 24 }}>
-            <RouteVisualization hops={routeHops} animated compact />
-          </div>
-        </>
-      )}
+      <WidgetRoute routeHops={routeHops} railName={railName} steps={steps} />
 
       {/* ── Cost + ETA (+ impact) ── */}
       <div style={{ ...grid2, marginBottom: 24 }}>

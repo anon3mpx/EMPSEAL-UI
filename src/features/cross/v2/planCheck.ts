@@ -265,9 +265,9 @@ export function checkOffer(offer: WireOffer | null | undefined, ctx: PlanCheckCo
   return problems.length ? { ok: false, problems } : base;
 }
 
-/** The server's own assessment gates execution; a warning/unpriced route passes only as a held-back route the user accepts. */
+/** The server's own assessment gates execution; a warning, unpriced or blocked route passes only as a held-back route the user accepts. */
 export function assessmentProblems(j: Pick<JourneyQuote, "assessment">, allowHeldBack: boolean): string[] {
-  const held = allowHeldBack && (j.assessment?.status === "warning" || j.assessment?.status === "unpriced");
+  const held = allowHeldBack && (j.assessment?.status === "warning" || j.assessment?.status === "unpriced" || j.assessment?.status === "blocked");
   if (!j.assessment) return ["the quote has no value assessment"];
   if (j.assessment.status !== "acceptable" && !held) return [`the quote is not executable here: ${j.assessment.label || j.assessment.status}`];
   return [];

@@ -74,13 +74,55 @@ export async function readV2Response<T>(res: Response): Promise<T> {
   return parsed as T;
 }
 
+/** Reads a streamed journey quote (text/event-stream of `data: <json>` events): each `partial` goes to `onPartial` as it arrives, the `result` event is the
+ *  usual body, an `error` event is thrown like an error reply. A server that answered plain JSON is read as before. */
+export async function readV2Stream<T>(res: Response, onPartial: (quote: WireQuoteResponse) => void): Promise<T> {
+  if (!res.ok || !res.body || !/^text\/event-stream\b/.test(res.headers.get("content-type") ?? "")) return readV2Response<T>(res);
+  const requestId = res.headers.get("x-request-id") ?? undefined;
+  const reader = res.body.getReader();
+  const dec = new TextDecoder();
+  let buf = "";
+  for (let c = await reader.read(); ; c = await reader.read()) {
+    buf += c.done ? dec.decode() : dec.decode(c.value, { stream: true });
+    let i: number;
+    while ((i = buf.indexOf("\n\n")) >= 0) {
+      const block = buf.slice(0, i);
+      buf = buf.slice(i + 2);
+      const data = block.split("\n").filter((l) => l.startsWith("data:")).map((l) => l.slice(5).trimStart()).join("\n");
+      let ev: unknown;
+      try {
+        ev = JSON.parse(data);
+      } catch {
+        continue;
+      }
+      if (!isObject(ev)) continue;
+      if (ev.type === "partial" && isObject(ev.quote)) onPartial(ev.quote as unknown as WireQuoteResponse);
+      else if (ev.type === "result") {
+        void reader.cancel().catch(() => undefined);
+        const { type: _t, ...body } = ev;
+        return body as T;
+      } else if (ev.type === "error") {
+        void reader.cancel().catch(() => undefined);
+        const e = isObject(ev.error) ? ev.error : {};
+        const status = typeof ev.status === "number" ? ev.status : 500;
+        throw new CrossV2ApiError(status, typeof e.code === "string" ? e.code : "HTTP_ERROR", typeof e.message === "string" ? e.message : `HTTP ${status}`, e.retryable === true, {
+          details: isObject(e.details) ? e.details : undefined,
+          requestId,
+        });
+      }
+    }
+    if (c.done) break;
+  }
+  throw new CrossV2ApiError(res.status, "BAD_RESPONSE", "the quote stream ended without a result", true, { requestId });
+}
+
 export function createCrossV2Client(o: CrossV2ClientOptions = {}) {
   const baseUrl = o.baseUrl ?? CROSS_V2_PROXY_BASE;
 
   async function request<T>(
     method: "GET" | "POST",
     path: string,
-    init: { body?: unknown; idempotencyKey?: string; signal?: AbortSignal } = {},
+    init: { body?: unknown; idempotencyKey?: string; signal?: AbortSignal; onPartial?: (quote: WireQuoteResponse) => void } = {},
   ): Promise<T> {
     const f = o.fetchImpl ?? fetch;
     const res = await f(`${baseUrl}${path}`, {
@@ -89,10 +131,11 @@ export function createCrossV2Client(o: CrossV2ClientOptions = {}) {
       headers: {
         ...(init.body !== undefined ? { "Content-Type": "application/json" } : {}),
         ...(init.idempotencyKey ? { "Idempotency-Key": init.idempotencyKey } : {}),
+        ...(init.onPartial ? { Accept: "text/event-stream" } : {}),
       },
       body: init.body !== undefined ? JSON.stringify(init.body) : undefined,
     });
-    return readV2Response<T>(res);
+    return init.onPartial ? readV2Stream<T>(res, init.onPartial) : readV2Response<T>(res);
   }
 
   const newKey = (prefix: string) => `${prefix}-${crypto.randomUUID()}`;
@@ -149,9 +192,10 @@ export function createCrossV2Client(o: CrossV2ClientOptions = {}) {
     quote(i: QuoteInput, signal?: AbortSignal): Promise<WireQuoteResponse> {
       return request<WireQuoteResponse>("POST", "/v2/quote", { signal, body: quoteBody(i) });
     },
-    /** Same request as quote(): a direct quote, a two-order journey, or none (which still carries the quote). */
-    journeyQuote(i: QuoteInput, signal?: AbortSignal): Promise<JourneyPlanResponse> {
-      return request<JourneyPlanResponse>("POST", "/v2/journeys/quote", { signal, body: quoteBody(i) });
+    /** Same request as quote(): a direct quote, a two-order journey, or none (which still carries the quote).
+     *  With `onPartial` the quote is streamed: the routes found so far arrive as they are found; the returned body stays the one to act on. */
+    journeyQuote(i: QuoteInput, signal?: AbortSignal, onPartial?: (quote: WireQuoteResponse) => void): Promise<JourneyPlanResponse> {
+      return request<JourneyPlanResponse>("POST", "/v2/journeys/quote", { signal, body: quoteBody(i), ...(onPartial ? { onPartial } : {}) });
     },
     corridors(signal?: AbortSignal): Promise<CorridorsResponse> {
       return request<CorridorsResponse>("GET", "/v2/capabilities/corridors", { signal });

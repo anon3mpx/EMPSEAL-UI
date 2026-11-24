@@ -14,22 +14,24 @@ import { useV2Balances } from "../../../design-system/hooks/useV2Balances";
 import { useWalletConnection } from "../../../design-system/hooks/useWalletConnection";
 import { WidgetKitKeyframes } from "../../../design-system/widgetKit";
 import type { V2TokenConfig } from "../../../design-system/data/v2TokenView";
-import { assetIdOf, defaultToken, tickerForAsset, v2ChainById, v2Tokens } from "./assets";
+import { assetIdOf, defaultToken, outputTokenOf, tickerForAsset, v2ChainById, v2Tokens } from "./assets";
 import { createCrossV2Client } from "./client";
 import CrossV2ExecutionPanel from "./CrossV2ExecutionPanel";
+import TransferHistory from "./TransferHistory";
 import CrossV2JourneyPanel from "./CrossV2JourneyPanel";
 import { describeV2Error, errText } from "./errors";
 import { executeCheckedPlan, type ExecuteResult } from "./execute";
 import { checkOffer } from "./planCheck";
-import type { HumanAcceptance } from "./types";
 import type { StoredIntent } from "./journeyStore";
 import { useV2Corridors } from "./useV2Corridors";
 import { claimTx, useV2Intent } from "./useV2Intent";
 import { useV2Quote } from "./useV2Quote";
 import { useV2TwoHopFlow } from "./useV2TwoHopFlow";
-import V2OffersFooter, { acceptableWithheld } from "./V2OffersFooter";
+import V2OffersFooter from "./V2OffersFooter";
+import { chooseRoute, routeCardsOf } from "./routeCards";
+import { legRowsOf, marketPricingDown, offerValueOf } from "./offerValue";
 import { useV2WalletPort } from "./useV2WalletPort";
-import { formatUnitsShort, planIdOf, railCardNames, railNameOf, routeHopsOf, selectedOfferView, toRailCards } from "./widgetView";
+import { formatUnitsShort, planIdOf, railNameOf, routeHopsOf, selectedOfferView } from "./widgetView";
 import { isNonEvmChain } from "@/lib/wallet/chainKind";
 import { addressValidFor, chainIdOfCaip2 } from "./nonEvm";
 import { useSolanaSender } from "./useSolanaSender";
@@ -88,14 +90,8 @@ export default function CrossV2Flow() {
     errText,
   );
   const [pickedPlanId, setPickedPlanId] = useState<string | null>(null);
-  const acceptable = quote.withheld.filter(acceptableWithheld);
-  const pool = [...quote.offers, ...acceptable, ...quote.substitutes.flatMap((s) => s.offers)];
-  const chosen = pool.find((o) => o.check.ok && planIdOf(o.offer) === pickedPlanId) ?? quote.offers.find((o) => o.check.ok);
-  const chosenAssessment = chosen && acceptable.includes(chosen as never) ? chosen.offer.journey.assessment : null;
-  const humanAcceptance: HumanAcceptance | undefined =
-    chosenAssessment && (chosenAssessment.status === "warning" || chosenAssessment.status === "unpriced") && chosenAssessment.policyVersion
-      ? { status: chosenAssessment.status, policyVersion: chosenAssessment.policyVersion }
-      : undefined;
+  // Nothing is blocked (owner decision 2026-11-24): a held-back route is shown with its value and the user may pick it; its label is accepted at commit.
+  const { chosen, chosenAssessment, humanAcceptance } = chooseRoute(quote.offers, quote.withheld, quote.substitutes.flatMap((s) => s.offers), pickedPlanId);
   // A two-order route is only ever used when the user picks it (keyed by its intermediate chain and asset, so a re-quote keeps the pick).
   const [pickedTwoHop, setPickedTwoHop] = useState<string | null>(null);
   const twoHopKey = quote.twoHop ? `${quote.twoHop.viaChain}|${quote.twoHop.viaAsset}` : null;
@@ -104,6 +100,9 @@ export default function CrossV2Flow() {
   const journeyFlow = useV2TwoHopFlow(client, sender, port, errText);
   const chosenToAsset = chosen?.offer.execution.plan.journey.toAsset ?? toAsset;
   const delivers = chosen?.offer.execution.plan.delivers;
+  // the output field shows what the chosen route really delivers (a substitute delivers another token than the one picked)
+  // (only a substitute: a route for the requested token keeps the picked token, also while a re-quote for a new pick is in flight)
+  const outToken = outputTokenOf(toChainId, toToken, delivers && !delivers.isRequested ? delivers.asset : undefined);
   const [gasEnabled, setGasEnabled] = useState(true);
   const gas = quote.gasTopUp?.offer;
   const primaryPlan = chosen?.offer.execution.plan;
@@ -114,6 +113,10 @@ export default function CrossV2Flow() {
   const toPrice = useUnifiedPrice(toChainId, toToken?.ticker, toToken?.address);
   const priceOf = useCallback((asset: string) => (asset === fromAsset ? fromPrice : asset === toAsset ? toPrice : null), [fromAsset, toAsset, fromPrice, toPrice]);
   const ticker = useCallback((asset: string) => tickerForAsset(asset) ?? asset.split("/").pop()?.slice(0, 10) ?? asset, []);
+  const routes = routeCardsOf(quote.offers, quote.withheld, chosen ? planIdOf(chosen.offer) : null, ticker);
+  // the server's own USD value of what the chosen route delivers; the page's price only for the token the user picked
+  const outUsd = chosen ? offerValueOf(chosen.offer, ticker)?.outUsd : undefined;
+  const steps = chosen ? legRowsOf(chosen.offer, ticker, (c) => v2ChainById(chainIdOfCaip2(c) ?? NaN)?.name ?? c) : [];
   const view = useMemo(
     () =>
       chosen
@@ -261,7 +264,7 @@ export default function CrossV2Flow() {
     : delivers && !delivers.isRequested
       ? `This route delivers ${ticker(delivers.asset)}, not ${toToken?.ticker ?? "the token you picked"}.`
       : chosenAssessment
-        ? `You accepted a held-back route (${chosenAssessment.label}): ${chosenAssessment.reason}`
+        ? `${quote.offers.length ? "This route did not pass the automatic value check" : "No route passed the automatic value check. Compare the routes and pick one"}. Selected: ${offerValueOf(chosen.offer, ticker)?.note ?? chosenAssessment.label}. Reviewing it accepts this.`
         : delivers?.fallback
           ? `If the swap on arrival cannot meet the minimum, you receive at least ${formatUnitsShort({ amount: delivers.fallback.minAmount, decimals: chosen.offer.journey.expectedOutput.decimals })} ${ticker(delivers.fallback.asset)} instead.`
           : chosen.offer.journey.outputGuarantee === "estimate_only"
@@ -275,7 +278,7 @@ export default function CrossV2Flow() {
         ? { tone: "error" as const, text: `Route failed the local check: ${chosen.check.problems[0]}` }
         : routeWarning
           ? { tone: "info" as const, text: routeWarning }
-          : quote.degraded
+          : marketPricingDown([...quote.offers, ...quote.withheld].map((o) => o.offer))
             ? { tone: "info" as const, text: "Market pricing is unavailable right now: routes are labelled and values could not be checked." }
             : undefined;
   const railsMessage =
@@ -283,7 +286,7 @@ export default function CrossV2Flow() {
       ? // The server's own reason text is for integrators: say what the user can do instead.
         quote.substitutes.length
         ? `No route delivers ${toToken?.ticker ?? "this token"} right now. The routes below deliver another token instead.`
-        : quote.withheld.length || quote.twoHop || quote.belowMinimum.length
+        : quote.twoHop || quote.belowMinimum.length
           ? "No automatic route: see the options below."
           : "No route is available for this transfer right now."
       : quote.state === "idle"
@@ -336,9 +339,9 @@ export default function CrossV2Flow() {
           onSelectFromChain={() => setChainPicker("from")}
           onPercentClick={(pct) => setFromAmount(String((fromBalanceNum * pct) / 100))}
           toChain={{ id: toChain.id, name: toChain.name, color: toChain.color, logo: <ChainLogo chainId={toChainId} symbol={toChain.name.slice(0, 3).toUpperCase()} bg={toChain.color} size={17} /> }}
-          toToken={toToken ? { ticker: toToken.ticker, logo: <TokenLogo ticker={toToken.ticker} chainId={toChainId} address={toToken.address} logoUrl={toToken.logoUrl} isNative={toToken.isNative} size={30} /> } : null}
+          toToken={outToken ? { ticker: outToken.ticker, logo: <TokenLogo ticker={outToken.ticker} chainId={toChainId} address={outToken.address} logoUrl={outToken.logoUrl} isNative={outToken.isNative} size={30} /> } : null}
           toAmount={quoting ? "..." : view?.toAmount ?? "0"}
-          toUsdValue={view && toPrice != null ? Number(view.toAmount.replace(/,/g, "")) * toPrice : null}
+          toUsdValue={outUsd ?? (view && toPrice != null && outToken === toToken ? Number(view.toAmount.replace(/,/g, "")) * toPrice : null)}
           onSelectToToken={() => setTokenPicker("to")}
           onSelectToChain={() => setChainPicker("to")}
           destinationSlot={
@@ -347,6 +350,7 @@ export default function CrossV2Flow() {
           }
           railName={view?.railName}
           routeHops={routeHops}
+          steps={steps}
           railBadge={view?.railBadge}
           protocolFeeBps={view?.protocolFeeBps}
           protocolFeeUSD={view?.protocolFeeUSD}
@@ -355,15 +359,14 @@ export default function CrossV2Flow() {
           estimatedTime={view?.estimatedTime}
           minimumReceived={view?.minimumReceived}
           slippageBps={view?.slippageBps}
-          rails={toRailCards(quote.offers, chosen ? planIdOf(chosen.offer) : null)}
+          rails={routes.cards}
           onSelectRail={(name) => {
-            const hit = quote.offers[railCardNames(quote.offers).indexOf(name)];
-            if (hit?.check.ok) setPickedPlanId(planIdOf(hit.offer));
+            const hit = routes.offerOf(name);
+            if (hit) setPickedPlanId(planIdOf(hit.offer));
           }}
           railsFooter={
             sameChain ? undefined : (
               <V2OffersFooter
-                withheld={quote.withheld}
                 gasTopUp={gasOffer ? { offer: gasOffer.offer, reason: quote.gasTopUp!.reason, enabled: gasEnabled, chain: toChain.name, onToggle: () => setGasEnabled(v => !v) } : undefined}
                 substitutes={quote.substitutes}
                 twoHop={quote.twoHop}
@@ -377,11 +380,11 @@ export default function CrossV2Flow() {
               />
             )
           }
-          railsState={sameChain ? "idle" : quote.state}
+          railsState={sameChain ? "idle" : quote.state === "empty" && routes.cards.length ? "ready" : quote.state} railsPending={quote.streaming}
           railsMessage={sameChain ? "Pick two different chains." : railsMessage}
           walletConnected={Boolean(quoteSender)}
           onConnect={connectSource} connectLabel={solana.isSolana ? "Connect Phantom" : undefined}
-          onSwap={() => setShowConfirm(true)}
+          onSwap={() => { if (chosen) setPickedPlanId(planIdOf(chosen.offer)); setShowConfirm(true); }}
           onFlip={flip}
           swapDisabled={!(chosen?.check.ok || twoHop) || (!port && !isNonEvmChain(fromChainId)) || executing || sameChain || !recipientValid || quoting}
           swapLoading={quoting || executing}
@@ -417,9 +420,10 @@ export default function CrossV2Flow() {
             canClaim={Boolean(claimTx(status, sender))}
             claiming={intent.claiming}
             onClaim={() => void claimParked()}
-            onDone={() => { setInFlight(false); intent.clear(); setExecError(null); setExecErrorRef(undefined); quote.refresh(); }}
+            onDone={() => { setInFlight(false); intent.clear(); setExecError(null); setExecErrorRef(undefined); quote.refresh(); }} onHide={executing ? undefined : () => { setInFlight(false); intent.clear(); }}
           />
         )}
+        <TransferHistory entries={intent.history} activeId={intentId} onOpen={(e) => { setExecError(null); intent.track(e); }} ticker={ticker} />
       </main>
 
       <WalletModal open={showWalletModal} onClose={() => setShowWalletModal(false)} wallets={walletOptions} onSelect={(w) => { onSelectWallet(w); setShowWalletModal(false); }} />
@@ -441,11 +445,12 @@ export default function CrossV2Flow() {
         fromTicker={fromToken?.ticker ?? ""}
         fromAmount={fromAmount}
         fromChainName={fromChain.name}
-        toTicker={chosen ? ticker(chosenToAsset) : toToken?.ticker ?? ""}
+        toTicker={chosen ? outToken?.ticker ?? ticker(chosenToAsset) : toToken?.ticker ?? ""}
         toAmount={view?.toAmount ?? "0"}
         toChainName={toChain.name}
         feeRows={view ? [
           { label: "Via rail", value: view.railName },
+          ...steps.map((r, i) => ({ label: `Step ${i + 1} · ${r.step}`, value: `${r.detail} · ${r.out}${r.valueText ? ` · ${r.valueText}` : ""}` })),
           { label: "Guarantee", value: view.railBadge },
           ...view.feeRows.map((f, i) => ({ ...f, accent: i === 0 })),
           ...(extraNativeText ? [{ label: "Provider fee (gas token)", value: extraNativeText }] : []),

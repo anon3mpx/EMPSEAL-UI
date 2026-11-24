@@ -101,6 +101,15 @@ describe("composition execution", () => {
     expect(onComposition).toHaveBeenCalledWith("c-1");
     expect(r.intentId).toBe("primary");
   });
+  it("a held-back gas top-up the user confirmed carries the acceptance of its own label, blocked included", async () => {
+    const { client, wallet } = setup();
+    client.commitComposition = vi.fn(async () => ({ compositionId: "c-1", replayed: false, primary: { intentId: "primary", kind: "contract" as const, replayed: false }, gas: { intentId: "gas", kind: "contract" as const, replayed: false } }));
+    const offer = makeOffer(), gas = makeOffer();
+    gas.journey.assessment = { status: "blocked", label: "Blocked", reason: "x", policyVersion: "pv1", executableByApiKey: false };
+    await executeCheckedPlan(client, { plan: offer.execution.plan, journey: offer.journey }, 8453, wallet, { gasTopUp: { offer: gas, sourceChainId: 8453 } });
+    const sent = (client.commitComposition as ReturnType<typeof vi.fn>).mock.calls[0]![0] as { gasTopUp: { humanAcceptance?: unknown } };
+    expect(sent.gasTopUp.humanAcceptance).toEqual({ status: "blocked", policyVersion: "pv1" });
+  });
 });
 
 describe("deposits", () => {

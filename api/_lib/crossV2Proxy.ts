@@ -24,8 +24,11 @@ export interface InboundRequest {
 export interface ProxyResponse {
   status: number;
   headers: Record<string, string>;
-  body: string;
+  /** A stream only for a streamed journey quote (text/event-stream), passed on event by event. */
+  body: string | ReadableStream<Uint8Array>;
 }
+/** The one call that may be streamed: the journey quote, when the browser asks for an event stream. */
+const STREAMABLE = /^\/v2\/journeys\/quote$/;
 
 // A server id as client.ts sends it (encodeURIComponent of a server id). No leading dot, and the only escape allowed is %3A (the ":" of a `provider:0x<hash>` intent id), so the segment can never become a traversal.
 const ID = "[A-Za-z0-9_-](?:[A-Za-z0-9_.-]|%3[Aa]){0,127}";
@@ -88,7 +91,8 @@ const header = (h: InboundRequest["headers"], name: string): string | undefined 
   return typeof v === "string" ? v : undefined;
 };
 
-export async function handleCrossV2Proxy(req: InboundRequest, env: ProxyEnv, fetchImpl: typeof fetch = fetch): Promise<ProxyResponse> {
+/** `signal`: the browser's side of the request; when it goes away the upstream call is cancelled too. */
+export async function handleCrossV2Proxy(req: InboundRequest, env: ProxyEnv, fetchImpl: typeof fetch = fetch, signal?: AbortSignal): Promise<ProxyResponse> {
   // Reject dot segments before URL normalizes them into another allowlisted route.
   if (/(?:^|\/)(?:\.|%2e){1,2}(?:\/|[?#]|$)/i.test(req.url)) return json(404, "NOT_FOUND", "no such route");
   const url = new URL(req.url, "http://proxy.invalid");
@@ -105,7 +109,8 @@ export async function handleCrossV2Proxy(req: InboundRequest, env: ProxyEnv, fet
   const hasBody = req.method === "POST" && req.body !== undefined && req.body.byteLength > 0;
 
   // Headers are built from scratch: cookies, auth, origin and everything else the browser sent stay here.
-  const out: Record<string, string> = { accept: "application/json", "x-api-key": key };
+  const wantsStream = STREAMABLE.test(upstreamPath) && /\btext\/event-stream\b/.test(header(req.headers, "accept") ?? "");
+  const out: Record<string, string> = { accept: wantsStream ? "text/event-stream" : "application/json", "x-api-key": key };
   const contentType = header(req.headers, "content-type");
   if (hasBody && contentType) out["content-type"] = contentType;
   const idem = header(req.headers, "idempotency-key");
@@ -122,16 +127,22 @@ export async function handleCrossV2Proxy(req: InboundRequest, env: ProxyEnv, fet
       body: hasBody ? Buffer.from(req.body!) : undefined,
       // A redirect would carry the key to wherever it points: refuse it.
       redirect: "error",
-      signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
+      signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(UPSTREAM_TIMEOUT_MS)]) : AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
     });
   } catch (e) {
     if ((e as { name?: string } | null)?.name === "TimeoutError") return json(504, "UPSTREAM_TIMEOUT", "the V2 API did not answer in time", true);
+    if (signal?.aborted) return json(499, "CLIENT_CLOSED", "the request was cancelled", true);
     return json(502, "UPSTREAM_UNAVAILABLE", "the V2 API could not be reached", true);
   }
   const headers: Record<string, string> = { "cache-control": "no-store" };
   for (const name of ["content-type", "x-request-id", "retry-after"]) {
     const v = res.headers.get(name);
     if (v) headers[name] = v;
+  }
+  if (wantsStream && res.body && /^text\/event-stream\b/.test(headers["content-type"] ?? "")) {
+    headers["cache-control"] = "no-store, no-transform";
+    headers["x-accel-buffering"] = "no";
+    return { status: res.status, headers, body: res.body };
   }
   return { status: res.status, headers, body: await res.text() };
 }
@@ -157,16 +168,30 @@ export async function readBody(req: IncomingMessage, max = MAX_BODY_BYTES): Prom
 export function crossV2NodeHandler(getEnv: () => ProxyEnv, fetchImpl?: typeof fetch) {
   return async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
     let r: ProxyResponse;
+    const gone = new AbortController();
+    res.on("close", () => {
+      if (!res.writableEnded) gone.abort();
+    });
     try {
       const method = req.method ?? "GET";
       const body = method === "POST" ? await readBody(req) : undefined;
-      r = await handleCrossV2Proxy({ method, url: req.url ?? "/", headers: req.headers, body }, getEnv(), fetchImpl);
+      r = await handleCrossV2Proxy({ method, url: req.url ?? "/", headers: req.headers, body }, getEnv(), fetchImpl, gone.signal);
     } catch (e) {
       r = e instanceof BodyTooLarge ? json(413, "PAYLOAD_TOO_LARGE", "request body is too large") : json(500, "PROXY_ERROR", "the V2 proxy failed");
     }
     res.statusCode = r.status;
     for (const [k, v] of Object.entries(r.headers)) res.setHeader(k, v);
-    res.end(r.body);
+    if (typeof r.body === "string") return void res.end(r.body);
+    // a streamed quote: each event is written as it arrives; a browser that leaves cancels the read (and so the upstream quote)
+    res.flushHeaders();
+    const reader = r.body.getReader();
+    gone.signal.addEventListener("abort", () => void reader.cancel().catch(() => undefined), { once: true });
+    try {
+      for (let c = await reader.read(); !c.done; c = await reader.read()) res.write(c.value);
+    } catch {
+      /* upstream or browser went away: end what was sent */
+    }
+    res.end();
   };
 }
 
