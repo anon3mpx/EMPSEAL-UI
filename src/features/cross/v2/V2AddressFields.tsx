@@ -14,11 +14,24 @@ interface AddressFieldsProps {
   solanaSender?: string;
 }
 export default function V2AddressFields(p: AddressFieldsProps) {
-  const explicitRecipient = isNonEvmChain(p.toChain.id) || (p.solana && !p.evmSender);
+  // With no EVM wallet connected there is no default recipient, so the field is shown instead of hidden behind "Send to another address".
+  const explicitRecipient = isNonEvmChain(p.toChain.id) || ((p.solana || isNonEvmChain(p.fromChain.id)) && !p.evmSender);
   return (
     <>
       {p.solana ? (
-        <p style={{ fontSize: 12, overflowWrap: "anywhere" }}>Solana sender: {p.solanaSender ?? "Connect Phantom to fetch offers."}</p>
+        p.solanaSender ? (
+          <p style={{ fontSize: 12, overflowWrap: "anywhere" }}>Solana sender: {p.solanaSender}</p>
+        ) : (
+          <DestinationAddressInput
+            id="cross-v2-source-address"
+            chainKind="solana"
+            chainLabel={p.fromChain.name}
+            value={p.sourceAddress}
+            onChange={p.setSourceAddress}
+            label="Your Solana address (shows offers; connect Phantom to sign)"
+            required
+          />
+        )
       ) : (
         isNonEvmChain(p.fromChain.id) && (
           <DestinationAddressInput

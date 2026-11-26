@@ -10,7 +10,7 @@ import { createSolanaWallet } from "./solanaWallet";
 import { NON_EVM_CHAIN_IDS } from "@/lib/wallet/chainKind";
 const owner = Keypair.fromSeed(new Uint8Array(32).fill(1));
 const chain = "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp";
-function offer(rail: "cctp-from-solana" | "jupiter" = "cctp-from-solana") {
+function offer(rail: "cctp-from-solana" | "jupiter" | "thorchain" = "cctp-from-solana") {
   const tx = new VersionedTransaction(
     new TransactionMessage({
       payerKey: owner.publicKey,
@@ -122,6 +122,16 @@ it("local gate accepts a Jupiter signer step only with its Jupiter execute bindi
   const step = p.steps[0]!;
   if (step.type !== "native_tx") throw new Error("fixture");
   step.submitVia = { kind: "rpc" };
+  p.hash = planHashOf(p);
+  expect(checkPlan(p, ctx).ok).toBe(false);
+});
+it("local gate accepts a THORChain deposit from Solana, signed by the wallet and broadcast through the server", () => {
+  const p = offer("thorchain").execution.plan;
+  const ctx = { fromAsset: p.journey.from.asset, amount: p.journey.from.amount, toAsset: p.journey.toAsset, sender: owner.publicKey.toBase58(), recipient: p.journey.recipient, now: NOW };
+  expect(checkPlan(p, ctx).problems).toEqual([]);
+  const step = p.steps[0]!;
+  if (step.type !== "native_tx") throw new Error("fixture");
+  step.submitVia = { kind: "jupiter-execute", requestId: "x" };
   p.hash = planHashOf(p);
   expect(checkPlan(p, ctx).ok).toBe(false);
 });

@@ -1,8 +1,10 @@
 // EVM chains reachable through the LayerZero Value Transfer API that the
-// wallet must be able to switch to and sign on. Only chains with a viem
-// definition are listed; LayerZero EVM chains without one stay unexecutable
-// (see isWalletChain). Snapshot of LayerZero's chain list, 2026-10-02.
+// wallet must be able to switch to and sign on. Chains with a viem definition
+// use it; the V2 server's chains viem lacks are defined below. Snapshot of
+// LayerZero's chain list, 2026-10-02 (extended 2026-11-26).
+import { defineChain } from "viem";
 import {
+  opBNB,
   flare,
   cronos,
   telos,
@@ -64,6 +66,19 @@ import {
   katana,
 } from "viem/chains";
 
+/** Chains the V2 server routes (LayerZero Value Transfer) that viem has no definition for. Name and native symbol from LayerZero's
+ *  chain list, RPC from the server's config/provider-chains.mainnet.json; each RPC answered eth_chainId with its id on 2026-11-26. */
+const lzOnly = (id: number, name: string, symbol: string, rpc: string) =>
+  defineChain({ id, name, nativeCurrency: { name: symbol, symbol, decimals: 18 }, rpcUrls: { default: { http: [rpc] } } });
+const opn = lzOnly(222, "OPN", "IOPN", "https://mainnet-rpc.iopn.tech");
+const pharos = lzOnly(1672, "Pharos", "PROS", "https://rpc.pharos.xyz");
+const kite = lzOnly(2366, "Kite", "KITE", "https://rpc.gokite.ai");
+const anubis = lzOnly(6714, "Anubis", "DAI", "https://rpc.anubispace.org");
+const apexFusionNexus = lzOnly(9069, "Apex Fusion Nexus", "AP3X", "https://rpc.nexus.mainnet.apexfusion.org");
+const gateLayer = lzOnly(10088, "Gate Layer", "GT", "https://gatelayer-mainnet.gatenode.cc");
+const rayls = lzOnly(72957, "Rayls", "USDr", "https://mainnet-rpc.rayls.com");
+const doma = lzOnly(97477, "Doma", "ETH", "https://doma.drpc.org");
+
 export const layerZeroWalletChains = [
   flare, // flare (14)
   cronos, // cronosevm (25)
@@ -124,4 +139,13 @@ export const layerZeroWalletChains = [
   scroll, // scroll (534352)
   gensyn, // gensyn (685689)
   katana, // katana (747474)
+  opBNB, // opbnb (204)
+  opn, // opn (222)
+  pharos, // pharos (1672)
+  kite, // kite (2366)
+  anubis, // anubis (6714)
+  apexFusionNexus, // apexfusionnexus (9069)
+  gateLayer, // gatelayer (10088)
+  rayls, // rayls (72957)
+  doma, // doma (97477)
 ] as const;

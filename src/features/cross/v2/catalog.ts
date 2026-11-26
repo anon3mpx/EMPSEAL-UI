@@ -31,6 +31,8 @@ export const catalogChain = (chainId: number) => chainsById.get(chainId);
 export const catalogTokens = (chainId: number): readonly V2TokenConfig[] => tokensByChain.get(chainId) ?? [];
 /** True once the server's assets loaded and this chain has some. */
 export const catalogHasChain = (chainId: number) => assetsByChain.has(chainId);
+/** True when the server lists this exact CAIP-19 asset (EVM ids lowercased) on one of its rails. */
+export const catalogRoutesAsset = (chainId: number, assetId: string) => assetsByChain.get(chainId)?.has(assetId) ?? false;
 
 function walletChainConfig(c: Chain): V2ChainConfig {
   return {

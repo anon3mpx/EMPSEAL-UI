@@ -4,7 +4,7 @@ import type { RailCardData } from "../../../design-system/widgetKit";
 import { offerValueOf } from "./offerValue";
 import type { HumanAcceptance, JourneyQuote } from "./types";
 import type { CheckedWithheld } from "./useV2Quote";
-import { formatEta, formatUnitsShort, planIdOf, railCardNames, type CheckedOffer } from "./widgetView";
+import { formatEta, formatUnitsShort, planIdOf, railCardNames, routeKeyOf, type CheckedOffer } from "./widgetView";
 
 const CONTRACT_RAILS = new Set(["cctp", "ccip", "layerzero"]);
 const HELD_TAG: Record<string, string> = { warning: "HIGH COST", blocked: "VERY HIGH COST", unpriced: "UNVERIFIED" };
@@ -59,10 +59,17 @@ export function routeCardsOf(
 
 /** What the output field shows before the user picks: the best route that passed the value check, else the first held-back route they may take. */
 export function defaultChoiceOf(offers: readonly CheckedOffer[], held: readonly CheckedWithheld[]): CheckedOffer | undefined {
-  return offers.find((o) => o.check.ok) ?? held.find(selectableHeld);
+  // Bridge is listed but only preselected when nothing else is offered: it holds the funds in transit and states no minimum.
+  const ok = offers.filter((o) => o.check.ok);
+  return ok.find((o) => !o.offer.journey.hops.some((h) => h.rail === "bridge")) ?? ok[0] ?? held.find(selectableHeld);
 }
 
-/** The route in use: the user's pick while it is still offered, else the default. A held-back pick carries the acceptance of its own label (sent at commit).
+/** The acceptance a held-back route is committed with: exactly the label the user was shown (none for an acceptable route). */
+export function acceptanceOf(a: JourneyQuote["assessment"] | null | undefined): HumanAcceptance | undefined {
+  return a && a.status !== "acceptable" && a.policyVersion ? { status: a.status, policyVersion: a.policyVersion } : undefined;
+}
+
+/** The route in use: the user's pick while it is still offered (matched by plan id, or by route key so a re-quote keeps it), else the default. A held-back pick carries the acceptance of its own label (sent at commit).
  *  A held route is only a default while nothing is picked: a picked route that disappears (a refresh during review) never silently becomes a held one. */
 export function chooseRoute(
   offers: readonly CheckedOffer[],
@@ -72,9 +79,9 @@ export function chooseRoute(
 ): { chosen?: CheckedOffer; chosenAssessment: JourneyQuote["assessment"]; humanAcceptance?: HumanAcceptance } {
   const selectable = held.filter(selectableHeld);
   const chosen =
-    [...offers, ...selectable, ...substituteOffers].find((o) => o.check.ok && planIdOf(o.offer) === pickedPlanId) ??
+    [...offers, ...selectable, ...substituteOffers].find((o) => o.check.ok && (planIdOf(o.offer) === pickedPlanId || routeKeyOf(o.offer) === pickedPlanId)) ??
     defaultChoiceOf(offers, pickedPlanId === null ? held : []);
   const a = chosen && selectable.includes(chosen as CheckedWithheld) ? chosen.offer.journey.assessment : null;
-  const humanAcceptance = a && a.status !== "acceptable" && a.policyVersion ? { status: a.status, policyVersion: a.policyVersion } : undefined;
+  const humanAcceptance = acceptanceOf(a);
   return { ...(chosen ? { chosen } : {}), chosenAssessment: a, ...(humanAcceptance ? { humanAcceptance } : {}) };
 }

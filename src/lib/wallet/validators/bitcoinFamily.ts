@@ -32,6 +32,8 @@ interface BtcFamilySpec {
   p2shVersions: number[];
   legacyPrefixes: string; // hint for placeholder (first-letter clues)
   bech32Prefix: string;
+  /** The chain has no bech32 form (Dash): only base58check is accepted. */
+  noBech32?: boolean;
 }
 
 function makeValidator(spec: BtcFamilySpec): AddressValidator {
@@ -42,7 +44,7 @@ function makeValidator(spec: BtcFamilySpec): AddressValidator {
       if (!trimmed) return { valid: false, reason: "Address is empty" };
 
       // ── Bech32 path (native segwit / taproot)
-      if (trimmed.toLowerCase().startsWith(`${spec.hrp}1`)) {
+      if (!spec.noBech32 && trimmed.toLowerCase().startsWith(`${spec.hrp}1`)) {
         const decoded = bech32Decode(trimmed);
         if (!decoded) {
           return {
@@ -93,9 +95,9 @@ function makeValidator(spec: BtcFamilySpec): AddressValidator {
         reason: `Unrecognised version byte 0x${decoded.version.toString(16).padStart(2, "0")} for ${spec.bech32Prefix}`,
       };
     },
-    placeholder: () => `${spec.legacyPrefixes}... or ${spec.bech32Prefix}1...`,
+    placeholder: () => (spec.noBech32 ? `${spec.legacyPrefixes}...` : `${spec.legacyPrefixes}... or ${spec.bech32Prefix}1...`),
     formatHint: () =>
-      `Legacy (${spec.legacyPrefixes}...) or Bech32 (${spec.bech32Prefix}1...)`,
+      spec.noBech32 ? `Legacy (${spec.legacyPrefixes}...)` : `Legacy (${spec.legacyPrefixes}...) or Bech32 (${spec.bech32Prefix}1...)`,
     isAdapterAvailable: () => false, // Unisat/Xverse adapter lands in T5
   };
 }
@@ -126,4 +128,14 @@ export const ltcValidator = makeValidator({
   p2shVersions: [0x32, 0x05],
   legacyPrefixes: "L or M",
   bech32Prefix: "ltc",
+});
+
+export const dashValidator = makeValidator({
+  kind: "dash",
+  hrp: "dash",
+  p2pkhVersions: [0x4c],
+  p2shVersions: [0x10],
+  legacyPrefixes: "X or 7",
+  bech32Prefix: "dash",
+  noBech32: true,
 });

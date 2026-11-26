@@ -31,9 +31,10 @@ import V2OffersFooter from "./V2OffersFooter";
 import { chooseRoute, routeCardsOf } from "./routeCards";
 import { legRowsOf, marketPricingDown, offerValueOf } from "./offerValue";
 import { useV2WalletPort } from "./useV2WalletPort";
-import { formatUnitsShort, planIdOf, railNameOf, routeHopsOf, selectedOfferView } from "./widgetView";
-import { isNonEvmChain } from "@/lib/wallet/chainKind";
-import { addressValidFor, chainIdOfCaip2 } from "./nonEvm";
+import { formatUnitsShort, planIdOf, railNameOf, routeHopsOf, routeKeyOf, selectedOfferView } from "./widgetView";
+import { chainKindFor, isNonEvmChain } from "@/lib/wallet/chainKind";
+import { hasAdaptersFor, loadAdaptersFor } from "@/lib/wallet/adapters";
+import { addressValidFor, canonicalAddressFor, chainIdOfCaip2 } from "./nonEvm";
 import { useSolanaSender } from "./useSolanaSender";
 import { allowSameChain } from "./solanaSwap";
 
@@ -62,7 +63,26 @@ export default function CrossV2Flow() {
   const fromChain = corridors.sources.find((c) => c.id === fromChainId) ?? corridors.sources[0]!;
   const toChain = destinations.find((c) => c.id === toChainId) ?? destinations[0] ?? fromChain;
   const solana = useSolanaSender(fromChain.id, sender);
-  const connectSource = () => solana.isSolana ? void solana.connect().catch(e => toast.error(errText(e))) : setShowWalletModal(true);
+  // A non-EVM source (BTC, Tron, Cosmos...) connects that chain's own wallet and fills the refund address; the EVM modal is only for EVM sources.
+  const sourceKind = isNonEvmChain(fromChain.id) && !solana.isSolana ? chainKindFor(fromChain.id) : null;
+  const nativeWallet = sourceKind && hasAdaptersFor(sourceKind) ? sourceKind : null;
+  const connectNativeSource = async (kind: NonNullable<typeof nativeWallet>) => {
+    const adapters = await loadAdaptersFor(kind);
+    const installed = adapters.find((a) => a.isInstalled());
+    if (!installed) {
+      toast.error(adapters[0] ? `Install ${adapters[0].brand} (${adapters[0].installUrl}) or paste your ${fromChain.name} address.` : `Paste your ${fromChain.name} address.`);
+      return;
+    }
+    setSourceAddress((await installed.connect()).address);
+  };
+  const connectSource = () =>
+    solana.isSolana
+      ? void solana.connect().catch((e) => toast.error(errText(e)))
+      : nativeWallet
+        ? void connectNativeSource(nativeWallet).catch((e) => { if (e?.code !== "USER_REJECTED") toast.error(errText(e)); })
+        : sourceKind
+          ? document.getElementById("cross-v2-source-address")?.focus()
+          : setShowWalletModal(true);
   // When the live corridors drop the current pair, move to the first one they offer.
   useEffect(() => {
     if (fromChain.id !== fromChainId) {
@@ -76,15 +96,18 @@ export default function CrossV2Flow() {
   }, [fromChain.id, toChain.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const fromAsset = fromToken ? assetIdOf(fromToken) : "";
   const toAsset = toToken ? assetIdOf(toToken) : "";
-  const recipientOrSender = allowSameChain(fromChain.id, toChain.id) ? solana.sender ?? "" : recipient.trim() || (isNonEvmChain(toChain.id) ? "" : sender || "");
+  // A Solana source quotes with Phantom's address, or a pasted one so offers show before Phantom is connected; signing still needs Phantom.
+  const solanaAddress = solana.isSolana ? solana.sender ?? (canonicalAddressFor(fromChain.id, sourceAddress) || undefined) : undefined;
+  const needsPhantom = solana.isSolana && !solana.sender;
+  const recipientOrSender = allowSameChain(fromChain.id, toChain.id) ? solanaAddress ?? "" : canonicalAddressFor(toChain.id, recipient) || (isNonEvmChain(toChain.id) ? "" : sender || "");
   const recipientValid = addressValidFor(toChain.id, recipientOrSender);
-  const quoteSender = solana.isSolana ? solana.sender : isNonEvmChain(fromChain.id) ? sourceAddress.trim() : sender;
+  const quoteSender = solana.isSolana ? solanaAddress : isNonEvmChain(fromChain.id) ? canonicalAddressFor(fromChain.id, sourceAddress) : sender;
   const [showConfirm, setShowConfirm] = useState(false);
   const [executing, setExecuting] = useState(false);
   const quote = useV2Quote(
     client,
     {
-      fromAsset, fromDecimals: fromToken?.decimals ?? 18, toAsset, amount: fromAmount, sender, sourceAddress: solana.isSolana ? solana.sender ?? "" : sourceAddress,
+      fromAsset, fromDecimals: fromToken?.decimals ?? 18, toAsset, amount: fromAmount, sender, sourceAddress: solana.isSolana ? solanaAddress ?? "" : sourceAddress,
       recipient: recipientOrSender, paused: showConfirm || executing,
     },
     errText,
@@ -290,7 +313,7 @@ export default function CrossV2Flow() {
           ? "No automatic route: see the options below."
           : "No route is available for this transfer right now."
       : quote.state === "idle"
-        ? solana.isSolana ? "Connect Phantom and choose a recipient to fetch offers." : isNonEvmChain(fromChainId) ? "Enter the source and recipient addresses to fetch offers." : "Connect a wallet to fetch live cross-chain offers."
+        ? solana.isSolana ? "Connect Phantom or paste your Solana address, and choose a recipient, to fetch offers." : isNonEvmChain(fromChainId) ? "Enter the source and recipient addresses to fetch offers." : "Connect a wallet to fetch live cross-chain offers."
         : quote.error ?? undefined;
   const quoting = Boolean(quoteSender) && (quote.state === "loading" || (quote.state === "refreshing" && quote.forNewInput));
   const routeJourney = chosen?.offer.journey ?? twoHop?.journey;
@@ -362,7 +385,7 @@ export default function CrossV2Flow() {
           rails={routes.cards}
           onSelectRail={(name) => {
             const hit = routes.offerOf(name);
-            if (hit) setPickedPlanId(planIdOf(hit.offer));
+            if (hit) setPickedPlanId(routeKeyOf(hit.offer));
           }}
           railsFooter={
             sameChain ? undefined : (
@@ -372,7 +395,7 @@ export default function CrossV2Flow() {
                 twoHop={quote.twoHop}
                 selectedPlanId={chosen ? planIdOf(chosen.offer) : null}
                 ticker={ticker}
-                onPick={setPickedPlanId}
+                onPick={(id) => { const o = [...quote.offers, ...quote.withheld, ...quote.substitutes.flatMap((s) => s.offers)].find((x) => planIdOf(x.offer) === id); setPickedPlanId(o ? routeKeyOf(o.offer) : id); }}
                 twoHopSelected={Boolean(twoHop)}
                 onPickTwoHop={() => setPickedTwoHop(twoHopKey)}
                 belowMinimum={quote.belowMinimum}
@@ -383,12 +406,12 @@ export default function CrossV2Flow() {
           railsState={sameChain ? "idle" : quote.state === "empty" && routes.cards.length ? "ready" : quote.state} railsPending={quote.streaming}
           railsMessage={sameChain ? "Pick two different chains." : railsMessage}
           walletConnected={Boolean(quoteSender)}
-          onConnect={connectSource} connectLabel={solana.isSolana ? "Connect Phantom" : undefined}
-          onSwap={() => { if (chosen) setPickedPlanId(planIdOf(chosen.offer)); setShowConfirm(true); }}
+          onConnect={connectSource} connectLabel={solana.isSolana ? "Connect Phantom" : nativeWallet ? `Connect ${fromChain.name} wallet` : sourceKind ? `Enter ${fromChain.name} address` : undefined}
+          onSwap={() => { if (needsPhantom) return connectSource(); if (chosen) setPickedPlanId(routeKeyOf(chosen.offer)); setShowConfirm(true); }}
           onFlip={flip}
           swapDisabled={!(chosen?.check.ok || twoHop) || (!port && !isNonEvmChain(fromChainId)) || executing || sameChain || !recipientValid || quoting}
           swapLoading={quoting || executing}
-          swapLabel={!quoteSender ? "Connect wallet" : quoting ? "Fetching route..." : chosen || twoHop ? "Review route" : quote.twoHop?.check.ok ? "Pick the two-step route" : "No route"}
+          swapLabel={!quoteSender ? "Connect wallet" : needsPhantom && !quoting && (chosen || twoHop) ? "Connect Phantom to sign" : quoting ? "Fetching route..." : chosen || twoHop ? "Review route" : quote.twoHop?.check.ok ? "Pick the two-step route" : "No route"}
           quote={quoteSender && quote.issuedAt ? { issuedAt: quote.issuedAt, validMs: quote.validMs, onRefresh: () => { quote.refresh(); toast.info("Quote refreshed"); } } : undefined}
           notice={notice}
         />

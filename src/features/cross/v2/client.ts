@@ -147,7 +147,8 @@ export function createCrossV2Client(o: CrossV2ClientOptions = {}) {
     recipient: i.recipient,
     // Sent only when the user set it: the server applies and records its documented default otherwise.
     ...(i.slippageBps !== undefined ? { slippageBps: i.slippageBps } : {}),
-    policy: { maxTier: i.maxTier },
+    // Bridge (custodial, estimate-only) quotes only when named; the UI always lists it (owner decision 2026-11-26).
+    policy: { maxTier: i.maxTier, explicitRails: ["bridge"] },
   });
 
   return {
@@ -241,12 +242,13 @@ export function createCrossV2Client(o: CrossV2ClientOptions = {}) {
         body: { reference },
       });
     },
-    /** Commits ONLY the first order of a two-order journey, with the journey quote the user was shown (both plans unchanged). */
-    commitJourney(q: TwoHopQuote, sender: string, idempotencyKey: string = newKey("journey"), signal?: AbortSignal) {
+    /** Commits ONLY the first order of a two-order journey, with the journey quote the user was shown (both plans unchanged).
+     *  `humanAcceptance` accepts the journey's displayed label when a leg was held back by the value check. */
+    commitJourney(q: TwoHopQuote, sender: string, idempotencyKey: string = newKey("journey"), signal?: AbortSignal, humanAcceptance?: HumanAcceptance) {
       return request<{ journeyId: string; hop1IntentId: string; replayed: boolean }>("POST", "/v2/journeys", {
         signal,
         idempotencyKey,
-        body: { hop1: q.execution.hop1.plan, hop2Preview: q.execution.hop2Preview.plan, journey: q.journey, sender },
+        body: { hop1: q.execution.hop1.plan, hop2Preview: q.execution.hop2Preview.plan, journey: q.journey, sender, ...(humanAcceptance ? { humanAcceptance } : {}) },
       });
     },
     journey(journeyId: string, signal?: AbortSignal): Promise<JourneyDetail> {
@@ -262,9 +264,10 @@ export function createCrossV2Client(o: CrossV2ClientOptions = {}) {
         signal, idempotencyKey: newKey("restart"), body: { policy: { maxTier: 3 } },
       });
     },
-    acceptNewTerms(journeyId: string, offer: WireOffer, signal?: AbortSignal): Promise<JourneyDetail> {
+    acceptNewTerms(journeyId: string, offer: WireOffer, signal?: AbortSignal, humanAcceptance?: HumanAcceptance): Promise<JourneyDetail> {
       return request<JourneyDetail>("POST", `/v2/journeys/${encodeURIComponent(journeyId)}/accept-new-terms`, {
-        signal, idempotencyKey: `accept-${journeyId}-${offer.execution.plan.hash.slice(0, 16)}`, body: { plan: offer.execution.plan, journey: offer.journey },
+        signal, idempotencyKey: `accept-${journeyId}-${offer.execution.plan.hash.slice(0, 16)}`,
+        body: { plan: offer.execution.plan, journey: offer.journey, ...(humanAcceptance ? { humanAcceptance } : {}) },
       });
     },
     status(intentId: string, signal?: AbortSignal): Promise<IntentStatus> {

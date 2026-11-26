@@ -3,7 +3,7 @@
 import { getV2Chain, type V2ChainConfig } from "../../../design-system/data/v2ChainView";
 import { getTokensForChain, type V2TokenConfig } from "../../../design-system/data/v2TokenView";
 import { CROSS_V2_CHAINS } from "./config";
-import { catalogChain, catalogNativeCoin, catalogTokens } from "./catalog";
+import { catalogChain, catalogHasChain, catalogNativeCoin, catalogRoutesAsset, catalogTokens } from "./catalog";
 import { addressValidFor, caip2OfChainId, chainIdOfCaip2, nativeAssetOf } from "./nonEvm";
 import { isNonEvmChain, NON_EVM_CHAIN_IDS } from "@/lib/wallet/chainKind";
 
@@ -37,15 +37,20 @@ const HEX_ADDRESS = /^0x[0-9a-fA-F]{40}$/;
 const isNativeToken = (t: Pick<V2TokenConfig, "isNative" | "address">) =>
   Boolean(t.isNative) || !t.address || /^0x0{40}$/i.test(t.address) || /^0xe{40}$/i.test(t.address);
 
+/** A chain with no EMPX aggregator (and not Solana, where Jupiter swaps any mint) can only move what a rail carries: offer just those tokens once the server's list loaded. */
+const railOnly = (chainId: number) =>
+  chainId !== NON_EVM_CHAIN_IDS.SOL && catalogHasChain(chainId) && v2ChainById(chainId)?.supportsAggregator !== true;
+
 /** Shared/server tokens with known native coin types, EVM token addresses, or Solana SPL mint addresses. */
 export function v2Tokens(chainId: number): V2TokenConfig[] {
   const seen = new Set<string>();
+  const onlyRouted = railOnly(chainId);
   return [...getTokensForChain(chainId), ...catalogTokens(chainId)].filter((t) => {
     const ok = isNonEvmChain(chainId)
       ? isNativeToken(t) ? nativeAssetOf(chainId) !== undefined : chainId === NON_EVM_CHAIN_IDS.SOL && addressValidFor(chainId, t.address ?? "")
       : isNativeToken(t) ? nativeCoin(t.chainId) !== undefined : HEX_ADDRESS.test(t.address ?? "");
     const id = ok ? assetIdOf(t) : "";
-    if (!ok || seen.has(id)) return false;
+    if (!ok || seen.has(id) || (onlyRouted && !catalogRoutesAsset(chainId, id))) return false;
     seen.add(id);
     return true;
   });

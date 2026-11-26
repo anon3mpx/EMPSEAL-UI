@@ -32,7 +32,7 @@ export function checkTwoHop(q: TwoHopQuote | null | undefined, ctx: PlanCheckCon
   if (j.input?.amount !== ctx.amount || j.toAsset !== ctx.toAsset || !eqAddr(j.recipient, ctx.recipient))
     bad("the journey does not describe the requested transfer");
   if (j.fees?.allIn?.withinCeiling === false || j.fees?.empx?.withinCap === false) bad("the journey's fees exceed the stated ceiling");
-  problems.push(...assessmentProblems(j, false));
+  problems.push(...assessmentProblems(j, true)); // a held-back leg is taken with the journey's label accepted at commit; the server re-judges both legs
 
   // Leg 1: exactly the user's input, delivered to the user's own address on the intermediate chain.
   if (hop1.journey?.toAsset !== q.via.asset) bad("the first order does not deliver the intermediate asset");

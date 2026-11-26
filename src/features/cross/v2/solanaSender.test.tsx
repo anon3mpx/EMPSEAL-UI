@@ -41,3 +41,16 @@ it("a wallet provider whose event methods throw on access does not crash the Sol
   expect(hook.result.current.sender).toBe(address);
   hook.unmount();
 });
+it("with a Solana source and no Phantom, the user can paste a Solana address to see offers", async () => {
+  const { render, screen } = await import("@testing-library/react");
+  const { default: V2AddressFields } = await import("./V2AddressFields");
+  const props = {
+    fromChain: { id: NON_EVM_CHAIN_IDS.SOL, name: "Solana" }, toChain: { id: 8453, name: "Base" },
+    sourceAddress: "", setSourceAddress: () => {}, recipient: "", setRecipient: () => {}, solana: true,
+  };
+  const view = render(<V2AddressFields {...props} />);
+  expect(screen.getByText(/Your Solana address/)).toBeTruthy();
+  view.rerender(<V2AddressFields {...props} solanaSender="4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi" />);
+  expect(screen.queryByText(/Your Solana address/)).toBeNull();
+  expect(screen.getByText(/Solana sender: 4vJ9/)).toBeTruthy();
+});

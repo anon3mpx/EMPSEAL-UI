@@ -71,7 +71,7 @@ describe("createCrossV2Client", () => {
     const [url, init] = f.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toBe("/api/cross-v2/v2/quote");
     expect(Object.keys(init.headers as Record<string, string>).map((h) => h.toLowerCase())).not.toContain("x-api-key");
-    expect(JSON.parse(init.body as string)).toEqual({ from: { asset: "a", amount: "1", decimals: 6 }, toAsset: "b", sender: "s", recipient: "r", policy: { maxTier: 3 } });
+    expect(JSON.parse(init.body as string)).toEqual({ from: { asset: "a", amount: "1", decimals: 6 }, toAsset: "b", sender: "s", recipient: "r", policy: { maxTier: 3, explicitRails: ["bridge"] } });
   });
 
   it("sends the commit with an idempotency key and the unchanged plan and journey", async () => {

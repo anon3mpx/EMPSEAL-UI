@@ -33,6 +33,13 @@ describe("chainKindFor", () => {
         expect(chainKindFor(chainId)).toBe("evm");
       }
     });
+
+    it("recognizes the LayerZero wallet chains, and Fantom (250) is not taken by the XRP pseudo id", () => {
+      for (const chainId of [14, 204, 250, 1672, 97477]) {
+        expect(chainKindFor(chainId)).toBe("evm");
+      }
+      expect(NON_EVM_CHAIN_IDS.XRP).not.toBe(250);
+    });
   });
 
   describe("non-EVM chains (published in VPS registry)", () => {

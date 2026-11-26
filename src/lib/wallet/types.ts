@@ -29,7 +29,9 @@ export type ChainKind =
   | "bitcoin"  // base58check (1.../3...) + bech32 (bc1...) + bech32m (taproot)
   | "doge"     // BTC-variant: base58check with 0x1e version + bech32 with "doge" HRP
   | "ltc"      // BTC-variant: base58check with 0x30 / 0x32 (or 0x05) + bech32 with "ltc" HRP
+  | "dash"     // base58check with 0x4c (X...) / 0x10 (7...) versions; no bech32 form
   | "bch"      // CashAddr (bech32 variant w/ "bitcoincash" HRP) + legacy base58check
+  | "zec"      // Zcash transparent: base58check with 2-byte versions (t1.../t3...) + ZIP-320 TEX (tex1...)
 
   // ─── Ed25519-pubkey families ───────────────────────────────────────────────
   | "solana"   // base58 32-44 chars, no checksum prefix (raw ed25519 pubkey)

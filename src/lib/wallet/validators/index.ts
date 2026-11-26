@@ -16,7 +16,7 @@ import { evmValidator } from "./evm";
 import { aptosValidator, suiValidator } from "./hex32";
 import { nearValidator } from "./near";
 import { solanaValidator } from "./solana";
-import { bitcoinValidator, dogeValidator, ltcValidator } from "./bitcoinFamily";
+import { bitcoinValidator, dashValidator, dogeValidator, ltcValidator } from "./bitcoinFamily";
 import { tronValidator } from "./tron";
 import { cosmosValidator } from "./cosmos";
 import { adaValidator } from "./ada";
@@ -24,6 +24,7 @@ import { bchValidator } from "./bch";
 import { xrpValidator } from "./xrp";
 import { tonValidator } from "./ton";
 import { xmrValidator } from "./xmr";
+import { zecValidator } from "./zec";
 
 const REGISTRY: Partial<Record<ChainKind, AddressValidator>> = {
   evm:     evmValidator,
@@ -34,6 +35,8 @@ const REGISTRY: Partial<Record<ChainKind, AddressValidator>> = {
   bitcoin: bitcoinValidator,
   doge:    dogeValidator,
   ltc:     ltcValidator,
+  dash:    dashValidator,
+  zec:     zecValidator,
   tron:    tronValidator,
   cosmos:  cosmosValidator,
   ada:     adaValidator,
@@ -123,6 +126,8 @@ const KIND_DETECTION_PRIORITY: ChainKind[] = [
   "bitcoin",   // base58check (versions 0x00/0x05) or bech32 'bc' HRP
   "doge",      // base58check (versions 0x1e/0x16) or bech32 'doge' HRP
   "ltc",       // base58check (versions 0x30/0x32/0x05) or bech32 'ltc' HRP
+  "dash",      // base58check (versions 0x4c/0x10), no bech32
+  "zec",       // base58check (2-byte versions 0x1cb8/0x1cbd) or bech32m 'tex' HRP
   "cosmos",    // bech32 with chain-family HRP (catch-all for Cosmos zones)
 
   // ── Moderate constraint (length + alphabet) ──────────────────────────

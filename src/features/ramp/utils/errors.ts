@@ -18,28 +18,36 @@ export function isUserRejectedError(error: unknown): boolean {
   return String(record.shortMessage ?? record.message ?? "").toLowerCase().includes("user rejected");
 }
 
-export function mapRampApiError(error: unknown): string {
-  if (isUserRejectedError(error)) return "Wallet rejected the ramp signature.";
-  const status = typeof error === "object" && error !== null
-    ? (error as { status?: number }).status
-    : undefined;
-  const body = typeof error === "object" && error !== null
-    ? (error as { body?: { error?: string; message?: string } }).body
-    : undefined;
-  const code = String(body?.error ?? "").toUpperCase();
+/** The server sends `{ error: { code, message } }`; older paths send `{ error: "CODE", message }`. */
+function readErrorBody(error: unknown): { status?: number; code: string; message?: string } {
+  if (!error || typeof error !== "object") return { code: "" };
+  const record = error as { status?: number; body?: Record<string, unknown> };
+  const raw = record.body?.error;
+  const nested = raw && typeof raw === "object" ? raw as { code?: unknown; message?: unknown } : undefined;
+  const code = String(nested?.code ?? (typeof raw === "string" ? raw : "")).toUpperCase();
+  const message = [nested?.message, record.body?.message].find((v): v is string => typeof v === "string" && v.trim().length > 0);
+  return { status: record.status, code, message };
+}
 
-  if (status === 503 || code === "RAMP_NOT_CONFIGURED") {
-    return body?.message ?? "Ramp is unavailable. Actions are disabled until the backend is configured.";
+export function mapRampApiError(error: unknown): string {
+  if (isUserRejectedError(error)) return "You declined the signature in your wallet.";
+  const { status, code, message } = readErrorBody(error);
+  const text = `${code} ${message ?? ""}`.toLowerCase();
+
+  if (code === "RAMP_SIGNATURE_UNSUPPORTED_WALLET") {
+    return "This wallet is a smart account. Switch to a regular wallet account to use the ramp.";
   }
-  if (code.includes("EXPIRED") || code === "RAMP_ACTION_EXPIRED") {
-    return body?.message ?? "Ramp signature has expired. Sign again.";
+  if (text.includes("unsupported state or region")) {
+    return "Bridge can't serve your state or region yet.";
   }
-  if (status === 401 || code.includes("SIGNATURE")) {
-    return body?.message ?? "Ramp signature is invalid.";
-  }
-  if (code.includes("KYC")) return body?.message ?? "Complete hosted KYC before continuing.";
-  if (code.includes("CAPABILITY")) return body?.message ?? "This ramp action is disabled by backend capabilities.";
-  return readErrorMessage(error) ?? "Ramp request failed.";
+  if (status === 503 || code === "RAMP_NOT_CONFIGURED") return "The ramp is offline right now. Try again later.";
+  if (code.includes("EXPIRED")) return "Your signature expired. Try again and sign once more.";
+  if (code === "RAMP_PAYLOAD_MISMATCH") return "The request changed after you signed it. Try again.";
+  if (status === 401 || code.includes("SIGNATURE")) return "Your wallet signature couldn't be checked. Try again.";
+  if (code.includes("KYC")) return "Finish identity verification first.";
+  if (code.includes("CAPABILITY")) return "This ramp action is turned off right now.";
+  if (status === 502 || code.includes("PROVIDER")) return "Bridge couldn't process this request. Try again in a minute.";
+  return message ?? readErrorMessage(error) ?? "Something went wrong. Try again.";
 }
 
 export function capabilityBlockReason(

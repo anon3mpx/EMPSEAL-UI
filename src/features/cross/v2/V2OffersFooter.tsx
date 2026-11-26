@@ -52,6 +52,9 @@ export default function V2OffersFooter(props: V2OffersFooterProps) {
             {formatUnitsShort(twoHop.journey.expectedOutput)} {ticker(twoHop.journey.expectedOutput.asset)}. You sign the first order now and the
             second once the first lands; in between, the funds wait in your own wallet on {chainName(twoHop.viaChain)}.
           </p>
+          {twoHop.journey.assessment && twoHop.journey.assessment.status !== "acceptable" && (
+            <p style={{ margin: 0, fontSize: 11, color: wk.warn }}>{twoHop.journey.assessment.label}. Using this route accepts this.</p>
+          )}
           {twoHop.check.ok ? (
             <button
               type="button"

@@ -108,7 +108,10 @@ export function useRampSession(input: {
     type: "individual" | "business";
     redirectUri: string;
   }) => run(async () => {
+    // rampd hashes the whole request body minus signedAction, so wallet and chainId are signed too.
     const hashed = {
+      wallet: payload.wallet,
+      chainId: payload.chainId,
       fullName: payload.fullName,
       email: payload.email,
       type: payload.type,
@@ -116,8 +119,6 @@ export function useRampSession(input: {
     };
     const { signedAction } = await signed(RAMP_ACTIONS.kycLink, payload.wallet, payload.chainId, hashed);
     const next = await apiRef.current.createKycLink({
-      wallet: payload.wallet,
-      chainId: payload.chainId,
       ...hashed,
       signedAction,
     }, nextUUID());

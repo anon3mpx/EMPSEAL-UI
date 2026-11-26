@@ -19,12 +19,14 @@
 //
 // UI-side placeholders (TBD with VPS):
 //   TRON = 200, XMR = 210, NEAR = 220, APTOS = 230, SUI = 240,
-//   XRP = 250, TON = 260, ADA = 270
+//   XRP = 249, TON = 260, ADA = 270
+//   (XRP moved off 250 on 2026-11-26: 250 is Fantom, which V2 routes over LayerZero.)
 //
 // All known EVM chain IDs explicitly enumerate so an unmapped chainId
 // returns null rather than a misleading default.
 
 import type { ChainKind } from "./types";
+import { layerZeroWalletChains } from "../../Wagmi/layerZeroChains";
 
 /** Pseudo-IDs for non-EVM chains.  Mirrors empx-cross-bridge VPS conventions. */
 export const NON_EVM_CHAIN_IDS = {
@@ -47,7 +49,7 @@ export const NON_EVM_CHAIN_IDS = {
   NEAR: 220,
   APTOS: 230,
   SUI: 240,
-  XRP: 250,
+  XRP: 249, // not 250: that is Fantom's EVM chain id
   TON: 260,
   ADA: 270,
 } as const;
@@ -95,6 +97,8 @@ const EVM_CHAIN_IDS = new Set<number>([
   59144,  // Linea
   98866,  // Plume
   80094,  // Berachain
+  // EVM chains the wallet can sign on through LayerZero routes (V2), e.g. Fantom, Flare, opBNB
+  ...layerZeroWalletChains.map((c) => c.id),
 ]);
 
 /**
@@ -116,6 +120,8 @@ export function chainKindFor(chainId: number | undefined | null): ChainKind | nu
     case NON_EVM_CHAIN_IDS.LTC:    return "ltc";
     case NON_EVM_CHAIN_IDS.BCH:    return "bch";
     case NON_EVM_CHAIN_IDS.COSMOS: return "cosmos";
+    case NON_EVM_CHAIN_IDS.DASH:   return "dash";
+    case NON_EVM_CHAIN_IDS.ZCASH:  return "zec";
 
     // UI-side placeholders pending VPS coordination
     case NON_EVM_CHAIN_IDS.TRON:   return "tron";

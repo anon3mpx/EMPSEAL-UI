@@ -1,6 +1,7 @@
 export * from "./api/contracts";
 export * from "./api/rampApi";
 export * from "./components/RampDelegationPanel";
+export * from "./components/RampGuidedFlow";
 export * from "./components/RampOnboardingPanel";
 export * from "./components/RampTransferPanel";
 export * from "./execution/rampSigning";

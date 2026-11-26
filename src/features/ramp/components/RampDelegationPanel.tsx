@@ -2,6 +2,7 @@ import {useState} from 'react';
 import {RAMP_ACTIONS,type RampDelegation,type RampDirection,type RampGrantOperation} from '../api/contracts';
 import {rampApi} from '../api/rampApi';
 import {signRampCommand,type RampSigner} from '../execution/rampSigning';
+import {RampActions,RampButton,RampChecks,RampCheck,RampCollapsible,RampField,RampText,rampInput,rampSelect} from './rampUi';
 const OPS:readonly RampGrantOperation[]=['READ','PREVIEW','CREATE_ON_RAMP','CREATE_OFF_RAMP'];
 const DIRECTIONS:readonly RampDirection[]=['ON_RAMP','OFF_RAMP'];
 export function RampDelegationPanel({signer,chainId,disabledReason,externalAccountIds=[]}:{signer:RampSigner;chainId:number;disabledReason:string|null;externalAccountIds?:string[]}) {
@@ -42,20 +43,22 @@ export function RampDelegationPanel({signer,chainId,disabledReason,externalAccou
   await (grant.delegateType==='AGENT'?rampApi.revokeAgentGrant:rampApi.revokeDelegation)(grant.id,signed);
   setGrants(items=>items.map(g=>g.id===grant.id?{...g,revokedAt:new Date().toISOString()}:g));setMessage('Revoked. Subsequent delegated calls are denied.');
  });
- return <section aria-label="Ramp grants" style={{width:'100%',maxWidth:480}}>
-  <h3>Delegations and agent grants</h3>
-  <p>Wallet-issued grants. No Partner API key leaves the server. Expiry is at most 90 days; limits are per transfer.</p>
-  <label>Grant type <select value={agent?'agent':'partner'} disabled={busy} onChange={e=>{setAgent(e.target.value==='agent');setGrants([]);}}><option value="partner">Partner delegation</option><option value="agent">Agent grant</option></select></label>
-  <label>Partner tenant <input value={partner} onChange={e=>setPartner(e.target.value)}/></label>
-  {agent && <label>Agent identity <input value={agentId} onChange={e=>setAgentId(e.target.value)}/></label>}
-  <fieldset><legend>Allowed operations</legend>{OPS.map(op=><label key={op}><input type="checkbox" checked={operations.includes(op)} onChange={e=>setOperations(v=>e.target.checked?[...v,op]:v.filter(x=>x!==op))}/>{op}</label>)}</fieldset>
-  <fieldset><legend>Allowed directions</legend>{DIRECTIONS.map(d=><label key={d}><input type="checkbox" checked={directions.includes(d)} onChange={e=>setDirections(v=>e.target.checked?[...v,d]:v.filter(x=>x!==d))}/>{d}</label>)}</fieldset>
-  <p>Chain {chainId}; off-ramp restricted to currently linked bank accounts ({externalAccountIds.length}).</p>
-  <label>Expiry in days <input type="number" min="1" max="90" value={days} onChange={e=>setDays(e.target.value)}/></label>
-  <label>Maximum USD per transfer (optional) <input inputMode="decimal" value={max} onChange={e=>setMax(e.target.value)}/></label>
-  <button type="button" disabled={blocked} onClick={()=>void create()}>Create grant</button>
-  <button type="button" disabled={blocked} onClick={()=>void list()}>List grants</button>
-  {grants.map(g=><article key={g.id}><p>{g.delegateType} {g.delegateId??g.partnerId}: {g.operations?.join(', ')}; expires {g.expiresAt}; max {g.maxTransferUsd??'unlimited'} USD {g.revokedAt?'— revoked':''}</p><button type="button" disabled={blocked||Boolean(g.revokedAt)} onClick={()=>void revoke(g)}>Revoke {g.id}</button></article>)}
-  {disabledReason && <p>{disabledReason}</p>}{message && <p role="status">{message}</p>}
- </section>;
+ return <RampCollapsible label="Ramp grants" title="Delegations and agent grants" note="Wallet-issued grants. No Partner API key leaves the server. Expiry is at most 90 days; limits are per transfer.">
+  <RampField label="Grant type"><select style={rampSelect} value={agent?'agent':'partner'} disabled={busy} onChange={e=>{setAgent(e.target.value==='agent');setGrants([]);}}><option value="partner">Partner delegation</option><option value="agent">Agent grant</option></select></RampField>
+  <RampField label="Partner tenant"><input style={rampInput} value={partner} onChange={e=>setPartner(e.target.value)}/></RampField>
+  {agent && <RampField label="Agent identity"><input style={rampInput} value={agentId} onChange={e=>setAgentId(e.target.value)}/></RampField>}
+  <RampChecks legend="Allowed operations">{OPS.map(op=><RampCheck key={op} label={op} checked={operations.includes(op)} onChange={c=>setOperations(v=>c?[...v,op]:v.filter(x=>x!==op))}/>)}</RampChecks>
+  <RampChecks legend="Allowed directions">{DIRECTIONS.map(d=><RampCheck key={d} label={d} checked={directions.includes(d)} onChange={c=>setDirections(v=>c?[...v,d]:v.filter(x=>x!==d))}/>)}</RampChecks>
+  <RampText>Chain {chainId}; off-ramp restricted to currently linked bank accounts ({externalAccountIds.length}).</RampText>
+  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
+   <RampField label="Expiry in days"><input style={rampInput} type="number" min="1" max="90" value={days} onChange={e=>setDays(e.target.value)}/></RampField>
+   <RampField label="Maximum USD per transfer (optional)"><input style={rampInput} inputMode="decimal" value={max} onChange={e=>setMax(e.target.value)}/></RampField>
+  </div>
+  <RampActions>
+   <RampButton primary disabled={blocked} onClick={()=>void create()}>Create grant</RampButton>
+   <RampButton disabled={blocked} onClick={()=>void list()}>List grants</RampButton>
+  </RampActions>
+  {grants.map(g=><article key={g.id} style={{display:'flex',flexDirection:'column',gap:8}}><RampText>{g.delegateType} {g.delegateId??g.partnerId}: {g.operations?.join(', ')}; expires {g.expiresAt}; max {g.maxTransferUsd??'unlimited'} USD {g.revokedAt?'— revoked':''}</RampText><RampActions><RampButton disabled={blocked||Boolean(g.revokedAt)} onClick={()=>void revoke(g)}>Revoke {g.id}</RampButton></RampActions></article>)}
+  {disabledReason && <RampText tone="bad">{disabledReason}</RampText>}{message && <RampText role="status">{message}</RampText>}
+ </RampCollapsible>;
 }
