@@ -26,12 +26,14 @@ import { WidgetKitKeyframes, type RailCardData } from "../widgetKit";
 import { tokenLogoUrl } from "../data/logoRegistry";
 import { useWalletConnection } from "../hooks/useWalletConnection";
 import { useAccountSnapshot } from "../hooks/useAccountSnapshot";
+import { useV2Balances } from "../hooks/useV2Balances";
+import { RampActions, RampButton, RampField, rampInput, rampSelect } from "../../features/ramp/components/rampUi";
 import { getExplorerAddressUrl } from "../data/explorers";
 import { getTokensForChain } from "../data/v2TokenView";
 import {
-  RampDelegationPanel,
-  RampOnboardingPanel,
-  RampTransferPanel,
+  RampGuidedFlow,
+  isOpenTransfer,
+  mapRampApiError,
   buildRampTransferFields,
   canPreviewRampRoute,
   capabilityBlockReason,
@@ -59,6 +61,7 @@ export default function RampPage() {
   const isMobile = useIsMobile();
   const { walletState, walletOptions, onSelectWallet, disconnect } = useWalletConnection();
   const accountSnapshot = useAccountSnapshot(walletState.status === "connected" ? walletState.address : null);
+  const connectedBalance = useV2Balances();
   const connectedChainId = useChainId();
   const { switchChainAsync } = useSwitchChain();
   const { signMessageAsync } = useSignMessage();
@@ -70,8 +73,8 @@ export default function RampPage() {
 
   const [direction, setDirection] = useState<"BUY" | "SELL">("SELL");
   const [fiatCurrency, setFiatCurrency] = useState("USD");
-  const [fiatAmount, setFiatAmount] = useState("500");
-  const [cryptoAmountInput, setCryptoAmountInput] = useState("250");
+  const [fiatAmount, setFiatAmount] = useState("");
+  const [cryptoAmountInput, setCryptoAmountInput] = useState("");
   const [chainId, setChainId] = useState(8453);
   const [ticker, setTicker] = useState(RAMP_TOKEN_TICKER);
   const [fiatRail, setFiatRail] = useState<RampFiatRail>("ACH");
@@ -81,7 +84,6 @@ export default function RampPage() {
   const [showTokenFallback, setShowTokenFallback] = useState(false);
   const [bankSession, setBankSession] = useState<{ sessionId: string; linkToken: string; expiresAt: string } | null>(null);
   const [externalAccountId, setExternalAccountId] = useState("");
-  const [previewSnapshot, setPreviewSnapshot] = useState<string | null>(null);
 
   const connectedAddress = walletState.status === "connected" ? walletState.address : undefined;
   const rampSigner = useMemo(() => ({
@@ -122,15 +124,13 @@ export default function RampPage() {
     amount,
     externalAccountId,
   });
-  const previewMatches = Boolean(ramp.preview && previewSnapshot === routeKey);
   const offRampBlocked = direction === "SELL" && !canPreviewRampRoute({ direction, externalAccountId });
   const disabledReason = transferDisabledReason
-    ?? (offRampBlocked ? "Select an active external account before off-ramp preview or create." : null);
+    ?? (offRampBlocked ? "Choose the bank account to be paid." : null);
 
   const clearPreview = ramp.clearPreview;
   useEffect(() => {
     clearPreview();
-    setPreviewSnapshot(null);
   }, [clearPreview, routeKey]);
 
   useEffect(() => {
@@ -139,19 +139,21 @@ export default function RampPage() {
     setExternalAccountId(next);
   }, [activeAccounts, externalAccountId]);
 
-  const feeRows: RampFeeLine[] = ramp.preview
-    ? [
-        { label: "Source amount", value: ramp.preview.sourceAmount },
-        { label: "Destination amount", value: ramp.preview.destinationAmount },
-        { label: "Fee", value: `${ramp.preview.feeAmount} ${ramp.preview.feeCurrency}`, accent: true },
-        { label: "Rail", value: coerceFiatRail(direction, fiatRail) },
-        { label: "Figures", value: "Live preview — creating a transfer does not move funds" },
-      ]
-    : [{ label: "Figures", value: disabledReason ?? "Preview required from Bridge via V2" }];
-
-  const providerCards: RailCardData[] = ramp.preview
-    ? [{ name: "Bridge", mode: "B", outAmount: ramp.preview.destinationAmount, eta: `~${Math.round(ramp.preview.etaSeconds / 60)}m`, tag: "LIVE", isActive: true }]
-    : [];
+  const openTransfer = isOpenTransfer(ramp.transfer);
+  const sameDirection = ramp.transfer ? (ramp.transfer.direction === "OFF_RAMP") === (direction === "SELL") : false;
+  const flowBlock = !ramp.profile?.ready
+    ? "Verify your identity below first."
+    : direction === "SELL" && activeAccounts.length === 0
+      ? "Link a bank account below first."
+      : openTransfer && sameDirection
+        ? "Finish or cancel your current transfer below first."
+        : null;
+  const feeRows: RampFeeLine[] = [
+    { label: "Fees", value: "Shown with your payment instructions" },
+    { label: "Rail", value: coerceFiatRail(direction, fiatRail) },
+  ];
+  const providerCards: RailCardData[] = [];
+  const fail = (error: unknown) => toast.error(mapRampApiError(error));
 
   const chainPickerList: PickerChain[] = DEST_CHAINS
     .filter((c) => !capabilities || capabilities.supportedChainIds.includes(c.id))
@@ -195,41 +197,67 @@ export default function RampPage() {
     });
   };
 
-  const onPreview = () => {
+  const onContinue = () => {
     if (!requireWallet() || !connectedAddress) return;
-    if (disabledReason) {
-      toast.error(disabledReason);
+    const blocked = disabledReason ?? flowBlock;
+    if (blocked) {
+      toast.error(blocked);
       return;
     }
     void (async () => {
       try {
-        await ramp.previewTransfer(transferPayload());
-        setPreviewSnapshot(routeKey);
-        toast.info("Preview ready. Creating a transfer will return funding instructions, not a completed payment.");
+        const payload = transferPayload();
+        await ramp.previewTransfer(payload);
+        await ramp.createTransfer(payload);
+        toast.success(direction === "SELL" ? "Ready. Send the USDC shown below." : "Ready. Pay from your bank using the details below.");
       } catch (error) {
-        toast.error(ramp.errorMessage ?? (error instanceof Error ? error.message : "Ramp request failed"));
+        fail(error);
       }
     })();
   };
 
-  const onCreate = () => {
-    if (!requireWallet() || !connectedAddress) return;
-    if (disabledReason) {
-      toast.error(disabledReason);
-      return;
-    }
-    if (!previewMatches) {
-      toast.error("Preview the current route before creating funding instructions.");
-      return;
-    }
-    void (async () => {
+  const wallet = () => (requireWallet() && connectedAddress ? connectedAddress : null);
+  const onStart = () => {
+    const w = wallet();
+    if (!w) return;
+    void ramp.registerWallet(w, chainId).then(() => ramp.loadProfile(w, chainId)).catch(fail);
+  };
+  const onStartKyc = () => {
+    const w = wallet();
+    if (!w) return;
+    void ramp.createKycLink({ wallet: w, chainId, fullName, email, type: "individual", redirectUri: `${window.location.origin}/ramp-v2` })
+      .then((handoff) => {
+        if (handoff.kycUrl) window.open(handoff.kycUrl, "_blank", "noopener,noreferrer");
+        if (handoff.tosUrl) window.open(handoff.tosUrl, "_blank", "noopener,noreferrer");
+      })
+      .catch(fail);
+  };
+  const onLinkBank = () => {
+    const w = wallet();
+    if (!w) return;
+    void ramp.createBankLink(w, chainId).then(async (session) => {
+      setBankSession(session);
       try {
-        const created = await ramp.createTransfer(transferPayload());
-        toast.info(`Funding instructions ready for ${created.id}. Funds have not moved.`);
+        await exchangeAfterPlaidLink({
+          linkToken: session.linkToken,
+          exchange: (token) => {
+            setPublicToken(token);
+            return ramp.exchangeBankLink({ wallet: w, chainId, sessionId: session.sessionId, publicToken: token });
+          },
+        });
+        await ramp.syncAccounts(w, chainId);
+        toast.success("Bank account linked.");
       } catch (error) {
-        toast.error(ramp.errorMessage ?? (error instanceof Error ? error.message : "Ramp request failed"));
+        setShowTokenFallback(true);
+        fail(error);
       }
-    })();
+    }).catch(fail);
+  };
+  const onExchangeFallback = () => {
+    const w = wallet();
+    if (!w || !bankSession || !publicToken) return;
+    void ramp.exchangeBankLink({ wallet: w, chainId, sessionId: bankSession.sessionId, publicToken })
+      .then(() => ramp.syncAccounts(w, chainId)).catch(fail);
   };
 
   return (
@@ -282,153 +310,83 @@ export default function RampPage() {
           fiatCurrency={fiatCurrency}
           fiatCurrencyName={FIAT_CURRENCIES.find((f) => f.ticker === fiatCurrency)?.name}
           fiatRailsLabel={railsForDirection(direction).join(" · ")}
-          fiatAmount={direction === "SELL" ? ramp.preview?.destinationAmount ?? "" : fiatAmount}
+          fiatAmount={direction === "SELL" ? (sameDirection && ramp.transfer ? ramp.transfer.amount : "") : fiatAmount}
           onFiatAmountChange={setFiatAmount}
           onSelectCurrency={() => setCurrencyPickerOpen(true)}
           chain={chain}
           tokenTicker={ticker}
           tokenName={ticker}
           tokenLogoUrl={tokenLogoUrl(chainId, ticker) ?? undefined}
-          cryptoAmount={direction === "BUY" ? ramp.preview?.destinationAmount ?? "" : cryptoAmountInput}
+          cryptoAmount={direction === "BUY" ? (sameDirection && ramp.transfer?.settledAmount ? ramp.transfer.settledAmount : "") : cryptoAmountInput}
           onCryptoAmountChange={setCryptoAmountInput}
           onSelectToken={() => setTokenPickerOpen(true)}
           onSelectChain={() => setChainPickerOpen(true)}
           providerName="Bridge"
-          providerCount={providerCards.length}
+          providerCount={1}
           providers={providerCards}
           settlementTicker={ticker}
           settlementChainName={chain.name}
-          estimatedTime={ramp.preview ? `~${Math.round(ramp.preview.etaSeconds / 60)} min` : undefined}
-          etaNote="Live preview when available"
+          estimatedTime={fiatRail === "WIRE" ? "~1 day" : "~1 hour"}
+          etaNote="After Bridge receives your payment"
           feeRows={feeRows}
           noProvider={!capabilities?.enabled}
-          totalCostUSD={ramp.preview?.feeCurrency === "USD" ? Number(ramp.preview.feeAmount) : undefined} totalCostNote="Fiat leg only; crypto order quoted separately"
+          totalCostNote="Shown with your payment instructions"
           walletConnected={walletState.status === "connected"}
           onConnect={() => setShowWalletModal(true)}
-          onSubmit={onPreview}
-          submitLabel="Preview route"
-          blockedReason={disabledReason ?? undefined}
+          onSubmit={onContinue}
+          submitLabel={ramp.busy ? "Working…" : "Continue"}
+          blockedReason={disabledReason ?? flowBlock ?? undefined}
         />
 
-        <p>Bridge handles fiat, KYC and bank accounts. EMPX moves crypto only after you review and sign an ordinary V2 order. Creating instructions does not move funds.</p>
-        <label style={{ width: "100%", maxWidth: 480, fontSize: 11.5, color: "rgba(255,255,255,0.70)" }}>
-          Fiat rail
-          <select value={coerceFiatRail(direction, fiatRail)} onChange={(e) => setFiatRail(e.target.value as RampFiatRail)} style={{ marginLeft: 8 }}>
-            {railsForDirection(direction).map((rail) => <option key={rail} value={rail}>{rail}</option>)}
-          </select>
-        </label>
-        {direction === "SELL" && (
-          <label style={{ width: "100%", maxWidth: 480, fontSize: 11.5, color: "rgba(255,255,255,0.70)" }}>
-            External account
-            <select value={externalAccountId} onChange={(e) => setExternalAccountId(e.target.value)} style={{ marginLeft: 8 }}>
-              <option value="">Select account</option>
-              {activeAccounts.map((account) => (
-                <option key={account.id} value={account.id}>
-                  {account.bankName ?? "Account"} {account.lastFour ? `••••${account.lastFour}` : account.id}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
-        <label style={{ width: "100%", maxWidth: 480, fontSize: 11.5, color: "rgba(255,255,255,0.70)" }}>
-          Legal name
-          <input value={fullName} onChange={(e) => setFullName(e.target.value)} style={{ marginLeft: 8, width: "70%" }} />
-        </label>
-        <label style={{ width: "100%", maxWidth: 480, fontSize: 11.5, color: "rgba(255,255,255,0.70)" }}>
-          Email
-          <input value={email} onChange={(e) => setEmail(e.target.value)} style={{ marginLeft: 8, width: "70%" }} />
-        </label>
-        {showTokenFallback && (
-          <label style={{ width: "100%", maxWidth: 480, fontSize: 11.5, color: "rgba(255,255,255,0.70)" }}>
-            Bank public token fallback
-            <input value={publicToken} onChange={(e) => setPublicToken(e.target.value)} style={{ marginLeft: 8, width: "60%" }} />
-          </label>
-        )}
-
-        <RampOnboardingPanel
+        <RampGuidedFlow
+          direction={direction}
+          signer={rampSigner}
           profile={ramp.profile}
           kyc={ramp.kyc}
-          bankLink={bankSession}
           accounts={ramp.accounts}
-          disabledReason={kycDisabledReason}
-          busy={ramp.busy}
-          onRegister={() => { if (requireWallet() && connectedAddress) void ramp.registerWallet(connectedAddress, chainId).then(() => toast.success("Wallet registered")).catch(() => toast.error(ramp.errorMessage ?? "Register failed")); }}
-          onProfile={() => { if (requireWallet() && connectedAddress) void ramp.loadProfile(connectedAddress, chainId).catch(() => toast.error(ramp.errorMessage ?? "Profile failed")); }}
-          onKyc={() => {
-            if (!requireWallet() || !connectedAddress) return;
-            void ramp.createKycLink({
-              wallet: connectedAddress,
-              chainId,
-              fullName,
-              email,
-              type: "individual",
-              redirectUri: `${window.location.origin}/ramp-v2`,
-            }).then((handoff) => {
-              toast.info("Hosted KYC/ToS links are handoffs. They do not move funds.");
-              if (handoff.kycUrl) window.open(handoff.kycUrl, "_blank", "noopener,noreferrer");
-              if (handoff.tosUrl) window.open(handoff.tosUrl, "_blank", "noopener,noreferrer");
-            }).catch(() => toast.error(ramp.errorMessage ?? "KYC link failed"));
-          }}
-          onRefreshKyc={() => { if (requireWallet() && connectedAddress) void ramp.refreshKyc(connectedAddress, chainId).catch(() => toast.error(ramp.errorMessage ?? "KYC refresh failed")); }}
-          onBankLink={() => {
-            if (!requireWallet() || !connectedAddress) return;
-            void ramp.createBankLink(connectedAddress, chainId).then(async (session) => {
-              setBankSession(session);
-              try {
-                await exchangeAfterPlaidLink({
-                  linkToken: session.linkToken,
-                  exchange: (token) => {
-                    setPublicToken(token);
-                    return ramp.exchangeBankLink({
-                      wallet: connectedAddress,
-                      chainId,
-                      sessionId: session.sessionId,
-                      publicToken: token,
-                    });
-                  },
-                });
-                toast.info("Bank account linked. Completing the handoff does not move funds.");
-              } catch (error) {
-                setShowTokenFallback(true);
-                toast.info("Complete bank link in the hosted Plaid window. Paste is only a fallback if the handoff did not return a token.");
-                toast.error(ramp.errorMessage ?? (error instanceof Error ? error.message : "Bank link failed"));
-              }
-            }).catch(() => toast.error(ramp.errorMessage ?? "Bank link failed"));
-          }}
-          onExchange={() => {
-            if (!requireWallet() || !connectedAddress || !bankSession || !publicToken) return;
-            void ramp.exchangeBankLink({
-              wallet: connectedAddress,
-              chainId,
-              sessionId: bankSession.sessionId,
-              publicToken,
-            }).catch(() => toast.error(ramp.errorMessage ?? "Bank exchange failed"));
-          }}
-          onSyncAccounts={() => { if (requireWallet() && connectedAddress) void ramp.syncAccounts(connectedAddress, chainId).catch(() => toast.error(ramp.errorMessage ?? "Account sync failed")); }}
-        />
-
-        <RampTransferPanel
-          preview={ramp.preview}
           transfer={ramp.transfer}
-          disabledReason={disabledReason}
           busy={ramp.busy}
-          canCreate={previewMatches}
-          signer={rampSigner}
-          onPreview={onPreview}
-          onCreate={onCreate}
-          onStatus={() => {
-            if (!ramp.transfer || !connectedAddress) return;
-            void ramp.loadTransferStatus(ramp.transfer.id, connectedAddress, chainId).catch(() => toast.error(ramp.errorMessage ?? "Status failed"));
-          }}
-          onCancel={() => {
-            if (!ramp.transfer || !connectedAddress) return;
-            void ramp.cancelTransfer(ramp.transfer.id, connectedAddress, chainId).then(() => toast.info("Cancel requested for an awaiting-funds transfer.")).catch(() => toast.error(ramp.errorMessage ?? "Cancel failed"));
-          }}
+          error={ramp.errorMessage}
+          blockReason={kycDisabledReason}
+          fullName={fullName}
+          email={email}
+          onFullName={setFullName}
+          onEmail={setEmail}
+          onConnect={() => setShowWalletModal(true)}
+          onStart={onStart}
+          onStartKyc={onStartKyc}
+          onCheckKyc={() => { const w = wallet(); if (w) void ramp.refreshKyc(w, chainId).catch(fail); }}
+          onLinkBank={onLinkBank}
+          onSyncAccounts={() => { const w = wallet(); if (w) void ramp.syncAccounts(w, chainId).catch(fail); }}
+          onCheckStatus={() => { const w = wallet(); if (w && ramp.transfer) void ramp.loadTransferStatus(ramp.transfer.id, w, chainId).catch(fail); }}
+          onCancel={() => { const w = wallet(); if (w && ramp.transfer) void ramp.cancelTransfer(ramp.transfer.id, w, chainId).then(() => toast.info("Transfer canceled.")).catch(fail); }}
+          reviewExtras={
+            <div style={{ display: "grid", gridTemplateColumns: direction === "SELL" && activeAccounts.length > 1 && !isMobile ? "1fr 1fr" : "1fr", gap: 12 }}>
+              <RampField label={direction === "SELL" ? "Paid out by" : "Pay by"}>
+                <select style={rampSelect} value={coerceFiatRail(direction, fiatRail)} onChange={(e) => setFiatRail(e.target.value as RampFiatRail)}>
+                  {railsForDirection(direction).map((rail) => <option key={rail} value={rail}>{rail === "WIRE" ? "Wire" : "ACH bank transfer"}</option>)}
+                </select>
+              </RampField>
+              {direction === "SELL" && activeAccounts.length > 1 && (
+                <RampField label="To bank account">
+                  <select style={rampSelect} value={externalAccountId} onChange={(e) => setExternalAccountId(e.target.value)}>
+                    {activeAccounts.map((account) => (
+                      <option key={account.id} value={account.id}>{account.bankName ?? "Account"} {account.lastFour ? `••••${account.lastFour}` : ""}</option>
+                    ))}
+                  </select>
+                </RampField>
+              )}
+            </div>
+          }
+          bankExtras={showTokenFallback ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <RampField label="Bank token (only if the bank window didn't finish)">
+                <input style={rampInput} value={publicToken} onChange={(e) => setPublicToken(e.target.value)} />
+              </RampField>
+              <RampActions><RampButton disabled={ramp.busy || !publicToken || !bankSession} onClick={onExchangeFallback}>Use this token</RampButton></RampActions>
+            </div>
+          ) : undefined}
         />
-
-        <RampDelegationPanel signer={rampSigner} chainId={chainId}
-          disabledReason={capabilityBlockReason(capabilities, capabilities?.features.delegatedActions)}
-          externalAccountIds={activeAccounts.map(account=>account.id)} />
       </main>
 
       <DappFooter />

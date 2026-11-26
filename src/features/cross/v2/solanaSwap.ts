@@ -8,6 +8,6 @@ export function allowSameChain(fromChainId: number, toChainId: number): boolean 
 
 /** Bind each supported Solana rail to its committed server submission mechanism. */
 export function solanaSubmissionMatches(rail: string, submitVia: Extract<WireStep, { type: "native_tx" }>["submitVia"] | undefined): boolean {
-  return rail === "cctp-from-solana" ? submitVia?.kind === "rpc"
+  return rail === "cctp-from-solana" || rail === "thorchain" ? submitVia?.kind === "rpc"
     : rail === "jupiter" && submitVia?.kind === "jupiter-execute" && typeof submitVia.requestId === "string" && submitVia.requestId.trim().length > 0;
 }

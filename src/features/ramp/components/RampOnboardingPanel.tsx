@@ -1,4 +1,7 @@
 import type { RampBankLinkHandoff, RampExternalAccount, RampKycHandoff, RampProfile } from "../api/contracts";
+import { RampActions, RampButton, RampCard, RampText } from "./rampUi";
+
+const link = { color: "#FF8A00", textDecoration: "underline" } as const;
 
 export function RampOnboardingPanel({
   profile,
@@ -29,45 +32,37 @@ export function RampOnboardingPanel({
   onExchange: () => void;
   onSyncAccounts: () => void;
 }) {
+  const off = busy || Boolean(disabledReason);
   return (
-    <section style={{ display: "flex", flexDirection: "column", gap: 8, width: "100%", maxWidth: 480 }}>
-      <p style={{ margin: 0, fontSize: 10, letterSpacing: "0.40em", color: "rgba(255,255,255,0.50)", textTransform: "uppercase", fontWeight: 700 }}>
-        Wallet onboarding
-      </p>
-      {disabledReason && (
-        <p style={{ margin: 0, fontSize: 11.5, color: "#F87171", lineHeight: 1.5 }}>{disabledReason}</p>
-      )}
+    <RampCard title="Wallet onboarding" note="Register your wallet, verify your identity, then link a bank account.">
+      {disabledReason && <RampText tone="bad">{disabledReason}</RampText>}
       {profile && (
-        <p style={{ margin: 0, fontSize: 11.5, color: "rgba(255,255,255,0.70)" }}>
+        <RampText tone="strong">
           KYC {profile.kycStatus} · ToS {profile.tosStatus} · {profile.ready ? "ready" : "not ready"}
-        </p>
+        </RampText>
       )}
       {kyc && (
-        <p style={{ margin: 0, fontSize: 11.5, color: "rgba(255,255,255,0.70)" }}>
+        <RampText>
           Hosted KYC and ToS are handoffs. Completing them does not move funds.
-          {kyc.kycUrl ? <> KYC: <a href={kyc.kycUrl} target="_blank" rel="noreferrer">{kyc.kycUrl}</a></> : null}
-          {kyc.tosUrl ? <> ToS: <a href={kyc.tosUrl} target="_blank" rel="noreferrer">{kyc.tosUrl}</a></> : null}
-        </p>
+          {kyc.kycUrl ? <> KYC: <a style={link} href={kyc.kycUrl} target="_blank" rel="noreferrer">{kyc.kycUrl}</a></> : null}
+          {kyc.tosUrl ? <> ToS: <a style={link} href={kyc.tosUrl} target="_blank" rel="noreferrer">{kyc.tosUrl}</a></> : null}
+        </RampText>
       )}
-      {bankLink && (
-        <p style={{ margin: 0, fontSize: 11.5, color: "rgba(255,255,255,0.70)" }}>
-          Bank-link session {bankLink.sessionId} expires {bankLink.expiresAt}.
-        </p>
-      )}
+      {bankLink && <RampText>Bank-link session {bankLink.sessionId} expires {bankLink.expiresAt}.</RampText>}
       {accounts.length > 0 && (
-        <p style={{ margin: 0, fontSize: 11.5, color: "rgba(255,255,255,0.70)" }}>
-          {accounts.length} redacted external account{accounts.length === 1 ? "" : "s"} synced.
-        </p>
+        <RampText>{accounts.length} redacted external account{accounts.length === 1 ? "" : "s"} synced.</RampText>
       )}
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-        <button type="button" disabled={busy || Boolean(disabledReason)} onClick={onRegister}>Register wallet</button>
-        <button type="button" disabled={busy || Boolean(disabledReason)} onClick={onProfile}>Load profile</button>
-        <button type="button" disabled={busy || Boolean(disabledReason)} onClick={onKyc}>Hosted KYC</button>
-        <button type="button" disabled={busy || Boolean(disabledReason)} onClick={onRefreshKyc}>Refresh KYC</button>
-        <button type="button" disabled={busy || Boolean(disabledReason)} onClick={onBankLink}>Bank link</button>
-        <button type="button" disabled={busy || Boolean(disabledReason) || !bankLink} onClick={onExchange}>Exchange bank token</button>
-        <button type="button" disabled={busy || Boolean(disabledReason)} onClick={onSyncAccounts}>Sync accounts</button>
-      </div>
-    </section>
+      <RampActions>
+        <RampButton disabled={off} onClick={onRegister}>Register wallet</RampButton>
+        <RampButton disabled={off} onClick={onProfile}>Load profile</RampButton>
+        <RampButton disabled={off} onClick={onKyc}>Hosted KYC</RampButton>
+        <RampButton disabled={off} onClick={onRefreshKyc}>Refresh KYC</RampButton>
+      </RampActions>
+      <RampActions>
+        <RampButton disabled={off} onClick={onBankLink}>Bank link</RampButton>
+        <RampButton disabled={off || !bankLink} onClick={onExchange}>Exchange bank token</RampButton>
+        <RampButton disabled={off} onClick={onSyncAccounts}>Sync accounts</RampButton>
+      </RampActions>
+    </RampCard>
   );
 }

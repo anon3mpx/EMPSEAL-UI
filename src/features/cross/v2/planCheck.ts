@@ -162,7 +162,7 @@ export function checkPlan(plan: WirePlan | null | undefined, ctx: PlanCheckConte
   for (const s of plan.steps as WireStep[])
     if (s.walletMode !== "server" && s.readiness === "blocked") bad(`step ${s.id} is blocked, so this route cannot be completed right now`);
   const wallet = (plan.steps as WireStep[]).filter((s) => s.walletMode !== "server" && s.readiness === "executable");
-  const solanaNative = ["cctp-from-solana", "jupiter"].includes(plan.compiled.rail) && srcChain === "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp" && wallet.length === 1 && wallet[0]?.type === "native_tx";
+  const solanaNative = ["cctp-from-solana", "jupiter", "thorchain"].includes(plan.compiled.rail) && srcChain === "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp" && wallet.length === 1 && wallet[0]?.type === "native_tx";
   if (!wallet.some((s) => s.type === "typed_sign" || s.type === "tx" || s.type === "deposit" || solanaNative)) bad("the plan has no wallet step to execute");
   if (isNonEvmChain(sourceId) && !solanaNative && (wallet.length !== 1 || wallet[0]?.type !== "deposit"))
     bad("a non-EVM deposit must be the plan's only wallet step");

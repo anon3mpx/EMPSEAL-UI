@@ -5,7 +5,7 @@
 // could be wrong.
 
 import { describe, it, expect } from "vitest";
-import { bitcoinValidator, dogeValidator, ltcValidator } from "./bitcoinFamily";
+import { bitcoinValidator, dashValidator, dogeValidator, ltcValidator } from "./bitcoinFamily";
 import { tronValidator } from "./tron";
 import {
   base58CheckDecode,
@@ -183,5 +183,15 @@ describe("tronValidator", () => {
   });
   it("rejects empty", () => {
     expect(tronValidator.validate("").valid).toBe(false);
+  });
+});
+
+describe("dashValidator", () => {
+  it("accepts Dash P2PKH (X...) and P2SH (7...) and rejects Bitcoin and bech32-looking input", () => {
+    expect(dashValidator.validate("XpESxaUmonkq8RaLLp46Brx2K39ggQe226").valid).toBe(true);
+    expect(dashValidator.validate("XanAvE5GMB8CsPH78B9moJq9viEVKvCS4f").valid).toBe(true);
+    expect(dashValidator.validate("7SVyqiBykMKdoNuuf1AehnVxASmtdfqsFF").valid).toBe(true);
+    expect(dashValidator.validate("1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa").valid).toBe(false);
+    expect(dashValidator.validate("dash1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq").valid).toBe(false);
   });
 });

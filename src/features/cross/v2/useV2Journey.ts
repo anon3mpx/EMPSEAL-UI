@@ -9,6 +9,7 @@ import { forgetJourney } from "./journeyStore";
 import { checkOffer, checkPlan } from "./planCheck";
 import type { JourneyDetail, TwoHopQuote, WirePlan } from "./types";
 import type { CheckedOffer } from "./widgetView";
+import { acceptanceOf } from "./routeCards";
 
 const POLL_START_MS = 2_000;
 const POLL_MAX_MS = 15_000;
@@ -135,11 +136,11 @@ export function useV2Journey(
         if (!received) throw new Error("The journey does not say what the first order delivered.");
         const res = await client.restartJourneyQuote(journeyId);
         const now = Math.floor(Date.now() / 1000);
-        const checked = (res.plans ?? []).map((offer) => ({
-          offer,
-          check: checkOffer(offer, { fromAsset: received.asset, amount: received.amount, toAsset: want.toAsset, sender: want.sender, recipient: want.recipient, now }),
-        }));
-        const best = checked.find((o) => o.check.ok) ?? null;
+        const ctx = { fromAsset: received.asset, amount: received.amount, toAsset: want.toAsset, sender: want.sender, recipient: want.recipient, now };
+        const checked = (res.plans ?? []).map((offer) => ({ offer, check: checkOffer(offer, ctx) }));
+        // nothing passed the value check: a held-back offer, shown with its label, which accepting the new terms accepts
+        const held = (res.withheld ?? []).map((offer) => ({ offer, check: checkOffer(offer, { ...ctx, allowHeldBack: true }) }));
+        const best = checked.find((o) => o.check.ok) ?? held.find((o) => o.check.ok) ?? null;
         if (!best) throw new Error("No new terms are available for the second order right now. Your funds stay in your wallet; try again later.");
         setNewTerms(best);
       }),
@@ -150,7 +151,7 @@ export function useV2Journey(
     () =>
       run(async () => {
         if (!journeyId || !newTerms) return;
-        await client.acceptNewTerms(journeyId, newTerms.offer);
+        await client.acceptNewTerms(journeyId, newTerms.offer, undefined, acceptanceOf(newTerms.offer.journey.assessment));
         setNewTerms(null);
       }),
     [client, journeyId, newTerms, run],
@@ -168,7 +169,7 @@ export async function startTwoHop(
   wallet: WalletPort,
   o: { commitKey: string; remember: (journeyId: string) => void; onStep?: ExecuteOptions["onStep"] },
 ): Promise<{ journeyId: string }> {
-  const { journeyId, hop1IntentId } = await client.commitJourney(q, wallet.address, o.commitKey);
+  const { journeyId, hop1IntentId } = await client.commitJourney(q, wallet.address, o.commitKey, undefined, acceptanceOf(q.journey.assessment));
   o.remember(journeyId);
   await performSteps(client, hop1IntentId, intentKindOf(hop1.plan), hop1.plan, hop1.sourceChainId, wallet, { onStep: o.onStep });
   return { journeyId };

@@ -12,18 +12,31 @@ import type { CrossV2Client } from "./client";
 import type { CorridorRow } from "./types";
 import { chainIdOfCaip2 } from "./nonEvm";
 import { allowSameChain } from "./solanaSwap";
+import { isNonEvmChain } from "@/lib/wallet/chainKind";
 
 /** source chain id -> destination chain ids it can reach. */
 export type CorridorMap = ReadonlyMap<number, ReadonlySet<number>>;
 
 
 export function corridorMap(rows: readonly CorridorRow[]): CorridorMap {
-  const map = new Map<number, Set<number>>();
+  const direct = new Map<number, Set<number>>();
   for (const r of rows) {
     const from = chainIdOfCaip2(r.from);
     const to = chainIdOfCaip2(r.to);
     if (from === undefined || to === undefined || (from === to && !allowSameChain(from, to)) || !(r.executableAutomatic > 0)) continue;
-    (map.get(from) ?? map.set(from, new Set()).get(from)!).add(to);
+    (direct.get(from) ?? direct.set(from, new Set()).get(from)!).add(to);
+  }
+  // Any-to-any: an EVM source also reaches what an EVM chain it reaches can reach (POST /v2/journeys/quote plans those as two orders; the first
+  // leg pays the user's own EVM address, so the source and the intermediate must both be EVM).
+  const map = new Map<number, Set<number>>();
+  for (const [from, tos] of direct) {
+    const out = new Set(tos);
+    if (!isNonEvmChain(from))
+      for (const via of tos) {
+        if (isNonEvmChain(via)) continue;
+        for (const to of direct.get(via) ?? []) if (to !== from || allowSameChain(from, to)) out.add(to);
+      }
+    map.set(from, out);
   }
   return map;
 }

@@ -61,6 +61,11 @@ describe("defaultChoiceOf", () => {
     expect(defaultChoiceOf([], [held("h1", "cctp", "warning", { check: bad }), w])).toBe(w);
     expect(defaultChoiceOf([], [])).toBeUndefined();
   });
+  it("lists Bridge but preselects it only when no other route passed", () => {
+    const b = offer("b1", "bridge", "999000"), c = offer("c1", "cctp", "990000");
+    expect(defaultChoiceOf([b, c], [])).toBe(c);
+    expect(defaultChoiceOf([b], [held("h1", "hyperlane", "warning")])).toBe(b);
+  });
 });
 
 describe("chooseRoute", () => {
@@ -81,5 +86,16 @@ describe("chooseRoute while a pick is pinned", () => {
     const r = chooseRoute([], [h], [], "picked-but-gone");
     expect([r.chosen, r.humanAcceptance]).toEqual([undefined, undefined]);
     expect(chooseRoute([], [h], [], null).chosen).toBe(h);
+  });
+});
+
+describe("chooseRoute across re-quotes", () => {
+  it("keeps a picked rail when the re-quote gives its plan a new id, instead of falling back to the top route", async () => {
+    const { routeKeyOf } = await import("./widgetView");
+    const first = [offer("debridge:100:1", "debridge", "995000"), offer("hyperlane:100:4", "hyperlane", "990000")];
+    const pick = routeKeyOf(first[1]!.offer);
+    const requoted = [offer("debridge:160:1", "debridge", "996000"), offer("hyperlane:160:5", "hyperlane", "991000")];
+    expect(chooseRoute(requoted, [], [], pick).chosen).toBe(requoted[1]);
+    expect(routeKeyOf(first[0]!.offer)).not.toBe(pick);
   });
 });

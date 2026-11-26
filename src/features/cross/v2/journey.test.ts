@@ -123,7 +123,25 @@ describe("startTwoHop", () => {
     const remember = vi.fn((id: string) => void calls.push(`remember:${id}`));
     await startTwoHop(client, q, { plan: q.execution.hop1.plan, sourceChainId: 8453 }, wallet, { commitKey: "k1", remember });
     expect(calls).toEqual(["commit", "remember:j1", "send", "report", "sign", "order:i1"]);
-    expect((client.commitJourney as ReturnType<typeof vi.fn>).mock.calls[0]).toEqual([q, SENDER, "k1"]);
+    expect((client.commitJourney as ReturnType<typeof vi.fn>).mock.calls[0]).toEqual([q, SENDER, "k1", undefined, undefined]);
+  });
+  it("a held-back journey commits with exactly the label the user was shown", async () => {
+    const client = {
+      commitJourney: vi.fn(async () => ({ journeyId: "j1", hop1IntentId: "i1", replayed: false })),
+      reportStep: vi.fn(async () => ({ accepted: true, remaining: [] })),
+      submitOrder: vi.fn(async () => ({ state: "accepted" as const })),
+    } as unknown as CrossV2Client;
+    const wallet: WalletPort = {
+      address: SENDER,
+      ensureChain: vi.fn(async () => undefined),
+      allowance: vi.fn(async () => 0n),
+      sendTransaction: vi.fn(async () => ({ hash: `0x${"1".repeat(64)}` })),
+      signTypedData: vi.fn(async () => "0xsig"),
+    };
+    const q = twoHop((x) => { x.journey.assessment = { ...x.journey.assessment!, status: "warning", label: "Poor value", policyVersion: "p1" }; });
+    expect(checkTwoHop(q, ctx).ok).toBe(true);
+    await startTwoHop(client, q, { plan: q.execution.hop1.plan, sourceChainId: 8453 }, wallet, { commitKey: "k1", remember: () => undefined });
+    expect((client.commitJourney as ReturnType<typeof vi.fn>).mock.calls[0]![4]).toEqual({ status: "warning", policyVersion: "p1" });
   });
 });
 

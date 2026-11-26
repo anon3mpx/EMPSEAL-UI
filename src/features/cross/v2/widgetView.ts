@@ -25,6 +25,7 @@ const RAIL_NAMES: Record<string, string> = {
   maya: "Maya",
   chainflip: "Chainflip",
   teleswap: "TeleSwap",
+  bridge: "Bridge (custodial)",
 };
 /** EMPX contract rails (the relayer sends the signed order); the rest are provider rails the wallet pays directly. */
 const CONTRACT_RAILS = new Set(["cctp", "ccip", "layerzero"]);
@@ -33,6 +34,11 @@ export const railDisplayName = (rail: string): string => RAIL_NAMES[rail.toLower
 /** The offer's plan id. A held-back offer can arrive without its plan (`execution`), so fall back to the id its journey names. */
 export const planIdOf = (o: Pick<WireOffer, "journey"> & { execution?: { plan?: { id?: string } } }): string =>
   o.execution?.plan?.id ?? o.journey?.hops?.[0]?.planId ?? "";
+
+/** The same route across re-quotes. Plan ids carry a fresh timestamp or nonce on every quote, so a pick keyed by plan id is lost at each refresh;
+ *  this key (mode, rail sequence, fast/standard variant, delivered asset) stays the same for the same route. */
+export const routeKeyOf = (o: Pick<WireOffer, "journey"> & { execution?: { plan?: { railQuote?: { variant?: string } } } }): string =>
+  ["route", o.journey?.mode ?? "", ...(o.journey?.hops ?? []).map((h) => h.rail), o.execution?.plan?.railQuote?.variant ?? "", o.journey?.toAsset ?? ""].join("|");
 
 /** "CCTP", "CCTP Fast", "LayerZero VT", or "CCTP → CCIP" for a journey. The fast variant comes from the plan's own rail quote. */
 export const railNameOf = (o: WireOffer): string => {

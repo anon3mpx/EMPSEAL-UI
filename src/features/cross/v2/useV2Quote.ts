@@ -91,7 +91,7 @@ export function useV2Quote(client: CrossV2Client, input: V2QuoteInput, describeE
   const shownKey = useRef<string | null>(null);
   const [nonce, setNonce] = useState(0);
   const hasOffers = useRef(false);
-  hasOffers.current = offers.length > 0;
+  hasOffers.current = offers.length > 0 || withheld.length > 0;
 
   const { fromAsset, fromDecimals, toAsset, amount, recipient, paused } = input;
   const fromChainId = chainIdOfCaip2(fromAsset.split("/")[0]);
@@ -141,7 +141,9 @@ export function useV2Quote(client: CrossV2Client, input: V2QuoteInput, describeE
       // The routes found so far: shown at once and selectable (each is a bound, assessed and locally checked plan); the rest of the quote waits for the result.
       let streamed = false;
       const onPartial = (p: WireQuoteResponse) => {
-        if (ctl.signal.aborted) return;
+        // A refresh of the same transfer keeps the full previous list until the final result: a partial set holds only the fastest rails, and
+        // replacing the list with it made the selection jump to whichever rail answered first.
+        if (ctl.signal.aborted || (key === shownKey.current && hasOffers.current)) return;
         const plans = (Array.isArray(p.plans) ? p.plans : []).map((o) => check(o, toAsset));
         const held = (p.withheld ?? []).map((o) => check(o, toAsset, true));
         if (plans.length + held.length === 0) return;

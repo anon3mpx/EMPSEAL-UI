@@ -18,6 +18,17 @@ describe("corridorMap", () => {
     const m = corridorMap([{ from: "eip155:8453", to: "bip122:000000000019d6689c085ae165831e93", executableAutomatic: 1 }]);
     expect(m.get(8453)?.has(0)).toBe(true);
   });
+  it("an EVM source also reaches what an EVM chain it reaches can reach (two orders); a non-EVM source does not chain", () => {
+    const btc = "bip122:000000000019d6689c085ae165831e93";
+    const m = corridorMap([
+      { from: "eip155:8453", to: "eip155:42161", executableAutomatic: 1 },
+      { from: "eip155:42161", to: btc, executableAutomatic: 1 },
+      { from: "eip155:42161", to: "eip155:8453", executableAutomatic: 1 },
+      { from: btc, to: "eip155:42161", executableAutomatic: 1 },
+    ]);
+    expect([...m.get(8453)!].sort()).toEqual([0, 42161]);
+    expect([...m.get(0)!]).toEqual([42161]);
+  });
 });
 
 describe("assetIdOf native coin types", () => {
