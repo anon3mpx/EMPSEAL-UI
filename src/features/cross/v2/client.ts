@@ -160,6 +160,10 @@ export function createCrossV2Client(o: CrossV2ClientOptions = {}) {
     scanWallet(r: V2WalletScanRequest, signal?: AbortSignal) {
       return request<V2WalletScanResult>("POST", "/v2/wallet/scan", {signal, body: r});
     },
+    /** One Solana wallet's balance of one asset (native SOL or an SPL token), in base units; `decimals` is null when it holds none of the token. */
+    solanaBalance(wallet: string, asset: string, signal?: AbortSignal) {
+      return request<{ asset: string; amount: string; decimals: number | null }>("POST", "/v2/wallet/solana-balance", { signal, body: { wallet, asset } });
+    },
     liquidateQuote(r: V2LiquidateRequest, signal?: AbortSignal) {
       return request<V2LiquidateQuote>("POST", "/v2/wallet/liquidate/quote", {signal, body: r, idempotencyKey: newKey("liquidate")});
     },

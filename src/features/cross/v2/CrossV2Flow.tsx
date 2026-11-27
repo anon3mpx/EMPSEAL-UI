@@ -31,12 +31,16 @@ import V2OffersFooter from "./V2OffersFooter";
 import { chooseRoute, routeCardsOf } from "./routeCards";
 import { legRowsOf, marketPricingDown, offerValueOf } from "./offerValue";
 import { useV2WalletPort } from "./useV2WalletPort";
-import { formatUnitsShort, planIdOf, railNameOf, routeHopsOf, routeKeyOf, selectedOfferView } from "./widgetView";
+import { formatUnitsShort, planIdOf, railDisplayName, railNameOf, routeHopsOf, routeKeyOf, selectedOfferView } from "./widgetView";
 import { chainKindFor, isNonEvmChain } from "@/lib/wallet/chainKind";
 import { hasAdaptersFor, loadAdaptersFor } from "@/lib/wallet/adapters";
 import { addressValidFor, canonicalAddressFor, chainIdOfCaip2 } from "./nonEvm";
 import { useSolanaSender } from "./useSolanaSender";
 import { allowSameChain } from "./solanaSwap";
+import { useSolanaBalance } from "./useSolanaBalance";
+
+/** SOL kept back by MAX on a native SOL source: the signature fee, priority fee and a wrapped-SOL account's rent (~0.002 SOL), with margin. */
+const SOL_FEE_RESERVE = 0.01;
 
 const client = createCrossV2Client();
 type Side = "from" | "to";
@@ -155,7 +159,11 @@ export default function CrossV2Flow() {
     token: fromToken && !fromToken.isNative && fromToken.address ? (fromToken.address as Address) : undefined,
     query: { enabled: Boolean(sender && fromToken && !isNonEvmChain(fromChainId)) },
   });
-  const fromBalanceNum = fromBalance ? Number(formatUnits(fromBalance.value, fromBalance.decimals)) : 0;
+  const solBalance = useSolanaBalance(client, solanaAddress, solana.isSolana ? fromAsset : undefined, fromToken?.decimals);
+  const sourceBalance = solana.isSolana ? solBalance && { value: solBalance.amount, decimals: solBalance.decimals } : fromBalance;
+  const fromBalanceNum = sourceBalance ? Number(formatUnits(sourceBalance.value, sourceBalance.decimals)) : 0;
+  // MAX on native SOL leaves room for the network fee and a temporary wrapped-SOL account's rent.
+  const spendableNum = solana.isSolana && fromToken?.isNative ? Math.max(0, fromBalanceNum - SOL_FEE_RESERVE) : fromBalanceNum;
   const amountNum = Number(fromAmount.replace(/,/g, ""));
   const [stepNote, setStepNote] = useState<string | null>(null);
   const [deposit, setDeposit] = useState<{ instruction: NonNullable<ExecuteResult["deposit"]>; rail: string; sourceAddress: string; client: typeof client }>();
@@ -304,6 +312,8 @@ export default function CrossV2Flow() {
           : marketPricingDown([...quote.offers, ...quote.withheld].map((o) => o.offer))
             ? { tone: "info" as const, text: "Market pricing is unavailable right now: routes are labelled and values could not be checked." }
             : undefined;
+  // A wallet short of the input still sees what the swap would give (an estimate, never a plan to sign).
+  const unfundedOut = quote.state === "empty" && quote.unfunded && toToken ? formatUnitsShort({ amount: quote.unfunded.expected, decimals: toToken.decimals }) : null;
   const railsMessage =
     quote.state === "empty"
       ? // The server's own reason text is for integrators: say what the user can do instead.
@@ -311,7 +321,9 @@ export default function CrossV2Flow() {
         ? `No route delivers ${toToken?.ticker ?? "this token"} right now. The routes below deliver another token instead.`
         : quote.twoHop || quote.belowMinimum.length
           ? "No automatic route: see the options below."
-          : "No route is available for this transfer right now."
+          : unfundedOut
+            ? `${sourceBalance ? `This wallet holds ${fromBalanceNum.toLocaleString(undefined, { maximumFractionDigits: 6 })} ${fromToken?.ticker ?? ""}, less` : "This wallet holds less"} than this swap needs. It would give about ${unfundedOut} ${toToken?.ticker ?? ""} (${railDisplayName(quote.unfunded!.rail)}): add funds to the wallet, then refresh to swap.`
+            : "No route is available for this transfer right now."
       : quote.state === "idle"
         ? solana.isSolana ? "Connect Phantom or paste your Solana address, and choose a recipient, to fetch offers." : isNonEvmChain(fromChainId) ? "Enter the source and recipient addresses to fetch offers." : "Connect a wallet to fetch live cross-chain offers."
         : quote.error ?? undefined;
@@ -332,10 +344,11 @@ export default function CrossV2Flow() {
         activeHref="/cross-v2"
         controls={
           <>
+            {/* The source chain, which this button picks; the wallet's own network can differ until signing switches it. */}
             <NetworkSelector
-              name={walletDisplay?.chain.name ?? fromChain.name}
-              color={walletDisplay?.chain.color ?? fromChain.color}
-              logo={<ChainLogo chainId={walletDisplay?.chain.id ?? fromChainId} symbol={(walletDisplay?.chain.name ?? fromChain.name).slice(0, 3).toUpperCase()} bg={walletDisplay?.chain.color ?? fromChain.color} size={14} />}
+              name={fromChain.name}
+              color={fromChain.color}
+              logo={<ChainLogo chainId={fromChainId} symbol={fromChain.name.slice(0, 3).toUpperCase()} bg={fromChain.color} size={14} />}
               onClick={() => setChainPicker("from")}
             />
             <WalletButton
@@ -355,15 +368,15 @@ export default function CrossV2Flow() {
           fromChain={{ id: fromChain.id, name: fromChain.name, color: fromChain.color, logo: <ChainLogo chainId={fromChainId} symbol={fromChain.name.slice(0, 3).toUpperCase()} bg={fromChain.color} size={17} /> }}
           fromToken={fromToken ? { ticker: fromToken.ticker, logo: <TokenLogo ticker={fromToken.ticker} chainId={fromChainId} address={fromToken.address} logoUrl={fromToken.logoUrl} isNative={fromToken.isNative} size={30} /> } : null}
           fromAmount={fromAmount}
-          fromBalance={fromBalance && fromToken ? `${fromBalanceNum.toLocaleString(undefined, { maximumFractionDigits: 6 })} ${fromToken.ticker}` : undefined}
+          fromBalance={sourceBalance && fromToken ? `${fromBalanceNum.toLocaleString(undefined, { maximumFractionDigits: 6 })} ${fromToken.ticker}` : undefined}
           fromUsdValue={fromPrice != null && Number.isFinite(amountNum) ? amountNum * fromPrice : null}
           onFromAmountChange={(v) => { setFromAmount(v); setPickedPlanId(null); }}
           onSelectFromToken={() => setTokenPicker("from")}
           onSelectFromChain={() => setChainPicker("from")}
-          onPercentClick={(pct) => setFromAmount(String((fromBalanceNum * pct) / 100))}
+          onPercentClick={(pct) => setFromAmount(String(Math.min(spendableNum, (fromBalanceNum * pct) / 100)))}
           toChain={{ id: toChain.id, name: toChain.name, color: toChain.color, logo: <ChainLogo chainId={toChainId} symbol={toChain.name.slice(0, 3).toUpperCase()} bg={toChain.color} size={17} /> }}
           toToken={outToken ? { ticker: outToken.ticker, logo: <TokenLogo ticker={outToken.ticker} chainId={toChainId} address={outToken.address} logoUrl={outToken.logoUrl} isNative={outToken.isNative} size={30} /> } : null}
-          toAmount={quoting ? "..." : view?.toAmount ?? "0"}
+          toAmount={quoting ? "..." : view?.toAmount ?? unfundedOut ?? "0"}
           toUsdValue={outUsd ?? (view && toPrice != null && outToken === toToken ? Number(view.toAmount.replace(/,/g, "")) * toPrice : null)}
           onSelectToToken={() => setTokenPicker("to")}
           onSelectToChain={() => setChainPicker("to")}
@@ -411,7 +424,7 @@ export default function CrossV2Flow() {
           onFlip={flip}
           swapDisabled={!(chosen?.check.ok || twoHop) || (!port && !isNonEvmChain(fromChainId)) || executing || sameChain || !recipientValid || quoting}
           swapLoading={quoting || executing}
-          swapLabel={!quoteSender ? "Connect wallet" : needsPhantom && !quoting && (chosen || twoHop) ? "Connect Phantom to sign" : quoting ? "Fetching route..." : chosen || twoHop ? "Review route" : quote.twoHop?.check.ok ? "Pick the two-step route" : "No route"}
+          swapLabel={!quoteSender ? "Connect wallet" : needsPhantom && !quoting && (chosen || twoHop) ? "Connect Phantom to sign" : quoting ? "Fetching route..." : chosen || twoHop ? "Review route" : quote.twoHop?.check.ok ? "Pick the two-step route" : unfundedOut ? `Not enough ${fromToken?.ticker ?? "funds"}` : "No route"}
           quote={quoteSender && quote.issuedAt ? { issuedAt: quote.issuedAt, validMs: quote.validMs, onRefresh: () => { quote.refresh(); toast.info("Quote refreshed"); } } : undefined}
           notice={notice}
         />

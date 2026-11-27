@@ -54,6 +54,7 @@ const ROUTES: ReadonlyArray<[string, RegExp]> = [
   ["POST", new RegExp(`^/v2/baskets/${ID}/legs/${ID}/(commit|requote)$`)],
   ["GET", new RegExp(`^/v2/baskets/${ID}/legs/${ID}/steps$`)],
   ["POST", /^\/v2\/wallet\/scan$/],
+  ["POST", /^\/v2\/wallet\/solana-balance$/],
   ["POST", /^\/v2\/wallet\/liquidate\/quote$/],
   ["GET", /^\/v2\/ramp\/(capabilities|delegations|agent-grants)$/],
   ["POST", /^\/v2\/ramp\/(wallets\/register|profile|kyc-link|kyc\/refresh|bank-link|bank-link\/exchange|external-accounts|preview|transfers|delegations|agent-grants)$/],

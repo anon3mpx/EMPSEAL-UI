@@ -11,7 +11,7 @@ const wallet = "0x1111111111111111111111111111111111111111";
 const btc = "bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq";
 vi.mock("./client", async () => ({
   ...(await vi.importActual<Record<string, unknown>>("./client")),
-  createCrossV2Client: () => ({ journeyQuote: mocks.quote }),
+  createCrossV2Client: () => ({ journeyQuote: mocks.quote, solanaBalance: async () => ({ asset: "", amount: "0", decimals: null }) }),
 }));
 vi.mock("./useV2Corridors", () => ({
   useV2Corridors: () => ({
