@@ -6,7 +6,7 @@ import type { CrossV2Client } from "./client";
 import { intentKindOf, performSteps, type ExecuteOptions, type WalletPort } from "./execute";
 import { checkSecondOrder } from "./journeyCheck";
 import { forgetJourney } from "./journeyStore";
-import { checkOffer, checkPlan } from "./planCheck";
+import { checkOffer, checkPlan, planToExecute } from "./planCheck";
 import type { JourneyDetail, TwoHopQuote, WirePlan } from "./types";
 import type { CheckedOffer } from "./widgetView";
 import { acceptanceOf } from "./routeCards";
@@ -169,8 +169,9 @@ export async function startTwoHop(
   wallet: WalletPort,
   o: { commitKey: string; remember: (journeyId: string) => void; onStep?: ExecuteOptions["onStep"] },
 ): Promise<{ journeyId: string }> {
-  const { journeyId, hop1IntentId } = await client.commitJourney(q, wallet.address, o.commitKey, undefined, acceptanceOf(q.journey.assessment));
+  const { journeyId, hop1IntentId, hop1Plan } = await client.commitJourney(q, wallet.address, o.commitKey, undefined, acceptanceOf(q.journey.assessment));
   o.remember(journeyId);
-  await performSteps(client, hop1IntentId, intentKindOf(hop1.plan), hop1.plan, hop1.sourceChainId, wallet, { onStep: o.onStep });
+  const plan = planToExecute(hop1.plan, hop1Plan);
+  await performSteps(client, hop1IntentId, intentKindOf(plan), plan, hop1.sourceChainId, wallet, { onStep: o.onStep });
   return { journeyId };
 }

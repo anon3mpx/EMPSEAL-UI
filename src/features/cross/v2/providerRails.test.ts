@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import type { CrossV2Client } from "./client";
 import { executeCheckedPlan, type WalletPort } from "./execute";
-import { checkOffer, planHashOf } from "./planCheck";
+import { bindDeposit, checkOffer, checkPlan, planHashOf, planToExecute } from "./planCheck";
 import { DISPATCH_ID_TOPIC, providerReference } from "./providerReference";
-import type { WireOffer, WireStep } from "./types";
+import type { WireOffer, WirePlan, WireStep } from "./types";
 import { CTX, FROM_ASSET, makeOffer, NOW, SENDER } from "./v2Fixtures";
 
 const PROVIDER = "0x6666666666666666666666666666666666666666";
@@ -71,6 +71,7 @@ describe("providerReference", () => {
   it("returns null for rails whose id the server records itself", () => {
     expect(providerReference("debridge", HASH, 42161)).toBeNull();
     expect(providerReference("layerzero-vt", HASH, 42161)).toBeNull();
+    expect(providerReference("bridge", HASH, 42161)).toBeNull();
   });
 });
 
@@ -112,3 +113,99 @@ describe("executeCheckedPlan on a provider-direct intent", () => {
   });
 });
 
+
+describe("Bridge: a fee leg, then a deposit whose address is made at commit", () => {
+  const FEE_TO = "0x9a611d7a2dc613661213ea9d1163285f450c495b";
+  const DEPOSIT_TO = "0x4444444444444444444444444444444444444444";
+  const TRANSFER_ID = "8706afc3-3f78-4607-9b90-044a6bc7d0d3";
+  const TOKEN = FROM_ASSET.split("/erc20:")[1]!;
+  const transfer = (to: string, amount: bigint) =>
+    `0xa9059cbb${to.slice(2).toLowerCase().padStart(64, "0")}${amount.toString(16).padStart(64, "0")}`;
+  function bridgeOffer(o: { feeTo?: string; fee?: bigint; disclosed?: bigint; deposit?: bigint; data?: string; address?: string } = {}): WireOffer {
+    const offer = makeOffer();
+    const plan = offer.execution.plan;
+    plan.compiled = { rail: "bridge", shape: "C" };
+    plan.verify = { allowedTargets: [TOKEN], allowedSpenders: [], expectedRecipient: plan.verify.expectedRecipient };
+    plan.fees = {
+      maxTotalBps: 55,
+      feeRecipient: FEE_TO,
+      breakdown: [{ kind: "protocol", amount: { asset: FROM_ASSET, amount: String(o.disclosed ?? 3_000n), decimals: 6 } }],
+    };
+    plan.steps = [
+      step({ id: "fee-leg", type: "tx", to: TOKEN, data: o.data ?? transfer(o.feeTo ?? FEE_TO, o.fee ?? 3_000n), value: "0" }),
+      step({ id: "deposit", type: "deposit", dependsOn: ["fee-leg"], walletMode: "external-wallet", readiness: "blocked", addressAt: "commit",
+        address: o.address ?? "", asset: FROM_ASSET, amount: String(o.deposit ?? 997_000n) }),
+      step({ id: "wait", type: "wait", dependsOn: ["deposit"], walletMode: "server", readiness: "informational", until: "delivered" }),
+    ];
+    plan.hash = planHashOf(plan);
+    offer.journey.hops[0]!.planHash = plan.hash;
+    return offer;
+  }
+  const bound = (quoted: WirePlan, over: { address?: string; expiresAt?: number } = {}) =>
+    bindDeposit(quoted, { address: over.address ?? DEPOSIT_TO, trackingRef: TRANSFER_ID, expiresAt: over.expiresAt ?? quoted.expiresAt });
+
+  it("accepts the disclosed fee to the disclosed recipient, then the deposit of the rest, before its address exists", () => {
+    expect(checkOffer(bridgeOffer(), CTX)).toMatchObject({ ok: true, problems: [] });
+  });
+  it("refuses a commit-bound deposit that already names an address", () => {
+    expect(checkOffer(bridgeOffer({ address: DEPOSIT_TO }), CTX).problems.join()).toMatch(/already names an address/);
+  });
+  it("refuses a fee transfer to anyone but the plan's fee recipient", () => {
+    expect(checkOffer(bridgeOffer({ feeTo: SENDER }), CTX).problems.join()).toMatch(/not the plan's fee recipient/);
+  });
+  it("refuses a fee transfer that is not the fee the plan discloses", () => {
+    expect(checkOffer(bridgeOffer({ fee: 3_001n }), CTX).problems.join()).toMatch(/not the EMPX fee it discloses/);
+    expect(checkOffer(bridgeOffer({ fee: 3_001n, disclosed: 3_001n }), CTX).problems.join()).toMatch(/more than the amount being sent/);
+  });
+  it("refuses a fee and deposit that together exceed the input", () => {
+    expect(checkOffer(bridgeOffer({ deposit: 997_001n }), CTX).problems.join()).toMatch(/more than the amount being sent/);
+  });
+  it("refuses a malformed transfer", () => {
+    expect(checkOffer(bridgeOffer({ data: `${transfer(FEE_TO, 3_000n)}00` }), CTX).problems.join()).toMatch(/malformed token transfer/);
+  });
+
+  it("executes the bound plan only when it is the quote with just the deposit address, transfer id and a no-later expiry filled in", () => {
+    const quoted = bridgeOffer().execution.plan;
+    const b = bound(quoted, { expiresAt: quoted.expiresAt - 60 });
+    expect(planToExecute(quoted, b)).toBe(b);
+    expect(checkPlan(b, CTX)).toMatchObject({ ok: true });
+    expect(() => planToExecute(quoted, undefined)).toThrow(/does not match this quote/);
+    expect(() => planToExecute(quoted, bound(quoted, { expiresAt: quoted.expiresAt + 60 }))).toThrow(/does not match/);
+    expect(() => planToExecute(quoted, bound(quoted, { address: "not-an-address" }))).toThrow(/does not match/);
+    // Re-sealed with a larger deposit: its own hash is consistent, but it is not the quote's binding.
+    const tampered = structuredClone(b);
+    (tampered.steps[1] as { amount: string }).amount = "998000";
+    tampered.hash = planHashOf(tampered);
+    expect(() => planToExecute(quoted, tampered)).toThrow(/does not match/);
+  });
+
+  function setup(committedPlan?: WirePlan) {
+    const client = {
+      commit: vi.fn(async () => ({ intentId: "i-9", kind: "provider-direct", replayed: false, ...(committedPlan ? { plan: committedPlan } : {}) })),
+      reportStep: vi.fn(async () => ({ accepted: true, remaining: [] })),
+      attachReference: vi.fn(async () => ({ attached: true })),
+    } as unknown as CrossV2Client;
+    const wallet: WalletPort = {
+      address: SENDER,
+      ensureChain: vi.fn(async () => undefined),
+      allowance: vi.fn(async () => 0n),
+      sendTransaction: vi.fn(async () => ({ hash: HASH })),
+      signTypedData: vi.fn(async () => "0x"),
+    };
+    return { client, wallet };
+  }
+  it("pays the fee and then the deposit address the commit made; the server tracks the transfer itself", async () => {
+    const o = bridgeOffer();
+    const { client, wallet } = setup(bound(o.execution.plan));
+    const r = await executeCheckedPlan(client, { plan: o.execution.plan, journey: o.journey }, 8453, wallet);
+    expect(r).toMatchObject({ done: ["fee-leg", "deposit"], waiting: [], tracking: "not-needed" });
+    expect((wallet.sendTransaction as ReturnType<typeof vi.fn>).mock.calls[1]![0]).toMatchObject({ to: TOKEN, data: transfer(DEPOSIT_TO, 997_000n) });
+    expect(client.attachReference).not.toHaveBeenCalled();
+  });
+  it("sends nothing when the commit does not return a matching bound plan", async () => {
+    const o = bridgeOffer();
+    const { client, wallet } = setup();
+    await expect(executeCheckedPlan(client, { plan: o.execution.plan, journey: o.journey }, 8453, wallet)).rejects.toThrow(/does not match this quote/);
+    expect(wallet.sendTransaction).not.toHaveBeenCalled();
+  });
+});

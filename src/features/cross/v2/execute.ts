@@ -4,7 +4,7 @@ import { encodeFunctionData, parseAbi } from "viem";
 import type { CrossV2Client } from "./client";
 import { providerReference, referenceKind, type ReceiptLog } from "./providerReference";
 import type { CompositionCommit, WireOffer, WirePlan, WireStep } from "./types";
-import { depositOf, type DepositInstruction } from "./planCheck";
+import { depositOf, planToExecute, type DepositInstruction } from "./planCheck";
 import type { SolanaWalletPort } from "./solanaWallet";
 import { performSolanaSteps } from "./executeSolana";
 
@@ -96,12 +96,15 @@ export async function executeCheckedPlan(
     }, o.commitKey, o.signal);
     o.onComposition?.(committed.compositionId);
   }
-  const { intentId, kind } = committed?.primary ?? await client.commit(plan, journey, sender, o.commitKey, o.signal, o.humanAcceptance);
+  const c = committed?.primary ?? await client.commit(plan, journey, sender, o.commitKey, o.signal, o.humanAcceptance);
+  const { intentId, kind } = c;
   o.onCommitted?.(intentId);
-  const result = await performSteps(client, intentId, kind, plan, sourceChainId, wallet, o);
+  // A deposit address made at commit (Bridge, Heleket): the wallet pays the bound plan, proven to be this quote with only that filled in.
+  const result = await performSteps(client, intentId, kind, planToExecute(plan, c.plan), sourceChainId, wallet, o);
   if (committed?.gas && o.gasTopUp) {
     try {
-      const gas = await performSteps(client, committed.gas.intentId, committed.gas.kind, o.gasTopUp.offer.execution.plan, o.gasTopUp.sourceChainId, wallet, {
+      const gasPlan = planToExecute(o.gasTopUp.offer.execution.plan, committed.gas.plan);
+      const gas = await performSteps(client, committed.gas.intentId, committed.gas.kind, gasPlan, o.gasTopUp.sourceChainId, wallet, {
         ...o, onStep: (id, phase) => o.onStep?.(`Gas top-up: ${id}`, phase),
       });
       result.txs.push(...gas.txs);

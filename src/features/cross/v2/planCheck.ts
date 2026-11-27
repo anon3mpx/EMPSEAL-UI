@@ -41,12 +41,16 @@ export interface PlanCheck {
 }
 
 const INT = /^(0|[1-9][0-9]*)$/;
+/** ERC-20 `transfer(address,uint256)`: a provider plan's EMPX fee leg. */
+const TRANSFER = /^0xa9059cbb0{24}([0-9a-fA-F]{40})([0-9a-fA-F]{64})$/;
 const HEX = /^0x([0-9a-fA-F]{2})*$/;
 const eqAddr = (a: unknown, b: unknown): boolean =>
   typeof a === "string" && typeof b === "string" && a.toLowerCase() === b.toLowerCase();
 const inList = (list: unknown, v: unknown): boolean => Array.isArray(list) && list.some((x) => eqAddr(x, v));
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 const sameRecipient = (asset: string, a: unknown, b: string): boolean => asset.startsWith("eip155:") ? eqAddr(a, b) : a === b;
+/** A deposit whose address the provider makes when the plan is committed (Bridge transfers, Heleket invoices). */
+const isLate = (s: WireStep): boolean => s.type === "deposit" && s.addressAt === "commit";
 
 /** Deterministic JSON with sorted keys, as the server hashes it (bigints are already decimal strings on the wire). */
 export function canonicalJson(value: unknown): string {
@@ -159,9 +163,16 @@ export function checkPlan(plan: WirePlan | null | undefined, ctx: PlanCheckConte
   // a provider plan may swap the input into the rail's token first; its later approval then covers that token, up to the swap's minimum
   const swap = srcId !== null && !hasOrder ? sourceSwapOf(plan, { srcId, srcChain, input, fromAsset: ctx.fromAsset, sender: ctx.sender }, bad) : null;
   let nativeOut = 0n;
+  // A provider plan's token transfers (its EMPX fee legs, per token) and what leaves the wallet in the input token.
+  const feePaid = new Map<string, bigint>();
+  let inputOut = 0n;
+  const inputAsset = ctx.fromAsset.toLowerCase();
   for (const s of plan.steps as WireStep[])
-    if (s.walletMode !== "server" && s.readiness === "blocked") bad(`step ${s.id} is blocked, so this route cannot be completed right now`);
-  const wallet = (plan.steps as WireStep[]).filter((s) => s.walletMode !== "server" && s.readiness === "executable");
+    if (s.walletMode !== "server" && s.readiness === "blocked" && !isLate(s)) bad(`step ${s.id} is blocked, so this route cannot be completed right now`);
+  // A deposit bound at commit is checked here like any deposit except its address, which commit fills in (checkBound).
+  const late = (plan.steps as WireStep[]).filter(isLate);
+  if (late.length > 1 || (late.length === 1 && plan.compiled.trackingRef !== undefined)) bad("the plan binds its deposit at commit in an unsupported way");
+  const wallet = (plan.steps as WireStep[]).filter((s) => s.walletMode !== "server" && (s.readiness === "executable" || isLate(s)));
   const solanaNative = ["cctp-from-solana", "jupiter", "thorchain"].includes(plan.compiled.rail) && srcChain === "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp" && wallet.length === 1 && wallet[0]?.type === "native_tx";
   if (!wallet.some((s) => s.type === "typed_sign" || s.type === "tx" || s.type === "deposit" || solanaNative)) bad("the plan has no wallet step to execute");
   if (isNonEvmChain(sourceId) && !solanaNative && (wallet.length !== 1 || wallet[0]?.type !== "deposit"))
@@ -187,13 +198,27 @@ export function checkPlan(plan: WirePlan | null | undefined, ctx: PlanCheckConte
         if (hasOrder && !(srcId !== null && isNativeWrap(plan, s, srcId))) bad(`transaction ${s.id} sends native value outside the wrap`);
         else if (!hasOrder) nativeOut += BigInt(s.value);
       }
+      if (!hasOrder && /^0xa9059cbb/i.test(s.data ?? "")) {
+        const t = TRANSFER.exec(s.data);
+        const token = `${srcChain}/erc20:${s.to}`.toLowerCase();
+        if (!t || s.value !== "0") bad(`transaction ${s.id} is a malformed token transfer`);
+        else if (!eqAddr(`0x${t[1]}`, plan.fees.feeRecipient)) bad(`transaction ${s.id} sends tokens to an address that is not the plan's fee recipient`);
+        else {
+          const amount = BigInt(`0x${t[2]}`);
+          feePaid.set(token, (feePaid.get(token) ?? 0n) + amount);
+          if (token === inputAsset) inputOut += amount;
+        }
+      }
     } else if (s.type === "deposit") {
       if (s.chain !== srcChain || s.asset !== plan.journey.from.asset) bad(`deposit ${s.id} is not for the source asset`);
-      if (sourceId === undefined || !addressValidFor(sourceId, s.address)) bad(`deposit ${s.id} has an invalid address`);
+      if (isLate(s)) {
+        if (s.address !== "" || s.memo !== undefined || s.readiness !== "blocked") bad(`deposit ${s.id} is bound at commit but already names an address`);
+      } else if (sourceId === undefined || !addressValidFor(sourceId, s.address)) bad(`deposit ${s.id} has an invalid address`);
       if (!INT.test(s.amount) || BigInt(s.amount) <= 0n || (input !== null && BigInt(s.amount) > input)) bad(`deposit ${s.id} has an invalid amount`);
+      else if (s.asset.toLowerCase() === inputAsset) inputOut += BigInt(s.amount);
       if (srcId !== null) {
         if (s.memo !== undefined) bad("this route needs a deposit memo the wallet cannot send");
-        if (!eqAddr(s.address, plan.verify.expectedRecipient) && !inList(plan.verify.allowedTargets, s.address)) bad(`deposit ${s.id} pays an address the plan does not allow`);
+        if (!isLate(s) && !eqAddr(s.address, plan.verify.expectedRecipient) && !inList(plan.verify.allowedTargets, s.address)) bad(`deposit ${s.id} pays an address the plan does not allow`);
       }
     } else if (s.type === "native_tx") {
       if (!solanaNative || s.walletMode !== "solana-signer" || s.chain !== srcChain || s.format !== "solana-versioned-tx" || !solanaSubmissionMatches(plan.compiled.rail, s.submitVia) || plan.journey.sender !== ctx.sender || (plan.compiled.rail === "jupiter" && ctx.recipient !== ctx.sender)) bad(`native transaction ${s.id} is not a supported Solana source transaction for this wallet`);
@@ -213,6 +238,15 @@ export function checkPlan(plan: WirePlan | null | undefined, ctx: PlanCheckConte
     } else bad(`step ${s.id} (${s.type}) cannot be performed by this version`);
   }
 
+  // each fee transfer is exactly the EMPX fee the plan discloses in that token, and nothing more than the input leaves the wallet
+  for (const [token, paid] of feePaid) {
+    const disclosed = plan.fees.breakdown
+      .filter((f) => f.kind === "protocol" && f.amount?.asset?.toLowerCase() === token && INT.test(f.amount.amount))
+      .reduce((sum, f) => sum + BigInt(f.amount.amount), 0n);
+    if (paid !== disclosed) bad(`the plan's fee transfers (${paid}) are not the EMPX fee it discloses (${disclosed})`);
+  }
+  if (input !== null && inputOut > input) bad("the plan's transfers and deposits send more than the amount being sent");
+
   // contracts an EMPX order binds to are the published ones, not just the ones the plan allows itself
   if (srcId !== null) {
     for (const p of registryProblems(plan, srcId, inputToken)) bad(p);
@@ -220,6 +254,39 @@ export function checkPlan(plan: WirePlan | null | undefined, ctx: PlanCheckConte
 
   const extra = nativeIn && input !== null ? (nativeOut > input ? nativeOut - input : 0n) : nativeOut;
   return problems.length ? { ok: false, problems } : { ok: true, problems: [], plan, sourceChainId: sourceId!, ...(extra > 0n ? { extraNative: extra } : {}) };
+}
+
+/** The quoted plan with its commit-bound deposit filled in and re-sealed, exactly as the server binds it (empx-core core-types depositBinding.ts). */
+export function bindDeposit(quoted: WirePlan, b: { address: string; memo?: string; trackingRef: string; expiresAt: number }): WirePlan {
+  const steps = (quoted.steps as WireStep[]).map((s): WireStep => {
+    const expiresAt = Math.min(s.expiresAt, b.expiresAt);
+    if (s.type !== "deposit" || !isLate(s)) return { ...s, expiresAt };
+    const { addressAt: _bound, ...rest } = s;
+    return { ...rest, expiresAt, address: b.address, ...(b.memo ? { memo: b.memo } : {}), readiness: "executable" };
+  });
+  const { hash: _old, ...rest } = quoted;
+  const plan = {
+    ...rest, expiresAt: b.expiresAt, steps,
+    compiled: { ...quoted.compiled, trackingRef: b.trackingRef },
+    verify: { ...quoted.verify, allowedTargets: [...quoted.verify.allowedTargets, b.address] },
+  } as WirePlan;
+  return { ...plan, hash: planHashOf(plan) };
+}
+
+/** The plan to execute after commit: the quoted one, or, when its deposit was bound at commit, the server's bound plan once it is proven to be
+ *  the quoted plan with only that deposit's address (a valid one, for the deposit's chain), the provider's order id and a no-later expiry filled in. */
+export function planToExecute(quoted: WirePlan, committed: WirePlan | undefined): WirePlan {
+  const late = (quoted.steps as WireStep[]).find(isLate);
+  if (!late) return quoted;
+  const dep = committed && Array.isArray(committed.steps) ? (committed.steps as WireStep[]).find((s) => s.id === late.id) : undefined;
+  const ref = committed?.compiled?.trackingRef;
+  const chainId = dep?.type === "deposit" ? chainIdOfCaip2(dep.chain) : undefined;
+  if (!committed || dep?.type !== "deposit" || typeof ref !== "string" || ref === "" || chainId === undefined || !addressValidFor(chainId, dep.address)
+    || !Number.isInteger(committed.expiresAt) || committed.expiresAt > quoted.expiresAt
+    || committed.hash !== bindDeposit(quoted, { address: dep.address, memo: dep.memo, trackingRef: ref, expiresAt: committed.expiresAt }).hash
+    || committed.hash !== planHashOf(committed))
+    throw new Error("The deposit address the server returned does not match this quote, so nothing was sent. Get a new quote, or contact support with this transfer's reference.");
+  return committed;
 }
 
 const amountReader = (bad: (m: string) => void) => (a: WireAmount | null | undefined, what: string): bigint | null => {
