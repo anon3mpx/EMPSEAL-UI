@@ -24,7 +24,8 @@ export type WireStep = {
       message: Record<string, unknown>;
     }
   | { type: "tx"; chain: string; to: string; data: string; value: string }
-  | { type: "deposit"; chain: string; address: string; memo?: string; asset: string; amount: string }
+  /** `addressAt: "commit"`: the provider makes this order's deposit address when the plan is committed (Bridge, Heleket); until then `address` is "". */
+  | { type: "deposit"; chain: string; address: string; memo?: string; asset: string; amount: string; addressAt?: "commit" }
   | { type: "native_tx"; chain: string; format: "solana-versioned-tx"; payload: string; submitVia: { kind: "rpc" } | { kind: "jupiter-execute"; requestId: string } }
   | { type: "submit" | "wait" | "relay" | "recovery"; [k: string]: unknown }
 );
@@ -263,8 +264,9 @@ export interface CompositionLeg {
 export interface CompositionCommit {
   compositionId: string;
   replayed: boolean;
-  primary: { intentId: string; kind: "contract" | "provider-direct"; replayed: boolean };
-  gas?: { intentId: string; kind: "contract" | "provider-direct"; replayed: boolean };
+  /** `plan`: the bound plan, when the leg's deposit address was made at commit (planCheck checkBound). */
+  primary: { intentId: string; kind: "contract" | "provider-direct"; replayed: boolean; plan?: WirePlan };
+  gas?: { intentId: string; kind: "contract" | "provider-direct"; replayed: boolean; plan?: WirePlan };
   gasError?: string;
 }
 export interface CompositionStatus {

@@ -1,6 +1,6 @@
 // The tracking reference a provider-direct intent needs (POST /v2/intents/:id/reference): the server's provider monitor only polls a transfer
 // once one is attached, and each provider's `track()` takes a different id (empx-core/server packages/adapters/<rail>/src: track()).
-// deBridge (order id) and LayerZero VT (quote id) need ids only the server holds; the server records those itself at commit (plan step 0.6),
+// deBridge (order id), LayerZero VT (quote id), Bridge (transfer id) and Heleket (invoice) need ids only the server holds; the server records those itself at commit,
 // so the page sends nothing for them.
 import { keccak256, toBytes } from "viem";
 
@@ -15,7 +15,7 @@ const TX_HASH_RAILS: Record<string, true> = { gaszip: true, thorchain: true, may
 export const DISPATCH_ID_TOPIC = keccak256(toBytes("DispatchId(bytes32)"));
 
 /** Rails whose reference the server records itself at commit. */
-const SERVER_REF_RAILS: Record<string, true> = { debridge: true, "layerzero-vt": true, garden: true, heleket: true };
+const SERVER_REF_RAILS: Record<string, true> = { debridge: true, "layerzero-vt": true, garden: true, heleket: true, bridge: true };
 
 /** Whether the page produces this rail's reference (and whether it needs the receipt for it), or the server does. */
 export function referenceKind(rail: string): "tx-hash" | "chain-tx-hash" | "hyperlane-message" | "server" | null {

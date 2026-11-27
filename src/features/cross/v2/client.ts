@@ -208,7 +208,8 @@ export function createCrossV2Client(o: CrossV2ClientOptions = {}) {
     /** `plan` and `journey` are the objects the API returned, unchanged: the server refuses a journey that is not what the plan determines.
      *  `humanAcceptance` is the user's explicit acceptance of a warning/unpriced route, exactly as displayed. */
     commit(plan: WirePlan, journey: JourneyQuote, sender: string, idempotencyKey: string = newKey("commit"), signal?: AbortSignal, humanAcceptance?: HumanAcceptance) {
-      return request<{ intentId: string; kind: "contract" | "provider-direct"; replayed: boolean }>("POST", "/v2/intents", {
+      // `plan`: present when the deposit address was made at commit (Bridge, Heleket); execute it only after planCheck checkBound.
+      return request<{ intentId: string; kind: "contract" | "provider-direct"; replayed: boolean; plan?: WirePlan }>("POST", "/v2/intents", {
         signal,
         idempotencyKey,
         body: { plan, journey, sender, ...(humanAcceptance ? { humanAcceptance } : {}) },
@@ -245,7 +246,7 @@ export function createCrossV2Client(o: CrossV2ClientOptions = {}) {
     /** Commits ONLY the first order of a two-order journey, with the journey quote the user was shown (both plans unchanged).
      *  `humanAcceptance` accepts the journey's displayed label when a leg was held back by the value check. */
     commitJourney(q: TwoHopQuote, sender: string, idempotencyKey: string = newKey("journey"), signal?: AbortSignal, humanAcceptance?: HumanAcceptance) {
-      return request<{ journeyId: string; hop1IntentId: string; replayed: boolean }>("POST", "/v2/journeys", {
+      return request<{ journeyId: string; hop1IntentId: string; replayed: boolean; hop1Plan?: WirePlan }>("POST", "/v2/journeys", {
         signal,
         idempotencyKey,
         body: { hop1: q.execution.hop1.plan, hop2Preview: q.execution.hop2Preview.plan, journey: q.journey, sender, ...(humanAcceptance ? { humanAcceptance } : {}) },

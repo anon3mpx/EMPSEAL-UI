@@ -8,7 +8,7 @@ import {createCrossV2Client} from '../../cross/v2/client';
 import {useV2Quote} from '../../cross/v2/useV2Quote';
 import {useV2WalletPort} from '../../cross/v2/useV2WalletPort';
 import {performSteps} from '../../cross/v2/execute';
-import {checkOffer} from '../../cross/v2/planCheck';
+import {checkOffer,planToExecute} from '../../cross/v2/planCheck';
 import {assetIdOf,v2Chains,v2Tokens} from '../../cross/v2/assets';
 import {rememberIntent,type StoredIntent} from '../../cross/v2/journeyStore';
 import {RampActions,RampButton,RampCard,RampCopyRow,RampField,RampText,rampInput,rampSelect,shortAddress} from './rampUi';
@@ -82,7 +82,7 @@ export function CryptoLeg({transfer,signer,onStatus}:{transfer:RampTransfer;sign
    const tracking:StoredIntent={intentId:committed.intentId,createdAt:Date.now(),fromChain:fromAsset.split('/')[0]!,toChain:toAsset.split('/')[0]!,toAsset,sourceTxs:[]};
    rememberIntent(port.address,tracking);
    if(buy)await attach(committed.intentId);
-   const result=await performSteps(client,committed.intentId,committed.kind,plan,checked.sourceChainId,port,{onSent:tx=>{tracking.sourceTxs.push(tx);rememberIntent(port.address,tracking);}});
+   const result=await performSteps(client,committed.intentId,committed.kind,planToExecute(plan,committed.plan),checked.sourceChainId,port,{onSent:tx=>{tracking.sourceTxs.push(tx);rememberIntent(port.address,tracking);}});
    setNotice(`Intent ${result.intentId}: wallet steps ${result.waiting.length?'still waiting':'submitted'}. Refresh status; do not fund twice.`);
    onStatus();
   } catch(e){setNotice(errorText(e));}finally{setWorking(false);}

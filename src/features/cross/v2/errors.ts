@@ -78,6 +78,9 @@ export function describeV2Error(e: unknown): V2ErrorView {
       return { ...meta, text: `${CODE_TEXT.SOLANA_SUBMIT_FAILED} Signature: ${e.details.signature}` };
     if (e.code === "RATE_LIMITED")
       return { ...meta, text: e.retryAfterSec !== undefined ? `Too many requests. Try again in ${Math.ceil(e.retryAfterSec)} s.` : "Too many requests. Try again shortly." };
+    // Bridge matches a deposit by sender, route and recipient, so one such order waits for its deposit at a time (empx-core commitDeposit.ts).
+    if (e.code === "CONFLICT" && e.retryAfterSec !== undefined)
+      return { ...meta, text: `An earlier transfer from this wallet to this recipient on this route is still waiting for the deposit you sent for it. Wait for it to arrive, or try again in ${Math.ceil(e.retryAfterSec / 60)} min.` };
     if (e.code === "POLICY_DENIED") {
       const d = typeof e.details?.code === "string" ? e.details.code : undefined;
       return { ...meta, text: (d && POLICY_DETAIL[d]) ?? "This transfer isn't allowed by the routing policy. Pick another route or amount." };
