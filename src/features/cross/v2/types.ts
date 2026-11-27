@@ -157,6 +157,8 @@ export interface WireQuoteResponse {
   substitutes?: Array<{ asset: string; plans: WireOffer[] }>;
   /** Rails left out only because their fee is above a cap at this amount, with the smallest input that fits (never dropped silently). */
   belowMinimum?: BelowMinimum[];
+  /** Rails that priced but could not be bound. `expected` (base units of the requested asset) is set only for SOLANA_INSUFFICIENT_BALANCE: the price for a wallet short of the input. */
+  diagnostics?: { bindFailures?: Array<{ rail: string; code: string; message?: string; expected?: string }> };
 }
 
 export interface BelowMinimum {

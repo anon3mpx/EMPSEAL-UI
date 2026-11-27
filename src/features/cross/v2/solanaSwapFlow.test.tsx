@@ -7,7 +7,7 @@ import { NON_EVM_CHAIN_IDS } from "@/lib/wallet/chainKind";
 import type * as ComponentsModule from "../../../design-system/components";
 import type { V2QuoteState } from "./useV2Quote";
 const mocks = vi.hoisted(() => ({ quote: null as V2QuoteState | null, commit: vi.fn(), submit: vi.fn(), sign: vi.fn(), sender: "" }));
-vi.mock("./client", () => ({ createCrossV2Client: () => ({ commit: mocks.commit, submitSolana: mocks.submit }) }));
+vi.mock("./client", () => ({ createCrossV2Client: () => ({ commit: mocks.commit, submitSolana: mocks.submit, solanaBalance: async () => ({ asset: "", amount: "0", decimals: null }) }) }));
 vi.mock("./useV2Quote", () => ({ useV2Quote: () => mocks.quote }));
 vi.mock("wagmi", () => ({ useBalance: () => ({}) }));
 vi.mock("../../../design-system/hooks/useWalletConnection", () => ({ useWalletConnection: () => ({ walletState: { status: "disconnected" }, walletOptions: [], onSelectWallet: vi.fn(), disconnect: vi.fn() }) }));
@@ -38,7 +38,7 @@ it("renders a Solana same-chain offer with its plan minimum and executes once th
   } });
   o.execution.plan.hash = planHashOf(o.execution.plan);
   Object.assign(o.journey, { input: from, toAsset: out.asset, recipient: mocks.sender, expectedOutput: out, minimumOutput: min, hops: [{ order: 1, planId: o.execution.plan.id, planHash: o.execution.plan.hash, rail: "jupiter", expiresAt: NOW + 60 }] });
-  mocks.quote = { state: "ready", offers: [{ offer: o, check: { ok: true, plan: o.execution.plan, sourceChainId: NON_EVM_CHAIN_IDS.SOL, problems: [] } }], gasTopUp: null, withheld: [], substitutes: [], belowMinimum: [], noneReason: null, twoHop: null, degraded: false, issuedAt: null, validMs: null, error: null, forNewInput: false, streaming: false, refresh: vi.fn() };
+  mocks.quote = { state: "ready", offers: [{ offer: o, check: { ok: true, plan: o.execution.plan, sourceChainId: NON_EVM_CHAIN_IDS.SOL, problems: [] } }], gasTopUp: null, withheld: [], substitutes: [], belowMinimum: [], unfunded: null, noneReason: null, twoHop: null, degraded: false, issuedAt: null, validMs: null, error: null, forNewInput: false, streaming: false, refresh: vi.fn() };
   mocks.commit.mockResolvedValue({ intentId: "jup-intent", kind: "provider-direct" });
   mocks.sign.mockResolvedValue("signed"); mocks.submit.mockResolvedValue({ signature: "jup-signature", replayed: false });
   render(<CrossV2Flow />);

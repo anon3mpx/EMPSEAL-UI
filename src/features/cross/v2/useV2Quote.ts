@@ -49,6 +49,8 @@ export interface V2QuoteState {
   /** Present only when no route delivers the requested asset. */
   substitutes: CheckedSubstitute[];
   belowMinimum: BelowMinimum[];
+  /** No route could be built only because the wallet holds less than the input: the rail and the output it quoted. An estimate, never a plan. */
+  unfunded: { rail: string; expected: string } | null;
   /** The server's reason when it returned no route. */
   noneReason: string | null;
   twoHop: TwoHopInfo | null;
@@ -62,6 +64,12 @@ export interface V2QuoteState {
   /** Routes on screen came from the stream and more may still arrive (the final result is not in yet). */
   streaming: boolean;
   refresh: () => void;
+}
+
+/** The first rail refused only because the wallet is short of the input, with the output it quoted (base units). */
+export function unfundedOf(q: WireQuoteResponse): V2QuoteState["unfunded"] {
+  const f = (q.diagnostics?.bindFailures ?? []).find((b) => b?.code === "SOLANA_INSUFFICIENT_BALANCE" && typeof b.expected === "string" && /^[0-9]+$/.test(b.expected));
+  return f ? { rail: f.rail, expected: f.expected! } : null;
 }
 
 const DEBOUNCE_MS = 450;
@@ -79,6 +87,7 @@ export function useV2Quote(client: CrossV2Client, input: V2QuoteInput, describeE
   const [withheld, setWithheld] = useState<CheckedWithheld[]>([]);
   const [substitutes, setSubstitutes] = useState<CheckedSubstitute[]>([]);
   const [belowMinimum, setBelowMinimum] = useState<BelowMinimum[]>([]);
+  const [unfunded, setUnfunded] = useState<V2QuoteState["unfunded"]>(null);
   const [noneReason, setNoneReason] = useState<string | null>(null);
   const [twoHop, setTwoHop] = useState<TwoHopInfo | null>(null);
   const [degraded, setDegraded] = useState(false);
@@ -104,6 +113,7 @@ export function useV2Quote(client: CrossV2Client, input: V2QuoteInput, describeE
     setWithheld([]);
     setSubstitutes([]);
     setBelowMinimum([]);
+    setUnfunded(null);
     setNoneReason(null);
     setTwoHop(null);
   };
@@ -181,6 +191,7 @@ export function useV2Quote(client: CrossV2Client, input: V2QuoteInput, describeE
         setSubstitutes(subs);
         // Only rails that need more of what the user is sending: anything else could not be acted on here.
         setBelowMinimum((Array.isArray(q.belowMinimum) ? q.belowMinimum : []).filter((b) => b?.minimumInput?.asset === fromAsset));
+        setUnfunded(checked.length || held.length ? null : unfundedOf(q));
         setNoneReason(res.kind === "none" ? res.reason : null);
         setTwoHop(
           res.kind === "two_hop"
@@ -237,5 +248,5 @@ export function useV2Quote(client: CrossV2Client, input: V2QuoteInput, describeE
   }, [paused, state, failures]);
 
   const refresh = useCallback(() => setNonce((n) => n + 1), []);
-  return { state, offers, gasTopUp, withheld, substitutes, belowMinimum, noneReason, twoHop, degraded, issuedAt, validMs, error, forNewInput, streaming, refresh };
+  return { state, offers, gasTopUp, withheld, substitutes, belowMinimum, unfunded, noneReason, twoHop, degraded, issuedAt, validMs, error, forNewInput, streaming, refresh };
 }
